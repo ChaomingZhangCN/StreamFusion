@@ -80,6 +80,12 @@ final class GroupWindowAggregateMatcher {
         agg.grouping(), agg.aggCalls(), agg.getInput().getRowType())) {
       return "legacy group-window: unsupported grouping key, aggregate, or aggregate value type";
     }
+    String stringReason =
+        WindowAggregateMatcher.singlePhaseStringExtremaReason(
+            agg, agg.aggCalls(), agg.getInput().getRowType());
+    if (stringReason != null) {
+      return "legacy group-window: " + stringReason;
+    }
 
     if (session) {
       if (gap(agg) == null) {

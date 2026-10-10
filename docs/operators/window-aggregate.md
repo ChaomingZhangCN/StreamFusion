@@ -21,6 +21,7 @@ translates the firing frontier by one millisecond before flushing.
 ## Mixed aggregates and AVG partials
 
 SUM, MIN, MAX, COUNT and AVG can share a window and read the same or different numeric columns.
+String MIN/MAX can share those windows and their local/global partial layout as well.
 AVG supports INT/BIGINT, SMALLINT/TINYINT, FLOAT/DOUBLE and DECIMAL in single-phase execution
 and the event-time two-phase split for TUMBLE, HOP, CUMULATE and admitted attached windows.
 
@@ -45,12 +46,83 @@ checkpoint restore and when the late row introduces a new key. TUMBLE drops the 
 its single final window has closed. Tests compare explicit watermarks, mixed ordinary/distinct
 aggregates and both aggregation phases against released Flink.
 
+## String MIN/MAX
+
+Append-only windows admit `MIN` and `MAX` over CHAR and VARCHAR (including SQL STRING).
+Event-time local/global execution is admitted by default. Single-phase execution, including
+processing-time, session and legacy windows, requires the explicit table setting
+`streamfusion.window.string-extrema.single-phase.enabled=true`. Its default is `false` because
+the high-cardinality single-phase CUMULATE benchmark regressed against Flink. Numeric aggregates
+keep their existing admission; a mixed single-phase query containing string extrema falls back
+as a whole unless the option is enabled.
+Released Flink 1.18 cannot plan CHAR extrema; STRING/VARCHAR are covered on both 1.18 and 2.2.
+They compare UTF-8 bytes lexicographically, without locale collation or Unicode normalization,
+matching Flink's materialized string ordering. Empty strings are values, NULL inputs are ignored,
+and a group with only NULL values emits NULL. CHAR casts keep Flink's padding/truncation at the
+expression boundary rather than changing the accumulator's comparison.
+
+The local stage emits one nullable UTF-8 accumulator field for each string MIN/MAX. The global
+stage merges that field with the same extreme operation. Mixed numeric aggregates, AVG's paired
+fields, and COUNT(*) retain their positional layout. Existing DataFusion extrema accumulators,
+Arrow partial carriage, memory snapshots and RocksDB row-state codecs are reused; no JNI or
+checkpoint format changes are needed.
+
+SQL parity covers single- and two-phase TUMBLE/HOP/CUMULATE, attached two-phase windows, and
+legacy and TVF sessions where released Flink supports them. Fixtures include nullable keys,
+all-NULL groups, empty strings, long strings, prefixes, embedded NUL, combining characters and
+supplementary Unicode characters. Native and operator tests retain string partials across
+checkpoints and memory/RocksDB backend transitions.
+
+Existing window/time and FILTER restrictions still apply. In particular, MIN/MAX over updating
+input remains unsupported. Ordinary COUNT(string), SUM(string) and AVG(string) are not newly
+admitted by the string-extrema gate.
+
+`StringWindowBenchmark` is an opt-in complete-job comparison with a rowwise generated source,
+rowwise blackhole sink and both production transposes. It groups by key and window and emits
+key, MIN, MAX and COUNT(*); window properties are not projected. Defaults are 1,000,000 rows,
+64 keys, 64-byte ASCII values (every seventh value NULL), parallelism 2, UTC, and a 4096-row
+mini-batch with 1-second latency. Run with
+`SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=StringWindowBenchmark`.
+`stringWindow.shape` selects TUMBLE/HOP/CUMULATE, while `stringWindow.keys` and
+`stringWindow.width` select cardinality and value width. Both aggregation phases run two
+warmups and five measured trials, alternating stock/native execution order. Use
+`stringWindow.expectNative=false` only with the previous implementation to require its
+window fallback rather than treating fallback as native acceleration.
+
+The release comparison below uses Flink 2.2.1, Corretto JDK 17.0.20.1, the production mimalloc
+native library, Arrow IPC on local exchanges, and an Apple M2 (8 cores, 16 GiB, macOS 15.5).
+The previous implementation is upstream `9724b9d98` with the same new benchmark fixture;
+its planner retained stock window aggregation. The single-phase opt-in was added after the
+measurements and changes admission only, not the measured native implementation.
+All values are complete-job median seconds; the stock column is the candidate's matched control.
+
+| Window | Phase | Keys / bytes | Previous SF | Stock Flink | Native SF | Stock / native |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| CUMULATE | ONE_PHASE (opt-in) | 64 / 64 | 0.590738 | 0.688513 | 0.536418 | 1.284x |
+| CUMULATE | TWO_PHASE | 64 / 64 | 0.707389 | 0.773591 | 0.530448 | 1.458x |
+| CUMULATE | ONE_PHASE (opt-in) | 4096 / 128 | 0.788588 | 1.047310 | 1.564120 | **0.670x** |
+| CUMULATE | TWO_PHASE | 4096 / 128 | 1.350799 | 2.101143 | 1.324256 | 1.587x |
+| HOP | ONE_PHASE (opt-in) | 64 / 64 | 0.566805 | 0.676604 | 0.462997 | 1.461x |
+| HOP | TWO_PHASE | 64 / 64 | 0.648353 | 0.707462 | 0.380463 | 1.859x |
+| TUMBLE | ONE_PHASE (opt-in) | 64 / 64 | 0.609306 | 0.614691 | 0.319694 | 1.923x |
+| TUMBLE | TWO_PHASE | 64 / 64 | 0.710261 | 0.709730 | 0.320627 | 2.214x |
+
+The previous and candidate sweeps are separate; their stock controls vary, especially in the
+high-cardinality case. Several stock and native trials have roughly five-second long tails.
+For example, low-cardinality two-phase CUMULATE native samples range from 0.367151s to 5.649622s.
+These short bounded jobs include startup and scheduling, so the medians are not sustained
+throughput guarantees. No samples were removed: all 160 measured samples, including both sweeps'
+stock controls, are retained in [the raw CSV](../benchmarks/string-window-extrema-2026-10-10.csv).
+The single-phase regression is not accepted as a default acceleration path. Inspection of the
+native fold shows per-group Arrow gathers and generic string accumulator updates; optimization
+of that high-cardinality path remains necessary before removing the opt-in.
+
 ## Filtered MIN/MAX on append-only input
 
 Aligned event-time TUMBLE/HOP/CUMULATE admit `MIN(value) FILTER (WHERE predicate)` and
 `MAX(value) FILTER (WHERE predicate)` for the existing numeric value types: integer widths,
-FLOAT/DOUBLE and DECIMAL. Both single-phase and local/global execution apply each predicate
-independently. FALSE or NULL masks the aggregate value, while the row still establishes its
+FLOAT/DOUBLE and DECIMAL, and for CHAR/VARCHAR. Both single-phase and local/global execution
+apply each predicate independently. FALSE or NULL masks the aggregate value, while the row still establishes its
 window and group. A group with no selected non-NULL values emits NULL extrema.
 
 The existing Arrow validity-mask preparation and extrema accumulators are reused. Local
@@ -316,6 +388,8 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Legacy processing-time `SESSION`.
 - Key type outside bigint/int/string/boolean/date/timestamp/decimal.
 - A value type/aggregate mismatch.
+- Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
+  The flag is experimental and defaults off; local/global string extrema do not require it.
 - Single-phase aggregation over attached window bounds. Attached windows are native through
   the two-phase local/global path.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:

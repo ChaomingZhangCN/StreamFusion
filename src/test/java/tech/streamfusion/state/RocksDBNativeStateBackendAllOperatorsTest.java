@@ -30,12 +30,14 @@ import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.KeyedTwoInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.types.RowKind;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -291,6 +293,103 @@ class RocksDBNativeStateBackendAllOperatorsTest {
     return new tech.streamfusion.operator.NativeColumnarGlobalWindowAggregateOperator(
         10000, 2000, false, new int[] {0}, MIXED_WINDOW_TYPES, MIXED_WINDOW_KINDS,
         "UTC", MIXED_WINDOW_OUTPUT, new int[] {-1}, MAX_PARALLELISM);
+  }
+
+  private static final RowType STRING_WINDOW_INPUT = RowType.of(
+      new LogicalType[] {new BigIntType(), new VarCharType(), new LocalZonedTimestampType(3)},
+      new String[] {"k", "v", "rt"});
+  private static final RowType STRING_WINDOW_OUTPUT = RowType.of(
+      new LogicalType[] {new BigIntType(), new VarCharType(), new VarCharType(), new BigIntType(),
+          new TimestampType(3), new TimestampType(3)},
+      new String[] {"k", "mn", "mx", "cnt", "window_start", "window_end"});
+  private static final int[] STRING_WINDOW_TYPES = {3, 3, 0};
+  private static final int[] STRING_WINDOW_KINDS = {1, 2, 3};
+
+  @ParameterizedTest
+  @EnumSource(StateTransition.class)
+  void stringWindowPartialsSurviveBackendTransitions(StateTransition transition) throws Exception {
+    for (boolean cumulative : new boolean[] {false, true}) {
+      OperatorSubtaskState snapshot;
+      try (var harness = mixedWindowHarness(stringWindowOperator(cumulative))) {
+        transition.configureSource(harness);
+        harness.setup(new ArrowBatchSerializer());
+        harness.open();
+        feedStringWindowPartial(harness, false);
+        snapshot = transition.snapshot(harness);
+      }
+      var operator = stringWindowOperator(cumulative);
+      try (var harness = mixedWindowHarness(operator)) {
+        transition.configureRestore(harness);
+        harness.setup(new ArrowBatchSerializer());
+        harness.initializeState(snapshot);
+        harness.open();
+        if (transition != StateTransition.ROCKSDB_TO_MEMORY) {
+          assertTrue(NativeStateRouteProbe.directRocksDBState(operator));
+        }
+        feedStringWindowPartial(harness, true);
+        harness.processWatermark(new Watermark(10000));
+        List<List<Object>> actual = new ArrayList<>();
+        while (!harness.getOutput().isEmpty()) {
+          Object event = harness.getOutput().poll();
+          if (event instanceof StreamRecord<?> record) {
+            try (VectorSchemaRoot root = ((ArrowBatch) record.getValue()).root()) {
+              for (RowData row : RowDataArrowConverter.read(root, STRING_WINDOW_OUTPUT)) {
+                actual.add(java.util.Arrays.asList(row.getLong(0),
+                    row.isNullAt(1) ? null : row.getString(1).toString(),
+                    row.isNullAt(2) ? null : row.getString(2).toString(), row.getLong(3),
+                    row.getTimestamp(4, 3).getMillisecond(), row.getTimestamp(5, 3).getMillisecond()));
+              }
+            }
+          }
+        }
+        List<List<Object>> expected = new ArrayList<>();
+        for (long end = 2000; end <= 10000; end += 2000) {
+          long start = cumulative ? 0 : end - 10000;
+          expected.add(List.of(1L, "z", "\ud83d\ude00", 3L, start, end));
+          expected.add(java.util.Arrays.asList(2L, null, null, 2L, start, end));
+          expected.add(List.of(3L, "", "aaa", 2L, start, end));
+        }
+        assertEquals(expected, actual);
+      }
+    }
+  }
+
+  private static tech.streamfusion.operator.NativeColumnarGlobalWindowAggregateOperator
+      stringWindowOperator(boolean cumulative) {
+    return new tech.streamfusion.operator.NativeColumnarGlobalWindowAggregateOperator(
+        10000, 2000, cumulative, new int[] {0}, STRING_WINDOW_TYPES, STRING_WINDOW_KINDS,
+        "UTC", STRING_WINDOW_OUTPUT, new int[] {-1}, MAX_PARALLELISM);
+  }
+
+  private static void feedStringWindowPartial(
+      KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch> global,
+      boolean continuation) throws Exception {
+    var operator = new tech.streamfusion.operator.NativeColumnarLocalWindowAggregateOperator(
+        2000, 2000, 2, -1, -1, new int[] {1, 1, -1}, new int[] {0}, new int[] {0},
+        STRING_WINDOW_TYPES, STRING_WINDOW_KINDS, "UTC", new int[] {-1}, MAX_PARALLELISM);
+    try (BufferAllocator allocator = new RootAllocator();
+        var local = new KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch>(
+            operator, batch -> 0, Types.INT, MAX_PARALLELISM, 1, 0)) {
+      local.setup(new ArrowBatchSerializer());
+      local.open();
+      List<RowData> rows = new ArrayList<>();
+      rows.add(GenericRowData.of(1L, StringData.fromString(continuation ? "\ud83d\ude00" : "\ue000"),
+          TimestampData.fromEpochMillis(500)));
+      if (!continuation) rows.add(GenericRowData.of(1L, StringData.fromString("z"),
+          TimestampData.fromEpochMillis(500)));
+      rows.add(GenericRowData.of(2L, null, TimestampData.fromEpochMillis(500)));
+      rows.add(GenericRowData.of(3L, StringData.fromString(continuation ? "" : "aaa"),
+          TimestampData.fromEpochMillis(500)));
+      local.processElement(new StreamRecord<>(new ArrowBatch(
+          RowDataArrowConverter.write(rows, STRING_WINDOW_INPUT, allocator))));
+      operator.prepareSnapshotPreBarrier(1);
+      while (!local.getOutput().isEmpty()) {
+        Object event = local.getOutput().poll();
+        if (event instanceof StreamRecord<?> record) {
+          global.processElement(new StreamRecord<>((ArrowBatch) record.getValue()));
+        }
+      }
+    }
   }
 
   private static KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch> mixedWindowHarness(

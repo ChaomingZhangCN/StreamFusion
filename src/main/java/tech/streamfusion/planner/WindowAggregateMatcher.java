@@ -12,6 +12,8 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.table.planner.plan.logical.CumulativeWindowSpec;
 import org.apache.flink.table.planner.plan.logical.HoppingWindowSpec;
 import org.apache.flink.table.planner.plan.logical.TimeAttributeWindowingStrategy;
@@ -23,11 +25,17 @@ import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalL
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalRel;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalWindowAggregate;
 import org.apache.flink.table.planner.plan.utils.ChangelogPlanUtils;
+import org.apache.flink.table.planner.utils.ShortcutUtils;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import tech.streamfusion.compat.FlinkCompat;
 
 /** Shared admission and encoding for single-phase and local window aggregation. */
 final class WindowAggregateMatcher {
+  private static final ConfigOption<Boolean> SINGLE_PHASE_STRING_EXTREMA =
+      ConfigOptions.key("streamfusion.window.string-extrema.single-phase.enabled")
+          .booleanType()
+          .defaultValue(false);
+
   static final int KIND_SUM = 0;
   /** MIN/MAX (the Rust GroupAggState routes these to the Extremes multiset). */
   static final int KIND_MIN = 1;
@@ -48,7 +56,8 @@ final class WindowAggregateMatcher {
       int[] grouping,
       scala.collection.Seq<AggregateCall> aggCalls,
       RelDataType inputType) {
-    if (!supportedInput(node, windowing, aggCalls, inputType)
+    if (singlePhaseStringExtremaReason(node, aggCalls, inputType) != null
+        || !supportedInput(node, windowing, aggCalls, inputType)
         || !WindowZoneGate.admits(node, windowing)) {
       return false;
     }
@@ -232,7 +241,8 @@ final class WindowAggregateMatcher {
       int[] grouping,
       scala.collection.Seq<AggregateCall> aggCalls,
       RelDataType inputType) {
-    if (hasFilters(aggCalls)
+    if (singlePhaseStringExtremaReason(node, aggCalls, inputType) != null
+        || hasFilters(aggCalls)
         || !insertOnlyInput(node)
         || !(FlinkCompat.isSessionWindow(windowing.getWindow()))) {
       return false;
@@ -312,30 +322,39 @@ final class WindowAggregateMatcher {
       }
       SqlTypeName valueType =
           inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
-      if (!supportedValueType(valueType)) {
-        return false;
-      }
-      // SUM/AVG keep the input numeric type, admitted only where a custom native accumulator
-      // reproduces the host exactly (integer SUM/AVG wrap/truncate; float SUM stays 4-byte; float/
-      // double AVG sum in double; decimal SUM/AVG hold an i128 sum at the input scale with Flink's
-      // overflow-to-NULL and exact-division semantics). MIN/MAX/COUNT are type-preserving and need
-      // no such gate.
-      boolean numericSumAvg =
-          valueType == SqlTypeName.BIGINT
-              || valueType == SqlTypeName.INTEGER
-              || valueType == SqlTypeName.SMALLINT
-              || valueType == SqlTypeName.TINYINT
-              || valueType == SqlTypeName.DOUBLE
-              || valueType == SqlTypeName.FLOAT
-              || valueType == SqlTypeName.DECIMAL;
-      if (kind == KIND_SUM && !numericSumAvg) {
-        return false;
-      }
-      if (kind == KIND_AVG && !numericSumAvg) {
+      if (!supportedAggregateValueType(kind, valueType)) {
         return false;
       }
     }
     return true;
+  }
+
+  static boolean supportedAggregateValueType(int kind, SqlTypeName type) {
+    return supportedValueType(type)
+        || ((kind == KIND_MIN || kind == KIND_MAX)
+            && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR));
+  }
+
+  static String singlePhaseStringExtremaReason(
+      RelNode node, scala.collection.Seq<AggregateCall> calls, RelDataType inputType) {
+    if (node instanceof StreamPhysicalLocalWindowAggregate
+        || ShortcutUtils.unwrapTableConfig(node).get(SINGLE_PHASE_STRING_EXTREMA)) {
+      return null;
+    }
+    for (int i = 0; i < calls.size(); i++) {
+      AggregateCall call = calls.apply(i);
+      int kind = aggregateKind(call.getAggregation().getKind());
+      if ((kind == KIND_MIN || kind == KIND_MAX) && call.getArgList().size() == 1) {
+        SqlTypeName type =
+            inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
+        if (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR) {
+          return "single-phase string MIN/MAX requires "
+              + SINGLE_PHASE_STRING_EXTREMA.key()
+              + "=true; high-cardinality single-phase execution regressed against Flink";
+        }
+      }
+    }
+    return null;
   }
 
   static boolean supportedValueType(SqlTypeName type) {
@@ -750,8 +769,16 @@ final class WindowAggregateMatcher {
     if (zoneReason != null) {
       return "window aggregate: " + zoneReason;
     }
+    if (node instanceof StreamPhysicalWindowAggregate aggregate) {
+      String reason =
+          singlePhaseStringExtremaReason(
+              node, aggregate.aggCalls(), aggregate.getInput().getRowType());
+      if (reason != null) {
+        return "window aggregate: " + reason;
+      }
+    }
     return "window aggregate: requires a supported window/time and grouping-key type, and"
-        + " numeric SUM/MIN/MAX/COUNT/AVG or COUNT(DISTINCT) over exact, string, or"
+        + " numeric SUM/MIN/MAX/COUNT/AVG, string MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
         + " temporal values (docs/operators/window-aggregate.md)";
   }
 

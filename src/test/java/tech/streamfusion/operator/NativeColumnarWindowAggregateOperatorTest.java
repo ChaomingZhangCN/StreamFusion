@@ -26,12 +26,14 @@ import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -46,6 +48,45 @@ import tech.streamfusion.planner.FlinkKeyGroupUtils;
  */
 class NativeColumnarWindowAggregateOperatorTest {
   private static final int MAX_PARALLELISM = 128;
+
+  @Test
+  void processingTimeStringExtremaUseTheExistingClockWindows() throws Exception {
+    RowType input = RowType.of(new VarCharType(), new LocalZonedTimestampType(3));
+    RowType output = RowType.of(new VarCharType(), new VarCharType(),
+        new TimestampType(3), new TimestampType(3));
+    for (int shape = 0; shape < 3; shape++) {
+      long size = (shape + 1) * 1000L;
+      var operator = new NativeColumnarWindowAggregateOperator(
+          shape == 2, size, 1000, 1, new int[] {0, 0}, new int[0], new int[0],
+          new int[] {3, 3}, new int[] {1, 2}, "UTC", output, true, new int[0], MAX_PARALLELISM);
+      try (BufferAllocator allocator = new RootAllocator(); var harness = rawHarness(operator)) {
+        harness.setup(new ArrowBatchSerializer());
+        harness.open();
+        harness.setProcessingTime(500);
+        List<RowData> rows = new ArrayList<>();
+        for (String value : new String[] {null, "z", "", "\ud83d\ude00"}) {
+          rows.add(GenericRowData.of(value == null ? null : StringData.fromString(value),
+              TimestampData.fromEpochMillis(0)));
+        }
+        harness.processElement(new StreamRecord<>(new ArrowBatch(
+            RowDataArrowConverter.write(rows, input, allocator))));
+        harness.setProcessingTime(999);
+        List<List<Object>> actual = new ArrayList<>();
+        while (!harness.getOutput().isEmpty()) {
+          Object event = harness.getOutput().poll();
+          if (event instanceof StreamRecord<?> record) {
+            try (VectorSchemaRoot root = ((ArrowBatch) record.getValue()).root()) {
+              for (RowData row : RowDataArrowConverter.read(root, output)) {
+                actual.add(List.of(row.getString(0).toString(), row.getString(1).toString(),
+                    row.getTimestamp(2, 3).getMillisecond(), row.getTimestamp(3, 3).getMillisecond()));
+              }
+            }
+          }
+        }
+        assertEquals(List.of(List.of("", "\ud83d\ude00", shape == 1 ? -1000L : 0L, 1000L)), actual);
+      }
+    }
+  }
 
   // Input schema [value BIGINT, rt TIMESTAMP_LTZ(3)]; output [total BIGINT, window_start, window_end].
   private static final RowType SCHEMA =
