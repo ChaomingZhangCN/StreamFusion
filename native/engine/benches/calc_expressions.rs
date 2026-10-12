@@ -1,4 +1,6 @@
-use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray};
+use arrow::array::{
+    ArrayRef, BooleanArray, Decimal128Array, Float64Array, Int64Array, RecordBatch, StringArray,
+};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
 use streamfusion::bench::CalcProgram;
@@ -203,5 +205,53 @@ fn expressions(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, expressions);
+fn decimal_division(c: &mut Criterion) {
+    let mut group = c.benchmark_group("engine/decimal_division");
+    for rows in [256, 4096] {
+        for wide in [false, true] {
+            let input = RecordBatch::try_from_iter(vec![
+                (
+                    "sum",
+                    Arc::new(
+                        Decimal128Array::from_iter(
+                            (0..rows).map(|i| (i % 7 != 0).then_some((i as i128 + 1) * 99999)),
+                        )
+                        .with_precision_and_scale(38, 2)
+                        .unwrap(),
+                    ) as ArrayRef,
+                ),
+                (
+                    "count",
+                    Arc::new(
+                        Decimal128Array::from_iter((0..rows).map(|i| {
+                            Some(if wide {
+                                10_i128.pow(37) + i as i128
+                            } else {
+                                i as i128 + 1
+                            })
+                        }))
+                        .with_precision_and_scale(38, 0)
+                        .unwrap(),
+                    ) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            let mut operator = CalcProgram::new(
+                vec![20, 0, 0],
+                vec![3806, 0, 1],
+                vec![2, 0, 0],
+                vec![],
+                vec![],
+                vec![],
+            );
+            assert_eq!(operator.run(input.clone()).num_rows(), rows);
+            group.throughput(Throughput::Elements(rows as u64));
+            group.bench_function(format!("rows={rows}/wide_divisor={wide}"), |b| {
+                b.iter(|| std::hint::black_box(operator.run(std::hint::black_box(input.clone()))))
+            });
+        }
+    }
+    group.finish();
+}
+criterion_group!(benches, expressions, decimal_division);
 criterion_main!(benches);

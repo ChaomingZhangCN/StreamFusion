@@ -84,6 +84,31 @@ class FlinkDecimalExprSqlHarnessTest {
         "SELECT auction, CAST(price / 3 AS DECIMAL(10, 2)) AS a FROM t");
   }
 
+  @Test
+  void wideQuotientsRetainContextRoundingBeforeTargetRounding() throws Exception {
+    NativeParity.assertParity(
+        () -> {
+          var env = StreamExecutionEnvironment.getExecutionEnvironment();
+          env.setParallelism(1);
+          var table = StreamTableEnvironment.create(env);
+          var source = fromData(env,
+              Types.ROW_NAMED(new String[] {"a", "b"}, Types.BIG_DEC, Types.BIG_DEC),
+              Row.of(new BigDecimal("99999999999999999900499999999999999999"),
+                  new BigDecimal("999999999999999999")),
+              Row.of(new BigDecimal("-99999999999999999900499999999999999999"),
+                  new BigDecimal("999999999999999999")),
+              Row.of(BigDecimal.ONE, new BigDecimal("18446744073709551615")),
+              Row.of(BigDecimal.ONE, new BigDecimal("18446744073709551616")),
+              Row.of(BigDecimal.ZERO, BigDecimal.ONE),
+              Row.of(null, BigDecimal.ONE));
+          table.createTemporaryView("t", source, Schema.newBuilder()
+              .column("a", DataTypes.DECIMAL(38, 0))
+              .column("b", DataTypes.DECIMAL(38, 0)).build());
+          return table;
+        },
+        "SELECT a / b, CAST(a / b AS DECIMAL(38,0)) FROM t");
+  }
+
   private static TableEnvironment decimalPriceEnvironment() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);

@@ -1,0 +1,755 @@
+{
+  "metadata": {
+    "date": "2026-10-12",
+    "hardware": "Apple M4 Pro",
+    "os": "macOS ARM64",
+    "jdk": 17,
+    "flink": "2.2.1",
+    "parallelism": 1,
+    "jvm_heap": "8 GiB",
+    "native_profile": "release",
+    "allocator": "system",
+    "null_frequency": "every seventh input",
+    "source": "runtime RowData",
+    "sink": "blackhole",
+    "mini_batch_size": 1024,
+    "mini_batch_latency": "1 h",
+    "measurement": "complete executeSql(INSERT).await(), interleaved engines; plan and consumed-native-work assertions",
+    "previous_main": "bf9837c00c3513c88a3739dcefab549f037da3fb",
+    "prototype_shuffle": "same-JVM handle mode; preliminary diagnosis, not deployable speedup claims"
+  },
+  "records": [
+    {
+      "run": "previous-main-mini",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.207653,
+      "streamfusion_median_seconds": 1.204145,
+      "stock_trials_seconds": [
+        1.204571708,
+        1.214006208,
+        1.185847375,
+        1.2107965,
+        1.207653083
+      ],
+      "streamfusion_trials_seconds": [
+        1.185073291,
+        1.193963375,
+        1.20482725,
+        1.207562666,
+        1.204144667
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.348,
+      "streamfusion_median_seconds": 1.326454,
+      "stock_trials_seconds": [
+        1.411092084,
+        1.347999916,
+        1.359448208,
+        1.328868708,
+        1.315846958
+      ],
+      "streamfusion_trials_seconds": [
+        1.314037833,
+        1.337890417,
+        1.349764834,
+        1.326454041,
+        1.312903333
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.192179,
+      "streamfusion_median_seconds": 1.181298,
+      "stock_trials_seconds": [
+        1.197562,
+        1.207713542,
+        1.185375625,
+        1.169153083,
+        1.192179334
+      ],
+      "streamfusion_trials_seconds": [
+        1.181297666,
+        1.193721875,
+        1.174021375,
+        1.18251925,
+        1.179807791
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.319585,
+      "streamfusion_median_seconds": 1.314565,
+      "stock_trials_seconds": [
+        1.315343625,
+        1.319584792,
+        1.326474875,
+        1.31144575,
+        1.346830042
+      ],
+      "streamfusion_trials_seconds": [
+        1.313779208,
+        1.332181583,
+        1.314565083,
+        1.324120083,
+        1.312709208
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.370215,
+      "streamfusion_median_seconds": 0.733059,
+      "stock_trials_seconds": [
+        1.364542958,
+        1.370214584,
+        1.388366833,
+        1.372661291,
+        1.363632875
+      ],
+      "streamfusion_trials_seconds": [
+        0.740312,
+        0.733059292,
+        0.737207667,
+        0.7215905,
+        0.71187575
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.517194,
+      "streamfusion_median_seconds": 0.844841,
+      "stock_trials_seconds": [
+        1.522781334,
+        1.49765825,
+        1.517194,
+        1.498920667,
+        1.519991709
+      ],
+      "streamfusion_trials_seconds": [
+        0.840636375,
+        0.848425166,
+        0.844840791,
+        0.851735083,
+        0.843464375
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.366535,
+      "streamfusion_median_seconds": 0.740549,
+      "stock_trials_seconds": [
+        1.367489833,
+        1.352608417,
+        1.382923334,
+        1.359157584,
+        1.366535292
+      ],
+      "streamfusion_trials_seconds": [
+        0.72803,
+        0.735940708,
+        0.740548542,
+        0.741634708,
+        0.749992875
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.487434,
+      "streamfusion_median_seconds": 0.865859,
+      "stock_trials_seconds": [
+        1.487433667,
+        1.485519209,
+        1.464160833,
+        1.503209417,
+        1.49634675
+      ],
+      "streamfusion_trials_seconds": [
+        0.865858542,
+        0.897184875,
+        0.86258025,
+        0.848406167,
+        0.871946375
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-immediate",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.109257,
+      "streamfusion_median_seconds": 0.725854,
+      "stock_trials_seconds": [
+        1.126450334,
+        1.106060375,
+        1.109256958
+      ],
+      "streamfusion_trials_seconds": [
+        0.729695167,
+        0.719079584,
+        0.725854459
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-immediate",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.505797,
+      "streamfusion_median_seconds": 0.790601,
+      "stock_trials_seconds": [
+        1.505797375,
+        1.499057375,
+        1.518427125
+      ],
+      "streamfusion_trials_seconds": [
+        0.802125542,
+        0.790601292,
+        0.783732542
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-immediate",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.211432,
+      "streamfusion_median_seconds": 3.390466,
+      "stock_trials_seconds": [
+        1.212727542,
+        1.211431709,
+        1.199938625
+      ],
+      "streamfusion_trials_seconds": [
+        3.390465542,
+        3.442055542,
+        3.386652916
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "initial-native-immediate",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.445364,
+      "streamfusion_median_seconds": 0.817284,
+      "stock_trials_seconds": [
+        1.452934541,
+        1.435696708,
+        1.44536375
+      ],
+      "streamfusion_trials_seconds": [
+        0.817283583,
+        0.812395084,
+        0.827789208
+      ],
+      "shuffle": "same-JVM handle mode"
+    },
+    {
+      "run": "optimized-deployment-64",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "release JUnit launcher matching bench JVM settings",
+      "stock_median_seconds": 1.018783,
+      "streamfusion_median_seconds": 0.643253,
+      "stock_trials_seconds": [
+        1.071765708,
+        0.996606,
+        0.992794666,
+        1.022163042,
+        1.018783458
+      ],
+      "streamfusion_trials_seconds": [
+        0.641478334,
+        0.643252959,
+        0.644474791,
+        0.647211167,
+        0.641519292
+      ]
+    },
+    {
+      "run": "optimized-deployment-64",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "release JUnit launcher matching bench JVM settings",
+      "stock_median_seconds": 1.290688,
+      "streamfusion_median_seconds": 0.763791,
+      "stock_trials_seconds": [
+        1.306309708,
+        1.290687708,
+        1.287078375,
+        1.275613167,
+        1.302348459
+      ],
+      "streamfusion_trials_seconds": [
+        0.821294375,
+        0.760531917,
+        0.740887625,
+        0.765446583,
+        0.763791416
+      ]
+    },
+    {
+      "run": "optimized-deployment-64",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "release JUnit launcher matching bench JVM settings",
+      "stock_median_seconds": 1.172773,
+      "streamfusion_median_seconds": 0.724898,
+      "stock_trials_seconds": [
+        1.186891333,
+        1.172214458,
+        1.172772917,
+        1.164392,
+        1.1819065
+      ],
+      "streamfusion_trials_seconds": [
+        0.724897583,
+        0.74053525,
+        0.723088125,
+        0.719345917,
+        0.74100125
+      ]
+    },
+    {
+      "run": "optimized-deployment-64",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "release JUnit launcher matching bench JVM settings",
+      "stock_median_seconds": 1.313338,
+      "streamfusion_median_seconds": 0.793367,
+      "stock_trials_seconds": [
+        1.299952833,
+        1.292943917,
+        1.34250575,
+        1.315435708,
+        1.313337875
+      ],
+      "streamfusion_trials_seconds": [
+        0.793367125,
+        0.777894875,
+        0.798543375,
+        0.803385625,
+        0.775314625
+      ]
+    },
+    {
+      "run": "optimized-deployment-1024",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 1024,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.11747,
+      "streamfusion_median_seconds": 0.736579,
+      "stock_trials_seconds": [
+        1.145797208,
+        1.137921542,
+        1.096120291,
+        1.106029,
+        1.117469916
+      ],
+      "streamfusion_trials_seconds": [
+        0.736579,
+        0.742702917,
+        0.734668042,
+        0.726120084,
+        0.740365791
+      ]
+    },
+    {
+      "run": "optimized-deployment-1024",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 1024,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.663345,
+      "streamfusion_median_seconds": 1.224964,
+      "stock_trials_seconds": [
+        1.663345041,
+        1.675960625,
+        1.683622,
+        1.66206925,
+        1.639884916
+      ],
+      "streamfusion_trials_seconds": [
+        1.224963833,
+        1.2310615,
+        1.224689584,
+        1.229509416,
+        1.213963583
+      ]
+    },
+    {
+      "run": "optimized-deployment-1024",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 1024,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.323956,
+      "streamfusion_median_seconds": 0.758419,
+      "stock_trials_seconds": [
+        1.35561575,
+        1.298649458,
+        1.290034584,
+        1.334135042,
+        1.323956333
+      ],
+      "streamfusion_trials_seconds": [
+        0.761865541,
+        0.746696584,
+        0.755278792,
+        0.771383708,
+        0.75841875
+      ]
+    },
+    {
+      "run": "optimized-deployment-1024",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 1024,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.768467,
+      "streamfusion_median_seconds": 1.233674,
+      "stock_trials_seconds": [
+        1.768467167,
+        1.78757925,
+        1.748246,
+        1.749191208,
+        1.773245
+      ],
+      "streamfusion_trials_seconds": [
+        1.233674084,
+        1.212559083,
+        1.217258875,
+        1.240479334,
+        1.251057041
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.09757,
+      "streamfusion_median_seconds": 0.720265,
+      "stock_trials_seconds": [
+        1.153916709,
+        1.141681583,
+        1.097570041,
+        1.093278,
+        1.08060475
+      ],
+      "streamfusion_trials_seconds": [
+        0.732860375,
+        0.725874708,
+        0.707620458,
+        0.713877833,
+        0.720264791
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.518409,
+      "streamfusion_median_seconds": 0.828871,
+      "stock_trials_seconds": [
+        1.51629725,
+        1.53911975,
+        1.5081255,
+        1.5184085,
+        1.528952042
+      ],
+      "streamfusion_trials_seconds": [
+        0.846334542,
+        0.834561958,
+        0.823621958,
+        0.828870792,
+        0.827693334
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.213306,
+      "streamfusion_median_seconds": 0.755513,
+      "stock_trials_seconds": [
+        1.221513084,
+        1.215150916,
+        1.213306,
+        1.205213625,
+        1.198206709
+      ],
+      "streamfusion_trials_seconds": [
+        0.7843395,
+        0.755513459,
+        0.752354041,
+        0.741681042,
+        0.761581583
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.458383,
+      "streamfusion_median_seconds": 0.839658,
+      "stock_trials_seconds": [
+        1.451309167,
+        1.458383458,
+        1.457224625,
+        1.464749875,
+        1.459070834
+      ],
+      "streamfusion_trials_seconds": [
+        0.844146,
+        0.83239075,
+        0.839658083,
+        0.824729125,
+        0.847550792
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "BIGINT-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 1.076448,
+      "streamfusion_median_seconds": 1.073969,
+      "stock_trials_seconds": [
+        1.08433125,
+        1.078820167,
+        1.064163875,
+        1.076447583,
+        1.068560458
+      ],
+      "streamfusion_trials_seconds": [
+        1.052369,
+        1.052822292,
+        1.073969417,
+        1.1170365,
+        1.076519958
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "BIGINT-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 1.447601,
+      "streamfusion_median_seconds": 1.456852,
+      "stock_trials_seconds": [
+        1.4347515,
+        1.445466459,
+        1.447601,
+        1.467257083,
+        1.462564541
+      ],
+      "streamfusion_trials_seconds": [
+        1.4568515,
+        1.460782459,
+        1.451721583,
+        1.433535959,
+        1.459736708
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "DECIMAL-one",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 1.198353,
+      "streamfusion_median_seconds": 1.190727,
+      "stock_trials_seconds": [
+        1.204586834,
+        1.228326291,
+        1.187182583,
+        1.198353459,
+        1.1895725
+      ],
+      "streamfusion_trials_seconds": [
+        1.177626625,
+        1.188303292,
+        1.193367041,
+        1.190726583,
+        1.22598225
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "DECIMAL-two",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 1.427956,
+      "streamfusion_median_seconds": 1.424729,
+      "stock_trials_seconds": [
+        1.42795625,
+        1.42053525,
+        1.429196209,
+        1.417422125,
+        1.431518083
+      ],
+      "streamfusion_trials_seconds": [
+        1.408645417,
+        1.408292875,
+        1.424729083,
+        1.450860375,
+        1.4463745
+      ]
+    }
+  ]
+}

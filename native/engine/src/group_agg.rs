@@ -279,6 +279,7 @@ fn emit_running(agg: &RunningAgg, count: i64, result_type: &DataType) -> ScalarV
         // AVG partials carry an accumulator, not an evaluated result. A -U/+U bundle
         // can have a zero net count but a nonzero sum adjustment for the global merge.
         RunningAgg::Count(_)
+        | RunningAgg::ZeroSumInt { .. }
         | RunningAgg::AvgPartialSumInt(_)
         | RunningAgg::AvgPartialSumFloat(_)
         | RunningAgg::AvgPartialSumDecimal { .. } => agg.emit(),
@@ -1766,6 +1767,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
         // One unfiltered SINGLE_VALUE accumulator already holds the complete result. Emit it
         // directly; filtered groups can have many noncontributing touches, so keep their cache.
         let single_value = self.kinds.as_slice() == [14] && self.filter_columns[0] < 0;
+        let zero_sum_merges: Vec<bool> = self.kinds.iter().map(|&kind| kind == 23).collect();
         let staged_key_batch = self.staged_key_batches.len();
         let mut retained_key_batch = false;
         let mut staged_delta = 0usize;
@@ -1978,6 +1980,15 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                                     state.aggs[i].retract(num);
                                 } else {
                                     state.aggs[i].accumulate(num);
+                                }
+                            } else if zero_sum_merges[i] {
+                                // A NULL SUM0 partial is an overflowed accumulator, not a NULL input.
+                                if let GroupAggState::Running {
+                                    agg: RunningAgg::AvgPartialSumDecimal { overflow, .. },
+                                    ..
+                                } = &mut state.aggs[i]
+                                {
+                                    *overflow = true;
                                 }
                             }
                         }
@@ -3784,6 +3795,88 @@ pub extern "system" fn Java_tech_streamfusion_Native_closeGroupAggregator<'local
     crate::bridge::jni_guard(env, move |_env| unsafe {
         drop(from_handle::<GroupAggregator>(handle));
     })
+}
+
+#[cfg(test)]
+mod zero_sum_tests {
+    use super::*;
+    use arrow::array::Decimal128Array;
+
+    fn decimal_batch(values: Vec<Option<i128>>) -> RecordBatch {
+        RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new(
+                "v",
+                DataType::Decimal128(38, 0),
+                true,
+            )])),
+            vec![Arc::new(
+                Decimal128Array::from(values)
+                    .with_precision_and_scale(38, 0)
+                    .unwrap(),
+            )],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn all_null_zero_sum_and_decimal_overflow_survive_snapshots() {
+        let mut agg = GroupAggregator::new(vec![22], vec![5800], vec![0], vec![], true);
+        let out = agg.update(&decimal_batch(vec![None]), 0).unwrap();
+        assert_eq!(
+            ScalarValue::try_from_array(out.column(0), 0).unwrap(),
+            ScalarValue::Decimal128(Some(0), 38, 0)
+        );
+        let snapshot = agg.snapshot();
+        let mut restored =
+            GroupAggregator::restore(vec![22], vec![5800], vec![0], vec![], true, &snapshot, 0);
+        let max = 10_i128.pow(38) - 1;
+        let out = restored
+            .update(&decimal_batch(vec![Some(max), Some(1), Some(-1)]), 0)
+            .unwrap();
+        assert!(
+            out.column(0).is_null(out.num_rows() - 1),
+            "SUM0 overflow must latch"
+        );
+        let snapshot = restored.snapshot();
+        let mut restored =
+            GroupAggregator::restore(vec![22], vec![5800], vec![0], vec![], true, &snapshot, 0);
+        let out = restored.update(&decimal_batch(vec![Some(1)]), 0).unwrap();
+        assert_eq!(
+            out.num_rows(),
+            0,
+            "unchanged overflowed result suppresses updates"
+        );
+    }
+
+    #[test]
+    fn overflowed_partial_is_not_treated_as_a_null_input() {
+        for kind in [22, 23] {
+            let mut agg = GroupAggregator::new(vec![kind], vec![5800], vec![0], vec![], true);
+            let out = agg.update(&decimal_batch(vec![None]), 0).unwrap();
+            assert_eq!(out.column(0).is_null(0), kind == 23);
+        }
+    }
+
+    #[test]
+    fn zero_sum_integer_widths_wrap_and_restore_without_a_live_count() {
+        for (data_type, max, one) in [
+            (DataType::Int8, Num::I8(i8::MAX), Num::I8(1)),
+            (DataType::Int16, Num::I16(i16::MAX), Num::I16(1)),
+            (DataType::Int32, Num::I32(i32::MAX), Num::I32(1)),
+            (DataType::Int64, Num::I64(i64::MAX), Num::I64(1)),
+        ] {
+            let mut agg = RunningAgg::new(22, &data_type);
+            assert!(!emit_running(&agg, 0, &data_type).is_null());
+            agg.fold(max);
+            agg.fold(one);
+            let snapshot = agg.emit();
+            let mut restored = RunningAgg::new(22, &data_type);
+            restored.restore_value(&snapshot);
+            assert_eq!(emit_running(&restored, 0, &data_type), snapshot);
+            restored.retract(one);
+            assert_eq!(restored.emit().data_type(), data_type);
+        }
+    }
 }
 
 #[cfg(all(test, feature = "rocksdb-state"))]

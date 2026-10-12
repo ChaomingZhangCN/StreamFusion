@@ -37,6 +37,7 @@ final class LocalGroupAggregateMatcher {
   private LocalGroupAggregateMatcher() {}
 
   static int aggregateKind(org.apache.calcite.sql.SqlKind kind) {
+    if (kind == org.apache.calcite.sql.SqlKind.SUM0) return GroupAggregateMatcher.KIND_SUM_ZERO;
     return kind == org.apache.calcite.sql.SqlKind.SINGLE_VALUE
         ? 14
         : WindowAggregateMatcher.aggregateKind(kind);
@@ -80,7 +81,8 @@ final class LocalGroupAggregateMatcher {
       if (needRetraction
           && (call.isDistinct()
               || (retractKind != WindowAggregateMatcher.KIND_COUNT
-                  && retractKind != WindowAggregateMatcher.KIND_AVG))) {
+                  && retractKind != WindowAggregateMatcher.KIND_AVG
+                  && retractKind != GroupAggregateMatcher.KIND_SUM_ZERO))) {
         return false;
       }
       // A FILTER is a boolean input column (the planner materializes `IS TRUE(p)` in the Calc
@@ -96,6 +98,17 @@ final class LocalGroupAggregateMatcher {
       if (kind < 0 || call.getArgList().size() > 1) {
         return false; // SUM/MIN/MAX/COUNT/AVG/SINGLE_VALUE only
       }
+      if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
+          && call.getArgList().size() == 1) {
+        var value = inputType.getFieldList().get(call.getArgList().get(0)).getType();
+        if (value.getSqlTypeName() == SqlTypeName.DECIMAL && value.getScale() == 38) return false;
+      }
+      if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
+          && (call.isDistinct() || call.getArgList().size() != 1
+              || !(GroupAggregateMatcher.isIntegerType(
+                      inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName())
+                  || inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName()
+                      == SqlTypeName.DECIMAL))) return false;
       // COUNT/SUM/AVG(DISTINCT x): the partial is the bundle's distinct count / distinct sum, and the
       // bundle's (value, count) set rides a trailing view column (Flink's MapView partial) that the
       // global merges with multiplicities. SUM/AVG admit exact arithmetic only — the merge folds in
@@ -175,7 +188,7 @@ final class LocalGroupAggregateMatcher {
       SqlTypeName valueType = valueRel.getSqlTypeName();
       if (valueType == SqlTypeName.DECIMAL) {
         boolean matches =
-            kind == WindowAggregateMatcher.KIND_SUM
+            (kind == WindowAggregateMatcher.KIND_SUM || kind == GroupAggregateMatcher.KIND_SUM_ZERO)
                 ? isWidenedDecimal(partialRel, valueRel)
                 : partialType == SqlTypeName.DECIMAL
                     && partialRel.getPrecision() == valueRel.getPrecision()
