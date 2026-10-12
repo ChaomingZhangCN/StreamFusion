@@ -1321,6 +1321,123 @@ pub(crate) fn quotient_38_digits(a: i128, s1: i8, b: i128, s2: i8) -> (num_bigin
     }
 }
 
+// Long division in at most 18-digit chunks keeps remainder * factor inside u128 for
+// a 64-bit divisor. It retains the full 38-digit intermediate, including double rounding.
+fn compact_quotient_38(a: i128, s1: i8, b: i128, s2: i8) -> Option<(i128, i16)> {
+    let (numerator, divisor) = (a.unsigned_abs(), b.unsigned_abs());
+    if divisor == 0
+        || divisor > u64::MAX as u128
+        || numerator >= 10_u128.pow(38)
+        || s1 < 0
+        || s2 < 0
+    {
+        return None;
+    }
+    if numerator == 0 {
+        return Some((0, 0));
+    }
+    let mut exponent = numerator.ilog10() as i16 - divisor.ilog10() as i16;
+    let below = if exponent >= 0 {
+        numerator < divisor * 10_u128.pow(exponent as u32)
+    } else {
+        numerator * 10_u128.pow((-exponent) as u32) < divisor
+    };
+    if below {
+        exponent -= 1;
+    }
+    let digits = 37 - exponent;
+    let (mut quotient, mut remainder) = (numerator / divisor, numerator % divisor);
+    let mut remaining = digits;
+    while remaining > 0 {
+        let step = remaining.min(18);
+        let factor = 10_u128.pow(step as u32);
+        let scaled = remainder * factor;
+        quotient = quotient * factor + scaled / divisor;
+        remainder = scaled % divisor;
+        remaining -= step;
+    }
+    if remainder * 2 >= divisor {
+        quotient += 1;
+    }
+    let signed = if (a < 0) != (b < 0) {
+        -(quotient as i128)
+    } else {
+        quotient as i128
+    };
+    Some((signed, digits + s1 as i16 - s2 as i16))
+}
+
+fn rescale_compact_quotient(value: i128, scale: i16, precision: u8, target: i8) -> Option<i128> {
+    let difference = target as i16 - scale;
+    let result = if difference >= 0 {
+        value.checked_mul(10_i128.checked_pow(difference as u32)?)?
+    } else if let Some(divisor) = 10_i128.checked_pow((-difference) as u32) {
+        value / divisor
+            + if (value % divisor).abs() >= divisor / 2 {
+                value.signum()
+            } else {
+                0
+            }
+    } else {
+        0
+    };
+    (result.abs() < 10_i128.pow(precision as u32)).then_some(result)
+}
+
+#[cfg(test)]
+mod compact_decimal_tests {
+    use super::*;
+
+    #[test]
+    fn compact_division_retains_two_half_up_rounds() {
+        let divisor = 999_999_999_999_999_999;
+        let whole = 100_000_000_000_000_000_000;
+        let numerator = whole * divisor + divisor / 2;
+        for sign in [-1, 1] {
+            let (value, scale) = compact_quotient_38(sign * numerator, 0, divisor, 0).unwrap();
+            assert_eq!(
+                rescale_compact_quotient(value, scale, 38, 0),
+                Some(sign * (whole + 1))
+            );
+        }
+    }
+
+    #[test]
+    fn compact_division_matches_big_integer_context_and_rescale() {
+        let values = [
+            0,
+            1,
+            2,
+            9,
+            10,
+            99,
+            i64::MAX as i128,
+            10_i128.pow(37),
+            10_i128.pow(38) - 1,
+        ];
+        let divisors = [1, 2, 3, 7, 10, 99, i64::MAX as i128, u64::MAX as i128];
+        for a in values {
+            for b in divisors {
+                for sign in [-1, 1] {
+                    for (s1, s2) in [(0, 0), (2, 0), (0, 38), (38, 0), (38, 38)] {
+                        let (value, scale) = compact_quotient_38(sign * a, s1, b, s2).unwrap();
+                        let (exact, exact_scale) = quotient_38_digits(sign * a, s1, b, s2);
+                        for (p, s) in [(38, 0), (38, 6), (38, 38), (7, 2)] {
+                            assert_eq!(
+                                rescale_compact_quotient(value, scale, p, s),
+                                rescale_half_up(exact.clone(), exact_scale, p, s),
+                                "a={a} b={b} sign={sign} scales=({s1},{s2}) result=({p},{s})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(compact_quotient_38(1, 0, 10_i128.pow(37), 0).is_none());
+        assert!(compact_quotient_38(i128::MIN, 0, 1, 0).is_none());
+    }
+}
+
 /// `BigDecimal.remainder(..., MathContext(38))` for a non-zero divisor. The remainder is exact,
 /// but the integral quotient must fit the context after removing any trailing zeroes.
 pub(crate) fn remainder_38_digits(
@@ -1381,6 +1498,17 @@ impl datafusion::logical_expr::ScalarUDFImpl for DecimalDivide {
                 return Err(datafusion::error::DataFusionError::Execution(
                     "Division by zero".to_string(),
                 ));
+            }
+            if !self.modulo {
+                if let Some((value, scale)) = compact_quotient_38(a, s1, b, s2) {
+                    out.push(rescale_compact_quotient(
+                        value,
+                        scale,
+                        self.precision,
+                        self.scale,
+                    ));
+                    continue;
+                }
             }
             let (unscaled, scale) = if self.modulo {
                 remainder_38_digits(a, s1, b, s2)?

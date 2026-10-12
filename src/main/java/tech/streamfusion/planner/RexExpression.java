@@ -759,7 +759,7 @@ final class RexExpression {
       longs.add((long) strings.size());
       var schema =
           tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
-              org.apache.flink.table.types.logical.RowType.of(resultType.copy(true)));
+              org.apache.flink.table.types.logical.RowType.of(function.rowResultType().copy(true)));
       strings.add(Base64.getEncoder().encodeToString(schema.serializeAsMessage()));
       if (arguments.isEmpty()) {
         add(KIND_LIT_INT, longs.size(), 0);
@@ -2586,6 +2586,12 @@ final class RexExpression {
     if (org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(sourceType, resultType)) {
       return emit(call.getOperands().get(0));
     }
+    if (Boolean.TRUE.equals(legacyCastBehaviour)
+        && SqlTypeFamily.CHARACTER.contains(sourceType)
+        && SqlTypeFamily.CHARACTER.contains(resultType)) {
+      // Legacy character casts leave length and padding to any downstream sink enforcement.
+      return emit(call.getOperands().get(0));
+    }
     RelDataType decimalSource =
         source == SqlTypeName.ARRAY ? sourceType.getComponentType() : sourceType;
     RelDataType floatingTarget =
@@ -3202,15 +3208,26 @@ final class RexExpression {
 
   /** Emits a host-exact cast as a JVM-upcall node running Flink's own {@code CastExecutor}. */
   private boolean emitHostCast(RexCall call, RelDataType sourceType, RelDataType resultType) {
-    if (legacyCastBehaviour == null || legacyCastBehaviour) {
-      // The executor is built with the default cast behavior; legacy mode's null-on-failure (or an
-      // unknown setting, on a bare predicate encode) would diverge from it.
+    if (legacyCastBehaviour == null) {
       return reject(
           "CAST "
               + sourceType.getSqlTypeName()
               + "→"
               + resultType.getSqlTypeName()
-              + ": host-exact cast runs only under the default (non-legacy) cast behavior");
+              + ": host-exact cast requires the configured cast behavior");
+    }
+    if (legacyCastBehaviour
+        && !((SqlTypeFamily.CHARACTER.contains(sourceType)
+                  && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
+            || ((sourceType.getSqlTypeName() == SqlTypeName.DECIMAL
+                    || sourceType.getSqlTypeName() == SqlTypeName.BOOLEAN)
+                && SqlTypeFamily.CHARACTER.contains(resultType)))) {
+      return reject("unverified legacy host cast " + sourceType + " to " + resultType);
+    }
+    if (legacyCastBehaviour && SqlTypeFamily.CHARACTER.contains(sourceType)
+        && resultType.getSqlTypeName() == SqlTypeName.DECIMAL) {
+      // SQL generation wraps failing legacy conversions; CastExecutor alone does not.
+      return emitHostExpression(call, true);
     }
     int sourceCode = hostCastTypeCode(sourceType);
     int targetCode = hostCastTypeCode(resultType);
@@ -3220,7 +3237,8 @@ final class RexExpression {
     HostCastFunction function =
         new HostCastFunction(
             org.apache.flink.table.planner.calcite.FlinkTypeFactory.toLogicalType(sourceType),
-            org.apache.flink.table.planner.calcite.FlinkTypeFactory.toLogicalType(resultType));
+            org.apache.flink.table.planner.calcite.FlinkTypeFactory.toLogicalType(resultType),
+            legacyCastBehaviour);
     Method eval;
     try {
       eval = HostCastFunction.class.getMethod("eval", Object.class);

@@ -9,24 +9,39 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ARTIFACT_POM = ROOT / "dev/flink-suite/runtime-dependencies/pom.xml"
 GOAL = "org.apache.maven.plugins:maven-dependency-plugin:3.11.0:go-offline"
+ARTIFACT_GOAL = "org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get"
 DELAYS = (5, 15)
 TIMEOUT_SECONDS = 600
 
 
 def resolve(options):
-    command = [options.maven, "-B", "-ntp", "-U", "-s", str(ROOT / "dev/flink-suite/settings.xml")]
-    if options.profile:
+    settings = str(ROOT / "dev/flink-suite/settings.xml")
+    command = [options.maven, "-B", "-ntp", "-U", "-s", settings, "-gs", settings]
+    if options.artifact:
+        # Surefire resolves its provider outside the host's dependency management.
+        command.extend(["-f", str(ARTIFACT_POM)])
+    elif options.profile:
         command.append("-P" + options.profile)
-    if options.projects:
+    if options.projects and not options.artifact:
         command.extend(["-pl", options.projects])
-    if options.also_make:
+    if options.also_make and not options.artifact:
         command.append("-am")
-    if options.pom:
+    if options.pom and not options.artifact:
         command.extend(["-f", str(options.pom)])
     if options.repository:
         command.append("-Dmaven.repo.local=" + str(options.repository))
-    command.append(GOAL)
+    commands = ([command + [ARTIFACT_GOAL, "-Dartifact=" + artifact, "-Dtransitive=true"]
+                 for artifact in options.artifact] if options.artifact else [command + [GOAL]])
+    for invocation in commands:
+        status = resolve_command(invocation)
+        if status:
+            return status
+    return 0
+
+
+def resolve_command(command):
     attempts = len(DELAYS) + 1
     for attempt in range(attempts):
         print(f"Resolving Maven dependencies (attempt {attempt + 1}/{attempts})", flush=True)
@@ -52,6 +67,8 @@ def main():
     parser.add_argument("--pom", type=Path)
     parser.add_argument("--repository", type=Path)
     parser.add_argument("--maven", default="mvn")
+    parser.add_argument("--artifact", action="append", default=[],
+                        help="Resolve a runtime artifact's original transitive graph in an independent POM")
     return resolve(parser.parse_args())
 
 

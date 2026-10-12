@@ -160,6 +160,10 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   }
 
   private void flushBundle(FlushReason reason) {
+    // Flink harness cleanup can call finish after state initialization or open failed.
+    if (handle == 0 || boundary == null || miniBatchMetrics == null) {
+      return;
+    }
     long transientBytes = Native.localGroupAggregatorStateBytes(handle);
     try (ArrowArray outArray = ArrowArray.allocateNew(allocator);
         ArrowSchema outSchema = ArrowSchema.allocateNew(allocator)) {

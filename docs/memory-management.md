@@ -23,6 +23,11 @@ Reservations are acquired before the corresponding native capacity is made avail
 released with their owner. Arrow allocations are charged and released at their actual allocation
 lifetime; operator and zero-copy batch handles also release ownership on normal close and task
 cancellation.
+Mini-batch cleanup skips native flushes when initialization has not acquired a state handle or
+completed bundle setup. This also applies after the handle is closed: cleanup must preserve the
+original initialization failure rather than enter JNI with an absent handle. Partially acquired
+handles and reservations are still released by normal close; initialized operators retain their
+normal end-of-input and checkpoint flushes.
 Before a row-to-Arrow conversion hands its batch to a consumer, the converter owns every allocated
 vector. A rejected allocation or a row conversion error closes those vectors, including the
 changelog sidecar, before propagating the original failure. Cleanup errors are attached as
@@ -72,3 +77,11 @@ StreamFusion registers these gauges with each native operator or connector metri
 See [Configuration](configuration.md#memory) for the related settings and
 [RocksDB backend](backends/rocksdb.md) for the RocksDB write path, memory pool, and checkpoint
 semantics.
+
+## Reused-JVM test isolation
+
+Allocator and pool-limit tests save the process capacity before each test and restore it after
+releasing their reservations. They must not leave the pool unconfigured for subsequent operator
+harnesses, whose mock TaskManager configuration has no off-heap setting. Test-only resets reject
+live reservations rather than erasing their accounting, so restoration cannot hide a leak.
+The production requirement for a positive task off-heap setting is unchanged.

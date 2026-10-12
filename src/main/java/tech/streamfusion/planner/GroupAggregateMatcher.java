@@ -17,6 +17,8 @@ import tech.streamfusion.operator.RowDataArrowConverter;
  * cardinality. The admission checks below keep unsupported value types and aggregate forms on Flink.
  */
 final class GroupAggregateMatcher {
+  static final int KIND_SUM_ZERO = 22;
+  static final int KIND_SUM_ZERO_MERGE = 23;
   private GroupAggregateMatcher() {}
 
   static boolean matches(StreamPhysicalGroupAggregate agg) {
@@ -42,9 +44,17 @@ final class GroupAggregateMatcher {
       if (call.isApproximate()) {
         return "GROUP BY: an approximate aggregate";
       }
+      if ((call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.AVG
+              || call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.SUM0)
+          && call.getArgList().size() == 1) {
+        var value = inputType.getFieldList().get(call.getArgList().get(0)).getType();
+        if (value.getSqlTypeName() == SqlTypeName.DECIMAL && value.getScale() == 38) {
+          return "GROUP BY: released Flink cannot initialize AVG/SUM0 DECIMAL(38,38)";
+        }
+      }
       int kind = aggregateKind(agg, call);
       if (kind < 0 && call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.SUM0) {
-        return "GROUP BY: SUM0 requires grouped, unfiltered non-null integer values";
+        return "GROUP BY: SUM0 requires a non-DISTINCT exact integer or DECIMAL value";
       }
       if (kind < 0) {
         return "GROUP BY: only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE"
@@ -282,20 +292,15 @@ final class GroupAggregateMatcher {
     if (call.getAggregation().getKind() != org.apache.calcite.sql.SqlKind.SUM0) {
       return WindowAggregateMatcher.aggregateKind(call.getAggregation().getKind());
     }
-    // A live group has at least one contributing non-null integer, making SUM and SUM0
-    // identical. This includes SUM above a window's non-null COUNT result.
-    if (agg.grouping().length == 0
-        || call.getArgList().size() != 1
-        || call.filterArg >= 0
-        || call.isDistinct()) return -1;
+    if (call.getArgList().size() != 1 || call.isDistinct()) return -1;
     var value = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
-    if (value.isNullable()) return -1;
     switch (value.getSqlTypeName()) {
       case TINYINT:
       case SMALLINT:
       case INTEGER:
       case BIGINT:
-        return WindowAggregateMatcher.KIND_SUM;
+      case DECIMAL:
+        return KIND_SUM_ZERO;
       default:
         return -1;
     }

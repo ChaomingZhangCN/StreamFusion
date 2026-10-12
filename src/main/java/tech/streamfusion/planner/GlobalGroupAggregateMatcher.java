@@ -60,8 +60,9 @@ final class GlobalGroupAggregateMatcher {
       if (needRetraction
           && (call.isDistinct()
               || (kind != WindowAggregateMatcher.KIND_COUNT
-                  && kind != WindowAggregateMatcher.KIND_AVG))) {
-        return "global group aggregate: a retracting merge admits COUNT and AVG only";
+                  && kind != WindowAggregateMatcher.KIND_AVG
+                  && kind != GroupAggregateMatcher.KIND_SUM_ZERO))) {
+        return "global group aggregate: a retracting merge admits COUNT, AVG and exact SUM0 only";
       }
       // COUNT/SUM/AVG(DISTINCT x): the merge folds the local bundles' (value, count) view entries into
       // the per-key distinct set — the positional partial (the bundle's count/sum) is carried but
@@ -150,6 +151,12 @@ final class GlobalGroupAggregateMatcher {
       }
       RelDataType partialRel = inputType.getFieldList().get(offset).getType();
       offset++;
+      if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
+          && (call.isDistinct()
+              || !(GroupAggregateMatcher.isIntegerType(partialRel.getSqlTypeName())
+                  || partialRel.getSqlTypeName() == SqlTypeName.DECIMAL))) {
+        return "global group aggregate: SUM0 requires exact integer or DECIMAL partials";
+      }
       // MIN/MAX retain typed nonnumeric partials; other partials must support numeric folding.
       if (LocalGroupAggregateMatcher.isStringExtreme(kind, partialRel.getSqlTypeName())
           || LocalGroupAggregateMatcher.isTimestampExtreme(kind, partialRel.getSqlTypeName())
@@ -359,7 +366,9 @@ final class GlobalGroupAggregateMatcher {
                   : GroupAggregateMatcher.KIND_MAX_APPEND;
         }
         kinds[i] =
-            kind == WindowAggregateMatcher.KIND_COUNT ? WindowAggregateMatcher.KIND_SUM : kind;
+            kind == WindowAggregateMatcher.KIND_COUNT ? WindowAggregateMatcher.KIND_SUM
+                : kind == GroupAggregateMatcher.KIND_SUM_ZERO ? GroupAggregateMatcher.KIND_SUM_ZERO_MERGE
+                : kind;
       }
       offset += spanOf(agg, i);
     }

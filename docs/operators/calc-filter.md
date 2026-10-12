@@ -782,9 +782,17 @@ the cost of one JNI round-trip per cast column rather than per row family. (The 
 already carry a probed native port of the legacy `Double.toString` spelling; moving the
 float-to-string `CAST` onto that port instead of the upcall is a separate, tracked follow-up.)
 
-The upcall casts **decline** — i.e. fall back to Flink entirely — when the deprecated
-`table.exec.legacy-cast-behaviour` is enabled, since its null-on-failure semantics differ from the
-default cast the upcall reproduces.
+With `table.exec.legacy-cast-behaviour=ENABLED`, the verified basic pairs remain native:
+STRING/CHAR/VARCHAR to DECIMAL; BOOLEAN or DECIMAL to CHAR/VARCHAR; and character to
+character. STRING to DECIMAL uses Flink's complete generated expression, including
+its catch-on-conversion-failure contract: malformed strings and overflow become NULL.
+Setting only the cast executor's legacy flag would still throw for malformed strings.
+BOOLEAN uses the host's legacy lowercase spelling; DECIMAL rendering uses the configured
+host executor. Legacy character casts preserve the original text without applying default
+projection trimming or padding, including empty, overlength and surrogate-containing
+strings. Sink length and NOT NULL enforcement remain separate downstream contracts.
+Other host-cast pairs, including floating conversions, retain the legacy fallback until
+their behavior is verified. An unknown cast setting also falls back.
 
 Generated cast executors initialize with a valid value of the declared input type, including
 `CHAR`/`VARCHAR NOT NULL`. Startup does not evaluate an illegal NULL input; actual malformed
@@ -792,8 +800,15 @@ runtime values still fail according to Flink's cast rules.
 
 ### Still falling back
 
-Boolean-to-string casts and other pairs not listed above. Temporal casts now use Flink-generated
+Unverified legacy host-cast pairs and other pairs not listed above. Temporal casts use Flink-generated
 expressions; see [temporal functions](temporal-functions.md).
+
+`FlinkLegacyBasicCastSqlHarnessTest` compares both cast settings against independently
+executed stock Flink. It covers runtime NULLs, malformed and overflowing strings,
+rounding, CASE/filter consumers, character lengths/Unicode, NOT NULL with DROP, and
+two successive recoveries with HashMap and native RocksDB. The complete-job release
+measurements and their limits are recorded in
+[basic type coverage measurements](../benchmarks/basic-type-coverage.md).
 
 ## Decimal arithmetic
 
@@ -926,8 +941,11 @@ Direct arithmetic and CASE result branches remain native; CASE selects the rows 
 evaluate before running the decimal kernel. Evaluated invalid operands still fail the job.
 
 Flink can retain a `NOT NULL` result declaration from non-nullable operands even
-when decimal arithmetic overflows. Its downstream constraint enforcer then fails
-the job on that NULL; the native path preserves this failure as well.
+when decimal arithmetic overflows. The physical Arrow result of a generated Calc permits
+those runtime NULLs while the SQL result type stays unchanged. Flink's downstream constraint
+enforcer remains responsible for its configured policy: ERROR fails the job and DROP discards
+only the violating row. Arrow validation does not preempt that policy, including in a Calc
+whose multiple divisions select complete-row evaluation.
 
 The old `decimalArithmetic.approximate` flag is retired entirely: the float/double→`DECIMAL` cast it
 used to gate now runs host-exact through the cast upcall above.
@@ -1210,6 +1228,12 @@ Constructing containers internally is allowed when the resulting boundary types 
 admitted. Unsupported host code generation
 and UDF signatures retain explicit fallback. Flink 2.2.1 rejects dynamic JSON_EXISTS paths;
 that host failure is preserved. No configuration opt-in is required.
+
+`JSON_EXISTS(... UNKNOWN ON ERROR) IS TRUE` retains Flink's boxed-null unboxing failure.
+Failure-parity tests require the exception class, row-evaluation phase, native route and no output.
+They capture JVM-generated NPE messages before the next execution and validate `booleanValue`
+when details are present; JDK version alone does not guarantee helpful NPE diagnostics. The same
+SQL and stable assertions are exercised with helpful messages disabled, without a fallback or skip.
 
 The JSON string identity gate below still applies, including to JSON_QUERY. Non-Calc
 expression contexts, such as residual join predicates, retain their existing narrower

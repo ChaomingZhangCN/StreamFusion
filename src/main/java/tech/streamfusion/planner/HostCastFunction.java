@@ -21,9 +21,8 @@ import org.apache.flink.table.types.logical.LogicalType;
  * cast does) are the host's own. Serializable — the descriptor travels to task managers and the
  * executor is rebuilt there.
  *
- * <p>The executor is created with the default (non-legacy) cast behavior; the encoder declines these
- * casts when {@code table.exec.legacy-cast-behaviour} is enabled, whose null-on-failure semantics this
- * would not match.
+ * <p>The executor retains the planner's configured cast behavior, including legacy formatting,
+ * length and failure rules.
  */
 public final class HostCastFunction extends ScalarFunction {
 
@@ -34,12 +33,18 @@ public final class HostCastFunction extends ScalarFunction {
 
   private final LogicalType inputType;
   private final LogicalType targetType;
+  private final boolean legacyBehaviour;
 
   private transient CastExecutor<Object, Object> executor;
 
   public HostCastFunction(LogicalType inputType, LogicalType targetType) {
+    this(inputType, targetType, false);
+  }
+
+  public HostCastFunction(LogicalType inputType, LogicalType targetType, boolean legacyBehaviour) {
     this.inputType = inputType;
     this.targetType = targetType;
+    this.legacyBehaviour = legacyBehaviour;
   }
 
   @Override
@@ -73,7 +78,7 @@ public final class HostCastFunction extends ScalarFunction {
       executor =
           (CastExecutor<Object, Object>)
               CastRuleProvider.create(
-                  tech.streamfusion.compat.FlinkCompat.castContext(classLoader),
+                  tech.streamfusion.compat.FlinkCompat.castContext(classLoader, legacyBehaviour),
                   inputType,
                   targetType);
       if (executor == null) {

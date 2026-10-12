@@ -17,8 +17,9 @@ import org.apache.paimon.table.FileStoreTableFactory;
 import org.apache.paimon.table.sink.CommitMessageImpl;
 import org.apache.paimon.table.source.TableScan;
 import org.apache.paimon.types.DataTypes;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Opt-in diagnostic using released Paimon commits and readers without a Flink job. */
 @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
@@ -27,17 +28,19 @@ import org.junit.jupiter.api.io.TempDir;
 class PaimonFullCompactionRecoveryReproducerTest {
   @TempDir java.nio.file.Path directory;
 
-  @Test
-  void completeCommitProducesFinalChangelog() throws Exception {
-    verify(false);
+  @ParameterizedTest
+  @ValueSource(strings = {"full-compaction", "lookup"})
+  void completeCommitProducesFinalChangelog(String producer) throws Exception {
+    verify(false, producer);
   }
 
-  @Test
-  void recoveredCommitMustProduceFinalChangelog() throws Exception {
-    verify(true);
+  @ParameterizedTest
+  @ValueSource(strings = {"full-compaction", "lookup"})
+  void recoveredCommitMustProduceFinalChangelog(String producer) throws Exception {
+    verify(true, producer);
   }
 
-  private void verify(boolean fail) throws Exception {
+  private void verify(boolean fail, String producer) throws Exception {
     Path root = new Path(directory.toUri());
     class FailBetweenSnapshots extends LocalFileIO {
       Path appendSnapshot;
@@ -61,7 +64,9 @@ class PaimonFullCompactionRecoveryReproducerTest {
                 .column("v", DataTypes.INT())
                 .primaryKey("k")
                 .option("bucket", "1")
-                .option("changelog-producer", "full-compaction")
+                .option("changelog-producer", producer)
+                .option("lookup-wait", "false")
+                .option("deletion-vectors.enabled", "false")
                 .build());
     var table = FileStoreTableFactory.create(io, root);
     try (var disk = org.apache.paimon.disk.IOManager.create(directory.toString());
@@ -83,7 +88,7 @@ class PaimonFullCompactionRecoveryReproducerTest {
               .anyMatch(
                   message ->
                       !((CommitMessageImpl) message).compactIncrement().changelogFiles().isEmpty()),
-          "The prepared commit must contain the final full-compaction changelog");
+          "The prepared commit must contain the final " + producer + " changelog");
       if (fail) {
         io.appendSnapshot =
             table.snapshotManager().snapshotPath(table.snapshotManager().latestSnapshotId() + 1);
@@ -106,7 +111,7 @@ class PaimonFullCompactionRecoveryReproducerTest {
       }
       assertTrue(
           changelog.contains(20),
-          "Final changelog missing: latest snapshot="
+          "Final " + producer + " changelog missing: latest snapshot="
               + table.snapshotManager().latestSnapshot().commitKind()
               + ", batch="
               + batch

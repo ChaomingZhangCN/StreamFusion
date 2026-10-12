@@ -18,7 +18,7 @@ class MavenDependenciesTest(unittest.TestCase):
     def options(self):
         return argparse.Namespace(maven="mvn", profile="flink-1.18", projects="streamfusion-runtime",
                                   also_make=True, pom=Path("checkout with spaces/pom.xml"),
-                                  repository=Path("repository with spaces"))
+                                  repository=Path("repository with spaces"), artifact=[])
 
     def invoke(self, statuses):
         results = [subprocess.CompletedProcess([], status) if isinstance(status, int) else status
@@ -65,6 +65,37 @@ class MavenDependenciesTest(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(2, result.returncode)
         self.assertIn("unrecognized arguments", result.stderr)
+
+    def test_runtime_graphs_resolve_separately_and_retry_only_the_failed_download(self):
+        options = self.options()
+        options.artifact = ["org.apache.maven.surefire:surefire-junit-platform:3.2.2",
+                            "org.junit.platform:junit-platform-launcher:1.11.4"]
+        with patch.object(PREPARE.subprocess, "run", side_effect=[
+                subprocess.CompletedProcess([], status) for status in (0, 1, 0)]) as run, \
+                patch.object(PREPARE.time, "sleep") as sleep:
+            self.assertEqual(0, PREPARE.resolve(options))
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertIn("-Dartifact=" + options.artifact[0], commands[0])
+        self.assertIn("-Dartifact=" + options.artifact[1], commands[1])
+        self.assertEqual(commands[1], commands[2])
+        self.assertEqual([5], [call.args[0] for call in sleep.call_args_list])
+        for command in commands:
+            self.assertIn(PREPARE.ARTIFACT_GOAL, command)
+            self.assertIn("-Dtransitive=true", command)
+            self.assertEqual(str(PREPARE.ARTIFACT_POM), command[command.index("-f") + 1])
+            self.assertNotIn("-pl", command)
+            self.assertNotIn("-am", command)
+            self.assertFalse(any(arg.startswith("-P") for arg in command))
+            self.assertFalse({"test", "verify", "package", "install"} & set(command))
+
+    def test_failed_runtime_graph_blocks_later_downloads(self):
+        options = self.options()
+        options.artifact = ["group:provider:1", "group:launcher:1"]
+        with patch.object(PREPARE.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as run, \
+                patch.object(PREPARE.time, "sleep"):
+            self.assertEqual(7, PREPARE.resolve(options))
+        self.assertEqual(3, run.call_count)
+        self.assertTrue(all("-Dartifact=group:provider:1" in call.args[0] for call in run.call_args_list))
 
 
 if __name__ == "__main__":

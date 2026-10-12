@@ -8,13 +8,21 @@ import tech.streamfusion.NativeMemoryLimitException;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class NativeAllocatorTest {
 
+  private long previousCapacity;
+
+  @BeforeEach
+  void savePoolConfiguration() {
+    previousCapacity = TaskOffHeapMemory.capacityBytes();
+  }
+
   @AfterEach
   void reset() {
-    TaskOffHeapMemory.resetForTests(-1);
+    TaskOffHeapMemory.resetForTests(previousCapacity == 0 ? -1 : previousCapacity);
   }
 
   @Test

@@ -165,6 +165,29 @@ class FlinkDecimalOverflowSqlHarnessTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT a+a, a/CAST(3 AS DECIMAL(38,0)), a/CAST(2 AS DECIMAL(38,0)) FROM t",
+      "SELECT a+a, a-a, a*a, a/CAST(3 AS DECIMAL(38,0)), MOD(a,CAST(3 AS DECIMAL(38,0))) FROM t"
+  })
+  void rowOrderedOverflowReachesTheDropConstraintEnforcer(String sql) throws Exception {
+    NativeParity.assertParity(() -> {
+      var table = decimalRows(38, 0, false, "99999999999999999999999999999999999999", "1");
+      table.getConfig().set("table.exec.sink.not-null-enforcer", "DROP");
+      return table;
+    }, sql);
+  }
+
+  @Test
+  void rowOrderedOverflowKeepsTheSinkConstraintError() {
+    var runs = NativeFailureParity.run(
+        () -> decimalRows(38, 0, false, "99999999999999999999999999999999999999", "1"),
+        "SELECT a+a, a/CAST(3 AS DECIMAL(38,0)), a/CAST(2 AS DECIMAL(38,0)) FROM t");
+    org.junit.jupiter.api.Assertions.assertNotNull(runs.host().rootCause(), runs.toString());
+    runs.assertFailure(runs.host().rootCause().getClass(), "is NOT NULL",
+        NativeFailureParity.Phase.ROW_EVALUATION, NativeFailureParity.Route.NATIVE);
+  }
+
   private static TableEnvironment decimals(int precision, int scale, String... values) {
     return decimalRows(precision, scale, true, values);
   }

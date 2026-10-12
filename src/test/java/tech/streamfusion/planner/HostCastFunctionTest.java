@@ -2,9 +2,12 @@ package tech.streamfusion.planner;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.apache.flink.table.types.logical.BigIntType;
+import org.apache.flink.table.types.logical.BooleanType;
 import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.DoubleType;
@@ -75,5 +78,19 @@ class HostCastFunctionTest {
         new HostCastFunction(new VarCharType(false, 5), new IntType());
     function.open(null);
     assertEquals(-7, function.eval("-7"));
+  }
+
+  @Test
+  void legacyExecutorsKeepFormattingAndLengthRules() {
+    var string = new VarCharType();
+    var castBoolean = new HostCastFunction(new BooleanType(), string, true);
+    assertEquals("true", castBoolean.eval(true));
+    assertEquals("false", castBoolean.eval(false));
+    var castChar = new HostCastFunction(string, new CharType(3), true);
+    assertEquals("12345", castChar.eval("12345"));
+    assertEquals("x", castChar.eval("x"));
+    assertNull(castChar.eval(null));
+    var castDecimalText = new HostCastFunction(new DecimalType(7, 2), string, true);
+    assertEquals("1.25", castDecimalText.eval(new BigDecimal("1.25")));
   }
 }

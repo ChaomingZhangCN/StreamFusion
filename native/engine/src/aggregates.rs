@@ -958,6 +958,10 @@ impl ValueColumn<'_> {
 /// fixed per aggregator, so each variant pairs a kind with that type. See divergences/11.
 #[derive(Debug)]
 pub(crate) enum RunningAgg {
+    ZeroSumInt {
+        sum: i64,
+        result: DataType,
+    },
     SumI64(Option<i64>),
     MinI64(Option<i64>),
     MaxI64(Option<i64>),
@@ -1058,6 +1062,22 @@ pub(crate) enum RunningAgg {
 impl RunningAgg {
     pub(crate) fn new(kind: i64, value_type: &DataType) -> Self {
         use RunningAgg::*;
+        if matches!(kind, 22 | 23) {
+            return match value_type {
+                DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
+                    ZeroSumInt {
+                        sum: 0,
+                        result: value_type.clone(),
+                    }
+                }
+                DataType::Decimal128(_, scale) => AvgPartialSumDecimal {
+                    sum: 0,
+                    scale: *scale,
+                    overflow: false,
+                },
+                other => panic!("unsupported SUM0 value type: {other:?}"),
+            };
+        }
         if kind == 18 {
             let sum_type = match value_type {
                 DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
@@ -1205,6 +1225,10 @@ impl RunningAgg {
     pub(crate) fn fold(&mut self, value: Num) {
         use RunningAgg::*;
         match (self, value) {
+            (ZeroSumInt { sum, .. }, Num::I64(v)) => *sum = sum.wrapping_add(v),
+            (ZeroSumInt { sum, .. }, Num::I32(v)) => *sum = sum.wrapping_add(v as i64),
+            (ZeroSumInt { sum, .. }, Num::I16(v)) => *sum = sum.wrapping_add(v as i64),
+            (ZeroSumInt { sum, .. }, Num::I8(v)) => *sum = sum.wrapping_add(v as i64),
             (TypedExtreme { value, is_min, .. }, Num::I32(v)) => {
                 *value = Some(value.map_or(v, |old| if *is_min { old.min(v) } else { old.max(v) }));
             }
@@ -1272,6 +1296,10 @@ impl RunningAgg {
     pub(crate) fn retract(&mut self, value: Num) {
         use RunningAgg::*;
         match (self, value) {
+            (ZeroSumInt { sum, .. }, Num::I64(v)) => *sum = sum.wrapping_sub(v),
+            (ZeroSumInt { sum, .. }, Num::I32(v)) => *sum = sum.wrapping_sub(v as i64),
+            (ZeroSumInt { sum, .. }, Num::I16(v)) => *sum = sum.wrapping_sub(v as i64),
+            (ZeroSumInt { sum, .. }, Num::I8(v)) => *sum = sum.wrapping_sub(v as i64),
             (SumI64(s), Num::I64(v)) => *s = Some(s.unwrap_or(0).wrapping_sub(v)),
             (SumI32(s), Num::I32(v)) => *s = Some(s.unwrap_or(0).wrapping_sub(v)),
             (SumF64(s), Num::F64(v)) => *s = Some(s.unwrap_or(0.0) - v),
@@ -1308,6 +1336,7 @@ impl RunningAgg {
     pub(crate) fn emit(&self) -> ScalarValue {
         use RunningAgg::*;
         match self {
+            ZeroSumInt { sum, result } => avg_int_scalar(*sum, result),
             SumI64(v) | MinI64(v) | MaxI64(v) | FirstI64(v) | LastI64(v) => ScalarValue::Int64(*v),
             SumI32(v) | MinI32(v) | MaxI32(v) | FirstI32(v) | LastI32(v) => ScalarValue::Int32(*v),
             SumF64(v) | MinF64(v) | MaxF64(v) | FirstF64(v) | LastF64(v) => {
@@ -1381,6 +1410,7 @@ impl RunningAgg {
     pub(crate) fn result_type(&self) -> DataType {
         use RunningAgg::*;
         match self {
+            ZeroSumInt { result, .. } => result.clone(),
             SumI64(_) | MinI64(_) | MaxI64(_) | Count(_) | FirstI64(_) | LastI64(_) => {
                 DataType::Int64
             }
@@ -1407,6 +1437,14 @@ impl RunningAgg {
     pub(crate) fn restore_value(&mut self, scalar: &ScalarValue) {
         use RunningAgg::*;
         match (self, scalar) {
+            (ZeroSumInt { sum, .. }, ScalarValue::Int8(Some(v))) => *sum = *v as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int16(Some(v))) => *sum = *v as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int32(Some(v))) => *sum = *v as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int64(Some(v))) => *sum = *v,
+            (AvgPartialSumDecimal { sum, overflow, .. }, ScalarValue::Decimal128(v, _, _)) => {
+                *sum = v.unwrap_or(0);
+                *overflow = v.is_none();
+            }
             (
                 TypedExtreme {
                     value, data_type, ..

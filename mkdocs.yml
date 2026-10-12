@@ -121,6 +121,7 @@ nav:
       - Performance audit reproduction: benchmarks/performance-audit.md
       - Scalar functions: benchmarks/scalar-functions.md
       - Decimal expressions: benchmarks/decimal-expressions.md
+      - Basic type coverage: benchmarks/basic-type-coverage.md
       - Flink 1.18 compatibility: benchmarks/flink118-nexmark.md
   - Optimizations:
       - optimizations/index.md
@@ -134,6 +135,7 @@ nav:
       - Columnar changelog operators: optimizations/columnar-changelog-operators.md
       - Expression compile-once: optimizations/expression-compile-once.md
       - Scalar function kernels: optimizations/scalar-function-kernels.md
+      - Exact decimal division: optimizations/decimal-division.md
       - SQL/JSON parsing: optimizations/sql-json-parsing.md
       - Calc projection before filtering: optimizations/calc-projection-before-filter.md
       - Export Calc schemas once: optimizations/calc-schema-once-c-data.md

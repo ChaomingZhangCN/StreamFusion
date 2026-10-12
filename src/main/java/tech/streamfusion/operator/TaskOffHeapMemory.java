@@ -174,6 +174,9 @@ public final class TaskOffHeapMemory {
   }
 
   static synchronized void resetForTests(long bytes) {
+    if (RESERVED.get() != 0) {
+      throw new IllegalStateException("cannot reset task off-heap memory with live reservations");
+    }
     OWNERS.clear();
     RESERVED.set(0);
     PEAK.set(0);

@@ -78,7 +78,7 @@ jobs:
       - name: Source and sink parity (build release libraries)
         run: >-
           mvn -B -ntp -Pflink-1.18,paimon1,bench -pl streamfusion-paimon1 -am
-          -Dsf.testForks=1 '-Dtest=LegacyPaimon*Test,PaimonSourceSqlTest,PaimonSplitWatermarksTest'
+          -Dsf.testForks=1 '-Dtest=LegacyPaimon*Test,PaimonSourceSqlTest,PaimonSplitWatermarksTest,PaimonFetcherLifecycleTest'
           -Dsurefire.failIfNoSpecifiedTests=false '-Dsf.extraJvmArgs=-Xmx2g -XX:ActiveProcessorCount=2 --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED' test
       - name: Upstream SQL tests (reuse release libraries)
         env:

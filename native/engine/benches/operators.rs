@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, BooleanArray, Int64Array, Int8Array, RecordBatch, StringArray, StructArray,
+    Array, ArrayRef, BooleanArray, Decimal128Array, Int64Array, Int8Array, RecordBatch,
+    StringArray, StructArray,
 };
 use arrow::compute::filter_record_batch;
 use arrow::datatypes::{DataType, Field, Schema};
@@ -269,6 +270,70 @@ fn bench_group_by_string_key(c: &mut Criterion) {
             BatchSize::SmallInput,
         )
     });
+    group.finish();
+}
+
+fn bench_group_zero_sum(c: &mut Criterion) {
+    use streamfusion::bench::GroupBy;
+    let mut group = c.benchmark_group("group_zero_sum");
+    for rows in [256usize, 4096] {
+        for cardinality in [1usize, 64] {
+            for decimal in [false, true] {
+                let keys: ArrayRef = Arc::new(Int64Array::from_iter_values(
+                    (0..rows).map(|i| (i % cardinality) as i64),
+                ));
+                let (values, value_type, value_code): (ArrayRef, DataType, i64) = if decimal {
+                    (
+                        Arc::new(
+                            Decimal128Array::from_iter(
+                                (0..rows).map(|i| (i % 7 != 0).then_some(i as i128)),
+                            )
+                            .with_precision_and_scale(38, 2)
+                            .unwrap(),
+                        ),
+                        DataType::Decimal128(38, 2),
+                        5802,
+                    )
+                } else {
+                    (
+                        Arc::new(Int64Array::from_iter(
+                            (0..rows).map(|i| (i % 7 != 0).then_some(i as i64)),
+                        )),
+                        DataType::Int64,
+                        0,
+                    )
+                };
+                let batch = RecordBatch::try_new(
+                    Arc::new(Schema::new(vec![
+                        Field::new("k", DataType::Int64, false),
+                        Field::new("v", value_type, true),
+                    ])),
+                    vec![keys, values],
+                )
+                .unwrap();
+                group.throughput(Throughput::Elements(rows as u64));
+                let name = if decimal { "decimal38" } else { "bigint" };
+                group.bench_function(format!("{name}/{rows}/{cardinality}"), |b| {
+                    b.iter_batched(
+                        || {
+                            GroupBy::mini_batch(
+                                vec![3, 22],
+                                vec![value_code, value_code],
+                                vec![1, 1],
+                                vec![0],
+                            )
+                        },
+                        |mut agg| {
+                            black_box(agg.update(black_box(&batch)));
+                            black_box(agg.flush());
+                            black_box(agg.snapshot());
+                        },
+                        BatchSize::SmallInput,
+                    );
+                });
+            }
+        }
+    }
     group.finish();
 }
 
@@ -1413,6 +1478,7 @@ criterion_group!(
     bench_tumbling,
     bench_tumbling_keyed,
     bench_group_by_string_key,
+    bench_group_zero_sum,
     bench_group_by_logical_bundle,
     bench_local_group_by_logical_bundle,
     bench_local_group_by_extremes,
