@@ -98,7 +98,7 @@ final class LocalGroupAggregateMatcher {
       if (kind < 0 || call.getArgList().size() > 1) {
         return false; // SUM/MIN/MAX/COUNT/AVG/SINGLE_VALUE only
       }
-      if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
+      if ((kind == WindowAggregateMatcher.KIND_AVG || kind == GroupAggregateMatcher.KIND_SUM_ZERO)
           && call.getArgList().size() == 1) {
         var value = inputType.getFieldList().get(call.getArgList().get(0)).getType();
         if (value.getSqlTypeName() == SqlTypeName.DECIMAL && value.getScale() == 38) return false;

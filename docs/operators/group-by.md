@@ -84,6 +84,15 @@ with **integer division truncating toward zero**. This is a direct port of Flink
 the non-null count using Flink's exact decimal division — a 38-significant-digit quotient then
 **HALF_UP** rescale — reporting `DECIMAL(38, max(6, s))`, `findAvgAggType`'s result type.
 
+Released Flink 1.18.1 and 2.2.1 cannot initialize AVG over DECIMAL(38,38):
+planning fails with `IllegalArgumentException: Cannot convert 0 to DECIMAL(38, 38)`.
+Native admission retains this narrow host planning failure, including shared
+SUM0 reductions and local/global plans. SUM alone and lower-scale AVG retain
+their existing coverage. `FlinkDecimalAverageAdmissionSqlHarnessTest` captures
+independent stock/native-enabled planning outcomes and verifies scales 2/6/37
+still execute natively; this is failure compatibility, not an incorrect-average
+workaround or an upstream dependency fix.
+
 The DISTINCT map representations and benchmark method are described under
 [typed DISTINCT multiplicities](../optimizations/aggregate-specialization-fast-paths.md#typed-distinct-multiplicities).
 Integer, decimal and string key specialization preserves the existing scalar snapshot and

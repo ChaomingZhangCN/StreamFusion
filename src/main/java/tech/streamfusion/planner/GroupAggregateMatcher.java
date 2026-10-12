@@ -44,11 +44,12 @@ final class GroupAggregateMatcher {
       if (call.isApproximate()) {
         return "GROUP BY: an approximate aggregate";
       }
-      if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.SUM0
+      if ((call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.AVG
+              || call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.SUM0)
           && call.getArgList().size() == 1) {
         var value = inputType.getFieldList().get(call.getArgList().get(0)).getType();
         if (value.getSqlTypeName() == SqlTypeName.DECIMAL && value.getScale() == 38) {
-          return "GROUP BY: released Flink cannot initialize SUM0 DECIMAL(38,38)";
+          return "GROUP BY: released Flink cannot initialize AVG/SUM0 DECIMAL(38,38)";
         }
       }
       int kind = aggregateKind(agg, call);
