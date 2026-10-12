@@ -179,7 +179,12 @@ public final class FlinkCompat {
 
   public static org.apache.flink.table.planner.functions.casting.CastRule.Context castContext(
       ClassLoader classLoader) {
+    return castContext(classLoader, false);
+  }
+
+  public static org.apache.flink.table.planner.functions.casting.CastRule.Context castContext(
+      ClassLoader classLoader, boolean legacyBehaviour) {
     return org.apache.flink.table.planner.functions.casting.CastRule.Context.create(
-        false, false, java.time.ZoneId.of("UTC"), classLoader);
+        false, legacyBehaviour, java.time.ZoneId.of("UTC"), classLoader);
   }
 }

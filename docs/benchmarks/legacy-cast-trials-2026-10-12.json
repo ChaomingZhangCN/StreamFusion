@@ -1,0 +1,543 @@
+{
+  "metadata": {
+    "date": "2026-10-12",
+    "hardware": "Apple M4 Pro",
+    "os": "macOS ARM64",
+    "jdk": 17,
+    "flink": "2.2.1",
+    "parallelism": 1,
+    "jvm_heap": "8 GiB",
+    "native_profile": "release",
+    "allocator": "system",
+    "null_frequency": "every seventh input",
+    "source": "runtime RowData",
+    "sink": "blackhole",
+    "mini_batch_size": 1024,
+    "mini_batch_latency": "1 h",
+    "measurement": "complete executeSql(INSERT).await(), interleaved engines; plan and consumed-native-work assertions",
+    "previous_main": "bf9837c00c3513c88a3739dcefab549f037da3fb",
+    "shuffle": "no exchange in cast plans; edge transposes retained"
+  },
+  "records": [
+    {
+      "run": "previous-main-mini",
+      "case": "CAST(s AS DECIMAL(10,2))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.936829,
+      "streamfusion_median_seconds": 0.930767,
+      "stock_trials_seconds": [
+        0.93063875,
+        0.947117208,
+        0.93778025,
+        0.929211125,
+        0.936829167
+      ],
+      "streamfusion_trials_seconds": [
+        0.922437875,
+        0.934271209,
+        0.939382416,
+        0.928700041,
+        0.930767042
+      ]
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "CAST(b AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.930227,
+      "streamfusion_median_seconds": 0.93029,
+      "stock_trials_seconds": [
+        0.930227167,
+        0.940319709,
+        0.920898333,
+        0.941428333,
+        0.906381
+      ],
+      "streamfusion_trials_seconds": [
+        0.9284715,
+        0.93024675,
+        0.931975875,
+        0.931255958,
+        0.930289958
+      ]
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "CAST(s AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.939967,
+      "streamfusion_median_seconds": 0.941842,
+      "stock_trials_seconds": [
+        0.939966708,
+        0.938095834,
+        0.9529365,
+        0.935999209,
+        0.942826625
+      ],
+      "streamfusion_trials_seconds": [
+        0.941841875,
+        0.932187042,
+        0.936811667,
+        0.955218542,
+        0.949808166
+      ]
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "CAST(c AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.942938,
+      "streamfusion_median_seconds": 0.954467,
+      "stock_trials_seconds": [
+        0.944645167,
+        0.936764542,
+        0.928679375,
+        0.947991708,
+        0.942937959
+      ],
+      "streamfusion_trials_seconds": [
+        0.931870209,
+        1.048685125,
+        0.954466917,
+        0.957174584,
+        0.9479745
+      ]
+    },
+    {
+      "run": "previous-main-mini",
+      "case": "CAST(d AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.985399,
+      "streamfusion_median_seconds": 0.975587,
+      "stock_trials_seconds": [
+        0.983969542,
+        0.985399375,
+        0.995151,
+        0.993987959,
+        0.970162167
+      ],
+      "streamfusion_trials_seconds": [
+        0.986235291,
+        0.976818292,
+        0.975587375,
+        0.964968417,
+        0.964584
+      ]
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "CAST(s AS DECIMAL(10,2))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 0.85199,
+      "streamfusion_median_seconds": 0.849879,
+      "stock_trials_seconds": [
+        0.849229084,
+        0.851990458,
+        0.8607335,
+        0.851348417,
+        0.853819375
+      ],
+      "streamfusion_trials_seconds": [
+        0.872425083,
+        0.845849,
+        0.852211916,
+        0.840717542,
+        0.849879084
+      ]
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "CAST(b AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.005991,
+      "streamfusion_median_seconds": 0.860156,
+      "stock_trials_seconds": [
+        1.004694166,
+        1.017170583,
+        1.005990875,
+        1.00540375,
+        1.006855417
+      ],
+      "streamfusion_trials_seconds": [
+        0.855690833,
+        0.854961084,
+        0.873642584,
+        0.863615458,
+        0.860155791
+      ]
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "CAST(s AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.021036,
+      "streamfusion_median_seconds": 0.830647,
+      "stock_trials_seconds": [
+        1.024914625,
+        1.016031792,
+        1.019175458,
+        1.021036125,
+        1.0294815
+      ],
+      "streamfusion_trials_seconds": [
+        0.825979625,
+        0.836755292,
+        0.830647167,
+        0.843347958,
+        0.824736375
+      ]
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "CAST(c AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.016492,
+      "streamfusion_median_seconds": 0.828902,
+      "stock_trials_seconds": [
+        1.03419425,
+        1.016491666,
+        1.028451,
+        1.008819292,
+        1.015948334
+      ],
+      "streamfusion_trials_seconds": [
+        0.846061458,
+        0.832777291,
+        0.822116458,
+        0.828691,
+        0.828901709
+      ]
+    },
+    {
+      "run": "initial-native-mini",
+      "case": "CAST(d AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "stock_median_seconds": 1.043221,
+      "streamfusion_median_seconds": 0.913645,
+      "stock_trials_seconds": [
+        1.047061541,
+        1.04208375,
+        1.045005917,
+        1.04322125,
+        1.040068
+      ],
+      "streamfusion_trials_seconds": [
+        0.937845166,
+        0.900837333,
+        0.902810292,
+        0.923295375,
+        0.913645291
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "CAST(s AS DECIMAL(10,2))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 0.831091,
+      "streamfusion_median_seconds": 0.832707,
+      "stock_trials_seconds": [
+        0.823903541,
+        0.840411334,
+        0.842947167,
+        0.831090708,
+        0.823620291
+      ],
+      "streamfusion_trials_seconds": [
+        0.831621417,
+        0.836465542,
+        0.834486583,
+        0.83270675,
+        0.82077925
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "CAST(b AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 0.999761,
+      "streamfusion_median_seconds": 0.838869,
+      "stock_trials_seconds": [
+        1.002679333,
+        0.999761125,
+        0.996166291,
+        0.998007709,
+        1.015014708
+      ],
+      "streamfusion_trials_seconds": [
+        0.838869416,
+        0.8389695,
+        0.83483925,
+        0.829951625,
+        0.842260959
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "CAST(s AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.016956,
+      "streamfusion_median_seconds": 0.80337,
+      "stock_trials_seconds": [
+        1.039319416,
+        1.02733425,
+        1.003634042,
+        1.016955667,
+        1.001294209
+      ],
+      "streamfusion_trials_seconds": [
+        0.82094,
+        0.807402917,
+        0.801040417,
+        0.803370209,
+        0.791367583
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "CAST(c AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.019151,
+      "streamfusion_median_seconds": 0.799395,
+      "stock_trials_seconds": [
+        1.027339209,
+        1.019150583,
+        1.020247167,
+        1.013563709,
+        1.016256167
+      ],
+      "streamfusion_trials_seconds": [
+        0.805149958,
+        0.799394875,
+        0.78262825,
+        0.793782625,
+        0.809871916
+      ]
+    },
+    {
+      "run": "optimized-deployment-maven-64",
+      "case": "CAST(d AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "Maven bench profile",
+      "stock_median_seconds": 1.035803,
+      "streamfusion_median_seconds": 0.883557,
+      "stock_trials_seconds": [
+        1.042559375,
+        1.035802792,
+        1.026347916,
+        1.028411209,
+        1.045088083
+      ],
+      "streamfusion_trials_seconds": [
+        0.881012,
+        0.88253125,
+        0.894320166,
+        0.883557417,
+        0.883963875
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "CAST(s AS DECIMAL(10,2))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 0.968364,
+      "streamfusion_median_seconds": 0.964681,
+      "stock_trials_seconds": [
+        0.978173625,
+        0.970040792,
+        0.968363625,
+        0.957217,
+        0.967948958
+      ],
+      "streamfusion_trials_seconds": [
+        0.963725709,
+        0.952846417,
+        0.978151583,
+        0.964681166,
+        0.974802
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "CAST(b AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 0.990301,
+      "streamfusion_median_seconds": 0.988141,
+      "stock_trials_seconds": [
+        0.961023875,
+        0.980028666,
+        0.992869875,
+        0.990300666,
+        0.993923208
+      ],
+      "streamfusion_trials_seconds": [
+        1.004579833,
+        0.988502834,
+        0.988141125,
+        0.982970834,
+        0.984969375
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "CAST(s AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 0.985815,
+      "streamfusion_median_seconds": 0.978113,
+      "stock_trials_seconds": [
+        0.99651525,
+        1.006551917,
+        0.985814958,
+        0.979079333,
+        0.98124425
+      ],
+      "streamfusion_trials_seconds": [
+        0.979170292,
+        0.985252375,
+        0.978113084,
+        0.975167166,
+        0.973131833
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "CAST(c AS CHAR(3))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 0.981464,
+      "streamfusion_median_seconds": 0.977311,
+      "stock_trials_seconds": [
+        0.975319166,
+        0.981785625,
+        0.981463666,
+        0.97952775,
+        0.986538292
+      ],
+      "streamfusion_trials_seconds": [
+        0.979193083,
+        0.977107417,
+        0.973191875,
+        0.98146,
+        0.977311417
+      ]
+    },
+    {
+      "run": "previous-main-deployment-64",
+      "case": "CAST(d AS VARCHAR)",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "warmup_per_engine": 2,
+      "shuffle": "Arrow IPC setting (all native substitutions rejected)",
+      "single_phase_mini_batch": false,
+      "two_phase_mini_batch": true,
+      "method": "frozen previous-main classes and release library, same release bench JVM settings",
+      "stock_median_seconds": 1.000173,
+      "streamfusion_median_seconds": 1.004007,
+      "stock_trials_seconds": [
+        1.012841166,
+        0.999435958,
+        0.991054875,
+        1.003289292,
+        1.00017325
+      ],
+      "streamfusion_trials_seconds": [
+        1.004006792,
+        1.002614,
+        1.006612625,
+        0.9987185,
+        1.010799875
+      ]
+    }
+  ]
+}

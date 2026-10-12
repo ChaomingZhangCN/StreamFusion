@@ -93,3 +93,37 @@ These are whole-job times, including startup; they are not isolated kernel
 throughput or guarantees for every SQL shape. The helper's wider-divisor BigInt
 fallback is covered by Criterion and SQL correctness checks, not a claim of an
 equal speedup for arbitrary decimal division.
+
+## Legacy basic casts
+
+The same source/blackhole harness measures legacy STRING to DECIMAL, BOOLEAN to
+VARCHAR, STRING to CHAR, CHAR to CHAR, and DECIMAL to VARCHAR. Each expression
+is measured independently under `table.exec.legacy-cast-behaviour=ENABLED`.
+There is no exchange in these Calc-only plans; both edge transposes and the
+production JVM callback remain in the native measurement.
+
+```sh
+SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
+  -Dtest=LegacyCastBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dsf.testForks=1 -Dbasic.rows=2000000 -Dbasic.warmup=2 -Dbasic.runs=5 \
+  '-Dnative.cargo.args=build --release'
+```
+
+For 2,000,000 rows and five interleaved measured repetitions on the same
+release/system-allocator environment:
+
+| Legacy cast | Stock seconds | Native seconds | Stock/native |
+| --- | ---: | ---: | ---: |
+| STRING to DECIMAL(10,2) | 0.831 | 0.833 | 1.00x |
+| BOOLEAN to VARCHAR | 1.000 | 0.839 | 1.19x |
+| STRING to CHAR(3) | 1.017 | 0.803 | 1.27x |
+| CHAR(2) to CHAR(3) | 1.019 | 0.799 | 1.27x |
+| DECIMAL(7,2) to VARCHAR | 1.036 | 0.884 | 1.17x |
+
+STRING to DECIMAL is effectively tied: its stock/native trial ranges overlap,
+and the earlier independent repeat also tied. This change provides verified
+coverage inside a native Calc; it does not claim a standalone parsing speedup.
+The other four cases show workload-specific gains. The frozen previous main
+routes all five to stock fallback with zero substitutions. All candidate and
+previous trials, including variability, are retained in
+[legacy cast trials](legacy-cast-trials-2026-10-12.json).
