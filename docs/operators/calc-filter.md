@@ -926,8 +926,11 @@ Direct arithmetic and CASE result branches remain native; CASE selects the rows 
 evaluate before running the decimal kernel. Evaluated invalid operands still fail the job.
 
 Flink can retain a `NOT NULL` result declaration from non-nullable operands even
-when decimal arithmetic overflows. Its downstream constraint enforcer then fails
-the job on that NULL; the native path preserves this failure as well.
+when decimal arithmetic overflows. The physical Arrow result of a generated Calc permits
+those runtime NULLs while the SQL result type stays unchanged. Flink's downstream constraint
+enforcer remains responsible for its configured policy: ERROR fails the job and DROP discards
+only the violating row. Arrow validation does not preempt that policy, including in a Calc
+whose multiple divisions select complete-row evaluation.
 
 The old `decimalArithmetic.approximate` flag is retired entirely: the float/double→`DECIMAL` cast it
 used to gate now runs host-exact through the cast upcall above.

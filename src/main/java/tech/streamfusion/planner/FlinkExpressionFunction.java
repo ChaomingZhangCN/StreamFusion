@@ -342,7 +342,12 @@ public final class FlinkExpressionFunction extends ScalarFunction
   private FlinkExpressionFunction(
       Body body, LogicalType[] argumentTypes, ReadableConfig config, ClassLoader classLoader) {
     this.argumentTypes = argumentTypes;
-    this.rowResultType = body.rowType();
+    // Logical NOT NULL is enforced by Flink's sink; generated expressions can still overflow to NULL.
+    this.rowResultType = body.rowType() == null ? null : new RowType(
+        body.rowType().isNullable(),
+        body.rowType().getFields().stream()
+            .map(field -> new RowType.RowField(field.getName(), field.getType().copy(true)))
+            .collect(tech.streamfusion.compat.ListCollectors.toList()));
     var context = body.context();
     functions = List.copyOf(context.functionInstances.values());
     String className = tech.streamfusion.compat.FlinkCompat.expressionClassName(context);

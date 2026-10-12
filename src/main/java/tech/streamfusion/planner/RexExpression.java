@@ -759,7 +759,7 @@ final class RexExpression {
       longs.add((long) strings.size());
       var schema =
           tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
-              org.apache.flink.table.types.logical.RowType.of(resultType.copy(true)));
+              org.apache.flink.table.types.logical.RowType.of(function.rowResultType().copy(true)));
       strings.add(Base64.getEncoder().encodeToString(schema.serializeAsMessage()));
       if (arguments.isEmpty()) {
         add(KIND_LIT_INT, longs.size(), 0);
