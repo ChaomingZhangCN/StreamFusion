@@ -7,13 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tech.streamfusion.NativeMemoryLimitException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TaskOffHeapMemoryTest {
 
+  private long previousCapacity;
+
+  @BeforeEach
+  void savePoolConfiguration() {
+    previousCapacity = TaskOffHeapMemory.capacityBytes();
+  }
+
   @AfterEach
   void reset() {
-    TaskOffHeapMemory.resetForTests(-1);
+    TaskOffHeapMemory.resetForTests(previousCapacity == 0 ? -1 : previousCapacity);
   }
 
   @Test
@@ -46,6 +54,18 @@ class TaskOffHeapMemoryTest {
 
     reservation.close();
     reservation.close();
+    assertEquals(0, TaskOffHeapMemory.reservedBytes());
+  }
+
+  @Test
+  void resettingTestConfigurationCannotHideLiveReservations() {
+    TaskOffHeapMemory.resetForTests(32);
+    try (TaskOffHeapMemory.Reservation reservation =
+        TaskOffHeapMemory.reserve("test", "live reservation", 16)) {
+      assertThrows(IllegalStateException.class, () -> TaskOffHeapMemory.resetForTests(64));
+      assertEquals(32, TaskOffHeapMemory.capacityBytes());
+      assertEquals(16, TaskOffHeapMemory.reservedBytes());
+    }
     assertEquals(0, TaskOffHeapMemory.reservedBytes());
   }
 }

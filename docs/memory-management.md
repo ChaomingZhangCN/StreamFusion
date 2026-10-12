@@ -72,3 +72,11 @@ StreamFusion registers these gauges with each native operator or connector metri
 See [Configuration](configuration.md#memory) for the related settings and
 [RocksDB backend](backends/rocksdb.md) for the RocksDB write path, memory pool, and checkpoint
 semantics.
+
+## Reused-JVM test isolation
+
+Allocator and pool-limit tests save the process capacity before each test and restore it after
+releasing their reservations. They must not leave the pool unconfigured for subsequent operator
+harnesses, whose mock TaskManager configuration has no off-heap setting. Test-only resets reject
+live reservations rather than erasing their accounting, so restoration cannot hide a leak.
+The production requirement for a positive task off-heap setting is unchanged.
