@@ -454,6 +454,25 @@ if [[ "${FLINK_SUITE_REUSE_BUILD:-false}" != "true" ]]; then
 fi
 python3 "${REPO_ROOT}/bin/check-flink-suite-classpath.py" "${CLASSPATH_FILE}" "${FLINK_LINE}" || exit $?
 if [[ "${SUITE_MODE}" == "prepare" ]]; then
+  echo "Preparing the dynamically resolved upstream Surefire runtime..."
+  test_runtime_platform_version=1.11.4
+  if [[ "${FLINK_LINE}" == "1.18" ]]; then test_runtime_platform_version=1.9.1; fi
+  (
+    cd "${FLINK_ROOT}" &&
+      MAVEN_USER_HOME="${SUITE_MAVEN_USER_HOME}" python3 "${REPO_ROOT}/bin/ci-maven-dependencies.py" \
+        --maven "${FLINK_ROOT}/mvnw" --pom "${FLINK_ROOT}/pom.xml" \
+        --projects flink-table/flink-table-planner --profile "${FLINK_TARGET_PROFILE}" \
+        --repository "${SUITE_MAVEN_REPO}" \
+        --artifact org.apache.maven.surefire:surefire-junit-platform:3.2.2 \
+        --artifact "org.junit.platform:junit-platform-launcher:${test_runtime_platform_version}"
+  ) || exit $?
+  echo "Verifying the prepared upstream test runtime without downloads..."
+  flink_mvn ${FLINK_TARGET_PROFILE:+-P${FLINK_TARGET_PROFILE}} -B -ntp -o -s "${MAVEN_SETTINGS}" \
+    -Dmaven.repo.local="${SUITE_MAVEN_REPO}" -pl flink-table/flink-table-planner -Dfast \
+    '-Dtest=org.apache.flink.table.planner.runtime.stream.sql.CalcITCase#testSimpleProject' \
+    -DskipTests=false -Dmaven.test.skip=false \
+    -Dmaven.test.failure.ignore=false -Dsurefire.failIfNoSpecifiedTests=true \
+    -Dflink.forkCountITCase=1 surefire:test@integration-tests || exit $?
   python3 "${REPO_ROOT}/dev/flink-suite/runtime_shards.py" plan \
     --classes "${FLINK_ROOT}/flink-table/flink-table-planner/target/test-classes" \
     --baseline "${REPO_ROOT}/dev/flink-suite/runtime-durations-${FLINK_LINE}.tsv" \
