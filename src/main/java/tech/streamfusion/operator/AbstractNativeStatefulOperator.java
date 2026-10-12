@@ -355,7 +355,7 @@ public abstract class AbstractNativeStatefulOperator<OUT> extends FlinkStreamOpe
    * side only tracks its footprint when accounted.
    */
   protected final void publishStateBytes() {
-    if (memoryBudget != null) {
+    if (memoryBudget != null && handle != 0) {
       memoryBudget.publishStateBytes(stateBytesHandle());
     }
   }

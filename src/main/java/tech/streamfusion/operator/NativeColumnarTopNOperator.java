@@ -487,6 +487,10 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   }
 
   private void flushBundle(FlushReason reason) {
+    // Flink harness cleanup can call finish after state initialization or open failed.
+    if (handle == 0 || boundary == null || miniBatchMetrics == null) {
+      return;
+    }
     long transientBytes =
         directRocksDBState()
             ? Native.rocksdbTopNRankerStagingBytes(handle)

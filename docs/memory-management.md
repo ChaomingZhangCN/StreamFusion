@@ -23,6 +23,11 @@ Reservations are acquired before the corresponding native capacity is made avail
 released with their owner. Arrow allocations are charged and released at their actual allocation
 lifetime; operator and zero-copy batch handles also release ownership on normal close and task
 cancellation.
+Mini-batch cleanup skips native flushes when initialization has not acquired a state handle or
+completed bundle setup. This also applies after the handle is closed: cleanup must preserve the
+original initialization failure rather than enter JNI with an absent handle. Partially acquired
+handles and reservations are still released by normal close; initialized operators retain their
+normal end-of-input and checkpoint flushes.
 Before a row-to-Arrow conversion hands its batch to a consumer, the converter owns every allocated
 vector. A rejected allocation or a row conversion error closes those vectors, including the
 changelog sidecar, before propagating the original failure. Cleanup errors are attached as
