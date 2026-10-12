@@ -5,7 +5,6 @@ import org.apache.flink.api.connector.source.ReaderOutput;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.ConfigurationUtils;
 import org.apache.flink.configuration.CoreOptions;
-import org.apache.flink.connector.base.source.reader.SingleThreadMultiplexSourceReaderBase;
 import org.apache.flink.core.io.InputStatus;
 import org.apache.paimon.disk.IOManager;
 import org.apache.paimon.flink.metrics.FlinkMetricRegistry;
@@ -16,13 +15,10 @@ import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.source.DataSplit;
 import org.apache.paimon.table.source.ReadBuilder;
 import tech.streamfusion.operator.ArrowBatch;
-import tech.streamfusion.operator.NativeSourceRecord;
 import tech.streamfusion.operator.WatermarkExpression;
 
 /** Mirrors released Paimon's split requests and consumer-progress events. */
-final class NativePaimonSourceReader
-    extends SingleThreadMultiplexSourceReaderBase<
-        NativeSourceRecord, ArrowBatch, FileStoreSourceSplit, PaimonSourceSplitState> {
+final class NativePaimonSourceReader extends PaimonSourceReaderCompat {
   private final IOManager io;
   private long lastSnapshot = Long.MIN_VALUE;
   private final boolean watermarked;

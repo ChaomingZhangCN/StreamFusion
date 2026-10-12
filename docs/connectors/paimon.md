@@ -30,6 +30,16 @@ checkpoint serialization. A task-side reader emits Arrow batches into the native
 | Primary-key initial snapshot | Native Parquet/ORC for raw-convertible files; native sorted-run merge for admitted deduplication/first-row splits; Java merge-to-Arrow for other splits |
 | Primary-key changelog tailing | Native Parquet/ORC decoding of value columns and the stored row-kind byte |
 
+Native readers use Flink's single-thread fetcher lifecycle and its configured bounded handover
+queue. The Flink 1.18 and 2.2 adapters obtain the running fetcher from one iterator, checking
+`hasNext()` before `next()`. The released manager's separate `Map.isEmpty()` check can race
+with the I/O thread retiring the last fetcher and fail a new split assignment with
+`NoSuchElementException`. An empty iterator instead lets Flink create a new fetcher normally;
+split ordering, checkpoint offsets and shutdown remain managed by the released reader.
+`PaimonFetcherLifecycleTest` reproduces that retirement deterministically against both the
+stock manager and the native adapter. The original lookup/changelog SQL tests still compare
+their results without retries or relaxed assertions.
+
 Primary-key tailing requires `changelog-producer = input`, `lookup`, or `full-compaction`, and
 Parquet or ORC changelog files. The producer has already generated the changes; the source preserves
 `+I`, `-U`, `+U`, and `-D` without another merge. Default startup reads the current snapshot before

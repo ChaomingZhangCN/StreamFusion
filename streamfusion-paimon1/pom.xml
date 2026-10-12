@@ -176,6 +176,13 @@
                                     </excludes>
                                 </resource>
                                 <resource>
+                                    <directory>${project.basedir}/../src/main/java-flink1.18</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>tech/streamfusion/paimon/**/*.java</include>
+                                    </includes>
+                                </resource>
+                                <resource>
                                     <directory>${project.basedir}/src/main/java</directory>
                                     <filtering>false</filtering>
                                 </resource>
@@ -197,6 +204,7 @@
                                     <includes>
                                         <include>**/PaimonSourceSqlTest.java</include>
                                         <include>**/PaimonSplitWatermarksTest.java</include>
+                                        <include>**/PaimonFetcherLifecycleTest.java</include>
                                     </includes>
                                 </resource>
                                 <resource>
