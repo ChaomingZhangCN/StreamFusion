@@ -1255,7 +1255,7 @@ this durable snapshot state. A passing randomized run does not establish absence
 StreamFusion remains on released Paimon 1.0.0; fixing the split-commit recovery requires a
 verified upstream release, not a planner workaround or a forked dependency.
 
-The same incomplete commit also has a deterministic full-compaction changelog reproducer,
+The same incomplete commit also has a deterministic full-compaction and lookup changelog reproducer,
 without deletion vectors: commit `10`, consume the initial stream snapshot, then write `20`
 and inject a manifest-read failure after APPEND and before COMPACT. After recovery a fresh
 batch reader returns `20`, but the incremental stream scan returns no final changelog.
@@ -1271,6 +1271,13 @@ mvn -Pflink-1.18,paimon1 -pl streamfusion-paimon1 -am \
   -Dsf.paimon1.reproduceFullCompactionCommit=true test
 ```
 
+The diagnostic now covers both `full-compaction` and `lookup` with deletion vectors
+disabled and `lookup-wait=false`. Both no-failure controls pass; both recovered commits
+fail the required final-changelog assertion (`batch=[20]`, `changelog=[]`, latest snapshot
+`APPEND`). Standalone runs excluding StreamFusion production classes reproduce both
+controls and both failures on JDK 11 and 17. These are failing opt-in diagnostics of the released dependency, not passing
+StreamFusion recovery coverage.
+
 [#318](https://github.com/datafusion-contrib/StreamFusion/issues/318) tracks this defect
 and the remaining CI investigation. In [run 38020828273](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38020828273/job/114121230011),
 241 of 242 upstream cases passed; the unchanged full-compaction streaming test timed out
@@ -1282,7 +1289,29 @@ randomized inputs and deadlines remain authoritative; the capture is diagnostic 
 than an atomic backup. Compare stock/native replay over that retained state before
 claiming the timeout resolved.
 
-Run the opt-in diagnostic with JDK 17. **The recovery case is expected to fail on 1.0.0**
+PR #333's [run 38231158108](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38231158108/job/114750691182)
+retains enough evidence to establish the same failure boundary for the unchanged
+`testLookupChangelogProducerStreamingRandom` invocation. Of 242 upstream tests,
+241 pass and this case times out. Two producers write 512 terminal keys in total;
+both eventually finish. The second producer's final commit persists snapshot 16,
+an APPEND at `Long.MAX_VALUE`, then fails with a file-deletion compaction conflict.
+After checkpoint recovery the job finishes without a COMPACT snapshot for that
+identifier. Only the first producer's 256 terminal keys are in committed changelog.
+
+A standalone released-stock replay of the retained table, with every StreamFusion
+production class and JAR excluded, reads all 512 terminal values in batch but only
+256 terminal keys in the changelog. Exact stock/native split replay agrees on all
+73 splits and 2,290 rows, including RowKinds and every field; the native replay
+reads 83 files through its native decoder. Replay begins at snapshot 1 and is finite;
+it verifies captured durable state and reader parity, without reconstructing live
+scheduling or claiming that every concurrent native write schedule matches stock.
+The timeout reflects missing committed changelog, not a slow consumer or the separate
+fetcher-retirement exception fixed in [#334](https://github.com/datafusion-contrib/StreamFusion/issues/334).
+The [captured evidence record](../benchmarks/results/paimon-lookup-split-commit-2026-10-12.json)
+links the original artifact and records these boundaries. This recovery defect remains
+open in #318; the original randomized test, SQL, assertions and deadline remain enabled.
+
+Run the deletion-vector opt-in diagnostic with JDK 17. **The recovery case is expected to fail on 1.0.0**
 (`expected: 20 but was: 10`); the control passes. It is separate from the regular test gate:
 
 ```bash

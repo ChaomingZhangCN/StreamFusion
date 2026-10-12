@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "revision": "2f6295946034e09719ceadd21f5e8eee0125dd45",
+  "main_revision": "c048cfbec7439cc71667703a26f4beb500b1d90a",
+  "issue": "https://github.com/datafusion-contrib/StreamFusion/issues/318",
+  "ci_job": "https://github.com/datafusion-contrib/StreamFusion/actions/runs/38231158108/job/114750691182",
+  "artifact": "https://github.com/datafusion-contrib/StreamFusion/actions/runs/38231158108/artifacts/11740740490",
+  "upstream_test": "PrimaryKeyFileStoreTableITCase.testLookupChangelogProducerStreamingRandom",
+  "dependencies": {
+    "paimon": "1.0.0",
+    "flink": "1.18.1"
+  },
+  "table_schema": "pt STRING, k INT, v1 BIGINT, v2 STRING; PRIMARY KEY (pt,k); PARTITIONED BY (pt)",
+  "table_options": {
+    "bucket": "4",
+    "changelog.precommit-compact": "false",
+    "continuous.discovery-interval": "1ms",
+    "changelog-producer": "lookup",
+    "writer-buffer-size": "8mb",
+    "deletion-vectors.enabled": "false",
+    "lookup-wait": "false"
+  },
+  "suite": {
+    "tests": 242,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "error": "TimeoutException after 180 seconds"
+  },
+  "durable_state": {
+    "latest_snapshot": 16,
+    "latest_commit_kind": "APPEND",
+    "latest_commit_identifier": 9223372036854775807,
+    "latest_snapshot_sha256": "0108326b5f07a0e6542730e4c0a06bfd5f00318bf60f61e4fa9cf6b1497b4020",
+    "last_changelog_snapshot": 15,
+    "terminal_keys_expected": 512,
+    "terminal_keys_batch": 512,
+    "terminal_keys_changelog": 256
+  },
+  "replay": {
+    "start_snapshot": 1,
+    "splits": 73,
+    "rows": 2290,
+    "stock_native_exact_equal": true,
+    "compared": [
+      "row kind",
+      "pt",
+      "k",
+      "v1",
+      "v2"
+    ],
+    "native_files_read": 83,
+    "native_snapshots_read": 0,
+    "standalone_stock_excludes_streamfusion_production": true
+  },
+  "standalone_recovery_diagnostic": {
+    "producers": [
+      "full-compaction",
+      "lookup"
+    ],
+    "no_failure_controls": "pass",
+    "failure_after_append_controls": "fail final-changelog assertion",
+    "batch_values": [
+      20
+    ],
+    "incremental_changelog_values": [],
+    "latest_commit_kind": "APPEND",
+    "uses_released_sdk_only": true,
+    "standalone_jdk_versions": [
+      "11.0.27",
+      "17.0.12"
+    ],
+    "excludes_streamfusion_production": true
+  },
+  "limitations": [
+    "Warehouse capture is diagnostic, not an atomic backup.",
+    "Finite replay does not reconstruct live scheduling.",
+    "Reader replay does not establish stock/native writer equivalence under every concurrent schedule.",
+    "No original SQL test, input, assertion or deadline is changed.",
+    "The canonical released dependency defect is unresolved; this evidence is not a CI fix."
+  ]
+}
