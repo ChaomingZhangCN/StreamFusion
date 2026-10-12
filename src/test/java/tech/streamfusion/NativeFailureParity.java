@@ -34,6 +34,7 @@ final class NativeFailureParity {
     private final int substitutions;
     private final List<String> resultTypes;
     private final String plan;
+    private final String rootCauseMessage;
 
     Outcome(
         List<List<Object>> rows,
@@ -54,6 +55,8 @@ final class NativeFailureParity {
       this.substitutions = substitutions;
       this.resultTypes = resultTypes;
       this.plan = plan;
+      // Materialize JVM-generated details before another execution can unload generated code.
+      this.rootCauseMessage = rootCause() == null ? null : rootCause().getMessage();
     }
 
     public List<List<Object>> rows() {
@@ -100,6 +103,8 @@ final class NativeFailureParity {
           + route
           + ", cause="
           + rootCause()
+          + ", capturedMessage="
+          + rootCauseMessage
           + ", collected="
           + rows.size()
           + ", rows="
@@ -176,12 +181,23 @@ final class NativeFailureParity {
         Throwable cause = outcome.rootCause();
         assertTrue(causeType.isInstance(cause), outcome.toString());
         if (message != null) {
-          assertTrue(String.valueOf(cause.getMessage()).contains(message), outcome.toString());
+          assertTrue(String.valueOf(outcome.rootCauseMessage).contains(message), outcome.toString());
         }
         assertEquals(phase, outcome.phase(), outcome.toString());
       }
       assertEquals(host.rootCause().getClass(), nativeRun.rootCause().getClass(), this::toString);
       assertEquals(nativeRoute, nativeRun.route(), this::toString);
+    }
+
+    void assertNullUnboxingFailure(Phase phase, Route nativeRoute) {
+      assertFailure(NullPointerException.class, phase, nativeRoute);
+      for (Outcome outcome : List.of(host, nativeRun)) {
+        assertEquals(List.of(), outcome.rows(), this::toString);
+        // Helpful NPE text is optional on every JDK, independently of SQL failure semantics.
+        if (outcome.rootCauseMessage != null) {
+          assertTrue(outcome.rootCauseMessage.contains("booleanValue"), this::toString);
+        }
+      }
     }
 
     void assertSuccess(Route nativeRoute) {

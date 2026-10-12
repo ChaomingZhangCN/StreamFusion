@@ -1211,6 +1211,12 @@ admitted. Unsupported host code generation
 and UDF signatures retain explicit fallback. Flink 2.2.1 rejects dynamic JSON_EXISTS paths;
 that host failure is preserved. No configuration opt-in is required.
 
+`JSON_EXISTS(... UNKNOWN ON ERROR) IS TRUE` retains Flink's boxed-null unboxing failure.
+Failure-parity tests require the exception class, row-evaluation phase, native route and no output.
+They capture JVM-generated NPE messages before the next execution and validate `booleanValue`
+when details are present; JDK version alone does not guarantee helpful NPE diagnostics. The same
+SQL and stable assertions are exercised with helpful messages disabled, without a fallback or skip.
+
 The JSON string identity gate below still applies, including to JSON_QUERY. Non-Calc
 expression contexts, such as residual join predicates, retain their existing narrower
 native/fused-expression admission. JSON connector decoding is unaffected. This is general
