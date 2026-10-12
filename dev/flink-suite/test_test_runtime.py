@@ -3,16 +3,94 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 RUNNER = Path(__file__).resolve().parents[2] / "bin/flink-suite.sh"
+ROOT = RUNNER.parents[1]
 
 
 class TestRuntimePreparationTest(unittest.TestCase):
+    def test_real_providers_start_offline_after_isolated_resolution(self):
+        settings = str(ROOT / "dev/flink-suite/settings.xml")
+        with tempfile.TemporaryDirectory() as directory:
+            for line, surefire, junit, original_opentest in (
+                    ("2.2", "3.2.2", "5.11.4", "1.2.0"),
+                    ("1.18", "3.0.0-M5", "5.9.1", "1.1.1")):
+                with self.subTest(line=line):
+                    root = Path(directory) / line
+                    source = root / "src/test/java"
+                    source.mkdir(parents=True)
+                    repository = root / "m2"
+                    pom = root / "pom.xml"
+                    pom.write_text(f'''<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion><groupId>test</groupId><artifactId>upstream-runtime</artifactId><version>1</version>
+  <properties><maven.compiler.release>11</maven.compiler.release></properties>
+  <dependencyManagement><dependencies><dependency>
+    <groupId>org.junit</groupId><artifactId>junit-bom</artifactId><version>{junit}</version><type>pom</type><scope>import</scope>
+  </dependency></dependencies></dependencyManagement>
+  <dependencies>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.junit.vintage</groupId><artifactId>junit-vintage-engine</artifactId><scope>test</scope></dependency>
+  </dependencies>
+  <build><plugins>
+    <plugin><artifactId>maven-resources-plugin</artifactId><version>3.3.1</version></plugin>
+    <plugin><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version></plugin>
+    <plugin><artifactId>maven-surefire-plugin</artifactId><version>{surefire}</version>
+      <configuration><forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory"/></configuration>
+      <executions><execution><id>integration-tests</id><goals><goal>test</goal></goals></execution></executions>
+    </plugin>
+  </plugins></build>
+</project>''')
+                    (source / "JupiterTest.java").write_text(
+                        'class JupiterTest { @org.junit.jupiter.api.Test void runs() {} }')
+                    (source / "VintageTest.java").write_text(
+                        'public class VintageTest { @org.junit.Test public void runs() {} }')
+                    base = ["mvn", "-B", "-ntp", "-s", settings, "-gs", settings,
+                            "-f", str(pom), "-Dmaven.repo.local=" + str(repository)]
+
+                    def run(command, succeeds=True):
+                        result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+                        if succeeds:
+                            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                        else:
+                            self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                        return result.stdout + result.stderr
+
+                    run(base + ["-DskipTests", "test"])
+                    # Model the previous provider pin and the missing artifact observed in CI.
+                    run(base + ["org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get",
+                                "-Dartifact=org.apache.maven.surefire:surefire-junit-platform:3.2.2",
+                                "-Dtransitive=true"])
+                    if line == "2.2":
+                        shutil.rmtree(repository / f"org/opentest4j/opentest4j/{original_opentest}")
+                    else:
+                        self.assertFalse((repository / f"org/apache/maven/surefire/surefire-junit-platform/{surefire}"
+                                          / f"surefire-junit-platform-{surefire}.jar").exists())
+                    failure = run(base + ["-o", "surefire:test@integration-tests"], succeeds=False)
+                    self.assertRegex(failure, "opentest4j" if line == "2.2" else
+                                     "surefire-junit-platform|JUnitPlatformProvider")
+                    run([sys.executable, str(ROOT / "bin/ci-maven-dependencies.py"),
+                         "--maven", "mvn", "--repository", str(repository),
+                         "--artifact", f"org.apache.maven.surefire:surefire-junit-platform:{surefire}",
+                         "--artifact", "org.junit.platform:junit-platform-launcher:" +
+                         ("1.11.4" if line == "2.2" else "1.9.1")])
+                    self.assertTrue((repository / f"org/opentest4j/opentest4j/{original_opentest}"
+                                     / f"opentest4j-{original_opentest}.jar").exists())
+                    run(base + ["-o", "surefire:test@integration-tests"])
+                    reports = list((root / "target/surefire-reports").glob("TEST-*.xml"))
+                    self.assertEqual(2, len(reports))
+                    for report in reports:
+                        result = ET.parse(report).getroot()
+                        self.assertEqual("1", result.get("tests"))
+                        self.assertEqual("0", result.get("errors"))
+                        self.assertEqual("0", result.get("failures"))
+
     def test_each_line_prepares_its_own_runtime_and_preserves_download_failure(self):
         source = RUNNER.read_text()
         start = source.index('if [[ "${SUITE_MODE}" == "prepare" ]]; then\n')
@@ -57,10 +135,12 @@ class TestRuntimePreparationTest(unittest.TestCase):
                         self.assertEqual(str(suite / "flink"), working_directory)
                         self.assertEqual(str(suite / "m2"), arguments[arguments.index("--repository") + 1])
                         self.assertEqual(str(suite / "flink/mvnw"), arguments[arguments.index("--maven") + 1])
-                        self.assertEqual("java11-target" if line == "2.2" else "",
-                                         arguments[arguments.index("--profile") + 1])
+                        self.assertNotIn("--profile", arguments)
+                        self.assertNotIn("--projects", arguments)
+                        self.assertNotIn("--pom", arguments)
                         artifacts = [arguments[i + 1] for i, value in enumerate(arguments) if value == "--artifact"]
-                        self.assertEqual(["org.apache.maven.surefire:surefire-junit-platform:3.2.2",
+                        self.assertEqual(["org.apache.maven.surefire:surefire-junit-platform:" +
+                                          ("3.0.0-M5" if line == "1.18" else "3.2.2"),
                                           "org.junit.platform:junit-platform-launcher:" +
                                           ("1.9.1" if line == "1.18" else "1.11.4")], artifacts)
                         self.assertEqual(1 if status or probe_status else 2, len(invocations))

@@ -82,6 +82,10 @@ class MavenDependenciesTest(unittest.TestCase):
         for command in commands:
             self.assertIn(PREPARE.ARTIFACT_GOAL, command)
             self.assertIn("-Dtransitive=true", command)
+            self.assertEqual(str(PREPARE.ARTIFACT_POM), command[command.index("-f") + 1])
+            self.assertNotIn("-pl", command)
+            self.assertNotIn("-am", command)
+            self.assertFalse(any(arg.startswith("-P") for arg in command))
             self.assertFalse({"test", "verify", "package", "install"} & set(command))
 
     def test_failed_runtime_graph_blocks_later_downloads(self):

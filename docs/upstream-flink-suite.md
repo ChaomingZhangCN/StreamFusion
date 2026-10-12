@@ -733,21 +733,31 @@ the generated classpath to their checkout, and validate the payload manifests be
 The artifact is shared within that workflow run; successful test results are never reused.
 
 Preparation also resolves Surefire's dynamically loaded JUnit Platform provider and the
-launcher matching the pinned host: Surefire 3.2.2 on both lines, Platform 1.11.4 on Flink 2.2,
-and Platform 1.9.1 on Flink 1.18. A skipped-test build resolves the plugin without loading
+launcher matching the pinned host: Surefire 3.2.2 / Platform 1.11.4 on Flink 2.2,
+and Surefire 3.0.0-M5 / Platform 1.9.1 on Flink 1.18. A skipped-test build resolves the plugin without loading
 these runtime dependencies. The agent's own tests use a separate Maven repository and plugin
 version, so their success cannot prove that the transferred suite repository is complete.
 The artifact mode of `bin/ci-maven-dependencies.py` resolves the two runtime artifacts
 with their complete transitive dependencies, using bounded download retries to populate
 the isolated `m2` directory before packing. It avoids resolving unrelated build plugins.
-The provider's original transitive graph remains separate from the host
-launcher graph so version mediation cannot omit artifacts Surefire resolves before aligning
-versions. Those retries never execute or retry a test lifecycle. Preparation then runs the
+Each artifact resolves separately in `dev/flink-suite/runtime-dependencies/pom.xml`, which
+has no parent, dependencies or dependency management. This keeps provider resolution
+independent of the host model and its JUnit BOM, including the original
+`opentest4j:1.2.0` dependency needed during Surefire 3.2.2 startup. Both Maven settings
+files use the suite's public-repository configuration. Those retries never execute or retry
+a test lifecycle. Preparation then runs the
 unchanged stock `CalcITCase#testSimpleProject` once with Maven's offline flag, requiring a
 real test invocation and a successful result before publishing the shared build. This smoke
 check uses no injection agent, contributes no native-coverage evidence, and its reports are
 excluded from the shared artifact. Update these pins when upgrading the corresponding
 upstream Surefire or JUnit version.
+
+The preparation regression test uses a fresh repository for each pinned Surefire/JUnit
+combination, with a host JUnit BOM and both Jupiter and Vintage tests. Its negative controls
+reproduce a wrong 1.18 provider pin and deliberately remove the original 2.2 OpenTest4J
+artifact to model the incomplete CI cache. After dependency preparation, both engines must
+execute successfully offline. This is a runtime-loader regression, not a replacement for
+the unchanged upstream SQL smoke test or the complete integration suites.
 
 Short connector suites run sequentially in one job per Flink line: formats first, then Parquet,
 ORC, Kafka, and (on 2.2 only) Delta. Formats runs first because its report cleanup spans the format
