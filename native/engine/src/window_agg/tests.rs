@@ -87,6 +87,176 @@ fn string_extrema_partials_preserve_nulls_utf8_order_and_keyed_restore() {
     }
 }
 
+#[test]
+fn zero_sum_windows_preserve_wrapping_nulls_liveness_and_restored_partials() {
+    for (code, max) in [
+        (0, i64::MAX),
+        (2, i32::MAX as i64),
+        (4, i16::MAX as i64),
+        (5, i8::MAX as i64),
+    ] {
+        for (size, cumulative) in [(1000, false), (2000, false), (3000, true)] {
+            let kinds = vec![22, RETRACT_COUNT, HIDDEN_LIVE_COUNT];
+            let types = vec![code, code, 0];
+            let create = |width, cumulative| {
+                TumblingAggregator::new(width, 1000, cumulative, types.clone(), kinds.clone())
+            };
+            let mut single = create(size, cumulative);
+            let mut local = create(1000, false);
+            let mut global = create(size, cumulative);
+            for rows in [
+                vec![
+                    (100, 1, Some(7), 0),
+                    (200, 2, None, 0),
+                    (300, 3, Some(max), 0),
+                    (400, 4, Some(3), 0),
+                ],
+                vec![
+                    (100, 1, Some(7), 1),
+                    (100, 1, Some(9), 2),
+                    (300, 3, Some(1), 0),
+                    (400, 4, Some(3), 3),
+                ],
+            ] {
+                let batch = retracting_batch(&rows);
+                let mut columns = batch.columns().to_vec();
+                for column in &mut columns[2..4] {
+                    *column = arrow::compute::cast(column, &value_data_type(code)).unwrap();
+                }
+                let fields = batch
+                    .schema()
+                    .fields()
+                    .iter()
+                    .zip(&columns)
+                    .map(|(field, column)| {
+                        Field::new(field.name(), column.data_type().clone(), true)
+                    })
+                    .collect::<Vec<_>>();
+                let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap();
+                single.update(&batch).unwrap();
+                local.update_local(&batch).unwrap();
+                // Checkpointing a live local must preserve its zero/overflow state before draining.
+                local = TumblingAggregator::restore(
+                    1000,
+                    1000,
+                    false,
+                    types.clone(),
+                    kinds.clone(),
+                    &local.snapshot(),
+                );
+                global.update_partial(&local.drain_partial()).unwrap();
+                single = TumblingAggregator::restore(
+                    size,
+                    1000,
+                    cumulative,
+                    types.clone(),
+                    kinds.clone(),
+                    &single.snapshot(),
+                );
+                global = TumblingAggregator::restore_partitions(
+                    size,
+                    1000,
+                    cumulative,
+                    types.clone(),
+                    kinds.clone(),
+                    &global
+                        .snapshot_partitions(128, &[-1])
+                        .into_values()
+                        .collect::<Vec<_>>(),
+                );
+            }
+            let output = single.flush(i64::MAX).unwrap();
+            assert_eq!(output, global.flush(i64::MAX).unwrap());
+            let keys = column_i64(&output, "key0");
+            let result =
+                arrow::compute::cast(output.column_by_name("result0").unwrap(), &DataType::Int64)
+                    .unwrap();
+            let result = result.as_any().downcast_ref::<Int64Array>().unwrap();
+            for row in 0..output.num_rows() {
+                let expected = match keys.value(row) {
+                    1 => 9,
+                    2 => 0,
+                    3 => match code {
+                        0 => i64::MIN,
+                        2 => i32::MIN as i64,
+                        4 => i16::MIN as i64,
+                        _ => i8::MIN as i64,
+                    },
+                    key => panic!("removed group emitted: {key}"),
+                };
+                assert_eq!(result.value(row), expected);
+            }
+            assert_eq!(output.num_rows(), 3 * (size / 1000) as usize);
+        }
+    }
+}
+
+#[test]
+fn zero_sum_decimal_overflow_partials_latch_across_window_restore() {
+    let code = 2000 + 38 * 100 + 2;
+    let max = 10_i128.pow(38) - 1;
+    for (size, cumulative) in [(1000, false), (2000, false), (3000, true)] {
+        let mut single = TumblingAggregator::new(size, 1000, cumulative, vec![code], vec![22]);
+        let mut local = TumblingAggregator::new(1000, 1000, false, vec![code], vec![22]);
+        let mut global = TumblingAggregator::new(size, 1000, cumulative, vec![code], vec![22]);
+        for values in [
+            vec![Some(max), None],
+            vec![Some(1), None],
+            vec![Some(-1), None],
+        ] {
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", Arc::new(Int64Array::from(vec![100; 2])) as ArrayRef),
+                ("key0", Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef),
+                (
+                    "value0",
+                    Arc::new(
+                        Decimal128Array::from(values)
+                            .with_precision_and_scale(38, 2)
+                            .unwrap(),
+                    ) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            single.update(&batch).unwrap();
+            local.update_local(&batch).unwrap();
+            global.update_partial(&local.drain_partial()).unwrap();
+            single = TumblingAggregator::restore(
+                size,
+                1000,
+                cumulative,
+                vec![code],
+                vec![22],
+                &single.snapshot(),
+            );
+            global = TumblingAggregator::restore(
+                size,
+                1000,
+                cumulative,
+                vec![code],
+                vec![22],
+                &global.snapshot(),
+            );
+        }
+        let output = single.flush(i64::MAX).unwrap();
+        assert_eq!(output, global.flush(i64::MAX).unwrap());
+        let keys = column_i64(&output, "key0");
+        let results = output
+            .column_by_name("result0")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Decimal128Array>()
+            .unwrap();
+        for row in 0..output.num_rows() {
+            if keys.value(row) == 1 {
+                assert!(results.is_null(row));
+            } else {
+                assert_eq!(results.value(row), 0);
+                assert!(!results.is_null(row));
+            }
+        }
+    }
+}
+
 pub(crate) fn retracting_batch(rows: &[(i64, i64, Option<i64>, i8)]) -> RecordBatch {
     let values: ArrayRef = Arc::new(Int64Array::from(
         rows.iter().map(|r| r.2).collect::<Vec<_>>(),

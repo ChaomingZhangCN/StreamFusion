@@ -574,6 +574,53 @@ class FlinkRetractingWindowSqlHarnessTest {
     "ONE_PHASE,HOP,true", "TWO_PHASE,HOP,true",
     "ONE_PHASE,CUMULATE,true", "TWO_PHASE,CUMULATE,true"
   })
+  void sharedExactReductionsPreserveSignedChangesAfterCheckpoint(
+      String phase, String shape, boolean rocks) throws Exception {
+    String interval = shape.equals("TUMBLE") ? "INTERVAL '5' SECOND"
+        : "INTERVAL '5' SECOND, INTERVAL '" + (shape.equals("HOP") ? 10 : 15) + "' SECOND";
+    String decimal = "CAST(v AS DECIMAL(38,2))";
+    String sql = "SELECT k, window_end, COUNT(v), AVG(v), SUM(v), COUNT(" + decimal
+        + "), AVG(" + decimal + "), SUM(" + decimal + ") FROM TABLE(" + shape
+        + "(TABLE changes, DESCRIPTOR(rt), " + interval + ")) GROUP BY k, window_start, window_end";
+    List<Row> expected = new ArrayList<>();
+    int end = shape.equals("TUMBLE") ? 5 : shape.equals("HOP") ? 10 : 15;
+    for (int boundary = 5; boundary <= end; boundary += 5) {
+      LocalDateTime timestamp = LocalDateTime.ofEpochSecond(boundary, 0, ZoneOffset.UTC);
+      for (int key : new int[] {1, 2, 4, 5, 6, 7, 8}) {
+        Long sum = null;
+        switch (key) {
+          case 1: sum = 20L; break;
+          case 4: sum = 5L; break;
+          case 5: sum = -3L; break;
+          case 6: sum = Long.MIN_VALUE; break;
+          case 7: sum = -2L; break;
+          case 8: sum = 21L; break;
+          default: break;
+        }
+        long count = key == 2 ? 0 : key == 5 || key == 6 ? -1 : key >= 7 ? 2 : 1;
+        BigDecimal decimalSum = sum == null ? null : key == 7
+            ? BigDecimal.valueOf(Long.MAX_VALUE).multiply(BigDecimal.valueOf(2)).setScale(2)
+            : BigDecimal.valueOf(sum).setScale(2);
+        // Retracting Long.MIN_VALUE wraps BIGINT, but DECIMAL retains its positive negation.
+        if (key == 6) decimalSum = decimalSum.negate();
+        expected.add(Row.of(key, timestamp, count, count == 0 ? null : sum / count, sum,
+            count, decimalSum == null ? null
+                : decimalSum.divide(BigDecimal.valueOf(count), 6, RoundingMode.HALF_UP), decimalSum));
+      }
+    }
+    expected.sort(Comparator.comparing(Row::toString));
+    assertRecoveredWindowRows(phase, rocks, sql, expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "ONE_PHASE,TUMBLE,false", "TWO_PHASE,TUMBLE,false",
+    "ONE_PHASE,HOP,false", "TWO_PHASE,HOP,false",
+    "ONE_PHASE,CUMULATE,false", "TWO_PHASE,CUMULATE,false",
+    "ONE_PHASE,TUMBLE,true", "TWO_PHASE,TUMBLE,true",
+    "ONE_PHASE,HOP,true", "TWO_PHASE,HOP,true",
+    "ONE_PHASE,CUMULATE,true", "TWO_PHASE,CUMULATE,true"
+  })
   void appendOnlyFilteredDistinctKeepsIndependentSetsAcrossCheckpoint(
       String phase, String shape, boolean rocks) throws Exception {
     String interval =
@@ -1181,7 +1228,7 @@ class FlinkRetractingWindowSqlHarnessTest {
     "ONE_PHASE,HOP,'DECIMAL(12,2)'", "TWO_PHASE,HOP,'DECIMAL(12,2)'",
     "ONE_PHASE,CUMULATE,'DECIMAL(12,2)'", "TWO_PHASE,CUMULATE,'DECIMAL(12,2)'"
   })
-  void reducedSumAndAverageKeepExplicitFallback(String phase, String shape, String type)
+  void reducedSumAndAverageRetractTopRowsNatively(String phase, String shape, String type)
       throws Exception {
     String window;
     switch (shape) {
@@ -1207,10 +1254,14 @@ class FlinkRetractingWindowSqlHarnessTest {
             + ") FROM TABLE("
             + window
             + ") GROUP BY k, window_start, window_end";
-    NativeParity.assertFallbackReasonContains(
-        () -> environment(phase),
-        sql,
-        "window aggregate: retracting input supports only aligned event-time");
+    List<Row> host = collect(environment(phase), sql).rows();
+    var accelerated = environment(phase);
+    var scan = NativePlanner.install(accelerated);
+    var result = collect(accelerated, sql);
+    assertEquals(host, result.rows());
+    assertTrue(scan.fallbackReasons().isEmpty(), scan.fallbackReasons().toString());
+    assertNativeRows(result.job(), "NativeColumnarTopNExecNode");
+    assertWindowRows(result.job(), phase);
   }
 
   private static List<Row> expected(String shape, boolean distinct) {
