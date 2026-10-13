@@ -40,6 +40,20 @@ final class RecoveryExecutionMetrics implements AutoCloseable {
         cluster.getMiniCluster(), jobConfig, parallelism, List.of(), List.of());
   }
 
+  long recordsIn(String jobId, String operatorPrefix) {
+    long[] total = {0};
+    reporter.getMetricsByGroup().forEach((group, metrics) -> {
+      if (!(group instanceof org.apache.flink.metrics.groups.OperatorMetricGroup)) return;
+      var variables = group.getAllVariables();
+      if (jobId.equals(variables.get("<job_id>"))
+          && variables.getOrDefault("<operator_name>", "").startsWith(operatorPrefix)
+          && metrics.get("numRecordsIn") instanceof Counter) {
+        total[0] += ((Counter) metrics.get("numRecordsIn")).getCount();
+      }
+    });
+    return total[0];
+  }
+
   List<Map<String, Object>> nativeOperators() {
     List<Map<String, Object>> observations = new ArrayList<>();
     reporter
