@@ -31,14 +31,20 @@ class StringWindowBenchmark {
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
   void stringExtrema(String phase) throws Exception {
-    String window =
-        switch (SHAPE) {
-          case "TUMBLE" -> "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '10' SECOND)";
-          case "HOP" -> "HOP(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)";
-          case "CUMULATE" ->
-              "CUMULATE(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)";
-          default -> throw new IllegalArgumentException("Unknown window shape: " + SHAPE);
-        };
+    String window;
+    switch (SHAPE) {
+      case "TUMBLE":
+        window = "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '10' SECOND)";
+        break;
+      case "HOP":
+        window = "HOP(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)";
+        break;
+      case "CUMULATE":
+        window = "CUMULATE(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)";
+        break;
+      default:
+        throw new IllegalArgumentException("Unknown window shape: " + SHAPE);
+    }
     String sql =
         "INSERT INTO sink SELECT k, MIN(v), MAX(v), COUNT(*) FROM TABLE("
             + window

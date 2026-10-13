@@ -769,7 +769,8 @@ final class WindowAggregateMatcher {
     if (zoneReason != null) {
       return "window aggregate: " + zoneReason;
     }
-    if (node instanceof StreamPhysicalWindowAggregate aggregate) {
+    if (node instanceof StreamPhysicalWindowAggregate) {
+      StreamPhysicalWindowAggregate aggregate = (StreamPhysicalWindowAggregate) node;
       String reason =
           singlePhaseStringExtremaReason(
               node, aggregate.aggCalls(), aggregate.getInput().getRowType());

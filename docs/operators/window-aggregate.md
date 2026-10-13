@@ -61,6 +61,9 @@ matching Flink's materialized string ordering. Empty strings are values, NULL in
 and a group with only NULL values emits NULL. CHAR casts keep Flink's padding/truncation at the
 expression boundary rather than changing the accumulator's comparison.
 
+The implementation, SQL/state regression tests and opt-in benchmark harness retain the
+project's Java 11 bytecode target, including when built with JDK 17.
+
 The local stage emits one nullable UTF-8 accumulator field for each string MIN/MAX. The global
 stage merges that field with the same extreme operation. Mixed numeric aggregates, AVG's paired
 fields, and COUNT(*) retain their positional layout. Existing DataFusion extrema accumulators,

@@ -331,7 +331,8 @@ class RocksDBNativeStateBackendAllOperatorsTest {
         List<List<Object>> actual = new ArrayList<>();
         while (!harness.getOutput().isEmpty()) {
           Object event = harness.getOutput().poll();
-          if (event instanceof StreamRecord<?> record) {
+          if (event instanceof StreamRecord<?>) {
+            StreamRecord<?> record = (StreamRecord<?>) event;
             try (VectorSchemaRoot root = ((ArrowBatch) record.getValue()).root()) {
               for (RowData row : RowDataArrowConverter.read(root, STRING_WINDOW_OUTPUT)) {
                 actual.add(java.util.Arrays.asList(row.getLong(0),
@@ -385,7 +386,8 @@ class RocksDBNativeStateBackendAllOperatorsTest {
       operator.prepareSnapshotPreBarrier(1);
       while (!local.getOutput().isEmpty()) {
         Object event = local.getOutput().poll();
-        if (event instanceof StreamRecord<?> record) {
+        if (event instanceof StreamRecord<?>) {
+          StreamRecord<?> record = (StreamRecord<?>) event;
           global.processElement(new StreamRecord<>((ArrowBatch) record.getValue()));
         }
       }

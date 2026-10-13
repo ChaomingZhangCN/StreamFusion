@@ -74,7 +74,8 @@ class NativeColumnarWindowAggregateOperatorTest {
         List<List<Object>> actual = new ArrayList<>();
         while (!harness.getOutput().isEmpty()) {
           Object event = harness.getOutput().poll();
-          if (event instanceof StreamRecord<?> record) {
+          if (event instanceof StreamRecord<?>) {
+            StreamRecord<?> record = (StreamRecord<?>) event;
             try (VectorSchemaRoot root = ((ArrowBatch) record.getValue()).root()) {
               for (RowData row : RowDataArrowConverter.read(root, output)) {
                 actual.add(List.of(row.getString(0).toString(), row.getString(1).toString(),
