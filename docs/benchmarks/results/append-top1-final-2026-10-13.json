@@ -1,0 +1,687 @@
+{
+  "status": "Verified final compact-winner candidate; earlier sustained and bounded controls retained with their own source and library identities; documented unique-key memory tradeoff approved by maintainer",
+  "baseline_commit": "381b4c84e289b7a9954b3b64c77016a6ebd3ed63",
+  "candidate_base": "d349a8e1b5e7001f507a89ab40832964659e0a22",
+  "candidate_release_library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+  "baseline_release_library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": 17,
+    "allocator": "mimalloc",
+    "parallelism": 1,
+    "task_managers": 1,
+    "slots": 8,
+    "task_off_heap": "48 GiB",
+    "managed_memory": "80 MiB total / 10 MiB slot",
+    "mini_batch": 1024,
+    "warmup_seconds": 5,
+    "interval_seconds": 10,
+    "jobs_per_engine": 3,
+    "shuffle": "Arrow IPC",
+    "boundaries": "row source, both transposes, row blackhole sink"
+  },
+  "sustained_invocations": [
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "keys": 65536,
+      "improving": false,
+      "width": 256,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-rocksdb-65536-False-256.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=256 improving=false before=831727 after=2827257 seconds=10.000388 mean_rows_per_second=199545.261",
+        "[append-top1-cache] job=76c2e3541ea42184fbda38f6c7957769 metric=topn.cache.hitRate value=0.990817131788507",
+        "[append-top1-cache] job=76c2e3541ea42184fbda38f6c7957769 metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=76c2e3541ea42184fbda38f6c7957769 metric=topn.cache.bytes value=64910866",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=256 improving=false before=3937280 after=14273536 seconds=10.000257 mean_rows_per_second=1033599.012",
+        "[append-top1-cache] job=0245dab27e252f151d4be89e9742d1f5 metric=topn.cache.hitRate value=0.991106170094497",
+        "[append-top1-cache] job=0245dab27e252f151d4be89e9742d1f5 metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=0245dab27e252f151d4be89e9742d1f5 metric=topn.cache.bytes value=64910866",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=256 improving=false before=4461568 after=14740480 seconds=10.000327 mean_rows_per_second=1027857.581",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=256 improving=false before=960734 after=3022316 seconds=10.000215 mean_rows_per_second=206153.773",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=256 improving=false before=400139 after=2402083 seconds=10.000235 mean_rows_per_second=200189.701",
+        "[append-top1-cache] job=27d087ef8812897b06d7fa6a08399fff metric=topn.cache.hitRate value=0.9913108410834295",
+        "[append-top1-cache] job=27d087ef8812897b06d7fa6a08399fff metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=27d087ef8812897b06d7fa6a08399fff metric=topn.cache.bytes value=64910866",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=256 improving=false before=4560896 after=15086592 seconds=10.000282 mean_rows_per_second=1052539.891",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=256 improving=false warmup_seconds=5 window_seconds=10 stock_mean=201962.912 sf_mean=1037998.828 stock_trials=[199545.26119577125, 206153.772888958, 200189.70100720515] sf_trials=[1033599.0123191666, 1027857.5807314636, 1052539.8905880323]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "rocksdb",
+      "keys": 65536,
+      "improving": false,
+      "width": 256,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-final-prior-rocksdb-65536-False-256.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=256 improving=false before=344336 after=2330032 seconds=10.000252 mean_rows_per_second=198564.588",
+        "[append-top1-cache] job=0bfec9d1724fbf7e28ebb838c549bd5b metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=0bfec9d1724fbf7e28ebb838c549bd5b metric=topn.cache.size value=0",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=256 improving=false before=497664 after=1483776 seconds=10.000514 mean_rows_per_second=98606.127",
+        "[append-top1-cache] job=8ebb708cf941d14a37b07754df741826 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=8ebb708cf941d14a37b07754df741826 metric=topn.cache.size value=0",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=256 improving=false before=764928 after=1714176 seconds=10.000342 mean_rows_per_second=94921.552",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=256 improving=false before=821994 after=2566472 seconds=10.000256 mean_rows_per_second=174443.337",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=256 improving=false before=895030 after=2963697 seconds=10.000262 mean_rows_per_second=206861.280",
+        "[append-top1-cache] job=58952455d2419aed499a2dd80b61613d metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=58952455d2419aed499a2dd80b61613d metric=topn.cache.size value=0",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=256 improving=false before=991232 after=2213888 seconds=10.000365 mean_rows_per_second=122261.138",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=256 improving=false warmup_seconds=5 window_seconds=10 stock_mean=193289.735 sf_mean=105262.939 stock_trials=[198564.58765397032, 174443.3371986601, 206861.27998623083] sf_trials=[98606.127414848, 94921.5517085633, 122261.13756628774]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "keys": 65536,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-rocksdb-65536-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=false before=2266573 after=7341963 seconds=10.000248 mean_rows_per_second=507526.416",
+        "[append-top1-cache] job=74bcf53ed41f518449a4cfcb4d348f6c metric=topn.cache.hitRate value=0.9960738604993559",
+        "[append-top1-cache] job=74bcf53ed41f518449a4cfcb4d348f6c metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=74bcf53ed41f518449a4cfcb4d348f6c metric=topn.cache.bytes value=34168102",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=false before=9565184 after=33384448 seconds=10.000206 mean_rows_per_second=2381877.231",
+        "[append-top1-cache] job=3214a8ce3270ce01b37c3a06eb2de70e metric=topn.cache.hitRate value=0.9962300827614644",
+        "[append-top1-cache] job=3214a8ce3270ce01b37c3a06eb2de70e metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=3214a8ce3270ce01b37c3a06eb2de70e metric=topn.cache.bytes value=34168102",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=false before=11429888 after=34767872 seconds=10.000234 mean_rows_per_second=2333743.828",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=false before=2568822 after=7846062 seconds=10.000398 mean_rows_per_second=527702.996",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=false before=2205805 after=6816321 seconds=10.000274 mean_rows_per_second=461038.973",
+        "[append-top1-cache] job=68297446e272671cd619674e65a4dc0d metric=topn.cache.hitRate value=0.9962770134667404",
+        "[append-top1-cache] job=68297446e272671cd619674e65a4dc0d metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=68297446e272671cd619674e65a4dc0d metric=topn.cache.bytes value=34168102",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=false before=11354112 after=35210240 seconds=10.000304 mean_rows_per_second=2385540.168",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=498756.128 sf_mean=2367053.743 stock_trials=[507526.4156287612, 527702.9963653387, 461038.9732490163] sf_trials=[2381877.2306701397, 2333743.828434439, 2385540.1684127087]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "keys": 65536,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-rocksdb-65536-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=true before=743669 after=2328083 seconds=10.000233 mean_rows_per_second=158437.701",
+        "[append-top1-cache] job=13829c3c319abf7f32c49bcfb2a4612c metric=topn.cache.hitRate value=0.9826417141307295",
+        "[append-top1-cache] job=13829c3c319abf7f32c49bcfb2a4612c metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=13829c3c319abf7f32c49bcfb2a4612c metric=topn.cache.bytes value=34168066",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=true before=2323456 after=7555072 seconds=10.000209 mean_rows_per_second=523150.689",
+        "[append-top1-cache] job=1fd0736a56c926e196f733bc450353b7 metric=topn.cache.hitRate value=0.9837769328263625",
+        "[append-top1-cache] job=1fd0736a56c926e196f733bc450353b7 metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=1fd0736a56c926e196f733bc450353b7 metric=topn.cache.bytes value=34168084",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=true before=2682880 after=8083456 seconds=10.000255 mean_rows_per_second=540043.838",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=true before=487062 after=1585416 seconds=10.000376 mean_rows_per_second=109831.266",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=true before=580730 after=1733224 seconds=10.000498 mean_rows_per_second=115243.661",
+        "[append-top1-cache] job=ed31c8070943a41fba437ab1a128f94d metric=topn.cache.hitRate value=0.9836734693877551",
+        "[append-top1-cache] job=ed31c8070943a41fba437ab1a128f94d metric=topn.cache.size value=65536",
+        "[append-top1-cache] job=ed31c8070943a41fba437ab1a128f94d metric=topn.cache.bytes value=34168084",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=true before=2650112 after=8032256 seconds=10.000311 mean_rows_per_second=538197.666",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=127837.543 sf_mean=533797.398 stock_trials=[158437.7012243336, 109831.26581935704, 115243.66057759408] sf_trials=[523150.6887507149, 540043.8376308506, 538197.6661967033]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "keys": 64,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-rocksdb-64-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=false before=12330636 after=40144341 seconds=10.000368 mean_rows_per_second=2781268.167",
+        "[append-top1-cache] job=f2af00c10830396e6045e7fcd594e2d8 metric=topn.cache.hitRate value=0.9999735285164058",
+        "[append-top1-cache] job=f2af00c10830396e6045e7fcd594e2d8 metric=topn.cache.size value=64",
+        "[append-top1-cache] job=f2af00c10830396e6045e7fcd594e2d8 metric=topn.cache.bytes value=33364",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=false before=24096768 after=77361152 seconds=10.000274 mean_rows_per_second=5326292.279",
+        "[append-top1-cache] job=0c4fe9d455832f0e515d29352f3f1f8b metric=topn.cache.hitRate value=0.999974632166413",
+        "[append-top1-cache] job=0c4fe9d455832f0e515d29352f3f1f8b metric=topn.cache.size value=64",
+        "[append-top1-cache] job=0c4fe9d455832f0e515d29352f3f1f8b metric=topn.cache.bytes value=33364",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=false before=27327488 after=80732160 seconds=10.000226 mean_rows_per_second=5340346.348",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=false before=13395847 after=40103257 seconds=10.000375 mean_rows_per_second=2670640.745",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=false before=13543317 after=40153109 seconds=10.000395 mean_rows_per_second=2660874.144",
+        "[append-top1-cache] job=2d3332831581b80c6e3ffe6bbe91d2f0 metric=topn.cache.hitRate value=0.9999742679223921",
+        "[append-top1-cache] job=2d3332831581b80c6e3ffe6bbe91d2f0 metric=topn.cache.size value=64",
+        "[append-top1-cache] job=2d3332831581b80c6e3ffe6bbe91d2f0 metric=topn.cache.bytes value=33364",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=false before=26869760 after=79589376 seconds=10.000282 mean_rows_per_second=5271813.166",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2704261.019 sf_mean=5312817.265 stock_trials=[2781268.1674096826, 2670640.7454817346, 2660874.1436331486] sf_trials=[5326292.279030246, 5340346.348496169, 5271813.166301308]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "keys": 64,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-rocksdb-64-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=true before=7175187 after=22697700 seconds=10.000391 mean_rows_per_second=1552190.602",
+        "[append-top1-cache] job=97a4a1fcdbd63e0335eed4653f6f8ecf metric=topn.cache.hitRate value=0.9999516826516561",
+        "[append-top1-cache] job=97a4a1fcdbd63e0335eed4653f6f8ecf metric=topn.cache.size value=64",
+        "[append-top1-cache] job=97a4a1fcdbd63e0335eed4653f6f8ecf metric=topn.cache.bytes value=33364",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=true before=13050880 after=42386432 seconds=10.000191 mean_rows_per_second=2933499.137",
+        "[append-top1-cache] job=2020bfd8a373edd7e6a19e8d1f8fd15e metric=topn.cache.hitRate value=0.9999536027467174",
+        "[append-top1-cache] job=2020bfd8a373edd7e6a19e8d1f8fd15e metric=topn.cache.size value=64",
+        "[append-top1-cache] job=2020bfd8a373edd7e6a19e8d1f8fd15e metric=topn.cache.bytes value=33364",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=true before=14925824 after=44144640 seconds=10.000205 mean_rows_per_second=2921821.618",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=true before=8358236 after=25192003 seconds=10.000389 mean_rows_per_second=1683311.219",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=true before=8258753 after=24641658 seconds=10.000253 mean_rows_per_second=1638249.126",
+        "[append-top1-cache] job=5fb23d979d219d6f4c6b6c11392fc71c metric=topn.cache.hitRate value=0.9999534656460132",
+        "[append-top1-cache] job=5fb23d979d219d6f4c6b6c11392fc71c metric=topn.cache.size value=64",
+        "[append-top1-cache] job=5fb23d979d219d6f4c6b6c11392fc71c metric=topn.cache.bytes value=33346",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=true before=14829568 after=44010496 seconds=10.000257 mean_rows_per_second=2918017.690",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1624583.649 sf_mean=2924446.148 stock_trials=[1552190.6017417382, 1683311.219361898, 1638249.125690681] sf_trials=[2933499.1367245987, 2921821.6176318293, 2918017.689641065]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "memory",
+      "keys": 65536,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-final-prior-memory-65536-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=65536 width=8 improving=false before=9495368 after=30869719 seconds=10.000248 mean_rows_per_second=2137382.081",
+        "[append-top1-cache] job=76d63808183fc60be766ad4229c66e36 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=76d63808183fc60be766ad4229c66e36 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=65536 width=8 improving=false before=10601472 after=34897920 seconds=10.000234 mean_rows_per_second=2429588.065",
+        "[append-top1-cache] job=df19e7c771d59b6055d9bde69ba688a4 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=df19e7c771d59b6055d9bde69ba688a4 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=65536 width=8 improving=false before=11708416 after=35765248 seconds=10.000275 mean_rows_per_second=2405617.124",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=65536 width=8 improving=false before=7346730 after=29915023 seconds=10.000344 mean_rows_per_second=2256751.701",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=65536 width=8 improving=false before=10903745 after=32277819 seconds=10.000353 mean_rows_per_second=2137331.967",
+        "[append-top1-cache] job=7ecbffcc3e3c2a9b0e8c462f05fefdab metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=7ecbffcc3e3c2a9b0e8c462f05fefdab metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=65536 width=8 improving=false before=12218368 after=36462592 seconds=10.000232 mean_rows_per_second=2424366.090",
+        "[append-top1-sustained] backend=memory keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2177155.250 sf_mean=2419857.093 stock_trials=[2137382.0811687857, 2256751.700690071, 2137331.9669291577] sf_trials=[2429588.0649883826, 2405617.1241927645, 2424366.089976138]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "memory",
+      "keys": 65536,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-memory-65536-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=65536 width=8 improving=false before=8737203 after=29594833 seconds=10.000402 mean_rows_per_second=2085679.258",
+        "[append-top1-cache] job=fc2f5ce11deebe435ab693bf220c182c metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=fc2f5ce11deebe435ab693bf220c182c metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=65536 width=8 improving=false before=15426560 after=52094976 seconds=10.000216 mean_rows_per_second=3666762.339",
+        "[append-top1-cache] job=b21905a8f8108c3449edbad8289e2448 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=b21905a8f8108c3449edbad8289e2448 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=65536 width=8 improving=false before=18140160 after=55257088 seconds=10.000211 mean_rows_per_second=3711614.661",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=65536 width=8 improving=false before=10314514 after=33035835 seconds=10.000362 mean_rows_per_second=2272049.959",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=65536 width=8 improving=false before=10406677 after=33534137 seconds=10.000334 mean_rows_per_second=2312668.735",
+        "[append-top1-cache] job=625db02247c419143416e471f91a3a1f metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=625db02247c419143416e471f91a3a1f metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=65536 width=8 improving=false before=18039808 after=54998016 seconds=10.000352 mean_rows_per_second=3695690.625",
+        "[append-top1-sustained] backend=memory keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2223465.984 sf_mean=3691355.875 stock_trials=[2085679.2578921164, 2272049.959032241, 2312668.7346626427] sf_trials=[3666762.3392652743, 3711614.6612323443, 3695690.624841276]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "memory",
+      "keys": 64,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-memory-64-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=64 width=8 improving=false before=12265435 after=39087225 seconds=10.000371 mean_rows_per_second=2682079.618",
+        "[append-top1-cache] job=ac9d2beef54863e22e1ebb3998b10a86 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=ac9d2beef54863e22e1ebb3998b10a86 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=64 width=8 improving=false before=23252992 after=74158080 seconds=10.000249 mean_rows_per_second=5090381.972",
+        "[append-top1-cache] job=20015f5d2b4f9b2a36f88f84b413e633 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=20015f5d2b4f9b2a36f88f84b413e633 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=64 width=8 improving=false before=25863168 after=77334528 seconds=10.000225 mean_rows_per_second=5147020.327",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=64 width=8 improving=false before=13377304 after=40379679 seconds=10.000392 mean_rows_per_second=2700131.726",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=64 width=8 improving=false before=13847040 after=41206777 seconds=10.000437 mean_rows_per_second=2735854.165",
+        "[append-top1-cache] job=a46a031b602cba829a92ef0e468ac521 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=a46a031b602cba829a92ef0e468ac521 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=64 width=8 improving=false before=25657344 after=77086720 seconds=10.000337 mean_rows_per_second=5142764.283",
+        "[append-top1-sustained] backend=memory keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2706021.836 sf_mean=5126722.194 stock_trials=[2682079.6179536283, 2700131.726119814, 2735854.1653333935] sf_trials=[5090381.972115088, 5147020.327409268, 5142764.283186616]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "memory",
+      "keys": 64,
+      "improving": false,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-final-prior-memory-64-False-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=64 width=8 improving=false before=11983272 after=39747891 seconds=10.000321 mean_rows_per_second=2776372.856",
+        "[append-top1-cache] job=352f1d532a64663f65bce48dadb38a6f metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=352f1d532a64663f65bce48dadb38a6f metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=64 width=8 improving=false before=22646784 after=73035776 seconds=10.000236 mean_rows_per_second=5038780.083",
+        "[append-top1-cache] job=dd8cf3c66cb4434d73c5f448d7608590 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=dd8cf3c66cb4434d73c5f448d7608590 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=64 width=8 improving=false before=25160704 after=76087296 seconds=10.000217 mean_rows_per_second=5092548.704",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=64 width=8 improving=false before=13662404 after=41440772 seconds=10.000236 mean_rows_per_second=2777771.369",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=64 width=8 improving=false before=14222494 after=42061769 seconds=10.000464 mean_rows_per_second=2783798.309",
+        "[append-top1-cache] job=66938cafaa3c9a74c4842b77ff0b3f8a metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=66938cafaa3c9a74c4842b77ff0b3f8a metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=64 width=8 improving=false before=25921536 after=76994560 seconds=10.000267 mean_rows_per_second=5107166.113",
+        "[append-top1-sustained] backend=memory keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2779314.178 sf_mean=5079498.300 stock_trials=[2776372.855892129, 2777771.3693176187, 2783798.309488053] sf_trials=[5038780.082734966, 5092548.703915241, 5107166.113229402]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "memory",
+      "keys": 65536,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-final-prior-memory-65536-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=65536 width=8 improving=true before=3092992 after=9791144 seconds=10.000429 mean_rows_per_second=669786.437",
+        "[append-top1-cache] job=ad2656978bcb17f084745f44b47f4651 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=ad2656978bcb17f084745f44b47f4651 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=65536 width=8 improving=true before=4027392 after=12413952 seconds=10.000232 mean_rows_per_second=838636.517",
+        "[append-top1-cache] job=f04c13826cd1806e59c6e75e7fa4e4cf metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=f04c13826cd1806e59c6e75e7fa4e4cf metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=65536 width=8 improving=true before=4440064 after=13040640 seconds=10.000218 mean_rows_per_second=860038.837",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=65536 width=8 improving=true before=3626845 after=10819213 seconds=10.000397 mean_rows_per_second=719208.256",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=65536 width=8 improving=true before=3454631 after=10605723 seconds=10.000287 mean_rows_per_second=715088.708",
+        "[append-top1-cache] job=a9a548078c0664a76fca053bd017d122 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=a9a548078c0664a76fca053bd017d122 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=65536 width=8 improving=true before=4497408 after=12436480 seconds=10.000308 mean_rows_per_second=793882.758",
+        "[append-top1-sustained] backend=memory keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=701361.133 sf_mean=830852.704 stock_trials=[669786.4365573112, 719208.2557750614, 715088.707845917] sf_trials=[838636.5173834737, 860038.8367907094, 793882.7576201053]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "memory",
+      "keys": 65536,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-memory-65536-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=65536 width=8 improving=true before=2998023 after=9965280 seconds=10.000536 mean_rows_per_second=696688.370",
+        "[append-top1-cache] job=0ebfcb9bace5c0481e647b73ed88bc55 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=0ebfcb9bace5c0481e647b73ed88bc55 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=65536 width=8 improving=true before=3990528 after=12650496 seconds=10.000305 mean_rows_per_second=865970.353",
+        "[append-top1-cache] job=ddb857bd18b0aedfa1ea27c1190b9d09 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=ddb857bd18b0aedfa1ea27c1190b9d09 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=65536 width=8 improving=true before=4591616 after=13332480 seconds=10.000423 mean_rows_per_second=874049.451",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=65536 width=8 improving=true before=3319063 after=10558277 seconds=10.000266 mean_rows_per_second=723902.135",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=65536 width=8 improving=true before=3556055 after=10929183 seconds=10.000363 mean_rows_per_second=737286.009",
+        "[append-top1-cache] job=96593c8089f49b1de5a1649e8e4b8bf5 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=96593c8089f49b1de5a1649e8e4b8bf5 metric=topn.cache.size value=65536",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=65536 width=8 improving=true before=4582400 after=13395968 seconds=10.000266 mean_rows_per_second=881333.330",
+        "[append-top1-sustained] backend=memory keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=719292.171 sf_mean=873784.378 stock_trials=[696688.3703224168, 723902.1345029336, 737286.00945946] sf_trials=[865970.3530056281, 874049.4513949461, 881333.3303578126]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "memory",
+      "keys": 64,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "b2cfb293ddd14044095503a07e08af9a343a0c56416ae5c5e0bb05fe385a7aeb",
+      "log": "streamfusion-317-final-candidate-memory-64-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=64 width=8 improving=true before=8393620 after=26688909 seconds=10.000439 mean_rows_per_second=1829448.591",
+        "[append-top1-cache] job=0a68516cd4013b1baefb17fa41ace4f1 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=0a68516cd4013b1baefb17fa41ace4f1 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=64 width=8 improving=true before=16771072 after=57235456 seconds=10.000274 mean_rows_per_second=4046327.525",
+        "[append-top1-cache] job=acd8c8c9f591b6d3d117116b4d8fde79 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=acd8c8c9f591b6d3d117116b4d8fde79 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=64 width=8 improving=true before=19792896 after=60514304 seconds=10.000234 mean_rows_per_second=4072045.395",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=64 width=8 improving=true before=8874013 after=26205211 seconds=10.000352 mean_rows_per_second=1733058.712",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=64 width=8 improving=true before=8749936 after=25836692 seconds=10.000263 mean_rows_per_second=1708630.625",
+        "[append-top1-cache] job=ed87d8e16770b64599d6ecf1f6d7a549 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=ed87d8e16770b64599d6ecf1f6d7a549 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=64 width=8 improving=true before=20259840 after=60929024 seconds=10.001909 mean_rows_per_second=4066142.024",
+        "[append-top1-sustained] backend=memory keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1757045.976 sf_mean=4061504.981 stock_trials=[1829448.5914145687, 1733058.7119333805, 1708630.6250829606] sf_trials=[4046327.5245563355, 4072045.394826831, 4066142.02385362]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "memory",
+      "keys": 64,
+      "improving": true,
+      "width": 8,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-final-prior-memory-64-True-8.log",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=memory keys=64 width=8 improving=true before=8569448 after=26950822 seconds=10.000462 mean_rows_per_second=1838052.490",
+        "[append-top1-cache] job=8ae2369b64c124991ce6ecbb47667de6 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=8ae2369b64c124991ce6ecbb47667de6 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=memory keys=64 width=8 improving=true before=17474560 after=57098240 seconds=10.000232 mean_rows_per_second=3962276.129",
+        "[append-top1-cache] job=9add7ce7899a3203cfbfc3576dedf2c6 metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=9add7ce7899a3203cfbfc3576dedf2c6 metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=memory keys=64 width=8 improving=true before=19615744 after=58967040 seconds=10.000193 mean_rows_per_second=3935053.566",
+        "[append-top1-window] engine=Flink trial=1 backend=memory keys=64 width=8 improving=true before=8764620 after=25853404 seconds=10.000226 mean_rows_per_second=1708839.703",
+        "[append-top1-window] engine=Flink trial=2 backend=memory keys=64 width=8 improving=true before=8464809 after=25141772 seconds=10.000289 mean_rows_per_second=1667648.135",
+        "[append-top1-cache] job=e82814227074230e81f93b431d6f2c7c metric=topn.cache.hitRate value=1.0",
+        "[append-top1-cache] job=e82814227074230e81f93b431d6f2c7c metric=topn.cache.size value=64",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=memory keys=64 width=8 improving=true before=19737600 after=58101760 seconds=10.000525 mean_rows_per_second=3836214.648",
+        "[append-top1-sustained] backend=memory keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1738180.109 sf_mean=3911181.448 stock_trials=[1838052.4902461867, 1708839.7033249182, 1667648.1346530453] sf_trials=[3962276.1290807608, 3935053.566107985, 3836214.647834536]"
+      ]
+    }
+  ],
+  "earlier_baseline_controls": [
+    {
+      "version": "prior",
+      "keys": 64,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "log": "streamfusion-317-prior-rocksdb-64-False.log",
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=false before=12904843 after=40718608 seconds=10.000325 mean_rows_per_second=2781286.100",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=false before=16890880 after=53641216 seconds=10.000199 mean_rows_per_second=3674960.635",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=false before=18249728 after=55122944 seconds=10.000283 mean_rows_per_second=3687217.302",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=false before=13912950 after=41581851 seconds=10.000351 mean_rows_per_second=2766793.040",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=false before=13880545 after=41487497 seconds=10.000303 mean_rows_per_second=2760611.615",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=false before=18631680 after=56710144 seconds=10.000369 mean_rows_per_second=3807706.012",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2769563.585 sf_mean=3723294.650 stock_trials=[2781286.099579777, 2766793.0400701165, 2760611.6153057567] sf_trials=[3674960.6354940627, 3687217.3018965116, 3807706.012163955]"
+      ],
+      "width": 8
+    },
+    {
+      "version": "prior",
+      "keys": 65536,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "log": "streamfusion-317-prior-rocksdb-65536-False.log",
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=false before=2258300 after=7279765 seconds=10.000206 mean_rows_per_second=502136.139",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=false before=675840 after=2093056 seconds=10.000194 mean_rows_per_second=141718.848",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=false before=708608 after=2106368 seconds=10.000363 mean_rows_per_second=139770.932",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=false before=2436905 after=7477303 seconds=10.000221 mean_rows_per_second=504028.656",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=false before=2455725 after=7318252 seconds=10.000361 mean_rows_per_second=486235.151",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=false before=733184 after=2113536 seconds=10.000586 mean_rows_per_second=138027.108",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=497466.649 sf_mean=139838.963 stock_trials=[502136.1392743975, 504028.65643043496, 486235.15133577667] sf_trials=[141718.84811757915, 139770.9321296345, 138027.10806417075]"
+      ],
+      "width": 8
+    },
+    {
+      "version": "prior",
+      "keys": 64,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "log": "streamfusion-317-prior-rocksdb-64-True.log",
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=true before=7025861 after=23363240 seconds=10.000322 mean_rows_per_second=1633685.306",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=true before=10193920 after=33529856 seconds=10.000216 mean_rows_per_second=2333543.211",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=true before=11850752 after=35031040 seconds=10.000220 mean_rows_per_second=2317977.743",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=true before=8159972 after=24729130 seconds=10.000223 mean_rows_per_second=1656878.834",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=true before=8371918 after=24674032 seconds=10.000376 mean_rows_per_second=1630150.046",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=true before=12111872 after=36317184 seconds=10.000259 mean_rows_per_second=2420468.416",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1640238.062 sf_mean=2357329.790 stock_trials=[1633685.3059521026, 1656878.8335420326, 1630150.0457166994] sf_trials=[2333543.2111013797, 2317977.7430632426, 2420468.4157118117]"
+      ],
+      "width": 8
+    },
+    {
+      "version": "prior",
+      "keys": 65536,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "log": "streamfusion-317-prior-rocksdb-65536-True.log",
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=true before=666515 after=1795711 seconds=10.000274 mean_rows_per_second=112916.510",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=true before=610304 after=1753088 seconds=10.000372 mean_rows_per_second=114274.148",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=true before=679936 after=1904640 seconds=10.000330 mean_rows_per_second=122466.360",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=true before=504591 after=1759083 seconds=10.000492 mean_rows_per_second=125443.033",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=true before=713807 after=1851096 seconds=10.000390 mean_rows_per_second=113724.460",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=true before=643072 after=1888256 seconds=10.000319 mean_rows_per_second=124514.431",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=117361.335 sf_mean=120418.313 stock_trials=[112916.51025423825, 125443.0333835548, 113724.46024256191] sf_trials=[114274.14756185644, 122466.36020217602, 124514.43064181991]"
+      ],
+      "width": 8
+    }
+  ],
+  "candidate_source_sha256": {
+    "native/engine/src/topn.rs": "bd973b98ccf7950388e3d0ca90c686cbf2000bae27dbe441fb58045d69ae66e7",
+    "native/engine/src/topn/append_top1.rs": "9565607966f1fe41b333f0bf44fcb121027bfe7e1f37b6b15dba2addb5460a61",
+    "native/engine/src/state/rocks_config.rs": "399ccdd9ea6feddb465b427de02662da47238a12eb4cecde0034eb75aefab330",
+    "native/engine/src/state/rocks_store/mod.rs": "f1a9778be16e7e3c5dc3b840c41861edfa427f77f7d70ae3fb7ed8a8d2bc1b82",
+    "native/engine/src/state/rocks_store/decoded_cache.rs": "5fb2dae46a76bc1e14043a278daa91402dd2636a9821a20b8d07d20fc3d60f0f",
+    "src/main/java/tech/streamfusion/operator/NativeColumnarTopNOperator.java": "a267b207fec8377035fea62fa68e6c69b251fe083117b3fb41c5992863d349e7"
+  },
+  "benchmark_source_sha256": {
+    "src/test/java/tech/streamfusion/AppendTop1SustainedBenchmark.java": "8048864cec346da8032a1e4098197dc7585e885df212b37edb63eef6864b86f8",
+    "src/test/java/tech/streamfusion/AppendTop1Benchmark.java": "44460ffda9bb1b63a24137ffb75801c7d26aa9e13da16ed4f131e588bd920689",
+    "src/test/java/tech/streamfusion/BasicTypeBenchmark.java": "5d5fd7c777ca43719be9f307426271d49a0d6898b4c11d8d7db6567bfd1fcf62",
+    "src/test/java/tech/streamfusion/RecoveryExecutionMetrics.java": "c7585e3f87ccd0f6aa46be3c607ef645b597735e843a6998630f20d33b32cd0b"
+  },
+  "bounded_unique_invocations": [
+    {
+      "version": "prior",
+      "backend": "rocksdb",
+      "unique_keys": true,
+      "exit_code": 0,
+      "log": "streamfusion-317-final-unique-prior-rocksdb.log",
+      "measurements": [
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=rocksdb Flink=407.860549s StreamFusion=75.744623s stock_trials=[446.587018036, 407.860548871, 407.495004753] sf_trials=[57.343086802, 75.775213762, 75.744623114]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "rocksdb",
+      "unique_keys": true,
+      "exit_code": 0,
+      "log": "streamfusion-317-final-unique-candidate-rocksdb.log",
+      "measurements": [
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=rocksdb Flink=481.514276s StreamFusion=20.483789s stock_trials=[527.931601739, 478.706178118, 481.514275624] sf_trials=[20.483789055, 20.625819458, 20.337910375]"
+      ]
+    },
+    {
+      "version": "prior",
+      "backend": "memory",
+      "unique_keys": true,
+      "exit_code": 0,
+      "log": "streamfusion-317-final-unique-prior-memory.log",
+      "measurements": [
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=4.766844s StreamFusion=5.344268s stock_trials=[4.632517411, 4.76684409, 5.081969504] sf_trials=[5.344268047, 5.022465068, 5.796191954]"
+      ]
+    },
+    {
+      "version": "candidate",
+      "backend": "memory",
+      "unique_keys": true,
+      "exit_code": 0,
+      "log": "streamfusion-317-final-unique-candidate-memory.log",
+      "measurements": [
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=3.968224s StreamFusion=5.001448s stock_trials=[6.411553522, 3.968223722, 3.55612091] sf_trials=[6.186246111, 5.001448455, 4.726056291]"
+      ]
+    }
+  ],
+  "correctness_v5": {
+    "flink_1_18_1": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "flink_2_2_1": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "native": {
+      "passed": 679,
+      "ignored": 2
+    },
+    "criterion_smoke": 208
+  },
+  "v6_candidate_library_sha256": "e672251494db2eeb3dabe2fa226ebd207091b5b8c9fb7301cc422bad241f3d5f",
+  "v6_fresh_unique_memory": [
+    {
+      "ticket": 317,
+      "version": "prior",
+      "trial": 0,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-fresh-prior-memory-0.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.462346",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=12.798748",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=9.697043",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.844513",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=19.071254",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=5.767015",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=19.071254s StreamFusion=5.767015s stock_trials=[19.071254248] sf_trials=[5.767014972]"
+      ]
+    },
+    {
+      "ticket": 317,
+      "version": "candidate",
+      "trial": 0,
+      "exit_code": 0,
+      "library_sha256": "e672251494db2eeb3dabe2fa226ebd207091b5b8c9fb7301cc422bad241f3d5f",
+      "log": "streamfusion-317-fresh-candidate-memory-0.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.397683",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.872655",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.409626",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.529502",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=4.155875",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=4.928069",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=4.155875s StreamFusion=4.928069s stock_trials=[4.155875263] sf_trials=[4.928069204]"
+      ]
+    },
+    {
+      "ticket": 317,
+      "version": "candidate",
+      "trial": 1,
+      "exit_code": 0,
+      "library_sha256": "e672251494db2eeb3dabe2fa226ebd207091b5b8c9fb7301cc422bad241f3d5f",
+      "log": "streamfusion-317-fresh-candidate-memory-1.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.482360",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.331252",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.301913",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.602800",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=4.950620",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=5.326029",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=4.950620s StreamFusion=5.326029s stock_trials=[4.950620049] sf_trials=[5.326028843]"
+      ]
+    },
+    {
+      "ticket": 317,
+      "version": "prior",
+      "trial": 1,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-fresh-prior-memory-1.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.029657",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=7.441292",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.439385",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.114718",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=4.429650",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=5.858074",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=4.429650s StreamFusion=5.858074s stock_trials=[4.429649574] sf_trials=[5.858074279]"
+      ]
+    },
+    {
+      "ticket": 317,
+      "version": "prior",
+      "trial": 2,
+      "exit_code": 0,
+      "library_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "log": "streamfusion-317-fresh-prior-memory-2.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.998565",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.858164",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.308558",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=3.814858",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=4.596878",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=6.110911",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=4.596878s StreamFusion=6.110911s stock_trials=[4.596877902] sf_trials=[6.110910991]"
+      ]
+    },
+    {
+      "ticket": 317,
+      "version": "candidate",
+      "trial": 2,
+      "exit_code": 0,
+      "library_sha256": "e672251494db2eeb3dabe2fa226ebd207091b5b8c9fb7301cc422bad241f3d5f",
+      "log": "streamfusion-317-fresh-candidate-memory-2.log",
+      "measurements": [
+        "[basic-type-trial] case=append-top1 engine=Flink trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=4.994326",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=0 warmup=true rows=2000000 keys=2000000 backend=memory seconds=6.159652",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.592017",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=1 warmup=true rows=2000000 keys=2000000 backend=memory seconds=5.840315",
+        "[basic-type-trial] case=append-top1 engine=Flink trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=5.346429",
+        "[basic-type-trial] case=append-top1 engine=StreamFusion trial=2 warmup=false rows=2000000 keys=2000000 backend=memory seconds=13.639240",
+        "[basic-type] case=append-top1 rows=2000000 keys=2000000 native_expected=true backend=memory Flink=5.346429s StreamFusion=13.639240s stock_trials=[5.346429203] sf_trials=[13.639240112]"
+      ]
+    }
+  ],
+  "v6_native_correctness": {
+    "passed": 679,
+    "ignored": 2
+  },
+  "v6_candidate_source_sha256": {
+    "native/engine/src/topn.rs": "aaf4e401e29034656b67e4cbb09480e18f7e7cfed6b48cbd0572c4d1c9c72078",
+    "native/engine/src/topn/append_top1.rs": "aada9f4ddcfabc317eccb5a9412ee47a9baffa9aa92718792f01f1de70d4efc8",
+    "native/engine/src/state/rocks_config.rs": "399ccdd9ea6feddb465b427de02662da47238a12eb4cecde0034eb75aefab330",
+    "native/engine/src/state/rocks_store/mod.rs": "f1a9778be16e7e3c5dc3b840c41861edfa427f77f7d70ae3fb7ed8a8d2bc1b82",
+    "native/engine/src/state/rocks_store/decoded_cache.rs": "5fb2dae46a76bc1e14043a278daa91402dd2636a9821a20b8d07d20fc3d60f0f",
+    "src/main/java/tech/streamfusion/operator/NativeColumnarTopNOperator.java": "a267b207fec8377035fea62fa68e6c69b251fe083117b3fb41c5992863d349e7"
+  },
+  "v6_jvm_correctness": {
+    "flink22": {
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "streamfusion-317-v6-final-jvm22.log"
+    },
+    "flink118": {
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "streamfusion-317-v6-final-jvm118.log"
+    }
+  },
+  "maintainer_tradeoff": {
+    "approved": "2026-10-13",
+    "unique_memory_previous_improvement_percent": 9.08,
+    "unique_memory_stock_slowdown_percent": 7.58,
+    "follow_up": "https://github.com/datafusion-contrib/StreamFusion/issues/339"
+  },
+  "v6_native_criterion": {
+    "fixtures_passed": 208,
+    "log": "streamfusion-317-v6-final-criterion.log",
+    "build": "release/mimalloc"
+  }
+}

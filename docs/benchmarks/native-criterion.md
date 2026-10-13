@@ -14,6 +14,16 @@ trailing bytes at 16, 1024 and 16384 rows. Input construction is outside the mea
 
 ## Running and comparing
 
+The `operators` target includes `append_top1`, covering the general and specialized
+rank loops over memory and RocksDB at 256/4096 rows, repeated/unique keys,
+nullable sorts and payload widths 8/256 in immediate and mini-batch modes.
+`append_top1_shared_pool` adds 16 production fixtures with 64 MiB configured
+write buffers and 10 MiB shared pools. The timed boundary includes state
+hydration, cache lookups, winner updates, write-through and output construction;
+fixture construction, store creation and seeding are outside it. Its persistent
+wrapper retains the shared native resource until the store closes. See
+[Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
+
 Run from a checkout with Rust, Maven, and a JDK available. The runner discovers workspace benchmark targets
 using Cargo metadata, so a new suite is picked up without another hard-coded runner list.
 

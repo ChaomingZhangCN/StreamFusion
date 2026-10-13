@@ -2158,6 +2158,9 @@ public final class Native {
 
   public static native long rocksdbTopNRankerStateBytes(long handle);
 
+  /** Resident cache entries, hits, misses and accounted bytes, in that order. */
+  public static native long[] rocksdbTopNRankerCacheStats(long handle);
+
   public static native long rocksdbTopNRankerStagingBytes(long handle);
 
   public static native long rocksdbTopNRankerStagedPartitions(long handle);

@@ -27,7 +27,15 @@ final class BasicTypeBenchmark {
       for (int trial = 0; trial < warmup + runs; trial++) {
         for (int turn = 0; turn < 2; turn++) {
           int engine = (trial + turn) % 2;
-          var env = metrics.environment(new Configuration(), 1, 0);
+          var jobConfig = new Configuration();
+          String backend = System.getProperty("basic.backend", "memory");
+          if (backend.equals("rocksdb")) {
+            jobConfig.setString("state.backend.type", engine == 1
+                ? "tech.streamfusion.state.RocksDBNativeStateBackendFactory" : "rocksdb");
+          } else if (!backend.equals("memory")) {
+            throw new IllegalArgumentException("Unknown basic.backend " + backend);
+          }
+          var env = metrics.environment(jobConfig, 1, 0);
           var table = StreamTableEnvironment.create(env);
           table.getConfig().set("table.exec.legacy-cast-behaviour", legacy ? "ENABLED" : "DISABLED");
           table.getConfig().set("table.optimizer.agg-phase-strategy", twoPhase ? "TWO_PHASE" : "ONE_PHASE");
@@ -64,14 +72,17 @@ final class BasicTypeBenchmark {
           long start = System.nanoTime();
           table.executeSql(insert).await();
           double elapsed = (System.nanoTime() - start) / 1e9;
+          System.out.printf(Locale.ROOT,
+              "[basic-type-trial] case=%s engine=%s trial=%d warmup=%s rows=%d keys=%d backend=%s seconds=%.6f%n",
+              name, engine == 0 ? "Flink" : "StreamFusion", trial, trial < warmup, rows, keys, backend, elapsed);
           if (trial >= warmup) times[engine][trial - warmup] = elapsed;
         }
       }
       if (expectNative) RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), operator);
     }
     System.out.printf(Locale.ROOT,
-        "[basic-type] case=%s rows=%d keys=%d native_expected=%s Flink=%.6fs StreamFusion=%.6fs stock_trials=%s sf_trials=%s%n",
-        name, rows, Integer.getInteger("basic.keys", 64), expectNative, median(times[0]), median(times[1]),
+        "[basic-type] case=%s rows=%d keys=%d native_expected=%s backend=%s Flink=%.6fs StreamFusion=%.6fs stock_trials=%s sf_trials=%s%n",
+        name, rows, Integer.getInteger("basic.keys", 64), expectNative, System.getProperty("basic.backend", "memory"), median(times[0]), median(times[1]),
         Arrays.toString(times[0]), Arrays.toString(times[1]));
   }
 

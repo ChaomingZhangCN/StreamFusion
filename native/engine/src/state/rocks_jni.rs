@@ -3604,6 +3604,21 @@ pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerStateBytes
     })
 }
 #[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerCacheStats<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jni::sys::jlongArray {
+    crate::bridge::jni_guard(env, move |env| {
+        let stats = unsafe { &*(handle as *const RocksTopNHandle) }.cache_stats();
+        let output = env.new_long_array(4).expect("top-1 cache stats array");
+        env.set_long_array_region(&output, 0, &stats)
+            .expect("top-1 cache stats values");
+        output.into_raw()
+    })
+}
+
+#[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerStagingBytes<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,

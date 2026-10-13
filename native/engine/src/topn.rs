@@ -1,5 +1,6 @@
 use crate::*;
 
+mod append_top1;
 #[cfg(test)]
 mod first_bound_tests;
 mod retract_offset;
@@ -125,7 +126,7 @@ pub(crate) struct TopNConverters {
 
 impl TopNConverters {
     /// Builds the three arrow-row converters from a batch's column types.
-    fn build(
+    pub(crate) fn build(
         batch: &RecordBatch,
         arity: usize,
         partition_columns: &[usize],
@@ -309,6 +310,7 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     // running mini-batch, whose parity contract is the collapsed changelog — which the diff
     // preserves exactly — rather than the per-record byte sequence (see divergences/20).
     net_diff: bool,
+    top1_fast: bool,
     // Idle-state retention millis (0 = off — Flink's default). Expiry is silent: downstream only
     // ever saw +I's from the append-only ranker, and Flink emits nothing when rank state expires.
     ttl_ms: i64,
@@ -324,7 +326,8 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     // Transient mini-batch preimages, captured once per partition in deterministic first-touch
     // order and drained at the next logical boundary.
     staged_order: Vec<ByteKey>,
-    staged_old_tops: HashMap<ByteKey, Vec<Arc<OwnedRow>>>,
+    // None marks a first touch whose Top-1 winner is still unchanged; capture only on a later change.
+    staged_old_tops: HashMap<ByteKey, Option<Vec<Arc<OwnedRow>>>>,
     pub(crate) memory: OperatorMemory,
 }
 
@@ -375,6 +378,20 @@ impl TopNStateCodec {
 #[cfg(feature = "rocksdb-state")]
 impl crate::state::RocksStateCodec for TopNStateCodec {
     type Value = TopNPartition;
+    fn resident_bytes(&self, value: &TopNPartition) -> usize {
+        std::mem::size_of::<TopNPartition>()
+            + value.capacity() * std::mem::size_of::<TopNRow>()
+            + value
+                .iter()
+                .map(|entry| {
+                    entry.sort.row().data().len()
+                        + entry.payload.row().data().len()
+                        + std::mem::size_of::<OwnedRow>()
+                        + 2 * std::mem::size_of::<usize>()
+                })
+                .sum::<usize>()
+    }
+
     fn supported(&self) -> bool {
         true
     }
@@ -594,6 +611,7 @@ impl TopNRanker {
             generate_update_before: true,
             output_rank_number,
             net_diff,
+            top1_fast: true,
             ttl_ms: 0,
             last_sweep_ms: 0,
             schema: None,
@@ -623,6 +641,10 @@ impl TopNRanker {
 }
 
 impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
+    pub(crate) fn with_top1_fast(mut self, enabled: bool) -> Self {
+        self.top1_fast = enabled;
+        self
+    }
     pub(crate) fn enable_first_bound(&mut self, generate_update_before: bool) {
         assert!(
             self.rank_end_column.is_some(),
@@ -658,6 +680,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             generate_update_before: self.generate_update_before,
             output_rank_number: self.output_rank_number,
             net_diff: self.net_diff,
+            top1_fast: self.top1_fast,
             ttl_ms: self.ttl_ms,
             last_sweep_ms: self.last_sweep_ms,
             schema: self.schema,
@@ -676,6 +699,10 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         budget_bytes: i64,
     ) -> Result<Self, DataFusionError> {
         self.memory.attach("top-n", budget_bytes, 0)?;
+        if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+            self.groups
+                .enable_resident_cache(64 * 1024 * 1024, self.memory.temporary_reservation());
+        }
         Ok(self)
     }
 
@@ -755,6 +782,9 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         batch: &RecordBatch,
         now_ms: i64,
     ) -> Result<RecordBatch, DataFusionError> {
+        if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+            return self.push_top1(batch, now_ms);
+        }
         if self.net_diff {
             return self.push_net_diff(batch, now_ms);
         }
@@ -961,7 +991,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
     pub(crate) fn staging_bytes(&self) -> usize {
         self.staged_old_tops
             .iter()
-            .map(|(key, old)| topn_staged_entry_bytes(key, old))
+            .map(|(key, old)| topn_staged_entry_bytes(key, old.as_ref().unwrap_or(&Vec::new())))
             .sum()
     }
 
@@ -1050,7 +1080,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                     delta += topn_staged_entry_bytes(&key, &old) as isize;
                 }
                 staged_order.push(key.clone());
-                staged_old_tops.insert(key, old);
+                staged_old_tops.insert(key, Some(old));
             }
             if rank_ends.is_some()
                 && buffer.len() >= 100
@@ -1110,7 +1140,35 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         let mut out_kinds: Vec<i8> = Vec::new();
         let mut out_ranks: Vec<i64> = Vec::new();
         for part in touched {
-            let old = &old_tops[&part];
+            let Some(old) = &old_tops[&part] else {
+                continue;
+            };
+            if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+                let new = self.groups.get(&part.0).expect("staged partition resident");
+                let new = new.first().map(|entry| &entry.payload);
+                if self.output_rank_number {
+                    diff_top(
+                        true,
+                        true,
+                        0,
+                        old,
+                        new.map_or(&[], std::slice::from_ref),
+                        &mut out_rows,
+                        &mut out_kinds,
+                        &mut out_ranks,
+                    );
+                } else if old.first().map(|row| row.row()) != new.map(|row| row.row()) {
+                    if let Some(row) = old.first() {
+                        out_rows.push(Arc::clone(row));
+                        out_kinds.push(3);
+                    }
+                    if let Some(row) = new {
+                        out_rows.push(Arc::clone(row));
+                        out_kinds.push(0);
+                    }
+                }
+                continue;
+            }
             let new: Vec<Arc<OwnedRow>> = self
                 .groups
                 .get(&part.0)
@@ -3719,6 +3777,13 @@ pub(crate) enum RocksTopNHandle {
 
 #[cfg(feature = "rocksdb-state")]
 impl RocksTopNHandle {
+    pub(crate) fn cache_stats(&self) -> [i64; 4] {
+        match self {
+            Self::Append(r) => r.groups.decoded_cache_stats(),
+            Self::Retract(_) | Self::UpdateFast(_) => [0; 4],
+        }
+    }
+
     pub(crate) fn enable_first_bound(&mut self, generate_update_before: bool) {
         match self {
             Self::Append(ranker) => ranker.enable_first_bound(generate_update_before),

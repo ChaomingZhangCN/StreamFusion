@@ -493,6 +493,10 @@ impl PersistentUpdatingJoin {
 pub struct AppendTopN(TopNRanker);
 
 impl AppendTopN {
+    pub fn with_top1_fast(mut self, enabled: bool) -> Self {
+        self.0 = self.0.with_top1_fast(enabled);
+        self
+    }
     pub fn new(
         partition_columns: Vec<usize>,
         sort_columns: Vec<(usize, bool)>,
@@ -523,6 +527,81 @@ impl AppendTopN {
 
     pub fn flush(&mut self) -> RecordBatch {
         self.0.flush_net_diff()
+    }
+}
+
+/// AppendFast Top-1 through the production persistent-state seam, including hydration and writes.
+#[cfg(feature = "rocksdb-state")]
+pub struct PersistentTop1 {
+    operator: TopNRanker<crate::topn::RocksTopNStore>,
+    _shared: Option<Box<crate::state::rocks_config::RocksSharedResources>>,
+}
+
+#[cfg(feature = "rocksdb-state")]
+impl PersistentTop1 {
+    pub fn new(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+    ) -> Self {
+        Self::build(directory, options, schema, net_diff, fast, None)
+    }
+
+    pub fn shared(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+        bytes: i64,
+    ) -> Self {
+        let shared = Box::new(crate::state::rocks_config::RocksSharedResources::new(
+            bytes, 0.5,
+        ));
+        Self::build(directory, options, schema, net_diff, fast, Some(shared))
+    }
+
+    fn build(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+        shared: Option<Box<crate::state::rocks_config::RocksSharedResources>>,
+    ) -> Self {
+        let sort = vec![SortColumn {
+            index: 1,
+            ascending: true,
+            nulls_first: false,
+        }];
+        let empty = RecordBatch::new_empty(schema.clone());
+        let converters =
+            crate::topn::TopNConverters::build(&empty, schema.fields().len(), &[0], &sort);
+        let codec = crate::topn::TopNStateCodec::new(&converters);
+        let mut config = PersistentSort::config(directory, options);
+        config.shared_resources = shared.as_deref().map_or(0, |pool| pool as *const _ as i64);
+        let store =
+            crate::state::RocksStore::create(config, codec).expect("persistent top-1 create");
+        Self {
+            operator: TopNRanker::new(vec![0], sort, 1, false, net_diff)
+                .with_top1_fast(fast)
+                .with_converters(converters)
+                .with_payload_schema(schema)
+                .with_backend(store)
+                .with_read_through_budget(-1)
+                .expect("top-1 cache budget"),
+            _shared: shared,
+        }
+    }
+
+    pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
+        self.operator.push(batch, 0).expect("persistent top-1 push")
+    }
+
+    pub fn flush(&mut self) -> RecordBatch {
+        self.operator.flush_net_diff()
     }
 }
 

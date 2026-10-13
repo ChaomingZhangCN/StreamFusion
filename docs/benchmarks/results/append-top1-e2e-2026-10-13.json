@@ -1,0 +1,210 @@
+{
+  "status": "Archived winner-loop prototype before allocation-quantum correction and decoded cache; not final candidate",
+  "date": "2026-10-13",
+  "baseline_commit": "381b4c84e289b7a9954b3b64c77016a6ebd3ed63",
+  "harness_commit": "228645aa3973b56cd0e359b0d8666b0a5b0124ea",
+  "environment": {
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "java": "JDK 17",
+    "flink": "2.2.1",
+    "native": "release, mimalloc",
+    "parallelism": 1,
+    "task_managers": 1,
+    "slots": 8,
+    "task_off_heap": "48 GiB",
+    "mini_batch_size": 1024,
+    "mini_batch_allow_latency": "1 h",
+    "warmup_seconds": 5,
+    "window_seconds": 10,
+    "runs": 3,
+    "payload_width": 8,
+    "source": "runtime rows, cyclic partition keys, nullable sort/payload",
+    "sink": "row blackhole",
+    "native_plan": "NativeColumnarTopN plus both transposes and Arrow IPC keyed exchange"
+  },
+  "runs": [
+    {
+      "version": "prior",
+      "keys": 64,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=false before=12904843 after=40718608 seconds=10.000325 mean_rows_per_second=2781286.100",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=false before=16890880 after=53641216 seconds=10.000199 mean_rows_per_second=3674960.635",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=false before=18249728 after=55122944 seconds=10.000283 mean_rows_per_second=3687217.302",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=false before=13912950 after=41581851 seconds=10.000351 mean_rows_per_second=2766793.040",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=false before=13880545 after=41487497 seconds=10.000303 mean_rows_per_second=2760611.615",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=false before=18631680 after=56710144 seconds=10.000369 mean_rows_per_second=3807706.012",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2769563.585 sf_mean=3723294.650 stock_trials=[2781286.099579777, 2766793.0400701165, 2760611.6153057567] sf_trials=[3674960.6354940627, 3687217.3018965116, 3807706.012163955]"
+      ],
+      "summary": {
+        "stock_mean": 2769563.585,
+        "sf_mean": 3723294.65
+      }
+    },
+    {
+      "version": "candidate",
+      "keys": 64,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "490b09024a219cd36ae14a01365ceab80a24adc6eeb13643d71af1d6c23c96c2",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=false before=12346192 after=38774338 seconds=10.000221 mean_rows_per_second=2642756.126",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=false before=23502848 after=76476416 seconds=10.000218 mean_rows_per_second=5297241.150",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=false before=26891264 after=80508928 seconds=10.000435 mean_rows_per_second=5361533.290",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=false before=13944789 after=41515513 seconds=10.000316 mean_rows_per_second=2756985.229",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=false before=14012670 after=41558917 seconds=10.000323 mean_rows_per_second=2754535.780",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=false before=27499520 after=80558080 seconds=10.000422 mean_rows_per_second=5305632.359",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=2718092.378 sf_mean=5321468.933 stock_trials=[2642756.125849408, 2756985.2285382496, 2754535.7800041246] sf_trials=[5297241.1495717745, 5361533.290183303, 5305632.359107052]"
+      ],
+      "summary": {
+        "stock_mean": 2718092.378,
+        "sf_mean": 5321468.933
+      }
+    },
+    {
+      "version": "candidate",
+      "keys": 65536,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "490b09024a219cd36ae14a01365ceab80a24adc6eeb13643d71af1d6c23c96c2",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=false before=2233434 after=7140824 seconds=10.000213 mean_rows_per_second=490728.566",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=false before=1298432 after=4259840 seconds=10.000205 mean_rows_per_second=296134.736",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=false before=1400832 after=4395008 seconds=10.000231 mean_rows_per_second=299410.694",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=false before=2459825 after=7548475 seconds=10.000341 mean_rows_per_second=508847.667",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=false before=2364716 after=7195949 seconds=10.000231 mean_rows_per_second=483112.128",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=false before=1417216 after=4407296 seconds=10.000431 mean_rows_per_second=298995.113",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=494229.454 sf_mean=298180.181 stock_trials=[490728.5661782988, 508847.6666639676, 483112.1278387989] sf_trials=[296134.7359897842, 299410.69409234077, 298995.1126827536]"
+      ],
+      "summary": {
+        "stock_mean": 494229.454,
+        "sf_mean": 298180.181
+      }
+    },
+    {
+      "version": "prior",
+      "keys": 65536,
+      "improving": false,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=false before=2258300 after=7279765 seconds=10.000206 mean_rows_per_second=502136.139",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=false before=675840 after=2093056 seconds=10.000194 mean_rows_per_second=141718.848",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=false before=708608 after=2106368 seconds=10.000363 mean_rows_per_second=139770.932",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=false before=2436905 after=7477303 seconds=10.000221 mean_rows_per_second=504028.656",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=false before=2455725 after=7318252 seconds=10.000361 mean_rows_per_second=486235.151",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=false before=733184 after=2113536 seconds=10.000586 mean_rows_per_second=138027.108",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=false warmup_seconds=5 window_seconds=10 stock_mean=497466.649 sf_mean=139838.963 stock_trials=[502136.1392743975, 504028.65643043496, 486235.15133577667] sf_trials=[141718.84811757915, 139770.9321296345, 138027.10806417075]"
+      ],
+      "summary": {
+        "stock_mean": 497466.649,
+        "sf_mean": 139838.963
+      }
+    },
+    {
+      "version": "prior",
+      "keys": 64,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=true before=7025861 after=23363240 seconds=10.000322 mean_rows_per_second=1633685.306",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=true before=10193920 after=33529856 seconds=10.000216 mean_rows_per_second=2333543.211",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=true before=11850752 after=35031040 seconds=10.000220 mean_rows_per_second=2317977.743",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=true before=8159972 after=24729130 seconds=10.000223 mean_rows_per_second=1656878.834",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=true before=8371918 after=24674032 seconds=10.000376 mean_rows_per_second=1630150.046",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=true before=12111872 after=36317184 seconds=10.000259 mean_rows_per_second=2420468.416",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1640238.062 sf_mean=2357329.790 stock_trials=[1633685.3059521026, 1656878.8335420326, 1630150.0457166994] sf_trials=[2333543.2111013797, 2317977.7430632426, 2420468.4157118117]"
+      ],
+      "summary": {
+        "stock_mean": 1640238.062,
+        "sf_mean": 2357329.79
+      }
+    },
+    {
+      "version": "candidate",
+      "keys": 64,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "490b09024a219cd36ae14a01365ceab80a24adc6eeb13643d71af1d6c23c96c2",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=64 width=8 improving=true before=7629745 after=24433777 seconds=10.000236 mean_rows_per_second=1680363.598",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=64 width=8 improving=true before=10844160 after=34880512 seconds=10.000187 mean_rows_per_second=2403590.354",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=64 width=8 improving=true before=12256256 after=36810752 seconds=10.000247 mean_rows_per_second=2455389.051",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=64 width=8 improving=true before=7721839 after=24226611 seconds=10.000297 mean_rows_per_second=1650428.250",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=64 width=8 improving=true before=8252991 after=24500913 seconds=10.000506 mean_rows_per_second=1624709.942",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=64 width=8 improving=true before=12530688 after=37250048 seconds=10.000425 mean_rows_per_second=2471830.829",
+        "[append-top1-sustained] backend=rocksdb keys=64 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=1651833.930 sf_mean=2443603.411 stock_trials=[1680363.5981989356, 1650428.2502786107, 1624709.9420729296] sf_trials=[2403590.354051533, 2455389.05059709, 2471830.8287890796]"
+      ],
+      "summary": {
+        "stock_mean": 1651833.93,
+        "sf_mean": 2443603.411
+      }
+    },
+    {
+      "version": "candidate",
+      "keys": 65536,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "490b09024a219cd36ae14a01365ceab80a24adc6eeb13643d71af1d6c23c96c2",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=true before=383138 after=1895998 seconds=10.000257 mean_rows_per_second=151282.106",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=true before=610304 after=1769472 seconds=10.000338 mean_rows_per_second=115912.885",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=true before=684032 after=1871872 seconds=10.000324 mean_rows_per_second=118780.148",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=true before=605405 after=1881944 seconds=10.000303 mean_rows_per_second=127650.035",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=true before=634151 after=1830629 seconds=10.000303 mean_rows_per_second=119644.180",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=true before=610304 after=1814528 seconds=10.000306 mean_rows_per_second=120418.720",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=132858.774 sf_mean=118370.584 stock_trials=[151282.1064978097, 127650.03461653678, 119644.1804644305] sf_trials=[115912.88485685334, 118780.147852903, 120418.72017249773]"
+      ],
+      "summary": {
+        "stock_mean": 132858.774,
+        "sf_mean": 118370.584
+      }
+    },
+    {
+      "version": "prior",
+      "keys": 65536,
+      "improving": true,
+      "backend": "rocksdb",
+      "exit_code": 0,
+      "dso_sha256": "caf07e7c5f0050f90545924c72cb68bac8b9da6cec51556e3ba02c988ce604de",
+      "measurements": [
+        "[append-top1-window] engine=Flink trial=0 backend=rocksdb keys=65536 width=8 improving=true before=666515 after=1795711 seconds=10.000274 mean_rows_per_second=112916.510",
+        "[append-top1-window] engine=StreamFusion trial=0 backend=rocksdb keys=65536 width=8 improving=true before=610304 after=1753088 seconds=10.000372 mean_rows_per_second=114274.148",
+        "[append-top1-window] engine=StreamFusion trial=1 backend=rocksdb keys=65536 width=8 improving=true before=679936 after=1904640 seconds=10.000330 mean_rows_per_second=122466.360",
+        "[append-top1-window] engine=Flink trial=1 backend=rocksdb keys=65536 width=8 improving=true before=504591 after=1759083 seconds=10.000492 mean_rows_per_second=125443.033",
+        "[append-top1-window] engine=Flink trial=2 backend=rocksdb keys=65536 width=8 improving=true before=713807 after=1851096 seconds=10.000390 mean_rows_per_second=113724.460",
+        "[append-top1-window] engine=StreamFusion trial=2 backend=rocksdb keys=65536 width=8 improving=true before=643072 after=1888256 seconds=10.000319 mean_rows_per_second=124514.431",
+        "[append-top1-sustained] backend=rocksdb keys=65536 width=8 improving=true warmup_seconds=5 window_seconds=10 stock_mean=117361.335 sf_mean=120418.313 stock_trials=[112916.51025423825, 125443.0333835548, 113724.46024256191] sf_trials=[114274.14756185644, 122466.36020217602, 124514.43064181991]"
+      ],
+      "summary": {
+        "stock_mean": 117361.335,
+        "sf_mean": 120418.313
+      }
+    }
+  ],
+  "candidate_source_sha256": {
+    "native/engine/src/topn.rs": "715a76f29f700b37cd695eb3200a7ff905e57c5b8fcaf4eb89743410603f3f9c",
+    "native/engine/src/topn/append_top1.rs": "9565607966f1fe41b333f0bf44fcb121027bfe7e1f37b6b15dba2addb5460a61",
+    "native/engine/src/state/mod.rs": "375dd922b9318d1ab6409411a87f641215d291f10ffd3ca48deb8f5408b9b9fb",
+    "native/engine/src/state/rocks_store/mod.rs": "5264213ff375c4162aaeba8f4ae61717bc37130abcda5444a17d0dd28eedd05f"
+  },
+  "profile": {
+    "rank_samples": 22775,
+    "total_process_samples": 76068,
+    "rank_lookup_samples": 19054,
+    "rank_lookup_percent": 83.66,
+    "method": "Separate diagnostic invocation, async-profiler 4.5 CPU 1 ms, DWARF stacks, all stock/native job phases included. Performance results above are uninstrumented.",
+    "limitation": "SST reads and decompression dominate the larger-key rejection path; no winner cache has been implemented."
+  },
+  "interpretation": "Repeated-key rejection improves 1.43x prior and 1.96x stock. Larger-key rejection improves 2.13x prior but remains below stock. Larger-key improving candidate/prior means differ -1.7% while stock controls vary considerably; do not claim non-regression. Memory, unique-key complete jobs, wider payloads, and further optimization remain."
+}

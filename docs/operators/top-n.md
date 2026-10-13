@@ -34,6 +34,23 @@ three natively:
 Idle-state TTL is native across all three — see [TTL semantics](index.md#idle-state-ttl) and
 [Configuration](../configuration.md) for the flag surface.
 
+Constant AppendFast Top-1 (`offset=0`, `limit=1`, no variable rank bound) uses a
+single-winner update loop. It compares the borrowed sort key before obtaining
+mutable state, so rejected arrivals neither construct owned payload/sort rows nor
+write RocksDB state. Winners replace the retained entry directly. The existing
+raw checkpoint codec and key-group assignment are unchanged; memory/RocksDB
+recovery does not require a migration. Immediate and logical mini-batch modes
+retain their existing emission and TTL rules, including hidden-rank tie writes
+in immediate mode. Variable bounds and wider ranks use the general algorithm.
+A direct RocksDB Top-1 also retains a FIFO cache of clean decoded winners,
+limited to an accounted 64 MiB per operator. State still writes through at each
+bundle. Only existing stored keys enter the cache; fresh unique keys bypass it.
+Checkpoint/canonical scan clears cached values, and memory reservation denial
+clears and disables the cache while execution continues through RocksDB.
+`topn.cache.size`, `topn.cache.hitRate` and `topn.cache.bytes` describe resident
+keys, hits per distinct state-hydration request and the cache's accounted footprint.
+See [Top-1 winner state](../optimizations/top1-winner-state.md) for measured boundaries.
+
 Also native: a projected rank number and both insert-only and retracting changelog input.
 `OFFSET` runs natively over insert-only, update-fast and general retracting inputs, with either
 a projected or hidden rank. `RANK`/`DENSE_RANK` never reach the matcher at all —

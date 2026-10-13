@@ -44,7 +44,16 @@ The store now follows Flink's write path with the batching advantage kept:
   the optimization is around it, not a replacement row format.
 - **Flink's memory governance.** One shared block cache and write-buffer manager per slot, sized by
   `state.backend.rocksdb.memory.*` with Flink's exact split formulas, replaces per-store 256 MB
-  caches. Total native state memory stops scaling with operator count.
+  caches. Total native state memory stops scaling with operator count. Memtable
+  arena allocations use the smaller configured/shared buffer capacity to derive
+  their aligned one-eighth quantum, keeping an oversized configured buffer from
+  crowding out a small slot's read cache.
+- **Clean Top-1 winner retention.** The constant append Top-1 path can retain
+  existing decoded winners across bundles under a bounded task off-heap
+  reservation. This holds clean values only: bundle writes still go straight to
+  RocksDB and cache eviction performs no write. Fresh unique keys bypass cache
+  admission. See [Top-1 winner state](top1-winner-state.md).
+
 
 The `streamfusion.state.rocksdb.write-buffer-mb` knob and the memory-pressure flush are deleted;
 there is no StreamFusion-specific state memory tuning.
