@@ -104,3 +104,24 @@ samples, confidence intervals, allocation probes and end-to-end engine samples.
 
 Rust regression coverage includes offset input slices, contiguous/noncontiguous groups, NULLs,
 snapshot continuation and 4,096 one-value TIMESTAMP DISTINCT groups under a 32 MiB state budget.
+
+After #336 merged, the same release Criterion fixtures were compared directly with main
+`b2e6e629` rather than the earlier admission-only prototype. The production Java is identical
+on both sides. Six matching 4096-row fixtures give:
+
+| Keys / string bytes | Main mean (us) | Slice mean (us) | Main/slice | Allocation requests main / slice |
+| --- | ---: | ---: | ---: | ---: |
+| 1 / 16 | 106.885 | 79.946 | 1.337x | 120 / 107 |
+| 1 / 256 | 120.919 | 86.594 | 1.396x | 120 / 107 |
+| 64 / 16 | 179.426 | 180.329 | 0.995x | 2,103 / 2,103 |
+| 64 / 256 | 202.997 | 209.685 | 0.968x | 2,111 / 2,111 |
+| 4096 / 16 | 2650.422 | 1750.930 | 1.514x | 106,104 / 54,028 |
+| 4096 / 256 | 2952.430 | 2064.243 | 1.430x | 106,112 / 54,036 |
+
+The noncontiguous 64-key cases still use `take`: their allocation requests are unchanged,
+and the wide control is about 3.3% slower in this follow-up. The improvement is specific to
+contiguous selections. Full TUMBLE jobs retain both transposes and outperform matched stock
+Flink by 1.15-1.39x in the four follow-up fixtures, while separate-JVM before/after comparisons
+have differing stock baselines. The
+[follow-up artifact](../benchmarks/results/window-string-extrema-main336-2026-10-13.json)
+preserves all samples, intervals and allocation probes, including unfavorable controls.
