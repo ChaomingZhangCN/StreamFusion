@@ -134,6 +134,14 @@ The single-phase regression is not accepted as a default acceleration path. Insp
 native fold shows per-group Arrow gathers and generic string accumulator updates; optimization
 of that high-cardinality path remains necessary before removing the opt-in.
 
+Additional SQL comparisons cover embedded NULs, long values, supplementary characters and
+runtime lone-surrogate strings at parallelism one and two, including Flink source serialization
+before extrema ordering. HOP recovery injects two failures after completed checkpoints on memory
+and RocksDB and requires work from every native stage. Controlled-clock processing-time tests
+verify extrema, NULL-only groups and timer firing after restore on both backends. Single-phase
+SQL and recovery coverage explicitly enables the experimental switch; default admission stays
+as documented above.
+
 ## Filtered MIN/MAX on append-only input
 
 Aligned event-time TUMBLE/HOP/CUMULATE admit `MIN(value) FILTER (WHERE predicate)` and
@@ -774,3 +782,49 @@ changing the production path or measured boundary.
 For zero-property legacy group-window complete jobs, append `-Dhandoff.job.properties=0`.
 The benchmark verifies the group-window native node and both transposes, collecting and checking
 key/count/sum results without window fields.
+
+## String extrema measurements
+
+`WindowStringExtremaBenchmark` compares runtime nullable STRING MIN/MAX plus COUNT(*) against
+stock Flink and the previous whole-query fallback. It requires both transposes, the expected
+single-phase or local/global operators and positive consumed-row metrics for the current native
+job. Each trial compares values and RowKinds. Strings vary within each key, every seventh value
+is NULL and one key contains only NULLs.
+
+On 2026-10-13, Apple M4 Pro, JDK 17.0.12, released Flink 2.2.1, UTC, parallelism 2 and
+release/mimalloc, two warmups and five rotating-order samples per engine gave these medians.
+Single-phase measurements explicitly enable `streamfusion.window.string-extrema.single-phase.enabled`; the production default remains off. The bench profile keeps Arrow IPC shuffle enabled. SQL submission through the collecting rowwise
+sink is timed; the shared MiniCluster startup and view registration are outside measurement.
+
+| Rows | Keys | Phase | String bytes | Flink (s) | Native (s) | Previous fallback (s) | Flink/native |
+| ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 2,000,000 | 64 | ONE_PHASE | 16 | 0.648232 | 0.437016 | 0.656118 | 1.483x |
+| 2,000,000 | 64 | ONE_PHASE | 256 | 0.651583 | 0.534951 | 0.652633 | 1.218x |
+| 2,000,000 | 64 | TWO_PHASE | 16 | 0.666331 | 0.429723 | 0.672041 | 1.551x |
+| 2,000,000 | 64 | TWO_PHASE | 256 | 0.668973 | 0.535110 | 0.664206 | 1.250x |
+| 2,000,000 | 4096 | ONE_PHASE | 16 | 0.666074 | 0.542064 | 0.665584 | 1.229x |
+| 2,000,000 | 4096 | ONE_PHASE | 256 | 0.926774 | 0.811265 | 0.928040 | 1.142x |
+| 2,000,000 | 4096 | TWO_PHASE | 16 | 0.885648 | 0.639103 | 0.885113 | 1.386x |
+| 2,000,000 | 4096 | TWO_PHASE | 256 | 1.252294 | 0.917272 | 1.260347 | 1.365x |
+| 20,000,000 | 4096 | ONE_PHASE | 256 | 6.655892 | 5.621734 | 6.557417 | 1.184x |
+
+The unshipped admission-only prototype was slower for high-cardinality wide strings. Replacing
+contiguous per-key `take` copies with Arrow slices removes that gap; noncontiguous and nested
+values retain `take`. Some short jobs vary by about 0.1 seconds. The 20M-row control provides a longer processing
+boundary; its medians improve on both stock Flink and the previous fallback. These are local complete-job diagnostics, not isolated operator throughput,
+a production SLA or exhaustive performance coverage for every admitted window shape/backend.
+All samples, ranges and the prototype control are retained in
+[the result artifact](../benchmarks/results/window-string-extrema-2026-10-13.json).
+
+```sh
+SF_BENCHMARK=true mvn -B -ntp -Pbench -pl streamfusion-runtime -am test \
+  -Dtest=WindowStringExtremaBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dwindow.string.rows=2000000 -Dwindow.string.groups=4096 \
+  -Dwindow.string.warmup=2 -Dwindow.string.runs=5
+```
+
+Use `-Dwindow.string.groups=64` for the lower cardinality and
+`-Dwindow.string.rows=20000000 -Dwindow.string.widths=256 -Dwindow.string.phases=ONE_PHASE`
+for the longer control. Native Criterion's `window_string_extrema` suite separately verifies
+and measures production update/flush at 256/4096 rows, 1/64/batch-sized keys and 16/256-byte
+nullable UTF-8; it excludes construction and the JVM boundary.

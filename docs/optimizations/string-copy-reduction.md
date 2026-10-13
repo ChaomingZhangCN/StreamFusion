@@ -1,7 +1,7 @@
 # String copies and intermediate buffers
 
-**Applies to:** the RowData→Arrow entry transpose, the synchronous lookup join, and string expressions
-in [Calc / Filter](../operators/calc-filter.md)
+**Applies to:** the RowData→Arrow entry transpose, the synchronous lookup join, string expressions
+in [Calc / Filter](../operators/calc-filter.md), and aligned window aggregation.
 
 ## Entry transpose: one copy instead of two
 
@@ -68,3 +68,39 @@ native-to-native hashing comparison above is the evidence for the allocation opt
 
 The concatenation cases still lose to Flink end to end. Removing redundant work improves the
 nullable case within the native pipeline; it does not establish a standalone concatenation win.
+
+## Window groups: borrow contiguous value ranges
+
+The window update path groups input positions by key/window before folding each aggregate. A
+high-cardinality batch often contributes only one row per group; Arrow `take` previously copied
+each group's string payload anyway. Group positions arrive in increasing order without duplicates,
+so their endpoints determine whether they form a contiguous range. Such groups now share Arrow
+slices for primitive and UTF-8 values and apply the same selection to RowKinds. Noncontiguous
+groups retain `take`. Nested values also retain it: a generic DISTINCT scalar can keep child
+buffers in state, and a slice could retain an entire input batch rather than the group's values.
+The partial/checkpoint layout, extrema ordering and NULL behavior remain unchanged.
+
+An async-profiler 4.5 CPU recording of the high-cardinality wide-string prototype attributed
+2,288 of 5,319 samples inside native grouped accumulation to Arrow `take` stacks (43%). The
+recording includes all three engines and setup, so this is a share of that native subtree,
+not whole-job CPU. Release Criterion isolates production update/flush with matching nullable
+UTF-8 fixtures and the system counting allocator:
+
+| Rows / keys / string bytes | Before mean (us) | After mean (us) | Allocation requests before / after |
+| --- | ---: | ---: | ---: |
+| 256 / 256 / 16 | 159.844 | 104.061 | 6,766 / 3,512 |
+| 256 / 256 / 256 | 179.101 | 125.392 | 6,774 / 3,520 |
+| 4096 / 4096 / 16 | 2644.862 | 1748.207 | 106,104 / 54,028 |
+| 4096 / 4096 / 256 | 2920.753 | 2123.312 | 106,112 / 54,036 |
+
+One-key fixtures also improve; noncontiguous 64-key controls are approximately flat, within
+about +/-2% in this short run. Allocation requests are not copied-byte or peak-memory counts.
+Aggregate output buffers are newly materialized, so zero shared output-buffer bytes does not
+mean input selection copied. Criterion excludes JVM/JNI and uses the unaccounted-budget adapter;
+the [complete-job comparison](../operators/window-aggregate.md#string-extrema-measurements)
+retains normal production costs and both transposes. The
+[result artifact](../benchmarks/results/window-string-extrema-2026-10-13.json) contains all native
+samples, confidence intervals, allocation probes and end-to-end engine samples.
+
+Rust regression coverage includes offset input slices, contiguous/noncontiguous groups, NULLs,
+snapshot continuation and 4,096 one-value TIMESTAMP DISTINCT groups under a 32 MiB state budget.

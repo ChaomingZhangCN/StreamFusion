@@ -220,8 +220,6 @@ pub(crate) struct TumblingAggregator {
     slide_millis: i64,
     cumulative: bool,
     aggregates: Vec<WindowAggregate>,
-    // These accumulators retain scalar state only, so selected contiguous rows may borrow the input.
-    scalar_inputs: Vec<bool>,
     live_count: Option<usize>,
     windows: BTreeMap<i64, AlignedWindow>,
     // Groups are keyed by the arrow-row memcomparable encoding of the key columns, not a
@@ -268,15 +266,6 @@ impl TumblingAggregator {
             slide_millis,
             cumulative,
             aggregates: build_aggregates(&kinds, &value_types),
-            scalar_inputs: kinds
-                .iter()
-                .map(|kind| {
-                    matches!(
-                        *kind,
-                        3 | 22 | RETRACT_COUNT | LIVE_COUNT | HIDDEN_LIVE_COUNT
-                    )
-                })
-                .collect(),
             live_count: kinds
                 .iter()
                 .position(|kind| matches!(*kind, LIVE_COUNT | HIDDEN_LIVE_COUNT)),
@@ -492,7 +481,7 @@ impl TumblingAggregator {
         self.snapshot_cache = None;
         let ts = column_i64(batch, "ts");
         // One value column per aggregate (value0, value1, …), so aggregates can read different
-        // columns. Sliced by type-agnostic take, so each accumulator sees its column's own type.
+        // columns. Selection preserves each accumulator's own column type.
         let values: Vec<&ArrayRef> = (0..self.aggregates.len())
             .map(|i| {
                 batch
@@ -504,8 +493,8 @@ impl TumblingAggregator {
         self.key_types = key_types(&key_arrays);
         let keys_encoded = encode_keys(&mut self.key_converter, &key_arrays, batch.num_rows());
 
-        // Group the row positions for each (window, key); the value columns are sliced by type-
-        // agnostic take, so the accumulators see each column's own type (int, double, ...). The
+        // Group the row positions for each (window, key); column selection preserves each
+        // accumulator's own value type (int, double, ...). The
         // grouping key is a borrowed byte-row view into the batch's encoded keys — no per-row
         // allocation; a key is materialized once per touched group in `accumulate_grouped`.
         let mut grouped: ahash::HashMap<(i64, i64, Row<'_>), Vec<u32>> = ahash::HashMap::default();
@@ -590,8 +579,8 @@ impl TumblingAggregator {
         self.accumulate_grouped(grouped, values, batch.column_by_name(ROW_KIND_COLUMN))
     }
 
-    /// Folds the grouped row positions into their (window, key) accumulators. The value columns are
-    /// selected by Arrow slice or type-agnostic `take`, so each accumulator sees its column's own type. When a memory
+    /// Folds the grouped row positions into their (window, key) accumulators. Contiguous groups
+    /// share slices of the value columns; other groups use `take`. When a memory
     /// budget is set, each touched group's footprint change is folded into the tracked state size —
     /// measuring only touched groups keeps accounting O(batch), not O(open state).
     fn accumulate_grouped(
@@ -601,30 +590,26 @@ impl TumblingAggregator {
         changes: Option<&ArrayRef>,
     ) -> Result<(), DataFusionError> {
         let track = self.memory.tracking();
+        // Nested distinct scalars may retain their input buffers in state.
+        let slice_values = values
+            .iter()
+            .all(|array| array.data_type().is_primitive() || *array.data_type() == DataType::Utf8);
         for ((start, end, key), rows) in grouped {
-            let slice = rows
-                .first()
-                .copied()
-                .filter(|first| rows.last().copied() == Some(*first + rows.len() as u32 - 1))
-                .map(|start| (start as usize, rows.len()));
-            let indices = (slice.is_none() || self.scalar_inputs.iter().any(|scalar| !scalar))
-                .then(|| UInt32Array::from(rows));
+            let offset = rows[0] as usize;
+            let length = rows.len();
+            // Group positions are appended in input order and contain no duplicates.
+            let contiguous = slice_values && rows[length - 1] as usize - offset + 1 == length;
+            let indices = (!contiguous).then(|| UInt32Array::from(rows));
+            let select = |array: &ArrayRef| match &indices {
+                Some(indices) => take(array, indices, None),
+                None => Ok(array.slice(offset, length)),
+            };
             let columns: Vec<ArrayRef> = values
                 .iter()
-                .zip(&self.scalar_inputs)
-                .map(|(value, scalar)| match (slice, scalar) {
-                    (Some((offset, length)), true) => value.slice(offset, length),
-                    _ => take(value, indices.as_ref().expect("selection indices"), None)
-                        .expect("failed to take values"),
-                })
-                .collect();
+                .map(|array| select(array))
+                .collect::<Result<_, _>>()?;
             let changes = if self.live_count.is_some() {
-                changes
-                    .map(|kinds| match slice {
-                        Some((offset, length)) => Ok(kinds.slice(offset, length)),
-                        None => take(kinds, indices.as_ref().expect("selection indices"), None),
-                    })
-                    .transpose()?
+                changes.map(select).transpose()?
             } else {
                 None
             };
