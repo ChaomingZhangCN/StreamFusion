@@ -80,6 +80,15 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 - `nativeArrowAllocatorBytes` — the process-wide Arrow FFI allocator's current footprint.
 - `nativeStateBytes` — tracked state drawing on that budget, sampled per batch.
 
+## Experimental Window Coverage
+
+`streamfusion.window.string-extrema.single-phase.enabled` defaults to `false`. Set it to `true`
+in Flink table configuration to admit single-phase CHAR/VARCHAR MIN/MAX, including admitted
+processing-time, session and legacy windows. High-cardinality single-phase CUMULATE regressed
+against Flink in the complete-job comparison, so stock Flink remains the default for these
+string aggregates. Two-phase local/global string extrema do not require this option. See
+[Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+
 ## Diagnostics
 
 - **`-Dstreamfusion.logFallbackReasons=true`** — substitution is silent by default; this logs each

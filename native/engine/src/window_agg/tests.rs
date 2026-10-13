@@ -1,5 +1,92 @@
 use super::*;
 
+#[test]
+fn string_extrema_partials_preserve_nulls_utf8_order_and_keyed_restore() {
+    fn batch(continuation: bool) -> RecordBatch {
+        let values: ArrayRef = Arc::new(StringArray::from(if continuation {
+            vec![Some("\u{1f600}"), None, Some("aaa")]
+        } else {
+            vec![Some("\u{e000}"), None, Some("")]
+        }));
+        RecordBatch::try_from_iter(vec![
+            ("ts", Arc::new(Int64Array::from_value(500, 3)) as ArrayRef),
+            (
+                "key0",
+                Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+            ("value2", Arc::new(Int64Array::from_value(1, 3)) as ArrayRef),
+        ])
+        .unwrap()
+    }
+    let types = vec![3, 3, 0];
+    let kinds = vec![1, 2, 3];
+    for (size, cumulative) in [(1000, false), (3000, false), (3000, true)] {
+        let mut single =
+            TumblingAggregator::new(size, 1000, cumulative, types.clone(), kinds.clone());
+        let mut local = TumblingAggregator::new(1000, 1000, false, types.clone(), kinds.clone());
+        let mut global =
+            TumblingAggregator::new(size, 1000, cumulative, types.clone(), kinds.clone());
+        for continuation in [false, true] {
+            let input = batch(continuation);
+            single.update(&input).unwrap();
+            local.update_local(&input).unwrap();
+            local = TumblingAggregator::restore(
+                1000,
+                1000,
+                false,
+                types.clone(),
+                kinds.clone(),
+                &local.snapshot(),
+            );
+            global.update_partial(&local.drain_partial()).unwrap();
+            let partitions = global.snapshot_partitions(128, &[-1]);
+            global = TumblingAggregator::restore_partitions(
+                size,
+                1000,
+                cumulative,
+                types.clone(),
+                kinds.clone(),
+                &partitions.into_values().collect::<Vec<_>>(),
+            );
+        }
+        let output = global.flush(i64::MAX).unwrap();
+        assert_eq!(output, single.flush(i64::MAX).unwrap());
+        assert_eq!(output.num_rows(), if size == 1000 { 3 } else { 9 });
+        let min = output
+            .column_by_name("result0")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let max = output
+            .column_by_name("result1")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        for row in 0..output.num_rows() {
+            assert_eq!(column_i64(&output, "result2").value(row), 2);
+            match column_i64(&output, "key0").value(row) {
+                1 => {
+                    assert_eq!(min.value(row), "\u{e000}");
+                    assert_eq!(max.value(row), "\u{1f600}");
+                }
+                2 => {
+                    assert!(min.is_null(row));
+                    assert!(max.is_null(row));
+                }
+                3 => {
+                    assert_eq!(min.value(row), "");
+                    assert_eq!(max.value(row), "aaa");
+                }
+                _ => panic!("unexpected group"),
+            }
+        }
+    }
+}
+
 pub(crate) fn retracting_batch(rows: &[(i64, i64, Option<i64>, i8)]) -> RecordBatch {
     let values: ArrayRef = Arc::new(Int64Array::from(
         rows.iter().map(|r| r.2).collect::<Vec<_>>(),

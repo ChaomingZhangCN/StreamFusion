@@ -242,6 +242,63 @@ fn bench_tumbling_keyed(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_tumbling_string_extrema(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tumbling_string_extrema");
+    for rows in [128, 4096] {
+        for keys in [1, 64, 1024] {
+            for width in [8, 128] {
+                let strings: Vec<Option<String>> = (0..rows)
+                    .map(|i| {
+                        (i % 7 != 0).then(|| format!("{:08x}{}", i % 257, "x".repeat(width - 8)))
+                    })
+                    .collect();
+                let values: ArrayRef = Arc::new(StringArray::from(strings));
+                let batch = RecordBatch::try_from_iter(vec![
+                    (
+                        "ts",
+                        Arc::new(Int64Array::from_value(500, rows)) as ArrayRef,
+                    ),
+                    ("value0", values.clone()),
+                    ("value1", values),
+                    (
+                        "key0",
+                        Arc::new(Int64Array::from(
+                            (0..rows).map(|i| (i % keys) as i64).collect::<Vec<_>>(),
+                        )) as ArrayRef,
+                    ),
+                ])
+                .unwrap();
+                let mut check = Tumbling::new(1000, 3, vec![1, 2]);
+                check.update(&batch);
+                let output = check.flush(i64::MAX);
+                assert_eq!(output.num_rows(), rows.min(keys));
+                assert_eq!(
+                    output.column_by_name("result0").unwrap().data_type(),
+                    &DataType::Utf8
+                );
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(
+                    BenchmarkId::new(
+                        "update_flush",
+                        format!("rows{rows}_keys{keys}_width{width}"),
+                    ),
+                    |b| {
+                        b.iter_batched(
+                            || Tumbling::new(1000, 3, vec![1, 2]),
+                            |mut aggregator| {
+                                aggregator.update(black_box(&batch));
+                                black_box(aggregator.flush(i64::MAX));
+                            },
+                            BatchSize::SmallInput,
+                        )
+                    },
+                );
+            }
+        }
+    }
+    group.finish();
+}
+
 // Non-windowed GROUP BY SUM keyed by a string column: this is the changelog hot loop, and a string
 // key is where the per-row grouping-key allocation hurts most (each key is a heap String).
 fn bench_group_by_string_key(c: &mut Criterion) {
@@ -1477,6 +1534,7 @@ criterion_group!(
     bench_calc_projection_before_filter,
     bench_tumbling,
     bench_tumbling_keyed,
+    bench_tumbling_string_extrema,
     bench_group_by_string_key,
     bench_group_zero_sum,
     bench_group_by_logical_bundle,
