@@ -146,6 +146,7 @@ Some historical suites use
 | Parquet file operations | `parquet_io` | Production encode, selected-row encode, ordinary decode, paired INT96 decode, nullable wide strings and full-range timestamps |
 | ORC post-decode normalization | `normalization` | CHAR trimming, string pass-through, full-range timestamp conversion |
 | Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64/all-distinct keys |
+| Window string extrema | `window_string_extrema` | Production MIN/MAX update and watermark flush over 256/4096 rows, 1/64/batch-sized keys and nullable 16/256-byte UTF-8 values; independent extrema checked before timing |
 | Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
 
 `window_zero_sum` covers the production COUNT/SUM0 window update and final flush

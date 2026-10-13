@@ -129,3 +129,7 @@ harness = false
 [[bench]]
 name = "window_zero_sum"
 harness = false
+
+[[bench]]
+name = "window_string_extrema"
+harness = false

@@ -1,0 +1,2494 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "base_revision": "a3d62316c69bea6483256eed9a750415758a47a0",
+  "environment": {
+    "cpu": "Apple M4 Pro",
+    "platform": "macOS aarch64",
+    "flink": "2.2.1",
+    "jdk": "Java HotSpot 17.0.12",
+    "native": "release with mimalloc",
+    "timezone": "UTC",
+    "parallelism": 2,
+    "shuffle": "Arrow IPC (zeroCopyLocal=false)"
+  },
+  "methodology": {
+    "sql": "SELECT k, window_start, window_end, MIN(s), MAX(s), COUNT(*) FROM TABLE(TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '10' SECOND)) GROUP BY k, window_start, window_end",
+    "boundary": "SQL submission through rowwise collection in one shared MiniCluster; both transposes, scheduling, JNI and IPC remain timed; cluster startup and input view registration are outside timing",
+    "warmup_per_engine": 2,
+    "measured_per_engine": 5,
+    "engine_order": "stock/native/previous fallback rotate each trial",
+    "source": "Runtime sequence; bounded-out-of-orderness watermarks; nullable STRING with 1/7 NULL and one all-NULL key; values vary within each key",
+    "previous_behavior": "Disable all three window aggregate switches and require zero native substitutions, reproducing prior whole-query host fallback",
+    "validation": "Compare values and RowKinds each trial; require both transposes and expected native window nodes; consumed-row metrics are restricted to the current native job ID",
+    "limitations": [
+      "Local repeated complete jobs are not isolated aggregate throughput or a production SLA.",
+      "Desktop background processes remain running; no competing Codex build/test/benchmark ran during each timed comparison.",
+      "Some two-million-row samples vary by approximately 0.1 seconds; the retained 20-million-row control tests a longer boundary. These runs do not supply statistical confidence for end-to-end throughput.",
+      "The admission-only prototype is an unshipped performance diagnostic, not previous native coverage. Criterion comparisons use matching native fixtures and exclude JVM/JNI costs."
+    ]
+  },
+  "runs": [
+    {
+      "implementation": "admission-only prototype using take",
+      "source_log": "string-benchmark-4096.log",
+      "fixtures": [
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              0.66248475,
+              0.668543833,
+              0.663566041,
+              0.657530459,
+              0.659154583
+            ],
+            "native": [
+              0.753836167,
+              0.749979625,
+              0.644245,
+              0.636435625,
+              0.645750666
+            ],
+            "previous_fallback": [
+              0.666941709,
+              0.657710583,
+              0.659877042,
+              0.662356625,
+              0.662882292
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.66248475,
+            "native": 0.645750666,
+            "previous_fallback": 0.662356625
+          },
+          "range_seconds": {
+            "stock": [
+              0.657530459,
+              0.668543833
+            ],
+            "native": [
+              0.636435625,
+              0.753836167
+            ],
+            "previous_fallback": [
+              0.657710583,
+              0.666941709
+            ]
+          },
+          "stock_over_native": 1.0259141567807535,
+          "fallback_over_native": 1.0257157442869753
+        },
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              1.043060375,
+              0.92699425,
+              0.934797333,
+              0.926520959,
+              1.036559833
+            ],
+            "native": [
+              1.030671542,
+              1.017363167,
+              1.031765708,
+              1.021382,
+              1.026598291
+            ],
+            "previous_fallback": [
+              0.928650208,
+              0.934410125,
+              1.045459416,
+              0.92713925,
+              1.040849709
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.934797333,
+            "native": 1.026598291,
+            "previous_fallback": 0.934410125
+          },
+          "range_seconds": {
+            "stock": [
+              0.926520959,
+              1.043060375
+            ],
+            "native": [
+              1.017363167,
+              1.031765708
+            ],
+            "previous_fallback": [
+              0.92713925,
+              1.045459416
+            ]
+          },
+          "stock_over_native": 0.9105775269598613,
+          "fallback_over_native": 0.9102003511907268
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              0.888105209,
+              0.877273792,
+              0.882285625,
+              0.883050583,
+              0.888273042
+            ],
+            "native": [
+              0.842718084,
+              0.758555625,
+              0.744557959,
+              0.739100917,
+              0.747241167
+            ],
+            "previous_fallback": [
+              0.888658459,
+              0.888042416,
+              0.884418959,
+              0.880998417,
+              0.879857042
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.883050583,
+            "native": 0.747241167,
+            "previous_fallback": 0.884418959
+          },
+          "range_seconds": {
+            "stock": [
+              0.877273792,
+              0.888273042
+            ],
+            "native": [
+              0.739100917,
+              0.842718084
+            ],
+            "previous_fallback": [
+              0.879857042,
+              0.888658459
+            ]
+          },
+          "stock_over_native": 1.181747770328612,
+          "fallback_over_native": 1.1835790077663106
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              1.2667215,
+              1.139102875,
+              1.2654715,
+              1.260798334,
+              1.270940125
+            ],
+            "native": [
+              1.236095375,
+              1.233522333,
+              1.237572875,
+              1.236196083,
+              1.227719542
+            ],
+            "previous_fallback": [
+              1.264534625,
+              1.2651865,
+              1.27128825,
+              2.015370375,
+              1.153153916
+            ]
+          },
+          "median_seconds": {
+            "stock": 1.2654715,
+            "native": 1.236095375,
+            "previous_fallback": 1.2651865
+          },
+          "range_seconds": {
+            "stock": [
+              1.139102875,
+              1.270940125
+            ],
+            "native": [
+              1.227719542,
+              1.237572875
+            ],
+            "previous_fallback": [
+              1.153153916,
+              2.015370375
+            ]
+          },
+          "stock_over_native": 1.0237652575959197,
+          "fallback_over_native": 1.023534692863
+        }
+      ]
+    },
+    {
+      "implementation": "final candidate; slices restricted to primitive/UTF-8 values",
+      "source_log": "string-benchmark-final-64.log",
+      "fixtures": [
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 64,
+          "samples_seconds": {
+            "stock": [
+              0.662111292,
+              0.648231542,
+              0.664858459,
+              0.546712292,
+              0.547493416
+            ],
+            "native": [
+              0.442774792,
+              0.448689208,
+              0.436424583,
+              0.427336875,
+              0.437015834
+            ],
+            "previous_fallback": [
+              0.656117625,
+              0.66057875,
+              0.6511045,
+              0.554675333,
+              0.657965333
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.648231542,
+            "native": 0.437015834,
+            "previous_fallback": 0.656117625
+          },
+          "range_seconds": {
+            "stock": [
+              0.546712292,
+              0.664858459
+            ],
+            "native": [
+              0.427336875,
+              0.448689208
+            ],
+            "previous_fallback": [
+              0.554675333,
+              0.66057875
+            ]
+          },
+          "stock_over_native": 1.4833136274874654,
+          "fallback_over_native": 1.501358930166361
+        },
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 64,
+          "samples_seconds": {
+            "stock": [
+              0.652080291,
+              0.655777375,
+              0.549255,
+              0.651583417,
+              0.54355025
+            ],
+            "native": [
+              0.54539525,
+              0.534950875,
+              0.644847792,
+              0.532828334,
+              0.534717042
+            ],
+            "previous_fallback": [
+              0.654464,
+              0.66048925,
+              0.649820125,
+              0.652633458,
+              0.544195792
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.651583417,
+            "native": 0.534950875,
+            "previous_fallback": 0.652633458
+          },
+          "range_seconds": {
+            "stock": [
+              0.54355025,
+              0.655777375
+            ],
+            "native": [
+              0.532828334,
+              0.644847792
+            ],
+            "previous_fallback": [
+              0.544195792,
+              0.66048925
+            ]
+          },
+          "stock_over_native": 1.218024770966119,
+          "fallback_over_native": 1.2199876446598952
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 64,
+          "samples_seconds": {
+            "stock": [
+              0.674652417,
+              0.666330541,
+              0.673257084,
+              0.661585292,
+              0.66208375
+            ],
+            "native": [
+              0.326267166,
+              0.430771875,
+              0.436097125,
+              0.33017,
+              0.4297225
+            ],
+            "previous_fallback": [
+              0.673852792,
+              0.674309375,
+              0.672040583,
+              0.670315875,
+              0.663303958
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.666330541,
+            "native": 0.4297225,
+            "previous_fallback": 0.672040583
+          },
+          "range_seconds": {
+            "stock": [
+              0.661585292,
+              0.674652417
+            ],
+            "native": [
+              0.326267166,
+              0.436097125
+            ],
+            "previous_fallback": [
+              0.663303958,
+              0.674309375
+            ]
+          },
+          "stock_over_native": 1.5506065914630953,
+          "fallback_over_native": 1.5638943341342377
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 64,
+          "samples_seconds": {
+            "stock": [
+              0.77667325,
+              0.668368166,
+              0.668973042,
+              0.668867666,
+              0.675698875
+            ],
+            "native": [
+              0.535229708,
+              0.54092025,
+              0.532908708,
+              0.535110167,
+              0.532720583
+            ],
+            "previous_fallback": [
+              0.6629365,
+              0.669851334,
+              0.669157209,
+              0.664206125,
+              0.56189375
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.668973042,
+            "native": 0.535110167,
+            "previous_fallback": 0.664206125
+          },
+          "range_seconds": {
+            "stock": [
+              0.668368166,
+              0.77667325
+            ],
+            "native": [
+              0.532720583,
+              0.54092025
+            ],
+            "previous_fallback": [
+              0.56189375,
+              0.669851334
+            ]
+          },
+          "stock_over_native": 1.250159468564162,
+          "fallback_over_native": 1.241251177722437
+        }
+      ]
+    },
+    {
+      "implementation": "final candidate; slices restricted to primitive/UTF-8 values",
+      "source_log": "string-benchmark-final-4096.log",
+      "fixtures": [
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              0.666714459,
+              0.666074166,
+              0.7704745,
+              0.660462167,
+              0.657928416
+            ],
+            "native": [
+              0.539736,
+              0.54573125,
+              0.542064209,
+              0.534522625,
+              0.543629584
+            ],
+            "previous_fallback": [
+              0.664798,
+              0.665583583,
+              0.668531708,
+              0.874422417,
+              0.661714083
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.666074166,
+            "native": 0.542064209,
+            "previous_fallback": 0.665583583
+          },
+          "range_seconds": {
+            "stock": [
+              0.657928416,
+              0.7704745
+            ],
+            "native": [
+              0.534522625,
+              0.54573125
+            ],
+            "previous_fallback": [
+              0.661714083,
+              0.874422417
+            ]
+          },
+          "stock_over_native": 1.228773556602775,
+          "fallback_over_native": 1.2278685291321272
+        },
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              0.924009625,
+              0.925783458,
+              1.036615292,
+              1.034412834,
+              0.926774125
+            ],
+            "native": [
+              0.80318225,
+              0.811507709,
+              0.808164292,
+              0.919831583,
+              0.811265375
+            ],
+            "previous_fallback": [
+              0.920498208,
+              0.928040375,
+              1.02941275,
+              0.924489417,
+              0.935358959
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.926774125,
+            "native": 0.811265375,
+            "previous_fallback": 0.928040375
+          },
+          "range_seconds": {
+            "stock": [
+              0.924009625,
+              1.036615292
+            ],
+            "native": [
+              0.80318225,
+              0.919831583
+            ],
+            "previous_fallback": [
+              0.920498208,
+              1.02941275
+            ]
+          },
+          "stock_over_native": 1.1423809687428113,
+          "fallback_over_native": 1.143941802027481
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 16,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              0.879247208,
+              0.895421416,
+              0.888041125,
+              0.871701583,
+              0.885647875
+            ],
+            "native": [
+              0.63813575,
+              0.635017666,
+              0.645619208,
+              0.639789333,
+              0.639102958
+            ],
+            "previous_fallback": [
+              0.88504575,
+              0.890138792,
+              0.885113167,
+              0.879475,
+              0.887112958
+            ]
+          },
+          "median_seconds": {
+            "stock": 0.885647875,
+            "native": 0.639102958,
+            "previous_fallback": 0.885113167
+          },
+          "range_seconds": {
+            "stock": [
+              0.871701583,
+              0.895421416
+            ],
+            "native": [
+              0.635017666,
+              0.645619208
+            ],
+            "previous_fallback": [
+              0.879475,
+              0.890138792
+            ]
+          },
+          "stock_over_native": 1.3857671348784462,
+          "fallback_over_native": 1.3849304809507703
+        },
+        {
+          "phase": "TWO_PHASE",
+          "string_bytes": 256,
+          "rows": 2000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              1.258407458,
+              1.24431725,
+              1.152310209,
+              1.252294125,
+              1.256578625
+            ],
+            "native": [
+              0.913159792,
+              0.91727175,
+              0.918195792,
+              1.021331583,
+              0.913948333
+            ],
+            "previous_fallback": [
+              1.276285792,
+              1.2611845,
+              1.259995583,
+              1.1638265,
+              1.260346792
+            ]
+          },
+          "median_seconds": {
+            "stock": 1.252294125,
+            "native": 0.91727175,
+            "previous_fallback": 1.260346792
+          },
+          "range_seconds": {
+            "stock": [
+              1.152310209,
+              1.258407458
+            ],
+            "native": [
+              0.913159792,
+              1.021331583
+            ],
+            "previous_fallback": [
+              1.1638265,
+              1.276285792
+            ]
+          },
+          "stock_over_native": 1.3652378643515402,
+          "fallback_over_native": 1.374016797094209
+        }
+      ]
+    },
+    {
+      "implementation": "final candidate; slices restricted to primitive/UTF-8 values",
+      "source_log": "string-benchmark-final-20m.log",
+      "fixtures": [
+        {
+          "phase": "ONE_PHASE",
+          "string_bytes": 256,
+          "rows": 20000000,
+          "groups": 4096,
+          "samples_seconds": {
+            "stock": [
+              6.458005083,
+              6.655891709,
+              6.666506375,
+              6.760295833,
+              6.633236417
+            ],
+            "native": [
+              5.63306275,
+              5.506452708,
+              5.621733625,
+              5.607171709,
+              5.625085875
+            ],
+            "previous_fallback": [
+              6.659838417,
+              6.554157292,
+              6.533409041,
+              6.736569125,
+              6.5574175
+            ]
+          },
+          "median_seconds": {
+            "stock": 6.655891709,
+            "native": 5.621733625,
+            "previous_fallback": 6.5574175
+          },
+          "range_seconds": {
+            "stock": [
+              6.458005083,
+              6.760295833
+            ],
+            "native": [
+              5.506452708,
+              5.63306275
+            ],
+            "previous_fallback": [
+              6.533409041,
+              6.736569125
+            ]
+          },
+          "stock_over_native": 1.183957147916271,
+          "fallback_over_native": 1.1664404501200463
+        }
+      ]
+    }
+  ],
+  "criterion": {
+    "boundary": "Production memory-backed Tumbling update plus watermark flush; fixture/operator construction outside timing, routine-side operator destruction inside timing; unaccounted-budget adapter",
+    "native_allocator": "CountingAllocator delegates to system allocator; no mimalloc feature for either native-only comparison",
+    "warmup_seconds": 0.5,
+    "measurement_seconds": 1,
+    "samples": 20,
+    "validation": "Every fixture checks independent per-key nullable extrema before timing; 12 fixtures pass",
+    "allocation_scope": "Rust allocation requests on the measured thread; not copied bytes or peak memory. Zero shared output is expected for materialized aggregate results.",
+    "cases": [
+      {
+        "case": "256/1/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 10718.332984239547,
+                "upper_bound": 10819.440848516924
+              },
+              "point_estimate": 10765.92175680545,
+              "standard_error": 25.826630814707876
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 7974.685290990764,
+                "upper_bound": 8037.833392915095
+              },
+              "point_estimate": 8006.2592140268,
+              "standard_error": 16.159633325831596
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.26095124730991676,
+                "upper_bound": -0.2517796745187069
+              },
+              "point_estimate": -0.25633314128761786,
+              "standard_error": 0.0023324969774285147
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              406.0,
+              812.0,
+              1218.0,
+              1624.0,
+              2030.0,
+              2436.0,
+              2842.0,
+              3248.0,
+              3654.0,
+              4060.0,
+              4466.0,
+              4872.0,
+              5278.0,
+              5684.0,
+              6090.0,
+              6496.0,
+              6902.0,
+              7308.0,
+              7714.0,
+              8120.0
+            ],
+            "times": [
+              4316667.0,
+              8670834.0,
+              13025374.0,
+              17279459.0,
+              21745418.0,
+              25973000.0,
+              30407542.0,
+              34688376.0,
+              39345874.0,
+              43985458.0,
+              48577750.0,
+              54066166.0,
+              57209085.0,
+              62051792.0,
+              65136541.0,
+              70781751.0,
+              73497542.0,
+              78438499.0,
+              83430750.0,
+              87684541.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              538.0,
+              1076.0,
+              1614.0,
+              2152.0,
+              2690.0,
+              3228.0,
+              3766.0,
+              4304.0,
+              4842.0,
+              5380.0,
+              5918.0,
+              6456.0,
+              6994.0,
+              7532.0,
+              8070.0,
+              8608.0,
+              9146.0,
+              9684.0,
+              10222.0,
+              10760.0
+            ],
+            "times": [
+              4247374.0,
+              8522123.0,
+              12743583.0,
+              17093083.0,
+              21557833.0,
+              25735916.0,
+              30204751.0,
+              34556626.0,
+              38903666.0,
+              43418415.0,
+              46905415.0,
+              51161498.0,
+              55746915.0,
+              60840207.0,
+              65336460.0,
+              69818625.0,
+              74546833.0,
+              77504751.0,
+              82025084.0,
+              86577541.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 116,
+            "requested_bytes": 26617,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 72
+          },
+          "after": {
+            "allocation_calls": 103,
+            "requested_bytes": 17129,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 72
+          }
+        }
+      },
+      {
+        "case": "256/1/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 12114.595610671004,
+                "upper_bound": 12282.155558728096
+              },
+              "point_estimate": 12188.852280619223,
+              "standard_error": 43.069659952968266
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 8474.795250312369,
+                "upper_bound": 8584.40094391424
+              },
+              "point_estimate": 8528.304011179798,
+              "standard_error": 27.966813725736476
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.3069958226283538,
+                "upper_bound": -0.2937674195070695
+              },
+              "point_estimate": -0.3003193561759582,
+              "standard_error": 0.003378350707604978
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              372.0,
+              744.0,
+              1116.0,
+              1488.0,
+              1860.0,
+              2232.0,
+              2604.0,
+              2976.0,
+              3348.0,
+              3720.0,
+              4092.0,
+              4464.0,
+              4836.0,
+              5208.0,
+              5580.0,
+              5952.0,
+              6324.0,
+              6696.0,
+              7068.0,
+              7440.0
+            ],
+            "times": [
+              4599665.0,
+              9019127.0,
+              13590542.0,
+              17905044.0,
+              22687876.0,
+              26618998.0,
+              31221378.0,
+              36004292.0,
+              40424250.0,
+              47821331.0,
+              50884624.0,
+              54158791.0,
+              59323456.0,
+              63295875.0,
+              68098667.0,
+              72102667.0,
+              77007584.0,
+              81123041.0,
+              85268956.0,
+              91328417.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              523.0,
+              1046.0,
+              1569.0,
+              2092.0,
+              2615.0,
+              3138.0,
+              3661.0,
+              4184.0,
+              4707.0,
+              5230.0,
+              5753.0,
+              6276.0,
+              6799.0,
+              7322.0,
+              7845.0,
+              8368.0,
+              8891.0,
+              9414.0,
+              9937.0,
+              10460.0
+            ],
+            "times": [
+              4481376.0,
+              8929961.0,
+              13261374.0,
+              17951875.0,
+              22887082.0,
+              27116456.0,
+              30528374.0,
+              35498209.0,
+              39209415.0,
+              44037501.0,
+              49326626.0,
+              53188875.0,
+              57669084.0,
+              62114749.0,
+              66037417.0,
+              72441916.0,
+              75690915.0,
+              79025666.0,
+              85900250.0,
+              92244582.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 116,
+            "requested_bytes": 133177,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 552
+          },
+          "after": {
+            "allocation_calls": 103,
+            "requested_bytes": 18569,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 552
+          }
+        }
+      },
+      {
+        "case": "256/256/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 157570.67233879378,
+                "upper_bound": 162374.9257178891
+              },
+              "point_estimate": 159844.33702609764,
+              "standard_error": 1228.059599261461
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 103378.07239305608,
+                "upper_bound": 104891.56896059577
+              },
+              "point_estimate": 104061.12541859785,
+              "standard_error": 390.1158770251624
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.3599454176323805,
+                "upper_bound": -0.33830400120329707
+              },
+              "point_estimate": -0.3489845974236304,
+              "standard_error": 0.005544269538521415
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              31.0,
+              62.0,
+              93.0,
+              124.0,
+              155.0,
+              186.0,
+              217.0,
+              248.0,
+              279.0,
+              310.0,
+              341.0,
+              372.0,
+              403.0,
+              434.0,
+              465.0,
+              496.0,
+              527.0,
+              558.0,
+              589.0,
+              620.0
+            ],
+            "times": [
+              5085291.0,
+              9929499.0,
+              14786207.0,
+              20085333.0,
+              26347001.0,
+              31785374.0,
+              37055751.0,
+              38980624.0,
+              44240541.0,
+              50052917.0,
+              52896583.0,
+              57973375.0,
+              62392085.0,
+              67101249.0,
+              72964752.0,
+              78621918.0,
+              81379082.0,
+              85531542.0,
+              91120628.0,
+              102085084.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              46.0,
+              92.0,
+              138.0,
+              184.0,
+              230.0,
+              276.0,
+              322.0,
+              368.0,
+              414.0,
+              460.0,
+              506.0,
+              552.0,
+              598.0,
+              644.0,
+              690.0,
+              736.0,
+              782.0,
+              828.0,
+              874.0,
+              920.0
+            ],
+            "times": [
+              4775000.0,
+              9396334.0,
+              14289332.0,
+              19283167.0,
+              23669208.0,
+              28214707.0,
+              32840918.0,
+              37947456.0,
+              42988167.0,
+              47970084.0,
+              52298792.0,
+              57049750.0,
+              62822164.0,
+              70340582.0,
+              71676586.0,
+              76960458.0,
+              81364998.0,
+              85753168.0,
+              90357500.0,
+              99493207.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 6766,
+            "requested_bytes": 560440,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 15272
+          },
+          "after": {
+            "allocation_calls": 3512,
+            "requested_bytes": 453080,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 15272
+          }
+        }
+      },
+      {
+        "case": "256/256/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 177567.44359717463,
+                "upper_bound": 181020.34878864806
+              },
+              "point_estimate": 179100.67980772242,
+              "standard_error": 890.7741433646984
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 125194.04112886949,
+                "upper_bound": 125590.48930018161
+              },
+              "point_estimate": 125391.70028786098,
+              "standard_error": 101.37420209813688
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.3074670096262825,
+                "upper_bound": -0.29367263742186017
+              },
+              "point_estimate": -0.299881494461785,
+              "standard_error": 0.0035424499467220823
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              27.0,
+              54.0,
+              81.0,
+              108.0,
+              135.0,
+              162.0,
+              189.0,
+              216.0,
+              243.0,
+              270.0,
+              297.0,
+              324.0,
+              351.0,
+              378.0,
+              405.0,
+              432.0,
+              459.0,
+              486.0,
+              513.0,
+              540.0
+            ],
+            "times": [
+              4930458.0,
+              10349168.0,
+              15250167.0,
+              18787499.0,
+              23683249.0,
+              28681790.0,
+              33314914.0,
+              38350042.0,
+              43414791.0,
+              48283959.0,
+              53134669.0,
+              57871497.0,
+              62678708.0,
+              67306044.0,
+              71960459.0,
+              76667501.0,
+              81355917.0,
+              86616415.0,
+              91550583.0,
+              96391208.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              38.0,
+              76.0,
+              114.0,
+              152.0,
+              190.0,
+              228.0,
+              266.0,
+              304.0,
+              342.0,
+              380.0,
+              418.0,
+              456.0,
+              494.0,
+              532.0,
+              570.0,
+              608.0,
+              646.0,
+              684.0,
+              722.0,
+              760.0
+            ],
+            "times": [
+              4794374.0,
+              9540957.0,
+              14295499.0,
+              19015751.0,
+              23766335.0,
+              28512625.0,
+              33344459.0,
+              38058960.0,
+              42807502.0,
+              47704667.0,
+              52283041.0,
+              57417624.0,
+              62012334.0,
+              66989998.0,
+              71336125.0,
+              76746417.0,
+              81382585.0,
+              85515665.0,
+              90252376.0,
+              94541209.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 6774,
+            "requested_bytes": 1226680,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 120392
+          },
+          "after": {
+            "allocation_calls": 3520,
+            "requested_bytes": 1014200,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 120392
+          }
+        }
+      },
+      {
+        "case": "256/64/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 49719.16475259009,
+                "upper_bound": 50000.868196289026
+              },
+              "point_estimate": 49862.2140585755,
+              "standard_error": 72.0487868722609
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 49326.13725555341,
+                "upper_bound": 50243.86024398917
+              },
+              "point_estimate": 49762.072822749244,
+              "standard_error": 235.35537469294374
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.012354281882706458,
+                "upper_bound": 0.008280941736950327
+              },
+              "point_estimate": -0.002008359189758613,
+              "standard_error": 0.005074076469402093
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              95.0,
+              190.0,
+              285.0,
+              380.0,
+              475.0,
+              570.0,
+              665.0,
+              760.0,
+              855.0,
+              950.0,
+              1045.0,
+              1140.0,
+              1235.0,
+              1330.0,
+              1425.0,
+              1520.0,
+              1615.0,
+              1710.0,
+              1805.0,
+              1900.0
+            ],
+            "times": [
+              4775710.0,
+              9510669.0,
+              14157874.0,
+              18985542.0,
+              23611708.0,
+              28425915.0,
+              32845124.0,
+              37689293.0,
+              42455414.0,
+              47195457.0,
+              52294876.0,
+              57053125.0,
+              60793458.0,
+              66802082.0,
+              70755290.0,
+              75034419.0,
+              81132167.0,
+              85960040.0,
+              90814793.0,
+              95008333.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              94.0,
+              188.0,
+              282.0,
+              376.0,
+              470.0,
+              564.0,
+              658.0,
+              752.0,
+              846.0,
+              940.0,
+              1034.0,
+              1128.0,
+              1222.0,
+              1316.0,
+              1410.0,
+              1504.0,
+              1598.0,
+              1692.0,
+              1786.0,
+              1880.0
+            ],
+            "times": [
+              4626878.0,
+              9230959.0,
+              13779084.0,
+              18465542.0,
+              23028874.0,
+              27958707.0,
+              33234209.0,
+              39014293.0,
+              43757501.0,
+              46997123.0,
+              50898458.0,
+              55196667.0,
+              59555126.0,
+              64421459.0,
+              70575791.0,
+              78078500.0,
+              81600708.0,
+              83841999.0,
+              87477957.0,
+              91852708.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 1847,
+            "requested_bytes": 149344,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 4088
+          },
+          "after": {
+            "allocation_calls": 1847,
+            "requested_bytes": 151392,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 4088
+          }
+        }
+      },
+      {
+        "case": "256/64/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 56704.123446320984,
+                "upper_bound": 57188.52900312469
+              },
+              "point_estimate": 56929.72626850843,
+              "standard_error": 123.54020496998967
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 57143.41310087677,
+                "upper_bound": 59283.494474463856
+              },
+              "point_estimate": 58138.22870462727,
+              "standard_error": 550.0774679765153
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 0.0034955977454301183,
+                "upper_bound": 0.04388229139384255
+              },
+              "point_estimate": 0.021227968503114703,
+              "standard_error": 0.010173158880756646
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              83.0,
+              166.0,
+              249.0,
+              332.0,
+              415.0,
+              498.0,
+              581.0,
+              664.0,
+              747.0,
+              830.0,
+              913.0,
+              996.0,
+              1079.0,
+              1162.0,
+              1245.0,
+              1328.0,
+              1411.0,
+              1494.0,
+              1577.0,
+              1660.0
+            ],
+            "times": [
+              4726960.0,
+              9351584.0,
+              14057333.0,
+              18884166.0,
+              23869835.0,
+              28618000.0,
+              33324166.0,
+              37652960.0,
+              42256999.0,
+              46999831.0,
+              51602292.0,
+              58289210.0,
+              61743249.0,
+              65974914.0,
+              70188917.0,
+              76584917.0,
+              80403209.0,
+              84007499.0,
+              89000083.0,
+              94609542.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              84.0,
+              168.0,
+              252.0,
+              336.0,
+              420.0,
+              504.0,
+              588.0,
+              672.0,
+              756.0,
+              840.0,
+              924.0,
+              1008.0,
+              1092.0,
+              1176.0,
+              1260.0,
+              1344.0,
+              1428.0,
+              1512.0,
+              1596.0,
+              1680.0
+            ],
+            "times": [
+              4741001.0,
+              9504542.0,
+              14213043.0,
+              19176833.0,
+              23676750.0,
+              28428208.0,
+              33295584.0,
+              38047500.0,
+              42709748.0,
+              47832167.0,
+              53348791.0,
+              57223999.0,
+              61537668.0,
+              65774167.0,
+              77853750.0,
+              86545915.0,
+              87694541.0,
+              91539709.0,
+              98843960.0,
+              100727623.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 1855,
+            "requested_bytes": 405184,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 34328
+          },
+          "after": {
+            "allocation_calls": 1855,
+            "requested_bytes": 407232,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 34328
+          }
+        }
+      },
+      {
+        "case": "4096/1/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 106038.50691942581,
+                "upper_bound": 107397.99809313672
+              },
+              "point_estimate": 106651.84710794054,
+              "standard_error": 349.85826855876553
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 80320.63844266556,
+                "upper_bound": 81160.65772254489
+              },
+              "point_estimate": 80716.51974527127,
+              "standard_error": 214.33387568098826
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.24956502122723295,
+                "upper_bound": -0.2372385402033527
+              },
+              "point_estimate": -0.24317747949006974,
+              "standard_error": 0.003165176778269534
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              45.0,
+              90.0,
+              135.0,
+              180.0,
+              225.0,
+              270.0,
+              315.0,
+              360.0,
+              405.0,
+              450.0,
+              495.0,
+              540.0,
+              585.0,
+              630.0,
+              675.0,
+              720.0,
+              765.0,
+              810.0,
+              855.0,
+              900.0
+            ],
+            "times": [
+              4843668.0,
+              9715707.0,
+              14312667.0,
+              18983458.0,
+              23732584.0,
+              28582541.0,
+              33249584.0,
+              38318542.0,
+              43105457.0,
+              48033250.0,
+              53530791.0,
+              57302333.0,
+              62137251.0,
+              66763292.0,
+              70737749.0,
+              78632834.0,
+              85469626.0,
+              85778791.0,
+              90304166.0,
+              95178876.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              59.0,
+              118.0,
+              177.0,
+              236.0,
+              295.0,
+              354.0,
+              413.0,
+              472.0,
+              531.0,
+              590.0,
+              649.0,
+              708.0,
+              767.0,
+              826.0,
+              885.0,
+              944.0,
+              1003.0,
+              1062.0,
+              1121.0,
+              1180.0
+            ],
+            "times": [
+              4764042.0,
+              9733540.0,
+              14435792.0,
+              19156876.0,
+              23733211.0,
+              28281126.0,
+              32796084.0,
+              37939460.0,
+              42945378.0,
+              47819248.0,
+              51737419.0,
+              56799333.0,
+              61065625.0,
+              66800207.0,
+              71829667.0,
+              78747832.0,
+              81319291.0,
+              85471582.0,
+              89522874.0,
+              94252918.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 120,
+            "requested_bytes": 259609,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 72
+          },
+          "after": {
+            "allocation_calls": 107,
+            "requested_bytes": 113129,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 72
+          }
+        }
+      },
+      {
+        "case": "4096/1/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 120026.69321861472,
+                "upper_bound": 120923.45817208501
+              },
+              "point_estimate": 120443.65355340163,
+              "standard_error": 229.00920033614292
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 88347.50419889682,
+                "upper_bound": 99491.9935397425
+              },
+              "point_estimate": 92555.02901015371,
+              "standard_error": 3076.326153190572
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.26752048776452414,
+                "upper_bound": -0.17308209840011277
+              },
+              "point_estimate": -0.2315491411997297,
+              "standard_error": 0.026878875914628998
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              39.0,
+              78.0,
+              117.0,
+              156.0,
+              195.0,
+              234.0,
+              273.0,
+              312.0,
+              351.0,
+              390.0,
+              429.0,
+              468.0,
+              507.0,
+              546.0,
+              585.0,
+              624.0,
+              663.0,
+              702.0,
+              741.0,
+              780.0
+            ],
+            "times": [
+              4803459.0,
+              9315792.0,
+              14043418.0,
+              18779792.0,
+              23710126.0,
+              27967333.0,
+              33024167.0,
+              37449212.0,
+              41944460.0,
+              46853958.0,
+              51157626.0,
+              56787956.0,
+              62123959.0,
+              65564084.0,
+              70725625.0,
+              75210375.0,
+              79161418.0,
+              84492417.0,
+              88645708.0,
+              93676207.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              54.0,
+              108.0,
+              162.0,
+              216.0,
+              270.0,
+              324.0,
+              378.0,
+              432.0,
+              486.0,
+              540.0,
+              594.0,
+              648.0,
+              702.0,
+              756.0,
+              810.0,
+              864.0,
+              918.0,
+              972.0,
+              1026.0,
+              1080.0
+            ],
+            "times": [
+              8100250.0,
+              10145373.0,
+              14423207.0,
+              19402624.0,
+              24056917.0,
+              28614335.0,
+              33468959.0,
+              37945374.0,
+              42245166.0,
+              46443876.0,
+              53117293.0,
+              68141248.0,
+              61610667.0,
+              66808291.0,
+              71943707.0,
+              76572711.0,
+              80730874.0,
+              85838998.0,
+              93427500.0,
+              92986916.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 120,
+            "requested_bytes": 1945849,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 552
+          },
+          "after": {
+            "allocation_calls": 107,
+            "requested_bytes": 114569,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 552
+          }
+        }
+      },
+      {
+        "case": "4096/4096/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 2625381.60209583,
+                "upper_bound": 2665877.9099437096
+              },
+              "point_estimate": 2644861.7860033265,
+              "standard_error": 10317.50798157656
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 1742065.1761491913,
+                "upper_bound": 1754571.971327604
+              },
+              "point_estimate": 1748207.0271928937,
+              "standard_error": 3192.198866376011
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.3446404313234532,
+                "upper_bound": -0.33361883061904385
+              },
+              "point_estimate": -0.3390176241176578,
+              "standard_error": 0.0028121429471817073
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              2.0,
+              4.0,
+              6.0,
+              8.0,
+              10.0,
+              12.0,
+              14.0,
+              16.0,
+              18.0,
+              20.0,
+              22.0,
+              24.0,
+              26.0,
+              28.0,
+              30.0,
+              32.0,
+              34.0,
+              36.0,
+              38.0,
+              40.0
+            ],
+            "times": [
+              5280959.0,
+              10490543.0,
+              16655833.0,
+              21398291.0,
+              26658461.0,
+              31626291.0,
+              36985582.0,
+              42072084.0,
+              48005709.0,
+              53157709.0,
+              58140541.0,
+              63439836.0,
+              69381417.0,
+              73401291.0,
+              78114041.0,
+              82644751.0,
+              87240373.0,
+              92714958.0,
+              102829250.0,
+              107037165.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              3.0,
+              6.0,
+              9.0,
+              12.0,
+              15.0,
+              18.0,
+              21.0,
+              24.0,
+              27.0,
+              30.0,
+              33.0,
+              36.0,
+              39.0,
+              42.0,
+              45.0,
+              48.0,
+              51.0,
+              54.0,
+              57.0,
+              60.0
+            ],
+            "times": [
+              5343250.0,
+              10525373.0,
+              15865041.0,
+              20787792.0,
+              26084376.0,
+              31167085.0,
+              36197542.0,
+              41456415.0,
+              47181083.0,
+              52354584.0,
+              57538583.0,
+              63626626.0,
+              67996042.0,
+              73325792.0,
+              79218166.0,
+              84180041.0,
+              89798835.0,
+              95160248.0,
+              99082957.0,
+              104630582.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 106104,
+            "requested_bytes": 8917464,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 244424
+          },
+          "after": {
+            "allocation_calls": 54028,
+            "requested_bytes": 7199512,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 244424
+          }
+        }
+      },
+      {
+        "case": "4096/4096/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 2906719.617278954,
+                "upper_bound": 2936682.9786457997
+              },
+              "point_estimate": 2920752.511611755,
+              "standard_error": 7652.525771176077
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 2093478.6073884384,
+                "upper_bound": 2155983.871234614
+              },
+              "point_estimate": 2123312.3488292554,
+              "standard_error": 15961.632474415757
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.28284340036188704,
+                "upper_bound": -0.2625106378448252
+              },
+              "point_estimate": -0.2730255848834139,
+              "standard_error": 0.0052544108333112795
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              2.0,
+              4.0,
+              6.0,
+              8.0,
+              10.0,
+              12.0,
+              14.0,
+              16.0,
+              18.0,
+              20.0,
+              22.0,
+              24.0,
+              26.0,
+              28.0,
+              30.0,
+              32.0,
+              34.0,
+              36.0,
+              38.0,
+              40.0
+            ],
+            "times": [
+              5817751.0,
+              11744084.0,
+              17926584.0,
+              23603040.0,
+              29385667.0,
+              34766499.0,
+              40875666.0,
+              46154750.0,
+              52086500.0,
+              58320791.0,
+              63214791.0,
+              69564667.0,
+              75174791.0,
+              80819876.0,
+              87964916.0,
+              96345333.0,
+              100536499.0,
+              104884167.0,
+              110639249.0,
+              116301168.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              3.0,
+              6.0,
+              9.0,
+              12.0,
+              15.0,
+              18.0,
+              21.0,
+              24.0,
+              27.0,
+              30.0,
+              33.0,
+              36.0,
+              39.0,
+              42.0,
+              45.0,
+              48.0,
+              51.0,
+              54.0,
+              57.0,
+              60.0
+            ],
+            "times": [
+              6369334.0,
+              12462292.0,
+              18752999.0,
+              24616583.0,
+              31175333.0,
+              37321001.0,
+              43400835.0,
+              49623167.0,
+              56316502.0,
+              66965585.0,
+              70278457.0,
+              73838376.0,
+              79884958.0,
+              86716460.0,
+              102931790.0,
+              102286290.0,
+              110572460.0,
+              119172041.0,
+              126796249.0,
+              132926210.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 106112,
+            "requested_bytes": 19588824,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 1929224
+          },
+          "after": {
+            "allocation_calls": 54036,
+            "requested_bytes": 16186072,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 1929224
+          }
+        }
+      },
+      {
+        "case": "4096/64/16",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 178557.42642319656,
+                "upper_bound": 179745.32126823135
+              },
+              "point_estimate": 179163.3694327502,
+              "standard_error": 304.1963624348835
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 180136.87164993575,
+                "upper_bound": 181355.81170662973
+              },
+              "point_estimate": 180702.9506008712,
+              "standard_error": 311.68545410705326
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 0.004208692859518931,
+                "upper_bound": 0.013552689327163208
+              },
+              "point_estimate": 0.008593169312429705,
+              "standard_error": 0.0023780285486860097
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              27.0,
+              54.0,
+              81.0,
+              108.0,
+              135.0,
+              162.0,
+              189.0,
+              216.0,
+              243.0,
+              270.0,
+              297.0,
+              324.0,
+              351.0,
+              378.0,
+              405.0,
+              432.0,
+              459.0,
+              486.0,
+              513.0,
+              540.0
+            ],
+            "times": [
+              4871334.0,
+              9803916.0,
+              14619210.0,
+              19354666.0,
+              23993665.0,
+              29301249.0,
+              34119249.0,
+              38176791.0,
+              43603081.0,
+              48426833.0,
+              52682917.0,
+              58362751.0,
+              62929292.0,
+              67202041.0,
+              72476834.0,
+              76194583.0,
+              82091873.0,
+              87261790.0,
+              92350083.0,
+              96441958.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              26.0,
+              52.0,
+              78.0,
+              104.0,
+              130.0,
+              156.0,
+              182.0,
+              208.0,
+              234.0,
+              260.0,
+              286.0,
+              312.0,
+              338.0,
+              364.0,
+              390.0,
+              416.0,
+              442.0,
+              468.0,
+              494.0,
+              520.0
+            ],
+            "times": [
+              4730915.0,
+              9310331.0,
+              13886375.0,
+              18687626.0,
+              23419293.0,
+              28288416.0,
+              33704293.0,
+              37855166.0,
+              42457126.0,
+              46849333.0,
+              51778042.0,
+              56301210.0,
+              60722460.0,
+              65820459.0,
+              70329333.0,
+              75215459.0,
+              79594834.0,
+              84903250.0,
+              88977584.0,
+              93763542.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 2103,
+            "requested_bytes": 379744,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 4088
+          },
+          "after": {
+            "allocation_calls": 2103,
+            "requested_bytes": 381792,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 4088
+          }
+        }
+      },
+      {
+        "case": "4096/64/256",
+        "estimates_ns": {
+          "before": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 204175.97899297747,
+                "upper_bound": 211331.12917201308
+              },
+              "point_estimate": 207252.3408725244,
+              "standard_error": 1855.2025549173502
+            }
+          },
+          "after": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": 204287.44937124167,
+                "upper_bound": 207653.80298270713
+              },
+              "point_estimate": 205827.21794779363,
+              "standard_error": 866.708531028654
+            }
+          },
+          "relative_change": {
+            "mean": {
+              "confidence_interval": {
+                "confidence_level": 0.95,
+                "lower_bound": -0.02749321804372677,
+                "upper_bound": 0.010240723165341475
+              },
+              "point_estimate": -0.006876269376408728,
+              "standard_error": 0.009708266477809036
+            }
+          }
+        },
+        "raw_samples": {
+          "before": {
+            "sampling_mode": "Linear",
+            "iters": [
+              23.0,
+              46.0,
+              69.0,
+              92.0,
+              115.0,
+              138.0,
+              161.0,
+              184.0,
+              207.0,
+              230.0,
+              253.0,
+              276.0,
+              299.0,
+              322.0,
+              345.0,
+              368.0,
+              391.0,
+              414.0,
+              437.0,
+              460.0
+            ],
+            "times": [
+              5386459.0,
+              9394335.0,
+              14075167.0,
+              18728416.0,
+              23347750.0,
+              28040375.0,
+              33312792.0,
+              37445458.0,
+              41781457.0,
+              48303457.0,
+              57728709.0,
+              55641458.0,
+              60488708.0,
+              66744501.0,
+              69610750.0,
+              75671500.0,
+              80280749.0,
+              85634709.0,
+              90048000.0,
+              94571332.0
+            ]
+          },
+          "after": {
+            "sampling_mode": "Linear",
+            "iters": [
+              23.0,
+              46.0,
+              69.0,
+              92.0,
+              115.0,
+              138.0,
+              161.0,
+              184.0,
+              207.0,
+              230.0,
+              253.0,
+              276.0,
+              299.0,
+              322.0,
+              345.0,
+              368.0,
+              391.0,
+              414.0,
+              437.0,
+              460.0
+            ],
+            "times": [
+              4877043.0,
+              9497291.0,
+              14098290.0,
+              18711416.0,
+              23345667.0,
+              28086459.0,
+              32897958.0,
+              38800915.0,
+              42106044.0,
+              46722998.0,
+              51533708.0,
+              56518665.0,
+              61090708.0,
+              65690708.0,
+              74145376.0,
+              79203419.0,
+              79853251.0,
+              84432625.0,
+              89065960.0,
+              93432876.0
+            ]
+          }
+        },
+        "allocation_probe": {
+          "before": {
+            "allocation_calls": 2111,
+            "requested_bytes": 2190784,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 34328
+          },
+          "after": {
+            "allocation_calls": 2111,
+            "requested_bytes": 2192832,
+            "shared_output_buffer_bytes": 0,
+            "new_output_buffer_bytes": 34328
+          }
+        }
+      }
+    ]
+  }
+}
