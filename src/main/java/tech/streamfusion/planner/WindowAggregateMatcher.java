@@ -43,6 +43,7 @@ final class WindowAggregateMatcher {
   static final int KIND_COUNT = 3;
   static final int KIND_AVG = 4;
   static final int KIND_COUNT_DISTINCT = 7;
+  static final int KIND_SUM_ZERO = GroupAggregateMatcher.KIND_SUM_ZERO;
 
   /** The local half of a two-phase AVG: the widened running sum alone (the count partial is a
    * separate {@link #KIND_COUNT} state); the global divides after merging. */
@@ -325,6 +326,10 @@ final class WindowAggregateMatcher {
       if (!supportedAggregateValueType(kind, valueType)) {
         return false;
       }
+      if (kind == KIND_SUM_ZERO
+          && !supportedZeroSumValue(inputType.getFieldList().get(call.getArgList().get(0)).getType())) {
+        return false;
+      }
     }
     return true;
   }
@@ -355,6 +360,20 @@ final class WindowAggregateMatcher {
       }
     }
     return null;
+  }
+
+  static boolean supportedZeroSumValue(RelDataType type) {
+    switch (type.getSqlTypeName()) {
+      case TINYINT:
+      case SMALLINT:
+      case INTEGER:
+      case BIGINT:
+        return true;
+      case DECIMAL:
+        return type.getScale() < 38;
+      default:
+        return false;
+    }
   }
 
   static boolean supportedValueType(SqlTypeName type) {
@@ -560,6 +579,8 @@ final class WindowAggregateMatcher {
     switch (kind) {
       case SUM:
         return 0;
+      case SUM0:
+        return KIND_SUM_ZERO;
       case MIN:
         return 1;
       case MAX:
@@ -805,11 +826,16 @@ final class WindowAggregateMatcher {
       int kind = aggregateKind(call.getAggregation().getKind());
       if (call.isDistinct()
           || !supportedFilter(call, inputType)
-          || (kind != KIND_SUM && kind != KIND_AVG && kind != KIND_COUNT)) return false;
+          || (kind != KIND_SUM && kind != KIND_SUM_ZERO
+              && kind != KIND_AVG && kind != KIND_COUNT)) return false;
       if (kind == KIND_COUNT && call.getArgList().isEmpty()) continue;
       if (call.getArgList().size() != 1) return false;
       SqlTypeName type =
           inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
+      if (kind == KIND_SUM_ZERO
+          && !supportedZeroSumValue(inputType.getFieldList().get(call.getArgList().get(0)).getType())) {
+        return false;
+      }
       if ((kind == KIND_SUM || kind == KIND_AVG) && type == SqlTypeName.DECIMAL) continue;
       if ((kind == KIND_SUM || kind == KIND_AVG)
           && (type == SqlTypeName.FLOAT || type == SqlTypeName.REAL || type == SqlTypeName.DOUBLE)) {
@@ -837,6 +863,7 @@ final class WindowAggregateMatcher {
     int kind = aggregateKind(call.getAggregation().getKind());
     return (!call.isDistinct() || kind == KIND_COUNT)
         && (kind == KIND_SUM
+            || kind == KIND_SUM_ZERO
             || kind == KIND_AVG
             || kind == KIND_COUNT
             || kind == KIND_MIN
@@ -860,6 +887,8 @@ final class WindowAggregateMatcher {
       AggregateCall call = calls.apply(i);
       if (call.getAggregation().getKind() == SqlKind.SUM) {
         kinds[i] = KIND_RETRACT_SUM;
+      } else if (call.getAggregation().getKind() == SqlKind.SUM0) {
+        kinds[i] = KIND_SUM_ZERO;
       } else if (call.getAggregation().getKind() == SqlKind.AVG) {
         kinds[i] = KIND_AVG;
       } else if (call.getArgList().isEmpty() && call.filterArg < 0 && !hasLiveCount) {

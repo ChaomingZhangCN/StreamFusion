@@ -59,6 +59,15 @@ rows and transforms window-column watermarks; its hash aggregate owns final emis
 state cleanup. It does not supply a matching local-slice implementation to transplant here.
 We keep the existing partial-accumulator architecture and Flink's late-window semantics.
 
+## Shared exact sums
+
+Shared COUNT/AVG/SUM reductions keep Arroyo's partial/final boundary and our existing incremental
+window layout. Their internal SUM0 uses the same typed running state as ordinary GROUP BY through
+a one-field DataFusion accumulator adapter. Flink's SUM0 initializes to zero and latches decimal
+overflow, so substituting DataFusion's ordinary nullable SUM would change all-NULL groups and
+overflowed partials. Local slices, global merging, signed updates and snapshots retain that buffer
+contract; the host planner's outer COUNT correction and exact division remain unchanged.
+
 ## Why
 Every aggregate we support (`SUM`/`MIN`/`MAX`/`COUNT`, and integer `AVG`) has
 associative, commutative, mergeable partial state, so merging accumulators yields

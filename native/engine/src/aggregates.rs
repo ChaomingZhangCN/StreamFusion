@@ -2,6 +2,7 @@ use crate::*;
 
 mod floating_extreme;
 mod retracting_window;
+mod zero_sum;
 pub(crate) use retracting_window::{HIDDEN_LIVE_COUNT, LIVE_COUNT, RETRACT_COUNT, RETRACT_SUM};
 
 /// Builds a built-in aggregate over an int64 `value` column. SUM/MIN/MAX/COUNT all reduce an int64
@@ -647,6 +648,7 @@ impl Accumulator for DoubleAvgAccumulator {
 /// exactly. All expose mergeable partial state, so windows accumulate incrementally and checkpoint
 /// uniformly.
 pub(crate) enum WindowAggregate {
+    ZeroSum(DataType),
     RetractingSum(DataType),
     RetractingCount,
     Builtin(AggregateFunctionExpr),
@@ -668,6 +670,14 @@ pub(crate) enum WindowAggregate {
 impl WindowAggregate {
     fn new(kind: i64, value_type: &DataType) -> Self {
         match (kind, value_type) {
+            (
+                22,
+                DataType::Int8
+                | DataType::Int16
+                | DataType::Int32
+                | DataType::Int64
+                | DataType::Decimal128(_, _),
+            ) => WindowAggregate::ZeroSum(value_type.clone()),
             (RETRACT_SUM, DataType::Decimal128(_, scale)) => {
                 WindowAggregate::RetractingSum(DataType::Decimal128(38, *scale))
             }
@@ -709,6 +719,9 @@ impl WindowAggregate {
 
     pub(crate) fn create_accumulator(&self) -> Box<dyn Accumulator> {
         match self {
+            WindowAggregate::ZeroSum(value_type) => {
+                Box::new(zero_sum::ZeroSumAccumulator::new(value_type))
+            }
             WindowAggregate::RetractingSum(value_type) => match value_type {
                 DataType::Decimal128(_, scale) => Box::new(
                     retracting_window::RetractingDecimalSumAccumulator::new(*scale),
@@ -758,6 +771,7 @@ impl WindowAggregate {
 
     pub(crate) fn state_fields(&self) -> Vec<Field> {
         match self {
+            WindowAggregate::ZeroSum(_) => vec![Field::new("sum", self.result_type(), true)],
             WindowAggregate::RetractingSum(value_type) => vec![
                 Field::new("sum", value_type.clone(), true),
                 Field::new("count", DataType::Int64, false),
@@ -802,6 +816,7 @@ impl WindowAggregate {
     /// The aggregate's output type (e.g. int64 for a sum of int64, float64 for a sum of float64).
     pub(crate) fn result_type(&self) -> DataType {
         match self {
+            WindowAggregate::ZeroSum(value_type) => RunningAgg::new(22, value_type).result_type(),
             WindowAggregate::RetractingSum(value_type) => value_type.clone(),
             WindowAggregate::RetractingCount => DataType::Int64,
             WindowAggregate::Builtin(aggregate) => aggregate.field().data_type().clone(),

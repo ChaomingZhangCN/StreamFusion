@@ -14,11 +14,11 @@ org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithGroupBy
 org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariableTopSize	*	!Top-N: nullable variable rank bounds require Flink's row-access semantics
 org.apache.flink.table.planner.runtime.stream.sql.WindowAggregateITCase#testRetractPreviousSlicingStateWithSlicingWindow	*	!window aggregate: retracting input supports only aligned event-time TUMBLE/HOP/CUMULATE with grouping-only, numeric SUM/AVG, numeric COUNT(value), or COUNT(*) (optional FILTER)
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=true	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=true	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=true	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=true	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=true	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=true	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 io.delta.flink.sink.sql.FlinkSqlTest#testLoadIntoHadoopTable	*	NativeFile
 io.delta.flink.sink.sql.FlinkSqlTest#testLoadIntoPartitionedHadoopTable	*	NativeFile
 io.delta.flink.sink.sql.FlinkSqlTest#testLoadIntoTableWithManyTypes	*	!delta sink: Delta column type TIME(0) is not verified by the native writer

@@ -14,13 +14,13 @@ org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariabl
 org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariableTopSize	changelog=false	!Top-N: nullable variable rank bounds require Flink's row-access semantics
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	changelog=true	!state backend: Flink 1.18 changelog state is not verified for native keyed state
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=false&changelog=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=true&changelog=false	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testTumbleWindow	splitDistinct=true&changelog=false	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	changelog=true	!state backend: Flink 1.18 changelog state is not verified for native keyed state
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=false&changelog=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=true&changelog=false	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow	splitDistinct=true&changelog=false	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	changelog=true	!state backend: Flink 1.18 changelog state is not verified for native keyed state
 org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=false&changelog=false	NativeColumnarWindowAggregateOperator|NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
-org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=true&changelog=false	!window aggregate: attached-window aggregation requires two-phase execution
+org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testCumulateWindow	splitDistinct=true&changelog=false	NativeColumnarLocalWindowAggregateOperator+NativeColumnarGlobalWindowAggregateOperator
 org.apache.flink.table.planner.runtime.stream.sql.AsyncLookupJoinITCase#testAsyncJoinTemporalTable	legacyTableSource=false	NativeAsyncLookupJoinOperator
 org.apache.flink.table.planner.runtime.stream.sql.AsyncLookupJoinITCase#testAsyncJoinTemporalTable	legacyTableSource=true	NativeAsyncLookupJoinOperator
 org.apache.flink.table.planner.runtime.stream.sql.AsyncLookupJoinITCase#testAsyncJoinTemporalTableWithRetry	legacyTableSource=false	NativeAsyncLookupJoinOperator

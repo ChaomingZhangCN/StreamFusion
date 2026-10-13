@@ -220,6 +220,8 @@ pub(crate) struct TumblingAggregator {
     slide_millis: i64,
     cumulative: bool,
     aggregates: Vec<WindowAggregate>,
+    // These accumulators retain scalar state only, so selected contiguous rows may borrow the input.
+    scalar_inputs: Vec<bool>,
     live_count: Option<usize>,
     windows: BTreeMap<i64, AlignedWindow>,
     // Groups are keyed by the arrow-row memcomparable encoding of the key columns, not a
@@ -266,6 +268,15 @@ impl TumblingAggregator {
             slide_millis,
             cumulative,
             aggregates: build_aggregates(&kinds, &value_types),
+            scalar_inputs: kinds
+                .iter()
+                .map(|kind| {
+                    matches!(
+                        *kind,
+                        3 | 22 | RETRACT_COUNT | LIVE_COUNT | HIDDEN_LIVE_COUNT
+                    )
+                })
+                .collect(),
             live_count: kinds
                 .iter()
                 .position(|kind| matches!(*kind, LIVE_COUNT | HIDDEN_LIVE_COUNT)),
@@ -580,7 +591,7 @@ impl TumblingAggregator {
     }
 
     /// Folds the grouped row positions into their (window, key) accumulators. The value columns are
-    /// sliced by type-agnostic `take`, so each accumulator sees its column's own type. When a memory
+    /// selected by Arrow slice or type-agnostic `take`, so each accumulator sees its column's own type. When a memory
     /// budget is set, each touched group's footprint change is folded into the tracked state size —
     /// measuring only touched groups keeps accounting O(batch), not O(open state).
     fn accumulate_grouped(
@@ -591,14 +602,28 @@ impl TumblingAggregator {
     ) -> Result<(), DataFusionError> {
         let track = self.memory.tracking();
         for ((start, end, key), rows) in grouped {
-            let indices = UInt32Array::from(rows);
+            let slice = rows
+                .first()
+                .copied()
+                .filter(|first| rows.last().copied() == Some(*first + rows.len() as u32 - 1))
+                .map(|start| (start as usize, rows.len()));
+            let indices = (slice.is_none() || self.scalar_inputs.iter().any(|scalar| !scalar))
+                .then(|| UInt32Array::from(rows));
             let columns: Vec<ArrayRef> = values
                 .iter()
-                .map(|v| take(v, &indices, None).expect("failed to take values"))
+                .zip(&self.scalar_inputs)
+                .map(|(value, scalar)| match (slice, scalar) {
+                    (Some((offset, length)), true) => value.slice(offset, length),
+                    _ => take(value, indices.as_ref().expect("selection indices"), None)
+                        .expect("failed to take values"),
+                })
                 .collect();
             let changes = if self.live_count.is_some() {
                 changes
-                    .map(|kinds| take(kinds, &indices, None))
+                    .map(|kinds| match slice {
+                        Some((offset, length)) => Ok(kinds.slice(offset, length)),
+                        None => take(kinds, indices.as_ref().expect("selection indices"), None),
+                    })
                     .transpose()?
             } else {
                 None

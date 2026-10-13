@@ -41,6 +41,36 @@ kernel instead of a row loop at all.
   slice and one accumulator update, with the merge scan a bounded O(log n) range probe (**9.4x** on
   dense sessions, `62dffda`).
 
+## Contiguous window input selections
+
+Window COUNT and exact SUM0 retain scalar state only. When a group's selected row indices are
+contiguous, their accumulators consume an Arrow slice instead of allocating a gathered array with
+`take`. A singleton group is the common case at high cardinality. The selection-index Arrow array
+is also omitted when every accumulator can use that slice. Signed row-kind selections share the
+same range and preserve the input offsets and validity.
+
+Sparse selections retain `take`. Other aggregate kinds keep their existing selection path, so an
+accumulator that retains variable-width input buffers cannot accidentally retain an entire input
+batch through this shortcut. COUNT/SUM0 finish reading the slice during update; their checkpoint
+state, managed-memory accounting and final output contain only the original scalar accumulators.
+The `window_zero_sum` all-distinct-key fixtures exercise this production path; complete
+jobs retain both row/Arrow transposes.
+
+A release allocation probe with 4,096 rows and 4,096 distinct keys reduced requests from
+69,792 to 32,928 (52.8%). Requested bytes fell from 7,255,090 to 5,977,138 for BIGINT,
+and from 7,386,130 to 6,042,642 for DECIMAL(38,2). The independent probe delegates to
+the system allocator; complete Flink jobs use release+mimalloc. No result buffer shares
+input storage because window results are reconstructed from scalar state. These metrics
+measure allocation traffic, not peak memory or copied bytes.
+
+At eight million rows and 4,096 keys, native complete-job medians before/after the slice
+optimization were 1.642/1.099 s (single-phase BIGINT), 2.061/1.518 s (single-phase
+DECIMAL), 1.851/1.382 s (two-phase BIGINT), and 2.169/1.628 s (two-phase DECIMAL).
+These are separate process runs with drifting stock controls, so they do not isolate
+the optimization's causal timing effect. Matched stock comparisons and every sample
+are retained in the [window benchmark](../operators/window-aggregate.md#shared-exact-aggregate-benchmarks)
+and [raw artifact](../benchmarks/results/window-sum0-2026-10-12.json).
+
 ## String encoding output buffers
 
 ### HEX

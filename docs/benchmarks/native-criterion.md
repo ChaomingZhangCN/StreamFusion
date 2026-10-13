@@ -145,7 +145,26 @@ Some historical suites use
 | Sink format encoding | `format_encode`, `kafka_sink` | Production JSON, CSV, raw, Avro, Confluent Avro, Protobuf; historical JSON/timestamp comparisons |
 | Parquet file operations | `parquet_io` | Production encode, selected-row encode, ordinary decode, paired INT96 decode, nullable wide strings and full-range timestamps |
 | ORC post-decode normalization | `normalization` | CHAR trimming, string pass-through, full-range timestamp conversion |
+| Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64/all-distinct keys |
 | Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
+
+`window_zero_sum` covers the production COUNT/SUM0 window update and final flush
+over nullable BIGINT and DECIMAL(38,2), at 256/4096 rows and 1/64/all-distinct keys. Fixture construction
+and accumulator construction are outside timing; grouping, accumulation, output construction
+and disposal remain inside. Each fixture checks every key's count and exact sum before timing,
+including an all-NULL key in the multi-key cases. Complete row-source/collecting-sink comparisons
+use `SharedWindowSumBenchmark`; its native plan must include both transposes and the requested
+single-phase or local/global window stages.
+
+The October 12, 2026 release run uses one second of warmup, two seconds of measurement
+and ten Criterion samples per fixture. At 4,096 rows, fitted update/flush times for
+BIGINT/DECIMAL are 57.9/58.1 microseconds (one key), 81.6/82.8 microseconds (64 keys),
+and 1.015/1.013 milliseconds (all-distinct keys). The executable's global
+`CountingAllocator` delegates to the system allocator even when the crate's mimalloc
+feature is enabled; timed iterations disable counting. These native costs are separate
+from the release+mimalloc JVM job results. Every raw timing sample, estimate interval,
+allocation probe and whole-job observation is retained in
+[the benchmark artifact](results/window-sum0-2026-10-12.json).
 
 Persistent tumbling/session SUM and unique-key INNER window-join lifecycle
 fixtures are now validated. Window/session aggregation with other shapes or

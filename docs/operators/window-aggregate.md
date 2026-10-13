@@ -39,6 +39,20 @@ drains local slices into the global before snapshotting; AVG pairs use the exist
 accumulator checkpoint layout in memory and direct RocksDB state. Restore tests merge subsequent
 partials and verify every hopping window after RocksDB checkpoints and both backend transitions.
 
+Flink can reduce shared `COUNT(v), AVG(v), SUM(v)` calls to COUNT and internal `$SUM0`, with
+the final NULL correction and division in a Calc. Exact integer widths and DECIMAL sums admit
+this layout. SUM0 starts at typed zero and ignores NULL inputs; an all-NULL group still returns
+COUNT 0 and user-visible SUM/AVG NULL through Flink's unchanged outer Calc. Integer sums wrap
+at their declared width, integer averages truncate, and decimal overflow remains NULL through
+local/global merging and checkpoints. A NULL decimal partial carries overflow and must not
+be discarded as though it were a NULL input. The single-field SUM0 buffer also supports the
+existing updating aligned event-time windows, with their separate live-row counter.
+Append-only session and legacy windows use the same accumulator factory; attached bounds
+retain their existing two-phase-only gate. SQL comparisons cover these layouts as well.
+
+Released Flink cannot initialize AVG/SUM0 over `DECIMAL(38,38)`. That shape stays on Flink,
+including its planning failure; floating SUM0 and DISTINCT SUM0 also stay outside admission.
+
 The local stage retains rows whose slice has already fired: that slice can still belong to
 an open HOP or CUMULATE window. The global merge admits each partial only into final windows
 that have not fired, so late partials cannot reopen completed windows. This also applies after
@@ -401,23 +415,22 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
 - Retracting input outside aligned event-time TUMBLE/HOP/CUMULATE with grouping-only,
-  numeric SUM/AVG, numeric COUNT(value), and COUNT(*) with optional FILTER.
+  numeric SUM/AVG (including shared exact SUM0), numeric COUNT(value), and COUNT(*) with optional FILTER.
   DISTINCT, MIN/MAX, processing-time, attached, session
   and legacy windows still fall back on updating input. Admission checks the **input**
   changelog even when final output is append-only.
   The diagnostic names the supported retracting forms. Remaining coverage is tracked in
   [#99](https://github.com/datafusion-contrib/StreamFusion/issues/99).
-- Flink's reduction of overlapping `COUNT(v), AVG(v), SUM(v)` calls over the same BIGINT
-  or DECIMAL value into internal aggregates and attached window bounds. These rewritten
-  plans retain fallback in both aggregation phases; the individual direct aggregate forms
-  above remain supported.
-- Flink's optional `table.optimizer.distinct-agg.split.enabled=true` rewrite. The unchanged
-  split-distinct IT variants introduce extra window layers, including attached single-phase
-  aggregation and partial layouts outside current admission. `HASH_CODE` itself is supported;
-  the remaining physical window layouts are tracked in
+- Unverified physical layouts from Flink's optional
+  `table.optimizer.distinct-agg.split.enabled=true` rewrite. With two-phase aggregation,
+  the verified TUMBLE/HOP/CUMULATE layouts now run natively: `HASH_CODE` assigns distinct
+  buckets and exact SUM0 reductions merge their counts. The unchanged upstream DISTINCT
+  window tests require nonempty work from both native local and global stages. SQL parity
+  also covers multiple distinct arguments, mixed exact aggregates, NULL-only groups, result
+  types and RowKinds. Attached single-phase aggregation still falls back as a complete
+  pipeline; a forced `ONE_PHASE` regression verifies that gate. Other split layouts remain
+  subject to the individual aggregate and partial-layout gates, tracked in
   [#166](https://github.com/datafusion-contrib/StreamFusion/issues/166).
-  Those variants fall back as a complete pipeline. The same queries with distinct splitting
-  disabled use the native value-set path; upstream execution contracts verify both routes.
 
 A **zero-aggregate grouping-only window** (`GROUP BY key + window`, no aggregate function)
 is a windowed distinct, emitting one row per `(key, window)`. It supports insert-only input
@@ -536,6 +549,67 @@ Both transposes, Top-N and the rowwise sink remain timed, with no competing loca
 tests. Single-phase was slower; local/global improved on this workload. These are complete
 query timings rather than isolated decimal arithmetic measurements. The single-phase path
 adds verified native composition and recovery coverage without claiming a speedup.
+
+## Shared exact aggregate benchmarks
+
+`SharedWindowSumBenchmark` runs the reduced `COUNT(v), AVG(v), SUM(v)` query over a
+runtime row source and a collecting row sink. Native plans require both transposes and
+the selected single-phase or local/global window stages. Every measured trial compares
+the complete values and RowKinds with released Flink. The October 12, 2026 comparison
+uses Flink 2.2.1, JDK 17.0.12, release+mimalloc, parallelism 2, eight million nullable
+rows, 4,096 keys, a ten-second TUMBLE, two warmups and five alternating observations.
+DECIMAL inputs are DECIMAL(12,2), summed at DECIMAL(38,2).
+
+| Phase / input | Matched stock seconds | Native seconds | Stock/native |
+| --- | ---: | ---: | ---: |
+| Single / BIGINT | 1.455581 | 1.098882 | 1.325x |
+| Single / DECIMAL | 1.554659 | 1.517730 | 1.024x |
+| Local/global / BIGINT | 2.179928 | 1.382075 | 1.577x |
+| Local/global / DECIMAL | 2.212144 | 1.627779 | 1.359x |
+
+Previous main executed the same queries through Flink fallback. Its native-enabled
+medians, measured in separate processes, were 1.227292, 1.358161, 1.992226 and
+1.995531 seconds in the same table order. Stock controls also drift between runs;
+the initial single-phase DECIMAL result does not establish improvement over that fallback.
+The matched 1.024x comparison is near parity, with overlapping sample ranges. The
+subsequent same-process controls below address that uncertainty. These complete jobs include startup and collection
+polling as well as processing; the one-million-row/64-key and 4,096-key runs remain
+in the artifact rather than being discarded as startup-dominated results.
+
+The native COUNT/SUM0 update/flush fixtures separately record all timings and allocation
+probes for 256/4,096 rows and 1/64/all-distinct keys. See the
+[Criterion inventory](../benchmarks/native-criterion.md) and
+[raw samples and configuration](../benchmarks/results/window-sum0-2026-10-12.json).
+
+Reproduce the complete jobs with
+`SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench
+-Dtest=SharedWindowSumBenchmark -Dsurefire.failIfNoSpecifiedTests=false
+-Dwindow.shared.rows=8000000 -Dwindow.shared.groups=4096`.
+The test requires at least one warmup and three measured observations. For a same-process
+fallback control, add `-Dwindow.shared.compareFallback=true`; this rotates stock Flink,
+native windows and a native-planner job with windows disabled through the existing
+per-operator switches. The latter requires zero substitutions and checks the full
+result against stock, reproducing the previous whole-query fallback execution path.
+
+Focused single-phase DECIMAL controls retain the eight-million-row fixture, three
+warmups and nine observations for each engine in one JVM. All results agree. Two
+independent 4,096-key controls and a 64-key workload measured:
+
+| Keys / run | Stock seconds | Fallback seconds | Native seconds | Stock/native | Fallback/native |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 4,096 / A | 1.557810 | 1.563126 | 1.317393 | 1.182x | 1.187x |
+| 64 | 1.443835 | 1.472860 | 0.978591 | 1.475x | 1.505x |
+| 4,096 / B | 1.571749 | 1.561060 | 1.417395 | 1.109x | 1.101x |
+
+Native sample ranges at 4,096 keys were 1.286-1.412 s and 1.385-1.513 s;
+matched stock ranges were 1.542-1.668 s and 1.549-1.898 s. At 64 keys, native
+was 0.960-0.994 s versus stock 1.412-1.680 s. These controls establish an improvement
+over both stock and the previous fallback path on the measured workloads, supporting
+default admission without claiming every DECIMAL workload is faster. They also show
+why a cross-process comparison with the earlier 1.358 s fallback median is insufficient.
+Append `-Dwindow.shared.phases=ONE_PHASE -Dwindow.shared.types=DECIMAL
+-Dwindow.shared.warmup=3 -Dwindow.shared.runs=9
+-Dwindow.shared.compareFallback=true` to reproduce; select 64 or 4,096 keys.
 
 ## Mixed AVG benchmark
 

@@ -158,6 +158,11 @@ final class GlobalWindowAggregateMatcher {
       // (SUM's partial is Flink's nullable-sum buffer, DECIMAL(38, s) for a decimal SUM), bigint
       // for COUNT. Any single-phase-supported value type merges natively.
       SqlTypeName partialType = inputType.getFieldList().get(partialColumns[i]).getType().getSqlTypeName();
+      if (kind == WindowAggregateMatcher.KIND_SUM_ZERO
+          && !WindowAggregateMatcher.supportedZeroSumValue(
+              inputType.getFieldList().get(partialColumns[i]).getType())) {
+        return "global window aggregate: SUM0 requires an exact integer or DECIMAL partial";
+      }
       if (!WindowAggregateMatcher.supportedAggregateValueType(kind, partialType)) {
         return "global window aggregate: unsupported partial column type " + partialType;
       }

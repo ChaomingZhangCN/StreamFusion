@@ -125,3 +125,7 @@ harness = false
 [[bench]]
 name = "interval_probe"
 harness = false
+
+[[bench]]
+name = "window_zero_sum"
+harness = false

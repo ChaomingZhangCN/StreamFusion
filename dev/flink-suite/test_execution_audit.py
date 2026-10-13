@@ -14,8 +14,8 @@ import summarize
 
 class ExecutionAuditTest(unittest.TestCase):
     CALC = "org.apache.flink.table.planner.runtime.stream.sql.CalcITCase#testLongProjectionList"
-    WINDOW = "org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow"
-    REASON = "window aggregate: attached-window aggregation requires two-phase execution"
+    FALLBACK = "org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariableTopSize"
+    REASON = "Top-N: nullable variable rank bounds require Flink's row-access semantics"
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -53,11 +53,11 @@ class ExecutionAuditTest(unittest.TestCase):
         return result, json.loads(self.output.read_text())
 
     def test_exact_denominator_keeps_uncontracted_and_skipped_cases_visible(self):
-        self.cases((self.CALC, "passed"), (self.CALC, "passed"), (self.WINDOW, "passed"),
+        self.cases((self.CALC, "passed"), (self.CALC, "passed"), (self.FALLBACK, "passed"),
                    ("Uncontracted#query", "passed"), ("Skipped#query", "skipped"))
         self.record("native", self.CALC, "NativeCalcOperator=7")
         self.record("mixed", self.CALC, "NativeCalcOperator=3", reasons="other operator: fallback")
-        self.record("fallback", self.WINDOW, "", "splitDistinct=true", self.REASON)
+        self.record("fallback", self.FALLBACK, "", reasons=self.REASON)
         status, audit = self.run_audit()
         self.assertEqual(0, status)
         summary = audit["summary"]
@@ -69,7 +69,7 @@ class ExecutionAuditTest(unittest.TestCase):
         self.assertEqual(list(range(5)), [case["case_index"] for case in audit["testcases"]])
         self.assertEqual("unclassified", audit["scope"]["outside_contract_scope"])
         fallback = next(row for row in audit["execution_evidence"]
-                        if row["variant"] == "splitDistinct=true")
+                        if row["observed_route"] == "full_fallback")
         self.assertEqual([self.REASON], fallback["fallback_reasons"])
         self.assertEqual({}, fallback["native_input_rows"])
         # Witnesses cannot be paired to duplicate XML cases without an invocation identifier.
