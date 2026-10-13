@@ -2,8 +2,10 @@ use crate::*;
 
 mod floating_extreme;
 mod retracting_window;
+mod timestamp_extreme;
 mod zero_sum;
 pub(crate) use retracting_window::{HIDDEN_LIVE_COUNT, LIVE_COUNT, RETRACT_COUNT, RETRACT_SUM};
+pub(crate) use timestamp_extreme::TimestampExtremeAccumulator;
 
 /// Builds a built-in aggregate over an int64 `value` column. SUM/MIN/MAX/COUNT all reduce an int64
 /// column to a single int64 with single-scalar partial state, driven through DataFusion's
@@ -659,6 +661,7 @@ pub(crate) enum WindowAggregate {
     FloatAvg,
     DoubleAvg,
     FloatingExtreme { kind: i64, value_type: DataType },
+    TimestampExtreme { minimum: bool },
     // Decimal SUM/AVG carry Flink's semantics, which DataFusion's decimal aggregates don't: SUM is
     // an i128 running sum at the input scale reported as DECIMAL(38, s) with overflow → NULL (not an
     // error), and AVG divides that sum by the non-null count with Flink's exact decimal division,
@@ -668,6 +671,19 @@ pub(crate) enum WindowAggregate {
 }
 
 impl WindowAggregate {
+    pub(crate) fn timestamp_column<'a>(
+        &self,
+        values: &'a ArrayRef,
+    ) -> datafusion::common::Result<Option<streamfusion_bridge::timestamp::TimestampColumn<'a>>>
+    {
+        match self {
+            Self::TimestampExtreme { .. } => Ok(Some(
+                streamfusion_bridge::timestamp::TimestampColumn::try_new(values.as_ref())?,
+            )),
+            _ => Ok(None),
+        }
+    }
+
     fn new(kind: i64, value_type: &DataType) -> Self {
         match (kind, value_type) {
             (
@@ -703,6 +719,9 @@ impl WindowAggregate {
                 kind,
                 value_type: value_type.clone(),
             },
+            (1 | 2, dt) if streamfusion_bridge::timestamp::is_timestamp(dt) => {
+                WindowAggregate::TimestampExtreme { minimum: kind == 1 }
+            }
             (0..=3 | 7, _) => WindowAggregate::Builtin(build_builtin(kind, value_type)),
             // Float AVG sums in double and narrows to float; double AVG stays double; integer AVG
             // truncates to its type.
@@ -759,6 +778,9 @@ impl WindowAggregate {
             WindowAggregate::FloatingExtreme { kind, value_type } => Box::new(
                 floating_extreme::FloatingExtremeAccumulator::new(*kind, value_type),
             ),
+            WindowAggregate::TimestampExtreme { minimum } => Box::new(
+                timestamp_extreme::TimestampExtremeAccumulator::new(*minimum),
+            ),
             WindowAggregate::DecimalSum { scale } => Box::new(DecimalSumAccumulator {
                 sum: None,
                 scale: *scale,
@@ -799,6 +821,11 @@ impl WindowAggregate {
             WindowAggregate::FloatingExtreme { value_type, .. } => {
                 vec![Field::new("extreme", value_type.clone(), true)]
             }
+            WindowAggregate::TimestampExtreme { .. } => vec![Field::new(
+                "extreme",
+                streamfusion_bridge::timestamp::timestamp_type(),
+                true,
+            )],
             WindowAggregate::DecimalSum { scale } => {
                 vec![Field::new("sum", DataType::Decimal128(38, *scale), true)]
             }
@@ -826,6 +853,9 @@ impl WindowAggregate {
             WindowAggregate::FloatSum | WindowAggregate::FloatAvg => DataType::Float32,
             WindowAggregate::DoubleAvg => DataType::Float64,
             WindowAggregate::FloatingExtreme { value_type, .. } => value_type.clone(),
+            WindowAggregate::TimestampExtreme { .. } => {
+                streamfusion_bridge::timestamp::timestamp_type()
+            }
             WindowAggregate::DecimalSum { scale } => DataType::Decimal128(38, *scale),
             // Flink's findAvgAggType: DECIMAL(38, max(6, s)).
             WindowAggregate::DecimalAvg { scale, .. } => DataType::Decimal128(38, (*scale).max(6)),

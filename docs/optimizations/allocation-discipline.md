@@ -49,7 +49,8 @@ contiguous, their accumulators consume an Arrow slice instead of allocating a ga
 is also omitted when every accumulator can use that slice. Signed row-kind selections share the
 same range and preserve the input offsets and validity.
 
-Sparse selections retain `take`. Other aggregate kinds keep their existing selection path, so an
+Sparse selections retain `take`. Other aggregate kinds keep their established selection paths,
+with timestamp extrema using the borrowed reads described below, so an
 accumulator that retains variable-width input buffers cannot accidentally retain an entire input
 batch through this shortcut. COUNT/SUM0 finish reading the slice during update; their checkpoint
 state, managed-memory accounting and final output contain only the original scalar accumulators.
@@ -70,6 +71,32 @@ These are separate process runs with drifting stock controls, so they do not iso
 the optimization's causal timing effect. Matched stock comparisons and every sample
 are retained in the [window benchmark](../operators/window-aggregate.md#shared-exact-aggregate-benchmarks)
 and [raw artifact](../benchmarks/results/window-sum0-2026-10-12.json).
+
+## Timestamp window state and output
+
+Insert-only timestamp MIN/MAX own a millisecond/remainder pair, rather than retaining a
+single-row Struct array. Window updates and global partial merges prepare one borrowed
+timestamp accessor per input column and read the selected positions directly. They avoid
+per-group Struct `take` arrays and per-partial slices. Timestamp DISTINCT retains its
+gathering path because the set can retain the selected values' buffers.
+
+Watermark firing constructs one component array per result column from the owned extrema.
+It avoids allocating a Struct scalar per fired group and concatenating those scalars.
+Session merges compare the owned pairs directly; they do not serialize the old accumulator
+to Arrow merely to merge it back. Session input selection uses the same borrowed timestamp
+reads, while other value types retain their existing aggregate and merge behavior.
+
+The JVM prepares timestamp accessors once per batch. Unfiltered, non-compact component
+MIN/MAX fields can retain an Arrow split view when source and destination share a root
+allocator. External allocator roots, compact values, primitive timestamp layouts and
+filtered values use the copying path. Views close after the synchronous JNI update, and
+the accumulator retains no source buffers.
+
+Complete jobs include both row/Arrow transposes, JNI, state and a collecting row sink.
+The [temporal window benchmarks](../operators/window-aggregate.md#temporal-extrema-benchmarks)
+report stock Flink and the previous fallback behavior, including the single-phase overlapping
+regressions that keep those shapes on Flink. Allocation requests and requested bytes describe
+allocation traffic, not copied bytes or retained-memory peaks.
 
 ## String encoding output buffers
 

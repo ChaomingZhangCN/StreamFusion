@@ -49,6 +49,72 @@ import tech.streamfusion.planner.FlinkKeyGroupUtils;
 class NativeColumnarWindowAggregateOperatorTest {
   private static final int MAX_PARALLELISM = 128;
 
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void processingTimeTimestampExtremaPreserveDigitsAndTimersAfterRestore(boolean rocks) throws Exception {
+    RowType input = RowType.of(new BigIntType(), new TimestampType(9), new LocalZonedTimestampType(3));
+    RowType output = RowType.of(new BigIntType(), new TimestampType(9),
+        new LocalZonedTimestampType(9), new TimestampType(3), new TimestampType(3));
+    TimestampData early = TimestampData.fromEpochMillis(-62135596800000L, 1);
+    TimestampData late = TimestampData.fromEpochMillis(253402300799999L, 999999);
+    OperatorSubtaskState snapshot;
+    try (BufferAllocator allocator = new RootAllocator();
+        var before = temporalProctimeHarness(output, rocks)) {
+      before.setup(new ArrowBatchSerializer());
+      before.open();
+      before.setProcessingTime(500);
+      before.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(List.of(
+          GenericRowData.of(1L, TimestampData.fromEpochMillis(-1, 999999), TimestampData.fromEpochMillis(9999)),
+          GenericRowData.of(1L, null, TimestampData.fromEpochMillis(9999)),
+          GenericRowData.of(2L, null, TimestampData.fromEpochMillis(9999))), input, allocator))));
+      snapshot = before.snapshot(1, 1);
+      assertTrue(before.getOutput().isEmpty());
+    }
+    try (BufferAllocator allocator = new RootAllocator();
+        var restored = temporalProctimeHarness(output, rocks)) {
+      restored.setup(new ArrowBatchSerializer());
+      restored.initializeState(snapshot);
+      restored.open();
+      restored.setProcessingTime(800);
+      restored.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(List.of(
+          GenericRowData.of(1L, early, TimestampData.fromEpochMillis(-9999)),
+          GenericRowData.of(1L, late, TimestampData.fromEpochMillis(-9999)),
+          GenericRowData.of(2L, null, TimestampData.fromEpochMillis(-9999))), input, allocator))));
+      restored.setProcessingTime(998);
+      assertTrue(restored.getOutput().isEmpty());
+      restored.setProcessingTime(999);
+      List<List<Object>> rows = new ArrayList<>();
+      while (!restored.getOutput().isEmpty()) {
+        Object event = restored.getOutput().poll();
+        if (event instanceof StreamRecord<?>) {
+          try (var root = ((ArrowBatch) ((StreamRecord<?>) event).getValue()).root()) {
+            for (RowData row : RowDataArrowConverter.read(root, output)) {
+              rows.add(java.util.Arrays.asList(row.getRowKind(), row.getLong(0),
+                  row.isNullAt(1) ? null : row.getTimestamp(1, 9),
+                  row.isNullAt(2) ? null : row.getTimestamp(2, 9),
+                  row.getTimestamp(3, 3).getMillisecond(), row.getTimestamp(4, 3).getMillisecond()));
+            }
+          }
+        }
+      }
+      rows.sort(java.util.Comparator.comparingLong(row -> (Long) row.get(1)));
+      assertEquals(List.of(
+          java.util.Arrays.asList(org.apache.flink.types.RowKind.INSERT, 1L, early, late, 0L, 1000L),
+          java.util.Arrays.asList(org.apache.flink.types.RowKind.INSERT, 2L, null, null, 0L, 1000L)), rows);
+    }
+  }
+
+  private static KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch>
+      temporalProctimeHarness(RowType output, boolean rocks) throws Exception {
+    var harness = rawHarness(new NativeColumnarWindowAggregateOperator(false, 1000, 1000, 2,
+        new int[] {1, 1}, new int[] {0}, new int[] {0}, new int[] {1009, 1009}, new int[] {1, 2},
+        "UTC", output, true, new int[] {-1}, MAX_PARALLELISM));
+    if (rocks) harness.setStateBackend(new tech.streamfusion.state.RocksDBNativeStateBackendFactory()
+        .createFromConfig(new org.apache.flink.configuration.Configuration(),
+            NativeColumnarWindowAggregateOperatorTest.class.getClassLoader()));
+    return harness;
+  }
+
   @Test
   void processingTimeStringExtremaUseTheExistingClockWindows() throws Exception {
     RowType input = RowType.of(new VarCharType(), new LocalZonedTimestampType(3));

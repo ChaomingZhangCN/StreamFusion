@@ -55,7 +55,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
 
   /**
    * Value-type codes matching the native side. Numeric types carry ordinary aggregates; strings,
-   * dates and timestamps also carry COUNT(DISTINCT) values.
+   * dates and timestamps also carry COUNT(DISTINCT) values. Timestamps carry MIN/MAX too.
    */
   protected static final int TYPE_BIGINT = 0;
 
@@ -105,6 +105,8 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
 
   /** Aggregate kind code for COUNT, whose partial is always a bigint regardless of value type. */
   protected static final int KIND_COUNT = 3;
+  private static final int KIND_MIN = 1;
+  private static final int KIND_MAX = 2;
 
   private final String timeZoneId;
   protected final long slideMillis;
@@ -460,6 +462,9 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     BigIntVector ts = new BigIntVector("ts", allocator);
     FieldVector[] values = new FieldVector[valueColumns.length];
     FieldVector[] srcValues = new FieldVector[valueColumns.length];
+    TimestampAccessor[] timestampSources = new TimestampAccessor[valueColumns.length];
+    TimestampAccessor[] timestampTargets = new TimestampAccessor[valueColumns.length];
+    boolean[] sharedValues = new boolean[valueColumns.length];
     BitVector[] filters = new BitVector[valueColumns.length];
     FieldVector[] keys = new FieldVector[keyColumns.length];
     List<FieldVector> vectors = new ArrayList<>();
@@ -469,6 +474,17 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       srcValues[a] = valueColumns[a] < 0 ? null : in.getFieldVectors().get(valueColumns[a]);
       if (filterColumns != null && filterColumns[a] >= 0) {
         filters[a] = (BitVector) in.getVector(filterColumns[a]);
+      }
+      if (srcValues[a] != null && isTimestamp(valueTypes[a])) {
+        timestampSources[a] = new TimestampAccessor(srcValues[a]);
+        timestampTargets[a] = new TimestampAccessor(values[a]);
+        // Arrow can retain a view only within one root allocator; external roots need a copy.
+        if ((aggregateKinds[a] == KIND_MIN || aggregateKinds[a] == KIND_MAX)
+            && timestampPrecision(valueTypes[a]) > 3 && filters[a] == null
+            && srcValues[a].getAllocator().getRoot() == allocator.getRoot()
+            && TimestampAccessor.isComponentTimestamp(srcValues[a].getField())) {
+          sharedValues[a] = true;
+        }
       }
       vectors.add(values[a]);
     }
@@ -485,15 +501,28 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     try (VectorSchemaRoot root = new VectorSchemaRoot(vectors);
         ArrowArray array = ArrowArray.allocateNew(allocator);
         ArrowSchema schema = ArrowSchema.allocateNew(allocator)) {
+      for (int a = 0; a < valueColumns.length; a++) {
+        if (sharedValues[a]) {
+          srcValues[a].makeTransferPair(values[a]).splitAndTransfer(0, rows);
+        }
+      }
       for (int i = 0; i < rows; i++) {
         ts.setSafe(i, proctime ? proctimeMillis : srcTs.getMillis(i));
         if (changes != null) changes.setSafe(i, sourceKinds.get(i));
         for (int a = 0; a < valueColumns.length; a++) {
+          if (sharedValues[a]) continue;
           // Preserve every change for window liveness; FILTER masks only this aggregate.
           if (filters[a] != null && (filters[a].isNull(i) || filters[a].get(i) == 0)) {
             values[a].setNull(i);
           } else if (valueColumns[a] < 0) {
             ((BigIntVector) values[a]).setSafe(i, 1L); // COUNT(*): a non-null constant counts rows
+          } else if (timestampSources[a] != null) {
+            TimestampData timestamp = timestampSources[a].isNull(i)
+                ? null : timestampSources[a].getTimestamp(i);
+            if (timestamp != null && timestampPrecision(valueTypes[a]) <= 3) {
+              timestamp = TimestampData.fromEpochMillis(timestamp.getMillisecond());
+            }
+            timestampTargets[a].set(i, timestamp);
           } else {
             copyValue(values[a], i, srcValues[a], valueTypes[a]);
           }

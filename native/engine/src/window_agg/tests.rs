@@ -1,6 +1,149 @@
 use super::*;
 
 #[test]
+fn temporal_sessions_bridge_restored_values_without_retaining_source_batches() {
+    use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let middle = TimestampValue::new(-1, 999_999).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let types = vec![1009, 1009];
+    let kinds = vec![1, 2];
+    let batch = |times: Vec<i64>, values: Vec<Option<TimestampValue>>| {
+        let values: ArrayRef = Arc::new(timestamp_array(values));
+        RecordBatch::try_from_iter(vec![
+            ("ts", Arc::new(Int64Array::from(times)) as ArrayRef),
+            (
+                "key0",
+                Arc::new(Int64Array::from(vec![1, 1, 2])) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+        ])
+        .unwrap()
+    };
+    let mut window = SessionAggregator::new(1000, types.clone(), kinds.clone());
+    window
+        .update(&batch(
+            vec![100, 2100, 100],
+            vec![Some(middle), Some(early), None],
+        ))
+        .unwrap();
+    let snapshots = window
+        .snapshot_partitions(128, &[-1])
+        .into_values()
+        .collect::<Vec<_>>();
+    let mut restored = SessionAggregator::restore_partitions(1000, types, kinds, &snapshots);
+    restored
+        .update(&batch(vec![1100, 1200, 100], vec![Some(late), None, None]))
+        .unwrap();
+    let output = restored.flush(4000).unwrap();
+    assert_eq!(output.num_rows(), 2);
+    let minimum =
+        TimestampColumn::try_new(output.column_by_name("result0").unwrap().as_ref()).unwrap();
+    let maximum =
+        TimestampColumn::try_new(output.column_by_name("result1").unwrap().as_ref()).unwrap();
+    assert_eq!(column_i64(&output, "key0").values(), &[1, 2]);
+    assert_eq!(minimum.value(0).unwrap(), early);
+    assert_eq!(maximum.value(0).unwrap(), late);
+    assert!(minimum.is_null(1));
+    assert!(maximum.is_null(1));
+    assert_eq!(column_i64(&output, "window_start").values(), &[100, 100]);
+    assert_eq!(column_i64(&output, "window_end").values(), &[3100, 1100]);
+    assert_eq!(restored.flush(4000).unwrap().num_rows(), 0);
+}
+
+#[test]
+fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
+    use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let low = TimestampValue::new(-1, 999_998).unwrap();
+    let high = TimestampValue::new(-1, 999_999).unwrap();
+    let kinds = vec![1, 2, 3];
+    let types = vec![1009, 1009, 0];
+    let create = || TumblingAggregator::new(1000, 1000, false, types.clone(), kinds.clone());
+    let mut single = create();
+    let mut local = create();
+    let mut global = create();
+    for rows in [
+        vec![(1, Some(high)), (2, None), (3, Some(high)), (1, None)],
+        vec![(1, Some(early)), (1, Some(late)), (2, None), (3, Some(low))],
+    ] {
+        let rows: Vec<_> = [(-99, None)]
+            .into_iter()
+            .chain(rows)
+            .chain([(-99, None)])
+            .collect();
+        let values: ArrayRef = Arc::new(timestamp_array(rows.iter().map(|row| row.1)));
+        let batch = RecordBatch::try_from_iter(vec![
+            (
+                "ts",
+                Arc::new(Int64Array::from_value(100, rows.len())) as ArrayRef,
+            ),
+            (
+                "key0",
+                Arc::new(Int64Array::from_iter_values(rows.iter().map(|row| row.0))) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+            (
+                "value2",
+                Arc::new(Int64Array::from_value(1, rows.len())) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        let batch = batch.slice(1, rows.len() - 2);
+        single.update(&batch).unwrap();
+        local.update_local(&batch).unwrap();
+        global.update_partial(&local.drain_partial()).unwrap();
+        single = TumblingAggregator::restore(
+            1000,
+            1000,
+            false,
+            types.clone(),
+            kinds.clone(),
+            &single.snapshot(),
+        );
+        let partitions = global.snapshot_partitions(128, &[-1]);
+        global = TumblingAggregator::restore_partitions(
+            1000,
+            1000,
+            false,
+            types.clone(),
+            kinds.clone(),
+            &partitions.into_values().collect::<Vec<_>>(),
+        );
+    }
+    let result = single.flush(i64::MAX).unwrap();
+    assert_eq!(result, global.flush(i64::MAX).unwrap());
+    let keys = column_i64(&result, "key0");
+    let minimum =
+        TimestampColumn::try_new(result.column_by_name("result0").unwrap().as_ref()).unwrap();
+    let maximum =
+        TimestampColumn::try_new(result.column_by_name("result1").unwrap().as_ref()).unwrap();
+    for row in 0..result.num_rows() {
+        match keys.value(row) {
+            1 => {
+                assert_eq!(minimum.value(row).unwrap(), early);
+                assert_eq!(maximum.value(row).unwrap(), late);
+                assert_eq!(column_i64(&result, "result2").value(row), 4);
+            }
+            2 => {
+                assert!(minimum.is_null(row));
+                assert!(maximum.is_null(row));
+                assert_eq!(column_i64(&result, "result2").value(row), 2);
+            }
+            3 => {
+                assert_eq!(minimum.value(row).unwrap(), low);
+                assert_eq!(maximum.value(row).unwrap(), high);
+                assert_eq!(column_i64(&result, "result2").value(row), 2);
+            }
+            _ => panic!("unexpected key"),
+        }
+    }
+}
+
+#[test]
 fn string_extrema_partials_preserve_nulls_utf8_order_and_keyed_restore() {
     fn batch(continuation: bool) -> RecordBatch {
         let values: ArrayRef = Arc::new(StringArray::from(if continuation {

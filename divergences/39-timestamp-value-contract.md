@@ -86,3 +86,37 @@ plus the fractional remainder. Outputs and checkpoint scalars continue to use th
 layout. This avoids DataFusion's i64-nanosecond range restriction without changing operator or JNI
 boundaries. Single-phase retractions and insert-only local/global merges share the same key order;
 memory snapshots and RocksDB companion element tables preserve duplicate multiplicities.
+
+Insert-only window timestamp MIN/MAX instead own a single `TimestampValue` pair. This keeps
+Arroyo's mergeable DataFusion accumulator/state interface, but avoids materializing a generic
+Struct scalar for every input row or retaining its child buffers. Update and partial merge use
+Flink's millisecond-then-remainder comparison; output and checkpoint state keep one nullable
+component timestamp. Retractions remain outside this window admission gate and therefore
+do not require the non-windowed multiset here. The JVM local/global value descriptors carry
+the logical timestamp precision through the existing packed type code. The LTZ distinction
+comes from the output row type; aggregate ordering always compares the instant digits.
+Grouped update and global merge prepare borrowed timestamp column views once per batch. The
+typed accumulator reads the selected row positions directly, avoiding per-group Struct gathers
+and per-partial slices without retaining source buffers. Generic timestamp DISTINCT continues
+to gather compact arrays because its scalar set may retain child buffers.
+At the Java boundary, unfiltered non-compact component extrema retain Arrow split views for
+the input fields instead of rewriting their digits. Both MIN/MAX may reference the same
+column, so each view retains its buffers and the original input stays intact until the
+synchronous update returns. Views require a shared root allocator; external input roots use
+the copying path because Arrow forbids transferring ownership between independent roots.
+The prepared root closes all views, including on update failure;
+the outer operator closes the input root. This follows Comet's explicit view/ownership split.
+Filtered, primitive and compact values retain the conversion path with accessors cached per
+batch, including the established compact timestamp normalization used by window DISTINCT.
+
+Window firing collects owned timestamp pairs and constructs one Arrow component array per
+result column. It avoids creating and concatenating a single-row Struct array for every
+group; non-temporal results and persistent checkpoint scalars retain their existing layout.
+This keeps Arroyo's batched Arrow output structure and Flink's full timestamp range, without
+changing source-buffer ownership or the state envelope. Single-phase overlapping temporal
+extrema remain on Flink until the performance work in
+[#324](https://github.com/datafusion-contrib/StreamFusion/issues/324) establishes a consistent gain.
+Session updates also borrow typed timestamp columns, and merging two existing sessions
+compares their owned extrema directly. This avoids generic Struct state serialization during
+an in-memory merge; partial/checkpoint serialization remains unchanged. Session bounds,
+arrival-order lateness decisions and the merge behavior of other aggregates remain intact.

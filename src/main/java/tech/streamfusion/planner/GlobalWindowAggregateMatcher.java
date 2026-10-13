@@ -192,7 +192,7 @@ final class GlobalWindowAggregateMatcher {
       RelDataType valueType = WindowAggregateMatcher.partialWidth(call) == 2
               && partialType.getSqlTypeName() != SqlTypeName.DECIMAL
           ? call.getType() : partialType;
-      types[i] = WindowAggregateMatcher.typeCode(valueType);
+      types[i] = WindowAggregateMatcher.windowValueTypeCode(valueType);
     }
     return Arrays.copyOf(types, kinds(aggregate).length);
   }

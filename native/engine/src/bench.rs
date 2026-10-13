@@ -227,6 +227,20 @@ impl Session {
         Session(SessionAggregator::new(gap_millis, value_types, kinds))
     }
 
+    pub fn with_budget(
+        gap_millis: i64,
+        value_type: i64,
+        kinds: Vec<i64>,
+        budget_bytes: i64,
+    ) -> Self {
+        let value_types = vec![value_type; kinds.len()];
+        Session(
+            SessionAggregator::new(gap_millis, value_types, kinds)
+                .with_memory_budget(budget_bytes)
+                .expect("empty state fits any budget"),
+        )
+    }
+
     pub fn update(&mut self, batch: &RecordBatch) {
         self.0.update(batch).expect("budget exceeded");
     }

@@ -22,6 +22,32 @@ translates the firing frontier by one millisecond before flushing.
 
 SUM, MIN, MAX, COUNT and AVG can share a window and read the same or different numeric columns.
 String MIN/MAX can share those windows and their local/global partial layout as well.
+On insert-only input, MIN/MAX also accept TIMESTAMP and TIMESTAMP_LTZ value columns at
+precisions 0 through 9. These are aggregate values, separate from the window's time attribute.
+The accumulator owns signed milliseconds and the fractional nanosecond remainder, compares
+that pair without narrowing the date range, ignores NULLs and emits NULL for an all-NULL group.
+Local/global partials and checkpoint state use one nullable component timestamp with the
+original logical precision. Ordinary COUNT(timestamp) retains its separate numeric type gate.
+Both timestamp kinds can share a window with numeric aggregates and COUNT(DISTINCT).
+
+Temporal extrema are enabled for TUMBLE, event-time SESSION and the local/global split of
+TUMBLE/HOP/CUMULATE, including admitted attached windows. Single-phase HOP/CUMULATE and
+legacy HOP retain stock Flink: repeated high-cardinality complete jobs did not consistently
+outperform it. The planner reports that timestamp extrema in overlapping windows require
+two-phase execution. This performance limitation remains tracked in
+[#324](https://github.com/datafusion-contrib/StreamFusion/issues/324); no experimental switch
+enables the slower path. Processing-time TUMBLE retains the same typed value state and timer
+contract; processing-time HOP/CUMULATE retain Flink as well.
+
+SQL comparisons cover precision 0/3/6/9, years 0001 through 9999, pre-epoch fractions,
+nanosecond differences within one millisecond, independent filters, both aggregation phases,
+legacy/session shapes and empty input. TIMESTAMP_LTZ **values** retain instant ordering in
+UTC, Asia/Shanghai and America/New_York; these tests use a plain TIMESTAMP rowtime so the
+separate historical-offset gate on LTZ **window assignment** remains unchanged. TUMBLE/HOP/SESSION recovery
+injects two failures after completed checkpoints on memory and RocksDB and requires work
+from every native stage. Controlled-clock processing-time tests verify value state, NULL-only
+groups and timer firing after restore on both backends.
+
 AVG supports INT/BIGINT, SMALLINT/TINYINT, FLOAT/DOUBLE and DECIMAL in single-phase execution
 and the event-time two-phase split for TUMBLE, HOP, CUMULATE and admitted attached windows.
 
@@ -134,12 +160,73 @@ The single-phase regression is not accepted as a default acceleration path. Insp
 native fold shows per-group Arrow gathers and generic string accumulator updates; optimization
 of that high-cardinality path remains necessary before removing the opt-in.
 
+## Temporal extrema benchmarks
+
+The October 13, 2026 comparison uses main `49ebe3cf` as its base, released Flink 2.2.1,
+JDK 17 on an Apple M4 Pro, UTC, parallelism two, and a release+mimalloc native library.
+Local exchanges use Arrow IPC. Every complete job retains its runtime row source, both
+transposes, JNI, state and collecting row sink. Two warmups precede five measured trials;
+stock, native and forced-window-fallback runs rotate order. All output fields and RowKinds
+are compared, and current-job counters must show work from every intended native stage.
+Forced window fallback represents the previous planner behavior for these value types.
+
+The final production-path measurements below use precision 9. Times are median complete-job
+seconds. Startup and scheduling remain included; the 20-million-row cases also exercise
+sustained processing. No timing samples are discarded.
+
+| Window / phase | Rows / keys | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| TUMBLE / one | 2M / 1 | TIMESTAMP | 0.758354 | 0.662719 | 0.633011 | 1.198x |
+| TUMBLE / one | 2M / 1 | TIMESTAMP_LTZ | 0.755901 | 0.757004 | 0.638541 | 1.184x |
+| TUMBLE / one | 20M / 4096 | TIMESTAMP | 5.627059 | 5.745932 | 4.215417 | 1.335x |
+| TUMBLE / one | 20M / 4096 | TIMESTAMP_LTZ | 6.229142 | 6.139699 | 4.731588 | 1.317x |
+| HOP / two | 2M / 4096 | TIMESTAMP | 1.143439 | 1.146968 | 0.763992 | 1.497x |
+| HOP / two | 2M / 4096 | TIMESTAMP_LTZ | 1.202599 | 1.108017 | 0.862292 | 1.395x |
+| CUMULATE / two | 2M / 4096 | TIMESTAMP | 1.119121 | 1.108795 | 0.757615 | 1.477x |
+| CUMULATE / two | 2M / 4096 | TIMESTAMP_LTZ | 1.122305 | 1.094508 | 0.853236 | 1.315x |
+| SESSION / one | 2M / 4096 | TIMESTAMP | 1.086465 | 1.093417 | 0.645294 | 1.684x |
+| SESSION / one | 2M / 4096 | TIMESTAMP_LTZ | 1.080101 | 1.080380 | 0.638098 | 1.693x |
+
+Earlier candidate comparisons are retained as well. Two-million-row TUMBLE sweeps exercise
+precision 3/9, both phases and 64/4096 keys. Their source precedes the final session merge and
+selection-index ownership optimization, so those samples are not labeled final-head results.
+Session merging originally took 1.873077/1.840005 seconds for TIMESTAMP/LTZ at 4096 keys,
+before borrowing selected timestamps and merging owned extrema directly. Those separate
+process runs have drifting stock controls; they do not isolate each optimization's causal gain.
+
+Single-phase overlapping candidate results remain visible: at 4096 keys, HOP takes
+1.009755/0.991080 seconds against stock 0.806110/0.895012, or 0.798x/0.903x for
+TIMESTAMP/LTZ. CUMULATE takes 0.775960/0.772689 against 0.794308/0.926869, or
+1.024x/1.200x, after an earlier candidate had also regressed. These results do not establish
+a consistent improvement across the overlapping family. The planner keeps those single-phase
+shapes on Flink; [#324](https://github.com/datafusion-contrib/StreamFusion/issues/324)
+remains open for that work.
+
+The Rust release fixture set covers accounted TUMBLE update/flush and SESSION update/merge/flush
+at 256/4096 rows, one/64/all-distinct keys, NULLs and precision 3/9. At precision 9, final
+TUMBLE estimates are 65.21/73.92/809.31 microseconds for 4096 rows and one/64/4096 keys.
+SESSION estimates are 218.11/282.93/3871.35 microseconds, including two input batches and
+state merging. Setup stays outside timing; grouping, accumulation, output and disposal remain
+inside. Native timing and allocation probes use the counting System allocator, separately
+from the mimalloc complete jobs. The
+[raw artifact](../benchmarks/results/window-temporal-extrema-2026-10-13.json)
+retains every sample, estimate interval, allocation probe, source fingerprint and validation
+record, including negative and intermediate candidates.
+
+Reproduce complete-job comparisons with `SF_BENCHMARK=true mvn -Pbench
+-pl streamfusion-runtime -am test -Dtest=WindowTemporalExtremaBenchmark
+-Dsf.testForks=1 -Dsurefire.failIfNoSpecifiedTests=false`. Fixture properties are
+`window.temporal.rows`, `window.temporal.groups`, `window.temporal.precisions`,
+`window.temporal.phases`, `window.temporal.ltz`, `window.temporal.shapes`,
+`window.temporal.warmup` and `window.temporal.runs`. SESSION uses ONE_PHASE;
+HOP/CUMULATE use TWO_PHASE under production admission.
+
 ## Filtered MIN/MAX on append-only input
 
 Aligned event-time TUMBLE/HOP/CUMULATE admit `MIN(value) FILTER (WHERE predicate)` and
-`MAX(value) FILTER (WHERE predicate)` for the existing numeric value types: integer widths,
-FLOAT/DOUBLE and DECIMAL, and for CHAR/VARCHAR. Both single-phase and local/global execution
-apply each predicate independently. FALSE or NULL masks the aggregate value, while the row still establishes its
+`MAX(value) FILTER (WHERE predicate)` for integer widths, FLOAT/DOUBLE, DECIMAL, CHAR/VARCHAR,
+TIMESTAMP and TIMESTAMP_LTZ. Both single-phase and local/global execution apply each predicate
+independently. FALSE or NULL masks the aggregate value, while the row still establishes its
 window and group. A group with no selected non-NULL values emits NULL extrema.
 
 The existing Arrow validity-mask preparation and extrema accumulators are reused. Local
@@ -405,8 +492,13 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Legacy processing-time `SESSION`.
 - Key type outside bigint/int/string/boolean/date/timestamp/decimal.
 - A value type/aggregate mismatch.
+  TIMESTAMP/TIMESTAMP_LTZ values are admitted for MIN/MAX and COUNT(DISTINCT),
+  while ordinary COUNT(value) remains numeric.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
+- Single-phase TIMESTAMP/TIMESTAMP_LTZ MIN/MAX in HOP/CUMULATE, including legacy HOP.
+  Two-phase event-time execution is admitted; single-phase overlapping execution still needs
+  performance work in [#324](https://github.com/datafusion-contrib/StreamFusion/issues/324).
 - Single-phase aggregation over attached window bounds. Attached windows are native through
   the two-phase local/global path.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:

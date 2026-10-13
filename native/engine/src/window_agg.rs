@@ -1,8 +1,42 @@
 use crate::*;
-use streamfusion_bridge::timestamp::TimestampColumn;
+use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+enum WindowResultColumn {
+    Scalars(Vec<ScalarValue>),
+    Timestamps(Vec<Option<TimestampValue>>),
+}
+
+impl WindowResultColumn {
+    fn new(aggregate: &WindowAggregate) -> Self {
+        match aggregate {
+            WindowAggregate::TimestampExtreme { .. } => Self::Timestamps(Vec::new()),
+            _ => Self::Scalars(Vec::new()),
+        }
+    }
+
+    fn push(&mut self, accumulator: &mut dyn Accumulator) -> Result<(), DataFusionError> {
+        match self {
+            Self::Scalars(values) => values.push(accumulator.evaluate()?),
+            Self::Timestamps(values) => values.push(
+                (accumulator as &dyn std::any::Any)
+                    .downcast_ref::<crate::aggregates::TimestampExtremeAccumulator>()
+                    .expect("timestamp extrema factory")
+                    .value(),
+            ),
+        }
+        Ok(())
+    }
+
+    fn into_array(self, data_type: &DataType) -> ArrayRef {
+        match self {
+            Self::Scalars(values) => scalars_to_array(values, data_type),
+            Self::Timestamps(values) => Arc::new(timestamp_array(values)),
+        }
+    }
+}
 
 /// Every aligned window a timestamp (millis) belongs to, as (start, end) millis pairs, appended to
 /// `windows` (cleared first) so the caller can reuse one buffer. Tumbling yields one window; hopping
@@ -590,8 +624,8 @@ impl TumblingAggregator {
         self.accumulate_grouped(grouped, values, batch.column_by_name(ROW_KIND_COLUMN))
     }
 
-    /// Folds the grouped row positions into their (window, key) accumulators. The value columns are
-    /// selected by Arrow slice or type-agnostic `take`, so each accumulator sees its column's own type. When a memory
+    /// Folds grouped rows into their (window, key) accumulators. Timestamp extrema read
+    /// selected rows directly; other columns use Arrow slices or type-preserving `take`. When a memory
     /// budget is set, each touched group's footprint change is folded into the tracked state size —
     /// measuring only touched groups keeps accounting O(batch), not O(open state).
     fn accumulate_grouped(
@@ -601,23 +635,45 @@ impl TumblingAggregator {
         changes: Option<&ArrayRef>,
     ) -> Result<(), DataFusionError> {
         let track = self.memory.tracking();
-        for ((start, end, key), rows) in grouped {
+        let timestamps: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(values)
+            .map(|(aggregate, values)| aggregate.timestamp_column(values))
+            .collect::<Result<_, _>>()?;
+        for ((start, end, key), mut rows) in grouped {
             let slice = rows
                 .first()
                 .copied()
                 .filter(|first| rows.last().copied() == Some(*first + rows.len() as u32 - 1))
                 .map(|start| (start as usize, rows.len()));
-            let indices = (slice.is_none() || self.scalar_inputs.iter().any(|scalar| !scalar))
-                .then(|| UInt32Array::from(rows));
-            let columns: Vec<ArrayRef> = values
+            let indices = (slice.is_none()
+                || self
+                    .scalar_inputs
+                    .iter()
+                    .zip(&timestamps)
+                    .any(|(scalar, timestamp)| !scalar && timestamp.is_none()))
+            .then(|| UInt32Array::from(std::mem::take(&mut rows)));
+            let selected_rows = indices
+                .as_ref()
+                .map(|array| array.values().as_ref())
+                .unwrap_or(&rows);
+            let columns: Vec<Option<ArrayRef>> = values
                 .iter()
                 .zip(&self.scalar_inputs)
-                .map(|(value, scalar)| match (slice, scalar) {
-                    (Some((offset, length)), true) => value.slice(offset, length),
-                    _ => take(value, indices.as_ref().expect("selection indices"), None)
-                        .expect("failed to take values"),
+                .zip(&timestamps)
+                .map(|((value, scalar), timestamp)| {
+                    if timestamp.is_some() {
+                        Ok(None)
+                    } else {
+                        match (slice, scalar) {
+                            (Some((offset, length)), true) => Ok(Some(value.slice(offset, length))),
+                            _ => take(value, indices.as_ref().expect("selection indices"), None)
+                                .map(Some),
+                        }
+                    }
                 })
-                .collect();
+                .collect::<Result<_, _>>()?;
             let changes = if self.live_count.is_some() {
                 changes
                     .map(|kinds| match slice {
@@ -638,11 +694,17 @@ impl TumblingAggregator {
             }
             let accumulators = self.accumulators(start, end, key);
             for (i, accumulator) in accumulators.iter_mut().enumerate() {
+                if let Some(column) = &timestamps[i] {
+                    (accumulator.as_mut() as &mut dyn std::any::Any)
+                        .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()
+                        .expect("timestamp extrema factory")
+                        .update_rows(column, selected_rows)?;
+                    continue;
+                }
+                let values = columns[i].as_ref().expect("selected aggregate values");
                 match &changes {
-                    Some(kinds) => {
-                        accumulator.update_batch(&[columns[i].clone(), kinds.clone()])?
-                    }
-                    None => accumulator.update_batch(std::slice::from_ref(&columns[i]))?,
+                    Some(kinds) => accumulator.update_batch(&[values.clone(), kinds.clone()])?,
+                    None => accumulator.update_batch(std::slice::from_ref(values))?,
                 }
             }
             if track {
@@ -664,11 +726,14 @@ impl TumblingAggregator {
         if self.store.is_some() {
             return self.flush_store(watermark);
         }
-        let n = self.aggregates.len();
         let mut keys: Vec<OwnedRow> = Vec::new();
         let mut starts = Vec::new();
         let mut ends = Vec::new();
-        let mut results: Vec<Vec<ScalarValue>> = vec![Vec::new(); n];
+        let mut results: Vec<_> = self
+            .aggregates
+            .iter()
+            .map(WindowResultColumn::new)
+            .collect();
         for end in self.closed_windows(watermark) {
             let window = self.windows.remove(&end).expect("window present");
             let start = window.start;
@@ -684,7 +749,7 @@ impl TumblingAggregator {
                 starts.push(start);
                 ends.push(end);
                 for (i, accumulator) in accumulators.iter_mut().enumerate() {
-                    results[i].push(accumulator.evaluate().expect("failed to finalize"));
+                    results[i].push(accumulator.as_mut())?;
                 }
             }
         }
@@ -702,11 +767,14 @@ impl TumblingAggregator {
             .as_mut()
             .expect("window-aggregate rocksdb store")
             .take_closed(watermark)?;
-        let n = self.aggregates.len();
         let mut keys: Vec<OwnedRow> = Vec::with_capacity(fired.len());
         let mut starts = Vec::with_capacity(fired.len());
         let mut ends = Vec::with_capacity(fired.len());
-        let mut results: Vec<Vec<ScalarValue>> = vec![Vec::new(); n];
+        let mut results: Vec<_> = self
+            .aggregates
+            .iter()
+            .map(WindowResultColumn::new)
+            .collect();
         let converter = self
             .key_converter
             .as_ref()
@@ -721,7 +789,7 @@ impl TumblingAggregator {
             starts.push(group.start);
             ends.push(group.end);
             for (i, accumulator) in accumulators.iter_mut().enumerate() {
-                results[i].push(accumulator.evaluate().expect("failed to finalize"));
+                results[i].push(accumulator.as_mut())?;
             }
         }
         Ok(self.final_batch(keys, starts, ends, results))
@@ -743,7 +811,7 @@ impl TumblingAggregator {
         keys: Vec<OwnedRow>,
         starts: Vec<i64>,
         ends: Vec<i64>,
-        results: Vec<Vec<ScalarValue>>,
+        results: Vec<WindowResultColumn>,
     ) -> RecordBatch {
         let mut fields = key_fields(&self.key_types);
         let mut columns = decode_keys(self.key_converter.as_ref(), &keys, &self.key_types);
@@ -751,7 +819,7 @@ impl TumblingAggregator {
         fields.push(Field::new("window_end", DataType::Int64, false));
         columns.push(Arc::new(Int64Array::from(starts)));
         columns.push(Arc::new(Int64Array::from(ends)));
-        for (i, scalars) in results.into_iter().enumerate() {
+        for (i, values) in results.into_iter().enumerate() {
             // Nullable: a SUM whose window saw only NULL values (or whose decimal sum overflowed)
             // evaluates to NULL, matching the host.
             fields.push(Field::new(
@@ -759,7 +827,7 @@ impl TumblingAggregator {
                 self.aggregates[i].result_type(),
                 true,
             ));
-            columns.push(scalars_to_array(scalars, &self.aggregates[i].result_type()));
+            columns.push(values.into_array(&self.aggregates[i].result_type()));
         }
         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
             .expect("failed to build result batch")
@@ -876,6 +944,12 @@ impl TumblingAggregator {
             self.hydrate_store_groups(batch, &touched)?;
         }
 
+        let timestamps: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(&partials)
+            .map(|(aggregate, fields)| aggregate.timestamp_column(fields[0]))
+            .collect::<Result<_, _>>()?;
         let track = self.memory.tracking();
         for row in 0..batch.num_rows() {
             let slice_end = slice_ends.value(row);
@@ -890,6 +964,13 @@ impl TumblingAggregator {
                 }
                 let accumulators = self.accumulators(start, end, key.clone());
                 for (i, accumulator) in accumulators.iter_mut().enumerate() {
+                    if let Some(column) = &timestamps[i] {
+                        (accumulator.as_mut() as &mut dyn std::any::Any)
+                            .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()
+                            .expect("timestamp extrema factory")
+                            .update_row(column, row)?;
+                        continue;
+                    }
                     let state: Vec<ArrayRef> = partials[i]
                         .iter()
                         .map(|column| column.slice(row, 1))
