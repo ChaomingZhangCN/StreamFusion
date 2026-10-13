@@ -10,12 +10,18 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class NativeExecutionTest {
   private static final String CALC =
       "org.apache.flink.table.planner.runtime.stream.sql.CalcITCase#testLongProjectionList";
   private static final String WINDOW =
       "org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow";
+  private static final String FALLBACK =
+      "org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariableTopSize";
+  private static final String FALLBACK_REASON =
+      "Top-N: nullable variable rank bounds require Flink's row-access semantics";
 
   @TempDir Path reports;
 
@@ -77,20 +83,31 @@ class NativeExecutionTest {
     assertThrows(AssertionError.class, () -> NativeExecution.finish(second));
   }
 
-  @Test
-  void twoPhaseWindowsRequireBothHalves() {
-    NativeExecution.Scope first = begin(WINDOW);
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void twoPhaseWindowsRequireBothHalves(boolean splitDistinct) {
+    NativeExecution.Scope first = NativeExecution.begin(WINDOW, new WindowFixture(splitDistinct));
     Object local = new NativeColumnarLocalWindowAggregateOperator();
     NativeExecution.opened(local);
     NativeExecution.completed(local, 5);
     assertThrows(AssertionError.class, () -> NativeExecution.finish(first));
-    NativeExecution.Scope second = begin(WINDOW);
+    NativeExecution.Scope second = NativeExecution.begin(WINDOW, new WindowFixture(splitDistinct));
     Object global = new NativeColumnarGlobalWindowAggregateOperator();
     NativeExecution.opened(local);
     NativeExecution.opened(global);
     NativeExecution.completed(local, 5);
     NativeExecution.completed(global, 2);
     NativeExecution.finish(second);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void splitDistinctCannotBeProvenByCalcOrSinglePhaseWork(boolean calcOnly) {
+    NativeExecution.Scope scope = NativeExecution.begin(WINDOW, new WindowFixture(true));
+    Object operator = calcOnly ? new NativeCalcOperator() : new NativeColumnarWindowAggregateOperator();
+    NativeExecution.opened(operator);
+    NativeExecution.completed(operator, 5);
+    assertThrows(AssertionError.class, () -> NativeExecution.finish(scope));
   }
 
   @Test
@@ -158,17 +175,15 @@ class NativeExecutionTest {
 
   @Test
   void expectedFallbackRequiresItsSpecificReasonAndNoNativeWork() {
-    NativeExecution.Scope scope = NativeExecution.begin(WINDOW, new WindowFixture(true));
-    NativeExecution.fallback(
-        "window aggregate: attached-window aggregation requires two-phase execution");
+    NativeExecution.Scope scope = begin(FALLBACK);
+    NativeExecution.fallback(FALLBACK_REASON);
     NativeExecution.finish(scope);
-    scope = NativeExecution.begin(WINDOW, new WindowFixture(true));
+    scope = begin(FALLBACK);
     NativeExecution.fallback("different unsupported function");
     NativeExecution.Scope wrongReason = scope;
     assertThrows(AssertionError.class, () -> NativeExecution.finish(wrongReason));
-    scope = NativeExecution.begin(WINDOW, new WindowFixture(true));
-    NativeExecution.fallback(
-        "window aggregate: attached-window aggregation requires two-phase execution");
+    scope = begin(FALLBACK);
+    NativeExecution.fallback(FALLBACK_REASON);
     Object window = new NativeColumnarWindowAggregateOperator();
     NativeExecution.opened(window);
     NativeExecution.completed(window, 1);

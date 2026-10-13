@@ -14,6 +14,8 @@ import summarize
 class NativeExecutionSummaryTest(unittest.TestCase):
     CALC = "org.apache.flink.table.planner.runtime.stream.sql.CalcITCase#testLongProjectionList"
     WINDOW = "org.apache.flink.table.planner.runtime.stream.sql.WindowDistinctAggregateITCase#testHopWindow"
+    FALLBACK = "org.apache.flink.table.planner.runtime.stream.sql.RankITCase#testTopNWithVariableTopSize"
+    FALLBACK_REASON = "Top-N: nullable variable rank bounds require Flink's row-access semantics"
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -180,23 +182,35 @@ class NativeExecutionSummaryTest(unittest.TestCase):
 
     def test_expected_fallback_is_counted_separately_and_requires_its_reason(self):
         self.record(
-            self.WINDOW,
+            self.FALLBACK,
             "",
-            variant="splitDistinct=true",
-            reasons="window aggregate: attached-window aggregation requires two-phase execution",
+            reasons=self.FALLBACK_REASON,
         )
-        self.assertEqual((0, 1, []), self.check({self.WINDOW: 1}))
+        self.assertEqual((0, 1, []), self.check({self.FALLBACK: 1}))
         self.record(
-            self.WINDOW, "", variant="splitDistinct=true", reasons="different reason"
+            self.FALLBACK, "", reasons="different reason"
         )
-        self.assertTrue(self.check({self.WINDOW: 1})[2])
+        self.assertTrue(self.check({self.FALLBACK: 1})[2])
+        self.record(
+            self.FALLBACK,
+            "NativeColumnarWindowAggregateOperator=1",
+            reasons=self.FALLBACK_REASON,
+        )
+        self.assertTrue(self.check({self.FALLBACK: 1})[2])
+
+    def test_split_distinct_requires_work_from_both_window_stages(self):
+        for counts in ("", "NativeCalcOperator=3", "NativeColumnarWindowAggregateOperator=3",
+                       "NativeColumnarLocalWindowAggregateOperator=3",
+                       "NativeColumnarGlobalWindowAggregateOperator=2"):
+            with self.subTest(counts=counts):
+                self.record(self.WINDOW, counts, variant="splitDistinct=true")
+                self.assertTrue(self.check({self.WINDOW: 1})[2])
         self.record(
             self.WINDOW,
-            "NativeColumnarWindowAggregateOperator=1",
+            "NativeColumnarLocalWindowAggregateOperator=3,NativeColumnarGlobalWindowAggregateOperator=2",
             variant="splitDistinct=true",
-            reasons="window aggregate: attached-window aggregation requires two-phase execution",
         )
-        self.assertTrue(self.check({self.WINDOW: 1})[2])
+        self.assertEqual((1, 0, []), self.check({self.WINDOW: 1}))
 
     def test_wrong_variant_does_not_prove_native_execution(self):
         self.record(

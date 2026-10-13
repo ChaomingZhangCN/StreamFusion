@@ -1,5 +1,6 @@
 package tech.streamfusion;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -21,22 +22,46 @@ import tech.streamfusion.planner.NativePlanner;
 
 class FlinkWindowCountDistinctSqlHarnessTest {
   @ParameterizedTest
-  @ValueSource(strings = {"TUMBLE", "HOP", "CUMULATE"})
-  void splitDistinctRetainsOnlyTheUnimplementedWindowFallback(String shape) throws Exception {
+  @CsvSource({
+    "ONE_PHASE,TUMBLE", "TWO_PHASE,TUMBLE", "ONE_PHASE,HOP", "TWO_PHASE,HOP",
+    "ONE_PHASE,CUMULATE", "TWO_PHASE,CUMULATE"
+  })
+  void splitDistinctPreservesResultsAndTheAttachedWindowPhaseGate(String phase, String shape) {
     String sql = "SELECT k, window_start, window_end, COUNT(DISTINCT i), COUNT(DISTINCT s) "
         + "FROM TABLE(" + window(shape) + ") GROUP BY k, window_start, window_end";
-    java.util.function.Supplier<TableEnvironment> factory = () -> {
-      var table = environment("TWO_PHASE");
+    checkSplitDistinct(phase, sql);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"TUMBLE", "HOP", "CUMULATE"})
+  void splitDistinctPreservesMixedExactAggregatesAndNullOnlyGroups(String shape) {
+    String grouping = shape.equals("TUMBLE") ? "" : "k, ";
+    String sql = "SELECT " + grouping + "window_start, window_end, COUNT(*), SUM(d), "
+        + "SUM(v), MIN(i), MAX(v), COUNT(DISTINCT s) FROM TABLE(" + window(shape)
+        + ") GROUP BY " + grouping + "window_start, window_end";
+    checkSplitDistinct("TWO_PHASE", sql);
+  }
+
+  private static void checkSplitDistinct(String phase, String sql) {
+    var runs = NativeFailureParity.run(() -> {
+      var table = environment(phase);
       table.getConfig().set("table.optimizer.distinct-agg.split.enabled", "true");
       return table;
-    };
-    var table = factory.get();
-    var scan = NativePlanner.install(table);
-    table.explainSql(sql);
-    assertTrue(scan.fallbackReasons().stream().noneMatch(reason -> reason.contains("HASH_CODE")),
-        scan.fallbackReasons().toString());
-    NativeParity.assertFallbackReasonContains(factory, sql,
-        "attached-window aggregation requires two-phase execution");
+    }, sql);
+    runs.assertSuccess(phase.equals("TWO_PHASE") ? NativeFailureParity.Route.NATIVE
+        : NativeFailureParity.Route.FALLBACK);
+    assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
+    assertTrue(runs.nativeRun().fallbackReasons().stream()
+        .noneMatch(reason -> reason.contains("HASH_CODE")), runs.nativeRun().toString());
+    if (phase.equals("TWO_PHASE")) {
+      String plan = runs.nativeRun().plan();
+      assertTrue(plan.contains("NativeColumnarLocalWindowAggregate"), plan);
+      assertTrue(plan.contains("NativeColumnarGlobalWindowAggregate"), plan);
+    } else {
+      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
+          reason -> reason.contains("attached-window aggregation requires two-phase execution")),
+          runs.nativeRun().toString());
+    }
   }
 
   @ParameterizedTest

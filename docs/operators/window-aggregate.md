@@ -421,13 +421,16 @@ enables columnar composition with downstream consumers; it is not a standalone t
   changelog even when final output is append-only.
   The diagnostic names the supported retracting forms. Remaining coverage is tracked in
   [#99](https://github.com/datafusion-contrib/StreamFusion/issues/99).
-- Flink's optional `table.optimizer.distinct-agg.split.enabled=true` rewrite. The unchanged
-  split-distinct IT variants introduce extra window layers, including attached single-phase
-  aggregation and partial layouts outside current admission. `HASH_CODE` itself is supported;
-  the remaining physical window layouts are tracked in
+- Unverified physical layouts from Flink's optional
+  `table.optimizer.distinct-agg.split.enabled=true` rewrite. With two-phase aggregation,
+  the verified TUMBLE/HOP/CUMULATE layouts now run natively: `HASH_CODE` assigns distinct
+  buckets and exact SUM0 reductions merge their counts. The unchanged upstream DISTINCT
+  window tests require nonempty work from both native local and global stages. SQL parity
+  also covers multiple distinct arguments, mixed exact aggregates, NULL-only groups, result
+  types and RowKinds. Attached single-phase aggregation still falls back as a complete
+  pipeline; a forced `ONE_PHASE` regression verifies that gate. Other split layouts remain
+  subject to the individual aggregate and partial-layout gates, tracked in
   [#166](https://github.com/datafusion-contrib/StreamFusion/issues/166).
-  Those variants fall back as a complete pipeline. The same queries with distinct splitting
-  disabled use the native value-set path; upstream execution contracts verify both routes.
 
 A **zero-aggregate grouping-only window** (`GROUP BY key + window`, no aggregate function)
 is a windowed distinct, emitting one row per `(key, window)`. It supports insert-only input

@@ -150,7 +150,11 @@ execute either a single-phase native window aggregate or **both** native local a
 when the fixture's `splitDistinct` parameter is false.
 Each parameter variant must satisfy its own contract, including backend, mini-batch, async-state,
 and distinct-splitting variants selected by the pinned tests. The `splitDistinct=true` variants
-explicitly require full fallback because attached-window aggregation needs two-phase execution.
+require nonempty work from **both** native local and global window aggregates, since exact SUM0
+supports the split-count reductions. A native Calc or a single window stage is insufficient.
+Flink 1.18's changelog-state variants retain the explicit backend fallback contract, independently
+of distinct splitting. The separate SQL parity suite retains forced single-phase attached-window
+fallback checks; these are not the plans used by the upstream split-distinct witnesses.
 `CalcITCase.testIfFunction` requires a native Calc. A fixture parameter change that prevents selecting exactly
 one contract fails the test. Native and expected-fallback counts are reported separately.
 `WindowAggregateITCase.testRetractPreviousSlicingStateWithSlicingWindow` also requires fallback
