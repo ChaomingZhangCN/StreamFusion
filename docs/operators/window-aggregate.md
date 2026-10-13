@@ -158,7 +158,17 @@ throughput guarantees. No samples were removed: all 160 measured samples, includ
 stock controls, are retained in [the raw CSV](../benchmarks/string-window-extrema-2026-10-10.csv).
 The single-phase regression is not accepted as a default acceleration path. Inspection of the
 native fold shows per-group Arrow gathers and generic string accumulator updates; optimization
-of that high-cardinality path remains necessary before removing the opt-in.
+of that high-cardinality path remains necessary before removing the opt-in. Contiguous groups
+now use retained Arrow slices as described in the later measurements; those TUMBLE results do
+not establish the performance of every HOP/CUMULATE shape, so the opt-in stays in place.
+
+Additional SQL comparisons cover embedded NULs, long values, supplementary characters and
+runtime lone-surrogate strings at parallelism one and two, including Flink source serialization
+before extrema ordering. HOP recovery injects two failures after completed checkpoints on memory
+and RocksDB and requires work from every native stage. Controlled-clock processing-time tests
+verify extrema, NULL-only groups and timer firing after restore on both backends. Single-phase
+SQL and recovery coverage explicitly enables the experimental switch; default admission stays
+as documented above.
 
 ## Temporal extrema benchmarks
 
@@ -866,3 +876,79 @@ changing the production path or measured boundary.
 For zero-property legacy group-window complete jobs, append `-Dhandoff.job.properties=0`.
 The benchmark verifies the group-window native node and both transposes, collecting and checking
 key/count/sum results without window fields.
+
+## String extrema measurements
+
+`WindowStringExtremaBenchmark` compares runtime nullable STRING MIN/MAX plus COUNT(*) against
+stock Flink and the previous whole-query fallback. It requires both transposes, the expected
+single-phase or local/global operators and positive consumed-row metrics for the current native
+job. Each trial compares values and RowKinds. Strings vary within each key, every seventh value
+is NULL and one key contains only NULLs.
+
+On 2026-10-13, Apple M4 Pro, JDK 17.0.12, released Flink 2.2.1, UTC, parallelism 2 and
+release/mimalloc, two warmups and five rotating-order samples per engine gave these medians.
+These measurements precede the rebase onto #336: the implementation base was `a3d62316`,
+and the old native control was an unshipped admission-only prototype. Its whole-query fallback
+control represents that earlier main, not #336's now-admitted local/global string windows.
+Single-phase measurements explicitly enable
+`streamfusion.window.string-extrema.single-phase.enabled`; the production default remains off.
+The bench profile keeps Arrow IPC shuffle enabled. SQL submission through the collecting rowwise
+sink is timed; the shared MiniCluster startup and view registration are outside measurement.
+
+| Rows | Keys | Phase | String bytes | Flink (s) | Native (s) | Previous fallback (s) | Flink/native |
+| ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 2,000,000 | 64 | ONE_PHASE | 16 | 0.648232 | 0.437016 | 0.656118 | 1.483x |
+| 2,000,000 | 64 | ONE_PHASE | 256 | 0.651583 | 0.534951 | 0.652633 | 1.218x |
+| 2,000,000 | 64 | TWO_PHASE | 16 | 0.666331 | 0.429723 | 0.672041 | 1.551x |
+| 2,000,000 | 64 | TWO_PHASE | 256 | 0.668973 | 0.535110 | 0.664206 | 1.250x |
+| 2,000,000 | 4096 | ONE_PHASE | 16 | 0.666074 | 0.542064 | 0.665584 | 1.229x |
+| 2,000,000 | 4096 | ONE_PHASE | 256 | 0.926774 | 0.811265 | 0.928040 | 1.142x |
+| 2,000,000 | 4096 | TWO_PHASE | 16 | 0.885648 | 0.639103 | 0.885113 | 1.386x |
+| 2,000,000 | 4096 | TWO_PHASE | 256 | 1.252294 | 0.917272 | 1.260347 | 1.365x |
+| 20,000,000 | 4096 | ONE_PHASE | 256 | 6.655892 | 5.621734 | 6.557417 | 1.184x |
+
+The unshipped admission-only prototype was slower for high-cardinality wide strings. Replacing
+contiguous per-key `take` copies with Arrow slices removes that gap; noncontiguous and nested
+values retain `take`. Some short jobs vary by about 0.1 seconds. The 20M-row control provides a longer processing
+boundary; its medians improve on both stock Flink and the previous fallback. These are local complete-job diagnostics, not isolated operator throughput,
+a production SLA or exhaustive performance coverage for every admitted window shape/backend.
+All samples, ranges and the prototype control are retained in
+[the result artifact](../benchmarks/results/window-string-extrema-2026-10-13.json).
+
+```sh
+SF_BENCHMARK=true mvn -B -ntp -Pbench -pl streamfusion-runtime -am test \
+  -Dtest=WindowStringExtremaBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dwindow.string.rows=2000000 -Dwindow.string.groups=4096 \
+  -Dwindow.string.warmup=2 -Dwindow.string.runs=5
+```
+
+Use `-Dwindow.string.groups=64` for the lower cardinality and
+`-Dwindow.string.rows=20000000 -Dwindow.string.widths=256 -Dwindow.string.phases=ONE_PHASE`
+for the longer control. Native Criterion's `window_string_extrema` suite separately verifies
+and measures production update/flush at 256/4096 rows, 1/64/batch-sized keys and 16/256-byte
+nullable UTF-8; it excludes construction and the JVM boundary.
+
+### Revalidation against merged main #336
+
+The follow-up comparison uses main `b2e6e629` as the actual native baseline, including its
+string admission, with unchanged production Java in the candidate. The matched Criterion
+harness is added to the baseline without changing its Rust operator. Complete jobs use
+release/mimalloc with the same setup, two warmups and five observations as above: 2M rows,
+4096 keys, nullable strings, both transposes and a collecting row sink. All eight fixtures
+compare output and verify current-job native work.
+
+| Phase | String bytes | Main Flink (s) | Main native (s) | Candidate Flink (s) | Candidate native (s) | Candidate Flink/native |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ONE_PHASE | 16 | 0.562129 | 0.651480 | 0.662468 | 0.548461 | 1.208x |
+| ONE_PHASE | 256 | 1.024714 | 1.020580 | 0.930639 | 0.811809 | 1.146x |
+| TWO_PHASE | 16 | 0.778079 | 0.753612 | 0.883681 | 0.637581 | 1.386x |
+| TWO_PHASE | 256 | 1.263004 | 1.224792 | 1.258469 | 0.920997 | 1.366x |
+
+Main and candidate run in separate JVMs; their stock baselines differ, so the observed
+1.18-1.33x native-before/after ratios are not confidence bounds. Candidate native beats its
+matched stock and forced-fallback controls in these TUMBLE fixtures. This does not establish
+HOP/CUMULATE performance, and single-phase admission remains opt-in. No samples are discarded.
+The [new result artifact](../benchmarks/results/window-string-extrema-main336-2026-10-13.json)
+retains all complete-job samples, library hashes and six matching Criterion cases with raw
+samples and confidence intervals. The [optimization ledger](../optimizations/string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges)
+records the native gains and the noncontiguous control's small regression.

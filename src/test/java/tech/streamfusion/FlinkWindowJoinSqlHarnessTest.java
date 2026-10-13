@@ -230,11 +230,11 @@ class FlinkWindowJoinSqlHarnessTest {
             + "', 'format' = 'parquet')");
     tEnv.executeSql(
             "INSERT INTO in_write VALUES "
-                + "(1, 10, TO_TIMESTAMP_LTZ(100, 3)), "
-                + "(1, 20, TO_TIMESTAMP_LTZ(1500, 3)), "
-                + "(2, 30, TO_TIMESTAMP_LTZ(200, 3)), "
-                + "(1, 40, TO_TIMESTAMP_LTZ(1700, 3)), "
-                + "(3, 50, TO_TIMESTAMP_LTZ(400, 3))")
+                + "(1, 10, TO_TIMESTAMP_LTZ(1704067200100, 3)), "
+                + "(1, 20, TO_TIMESTAMP_LTZ(1704067201500, 3)), "
+                + "(2, 30, TO_TIMESTAMP_LTZ(1704067200200, 3)), "
+                + "(1, 40, TO_TIMESTAMP_LTZ(1704067201700, 3)), "
+                + "(3, 50, TO_TIMESTAMP_LTZ(1704067200400, 3))")
         .await();
   }
 

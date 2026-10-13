@@ -205,6 +205,73 @@ class NativeColumnarWindowAggregateOperatorTest {
           },
           new String[] {"key", "total", "window_start", "window_end"});
 
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void processingTimeStringExtremaContinueAfterRestore(boolean rocks) throws Exception {
+    RowType input = RowType.of(
+        new BigIntType(), new VarCharType(VarCharType.MAX_LENGTH), new LocalZonedTimestampType(3));
+    RowType output = RowType.of(
+        new BigIntType(), new VarCharType(VarCharType.MAX_LENGTH),
+        new VarCharType(VarCharType.MAX_LENGTH), new TimestampType(3), new TimestampType(3));
+    OperatorSubtaskState snapshot;
+    try (BufferAllocator allocator = new RootAllocator();
+        var before = stringProctimeHarness(output, rocks)) {
+      before.setup(new ArrowBatchSerializer());
+      before.open();
+      before.setProcessingTime(500);
+      before.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(
+          List.of(GenericRowData.of(1L, StringData.fromString("z"), TimestampData.fromEpochMillis(9999)),
+              GenericRowData.of(1L, null, TimestampData.fromEpochMillis(9999)),
+              GenericRowData.of(2L, null, TimestampData.fromEpochMillis(9999))), input, allocator))));
+      snapshot = before.snapshot(1L, 1L);
+      assertTrue(before.getOutput().isEmpty());
+    }
+    String wide = "\u4e2d".repeat(1024);
+    try (BufferAllocator allocator = new RootAllocator();
+        var restored = stringProctimeHarness(output, rocks)) {
+      restored.setup(new ArrowBatchSerializer());
+      restored.initializeState(snapshot);
+      restored.open();
+      restored.setProcessingTime(800);
+      restored.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(
+          List.of(GenericRowData.of(1L, StringData.fromString(""), TimestampData.fromEpochMillis(-9999)),
+              GenericRowData.of(1L, StringData.fromString(wide), TimestampData.fromEpochMillis(-9999)),
+              GenericRowData.of(2L, null, TimestampData.fromEpochMillis(-9999))), input, allocator))));
+      restored.setProcessingTime(998);
+      assertTrue(restored.getOutput().isEmpty());
+      restored.setProcessingTime(999);
+      List<List<Object>> rows = new ArrayList<>();
+      while (!restored.getOutput().isEmpty()) {
+        Object event = restored.getOutput().poll();
+        if (event instanceof StreamRecord<?>) {
+          try (var root = ((ArrowBatch) ((StreamRecord<?>) event).getValue()).root()) {
+            for (RowData row : RowDataArrowConverter.read(root, output)) {
+              rows.add(java.util.Arrays.asList(row.getRowKind(), row.getLong(0),
+                  row.isNullAt(1) ? null : row.getString(1).toString(),
+                  row.isNullAt(2) ? null : row.getString(2).toString(),
+                  row.getTimestamp(3, 3).getMillisecond(), row.getTimestamp(4, 3).getMillisecond()));
+            }
+          }
+        }
+      }
+      rows.sort(java.util.Comparator.comparingLong(row -> (Long) row.get(1)));
+      assertEquals(List.of(
+          java.util.Arrays.asList(org.apache.flink.types.RowKind.INSERT, 1L, "", wide, 0L, 1000L),
+          java.util.Arrays.asList(org.apache.flink.types.RowKind.INSERT, 2L, null, null, 0L, 1000L)), rows);
+    }
+  }
+
+  private static KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch>
+      stringProctimeHarness(RowType output, boolean rocks) throws Exception {
+    var harness = rawHarness(new NativeColumnarWindowAggregateOperator(false, 1000, 1000, 2,
+        new int[] {1, 1}, new int[] {0}, new int[] {0}, new int[] {3, 3}, new int[] {1, 2},
+        "UTC", output, true, new int[] {-1}, MAX_PARALLELISM));
+    if (rocks) harness.setStateBackend(new tech.streamfusion.state.RocksDBNativeStateBackendFactory()
+        .createFromConfig(new org.apache.flink.configuration.Configuration(),
+            NativeColumnarWindowAggregateOperatorTest.class.getClassLoader()));
+    return harness;
+  }
+
   @Test
   void proctimeRowsAtAFiredTimersClockAreNotLate() throws Exception {
     try (BufferAllocator allocator = new RootAllocator();

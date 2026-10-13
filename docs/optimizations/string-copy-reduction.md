@@ -1,7 +1,7 @@
 # String copies and intermediate buffers
 
-**Applies to:** the RowData→Arrow entry transpose, the synchronous lookup join, and string expressions
-in [Calc / Filter](../operators/calc-filter.md)
+**Applies to:** the RowData→Arrow entry transpose, the synchronous lookup join, string expressions
+in [Calc / Filter](../operators/calc-filter.md), and aligned window aggregation.
 
 ## Entry transpose: one copy instead of two
 
@@ -68,3 +68,60 @@ native-to-native hashing comparison above is the evidence for the allocation opt
 
 The concatenation cases still lose to Flink end to end. Removing redundant work improves the
 nullable case within the native pipeline; it does not establish a standalone concatenation win.
+
+## Window groups: borrow contiguous value ranges
+
+The window update path groups input positions by key/window before folding each aggregate. A
+high-cardinality batch often contributes only one row per group; Arrow `take` previously copied
+each group's string payload anyway. Group positions arrive in increasing order without duplicates,
+so their endpoints determine whether they form a contiguous range. Such groups now share Arrow
+slices for primitive and UTF-8 values and apply the same selection to RowKinds. Noncontiguous
+groups retain `take`. Nested values also retain it: a generic DISTINCT scalar can keep child
+buffers in state, and a slice could retain an entire input batch rather than the group's values.
+The partial/checkpoint layout, extrema ordering and NULL behavior remain unchanged.
+
+An async-profiler 4.5 CPU recording of the high-cardinality wide-string prototype attributed
+2,288 of 5,319 samples inside native grouped accumulation to Arrow `take` stacks (43%). The
+recording includes all three engines and setup, so this is a share of that native subtree,
+not whole-job CPU. Release Criterion isolates production update/flush with matching nullable
+UTF-8 fixtures and the system counting allocator:
+
+| Rows / keys / string bytes | Before mean (us) | After mean (us) | Allocation requests before / after |
+| --- | ---: | ---: | ---: |
+| 256 / 256 / 16 | 159.844 | 104.061 | 6,766 / 3,512 |
+| 256 / 256 / 256 | 179.101 | 125.392 | 6,774 / 3,520 |
+| 4096 / 4096 / 16 | 2644.862 | 1748.207 | 106,104 / 54,028 |
+| 4096 / 4096 / 256 | 2920.753 | 2123.312 | 106,112 / 54,036 |
+
+One-key fixtures also improve; noncontiguous 64-key controls are approximately flat, within
+about +/-2% in this short run. Allocation requests are not copied-byte or peak-memory counts.
+Aggregate output buffers are newly materialized, so zero shared output-buffer bytes does not
+mean input selection copied. Criterion excludes JVM/JNI and uses the unaccounted-budget adapter;
+the [complete-job comparison](../operators/window-aggregate.md#string-extrema-measurements)
+retains normal production costs and both transposes. The
+[result artifact](../benchmarks/results/window-string-extrema-2026-10-13.json) contains all native
+samples, confidence intervals, allocation probes and end-to-end engine samples.
+
+Rust regression coverage includes offset input slices, contiguous/noncontiguous groups, NULLs,
+snapshot continuation and 4,096 one-value TIMESTAMP DISTINCT groups under a 32 MiB state budget.
+
+After #336 merged, the same release Criterion fixtures were compared directly with main
+`b2e6e629` rather than the earlier admission-only prototype. The production Java is identical
+on both sides. Six matching 4096-row fixtures give:
+
+| Keys / string bytes | Main mean (us) | Slice mean (us) | Main/slice | Allocation requests main / slice |
+| --- | ---: | ---: | ---: | ---: |
+| 1 / 16 | 106.885 | 79.946 | 1.337x | 120 / 107 |
+| 1 / 256 | 120.919 | 86.594 | 1.396x | 120 / 107 |
+| 64 / 16 | 179.426 | 180.329 | 0.995x | 2,103 / 2,103 |
+| 64 / 256 | 202.997 | 209.685 | 0.968x | 2,111 / 2,111 |
+| 4096 / 16 | 2650.422 | 1750.930 | 1.514x | 106,104 / 54,028 |
+| 4096 / 256 | 2952.430 | 2064.243 | 1.430x | 106,112 / 54,036 |
+
+The noncontiguous 64-key cases still use `take`: their allocation requests are unchanged,
+and the wide control is about 3.3% slower in this follow-up. The improvement is specific to
+contiguous selections. Full TUMBLE jobs retain both transposes and outperform matched stock
+Flink by 1.15-1.39x in the four follow-up fixtures, while separate-JVM before/after comparisons
+have differing stock baselines. The
+[follow-up artifact](../benchmarks/results/window-string-extrema-main336-2026-10-13.json)
+preserves all samples, intervals and allocation probes, including unfavorable controls.

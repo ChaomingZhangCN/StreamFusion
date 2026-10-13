@@ -246,12 +246,12 @@ class FlinkIntervalJoinSqlHarnessTest {
             + "', 'format' = 'parquet')");
     tEnv.executeSql(
             "INSERT INTO in_write VALUES "
-                + "(1, 10, TO_TIMESTAMP_LTZ(1000, 3)), "
-                + "(1, 20, TO_TIMESTAMP_LTZ(3000, 3)), "
-                + "(2, 30, TO_TIMESTAMP_LTZ(1000, 3)), "
-                + "(1, 40, TO_TIMESTAMP_LTZ(1500, 3)), "
-                + "(2, 50, TO_TIMESTAMP_LTZ(1500, 3)), "
-                + "(3, 60, TO_TIMESTAMP_LTZ(2000, 3))")
+                + "(1, 10, TO_TIMESTAMP_LTZ(1704067201000, 3)), "
+                + "(1, 20, TO_TIMESTAMP_LTZ(1704067203000, 3)), "
+                + "(2, 30, TO_TIMESTAMP_LTZ(1704067201000, 3)), "
+                + "(1, 40, TO_TIMESTAMP_LTZ(1704067201500, 3)), "
+                + "(2, 50, TO_TIMESTAMP_LTZ(1704067201500, 3)), "
+                + "(3, 60, TO_TIMESTAMP_LTZ(1704067202000, 3))")
         .await();
   }
 
@@ -268,7 +268,7 @@ class FlinkIntervalJoinSqlHarnessTest {
                     Row.of(
                         i % 8,
                         i,
-                        java.time.Instant.ofEpochMilli((i / 8) * 1000L + (i % 8) * 100L)))
+                        java.time.Instant.ofEpochMilli(1704067200000L + (i / 8) * 1000L + (i % 8) * 100L)))
             .returns(
                 Types.ROW_NAMED(
                     new String[] {"k", "v", "rt"}, Types.LONG, Types.LONG, Types.INSTANT));

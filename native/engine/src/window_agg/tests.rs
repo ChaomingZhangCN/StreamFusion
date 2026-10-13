@@ -400,6 +400,130 @@ fn zero_sum_decimal_overflow_partials_latch_across_window_restore() {
     }
 }
 
+#[test]
+fn timestamp_distinct_groups_fit_the_budget_for_their_owned_state() {
+    let rows = 4096;
+    let batch = RecordBatch::try_from_iter(vec![
+        (
+            "ts",
+            Arc::new(Int64Array::from_value(100, rows)) as ArrayRef,
+        ),
+        (
+            "key0",
+            Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+        ),
+        (
+            "value0",
+            Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                (0..rows).map(|_| {
+                    Some(streamfusion_bridge::timestamp::TimestampValue::from_millis(
+                        100,
+                    ))
+                }),
+            )) as ArrayRef,
+        ),
+    ])
+    .unwrap();
+    let mut aggregate = TumblingAggregator::new(1000, 1000, false, vec![1009], vec![7])
+        .with_memory_budget(32 * 1024 * 1024)
+        .unwrap();
+    aggregate.update(&batch).unwrap();
+    let result = aggregate.flush(i64::MAX).unwrap();
+    assert_eq!(result.num_rows(), rows);
+    assert!(column_i64(&result, "result0")
+        .iter()
+        .all(|value| value == Some(1)));
+}
+
+#[test]
+fn string_extrema_keep_sliced_nulls_and_mixed_group_positions_after_restore() {
+    let wide = "long-\u{4e2d}".repeat(256);
+    let batches = [
+        vec![
+            (-99, Some("outside")),
+            (1, Some("z")),
+            (1, None),
+            (2, Some("\u{4e2d}")),
+            (2, Some("a\0")),
+            (3, None),
+            (4, None),
+            (-99, Some("outside")),
+        ],
+        vec![
+            (-99, Some("outside")),
+            (2, Some("\u{1f600}")),
+            (1, Some("")),
+            (2, Some("a ")),
+            (1, Some("z")),
+            (3, None),
+            (4, Some(wide.as_str())),
+            (-99, Some("outside")),
+        ],
+    ];
+    let mut expected = BTreeMap::<i64, (i64, Vec<&str>)>::new();
+    let create = || TumblingAggregator::new(1000, 1000, false, vec![3, 3, 0], vec![1, 2, 3]);
+    let mut aggregate = create();
+    for rows in &batches {
+        let values: ArrayRef = Arc::new(StringArray::from(
+            rows.iter().map(|row| row.1).collect::<Vec<_>>(),
+        ));
+        let batch = RecordBatch::try_from_iter(vec![
+            (
+                "ts",
+                Arc::new(Int64Array::from_value(100, rows.len())) as ArrayRef,
+            ),
+            (
+                "key0",
+                Arc::new(Int64Array::from_iter_values(rows.iter().map(|row| row.0))) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+            (
+                "value2",
+                Arc::new(Int64Array::from_value(1, rows.len())) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        aggregate.update(&batch.slice(1, rows.len() - 2)).unwrap();
+        for &(key, value) in &rows[1..rows.len() - 1] {
+            let (count, values) = expected.entry(key).or_default();
+            *count += 1;
+            values.extend(value);
+        }
+        aggregate = TumblingAggregator::restore(
+            1000,
+            1000,
+            false,
+            vec![3, 3, 0],
+            vec![1, 2, 3],
+            &aggregate.snapshot(),
+        );
+    }
+    let result = aggregate.flush(i64::MAX).unwrap();
+    assert_eq!(result.num_rows(), expected.len());
+    let keys = column_i64(&result, "key0");
+    let count = column_i64(&result, "result2");
+    for (name, minimum) in [("result0", true), ("result1", false)] {
+        let actual = result
+            .column_by_name(name)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        for row in 0..result.num_rows() {
+            let (expected_count, values) = &expected[&keys.value(row)];
+            assert_eq!(count.value(row), *expected_count);
+            let expected = if minimum {
+                values.iter().min()
+            } else {
+                values.iter().max()
+            }
+            .copied();
+            assert_eq!((!actual.is_null(row)).then(|| actual.value(row)), expected);
+        }
+    }
+}
+
 pub(crate) fn retracting_batch(rows: &[(i64, i64, Option<i64>, i8)]) -> RecordBatch {
     let values: ArrayRef = Arc::new(Int64Array::from(
         rows.iter().map(|r| r.2).collect::<Vec<_>>(),

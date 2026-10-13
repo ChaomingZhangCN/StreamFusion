@@ -342,12 +342,12 @@ class FlinkColumnarWindowSqlHarnessTest {
             + "', 'format' = 'parquet')");
     tEnv.executeSql(
             "INSERT INTO in_write VALUES "
-                + "(1, 10, TO_TIMESTAMP_LTZ(0, 3)), "
-                + "(1, 20, TO_TIMESTAMP_LTZ(500, 3)), "
-                + "(2, 100, TO_TIMESTAMP_LTZ(500, 3)), "
-                + "(1, 30, TO_TIMESTAMP_LTZ(1000, 3)), "
-                + "(2, 200, TO_TIMESTAMP_LTZ(1500, 3)), "
-                + "(1, 40, TO_TIMESTAMP_LTZ(2500, 3))")
+                + "(1, 10, TO_TIMESTAMP_LTZ(1704067200000, 3)), "
+                + "(1, 20, TO_TIMESTAMP_LTZ(1704067200500, 3)), "
+                + "(2, 100, TO_TIMESTAMP_LTZ(1704067200500, 3)), "
+                + "(1, 30, TO_TIMESTAMP_LTZ(1704067201000, 3)), "
+                + "(2, 200, TO_TIMESTAMP_LTZ(1704067201500, 3)), "
+                + "(1, 40, TO_TIMESTAMP_LTZ(1704067202500, 3))")
         .await();
   }
 
@@ -388,9 +388,9 @@ class FlinkColumnarWindowSqlHarnessTest {
     // — the late row whose window already closed.
     tEnv.executeSql(
             "INSERT INTO in_write VALUES "
-                + "(1, 10, TO_TIMESTAMP_LTZ(0, 3)), "
-                + "(1, 20, TO_TIMESTAMP_LTZ(5000, 3)), "
-                + "(1, 30, TO_TIMESTAMP_LTZ(500, 3))")
+                + "(1, 10, TO_TIMESTAMP_LTZ(1704067200000, 3)), "
+                + "(1, 20, TO_TIMESTAMP_LTZ(1704067205000, 3)), "
+                + "(1, 30, TO_TIMESTAMP_LTZ(1704067200500, 3))")
         .await();
   }
 }

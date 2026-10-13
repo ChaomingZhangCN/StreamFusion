@@ -171,6 +171,33 @@ writer. These scoped runs do not replace the full-suite inventory above.
 
 ## JSON and formats
 
+### Local Parquet INT96 near the Unix epoch
+
+The released Flink 1.18.1 and 2.2.1 local-time INT96 writer uses Java timestamp
+conversion followed by truncating division and remainder to encode the Julian day
+and nanoseconds of day. Negative converted epoch milliseconds can therefore produce
+negative nanoseconds of day. The released reader passes the remainder to
+`Timestamp.setNanos`, which rejects negative fractional seconds. In `Asia/Shanghai`,
+even positive values immediately after the Unix epoch can cross this boundary.
+This failure occurs in the stock source before a native operator runs.
+The same truncation also writes UTC -1ms as the epoch Julian day plus 999ms;
+the reader returns +999ms without throwing. The regression retains that separate
+released-host value corruption alongside the exception cases.
+
+The general Parquet window, watermark and join fixtures use January 2024 timestamps,
+preserving their relative times and window alignment so both engines reach the
+result comparison in either JVM zone. `NativeParquetTimestampParityTest` separately
+writes released-host INT96 files under UTC and Asia/Shanghai, inspects their raw
+Julian day and nanoseconds of day, and pins the reader's epoch-boundary behavior.
+This fixture change does not fix or expand admission for the released SDK defect;
+deployments reading affected local INT96 files still inherit it. UTC timestamp
+encoding is a separate contract. See [#332](https://github.com/datafusion-contrib/StreamFusion/issues/332).
+
+The validation matrix runs the 45 window/join/watermark/shuffle cases plus ten
+Parquet timestamp controls on released Flink 1.18.1 and 2.2.1 with JDK 17, under
+UTC and Asia/Shanghai. Flink 1.18 retains its two existing unavailable-session
+skips; the remaining cases execute stock/native comparisons and native-route assertions.
+
 The shared nested ARRAY/ROW JSON parity fixtures use each release line's collection-source
 API with identical rows and type information, including multi-batch ownership checks.
 Flink 1.18 cannot generate `JSON_QUERY` with a column-valued path. Those cases assert the

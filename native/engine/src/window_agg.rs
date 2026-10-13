@@ -254,8 +254,6 @@ pub(crate) struct TumblingAggregator {
     slide_millis: i64,
     cumulative: bool,
     aggregates: Vec<WindowAggregate>,
-    // These accumulators retain scalar state only, so selected contiguous rows may borrow the input.
-    scalar_inputs: Vec<bool>,
     live_count: Option<usize>,
     windows: BTreeMap<i64, AlignedWindow>,
     // Groups are keyed by the arrow-row memcomparable encoding of the key columns, not a
@@ -302,15 +300,6 @@ impl TumblingAggregator {
             slide_millis,
             cumulative,
             aggregates: build_aggregates(&kinds, &value_types),
-            scalar_inputs: kinds
-                .iter()
-                .map(|kind| {
-                    matches!(
-                        *kind,
-                        3 | 22 | RETRACT_COUNT | LIVE_COUNT | HIDDEN_LIVE_COUNT
-                    )
-                })
-                .collect(),
             live_count: kinds
                 .iter()
                 .position(|kind| matches!(*kind, LIVE_COUNT | HIDDEN_LIVE_COUNT)),
@@ -526,7 +515,7 @@ impl TumblingAggregator {
         self.snapshot_cache = None;
         let ts = column_i64(batch, "ts");
         // One value column per aggregate (value0, value1, …), so aggregates can read different
-        // columns. Sliced by type-agnostic take, so each accumulator sees its column's own type.
+        // columns. Selection preserves each accumulator's own column type.
         let values: Vec<&ArrayRef> = (0..self.aggregates.len())
             .map(|i| {
                 batch
@@ -538,8 +527,8 @@ impl TumblingAggregator {
         self.key_types = key_types(&key_arrays);
         let keys_encoded = encode_keys(&mut self.key_converter, &key_arrays, batch.num_rows());
 
-        // Group the row positions for each (window, key); the value columns are sliced by type-
-        // agnostic take, so the accumulators see each column's own type (int, double, ...). The
+        // Group the row positions for each (window, key); column selection preserves each
+        // accumulator's own value type (int, double, ...). The
         // grouping key is a borrowed byte-row view into the batch's encoded keys — no per-row
         // allocation; a key is materialized once per touched group in `accumulate_grouped`.
         let mut grouped: ahash::HashMap<(i64, i64, Row<'_>), Vec<u32>> = ahash::HashMap::default();
@@ -641,33 +630,35 @@ impl TumblingAggregator {
             .zip(values)
             .map(|(aggregate, values)| aggregate.timestamp_column(values))
             .collect::<Result<_, _>>()?;
+        let slice_values = values.iter().zip(&timestamps).all(|(array, timestamp)| {
+            timestamp.is_some()
+                || array.data_type().is_primitive()
+                || *array.data_type() == DataType::Utf8
+        });
         for ((start, end, key), mut rows) in grouped {
             let slice = rows
                 .first()
                 .copied()
-                .filter(|first| rows.last().copied() == Some(*first + rows.len() as u32 - 1))
+                .filter(|first| {
+                    slice_values && rows.last().copied() == Some(*first + rows.len() as u32 - 1)
+                })
                 .map(|start| (start as usize, rows.len()));
-            let indices = (slice.is_none()
-                || self
-                    .scalar_inputs
-                    .iter()
-                    .zip(&timestamps)
-                    .any(|(scalar, timestamp)| !scalar && timestamp.is_none()))
-            .then(|| UInt32Array::from(std::mem::take(&mut rows)));
+            let indices = slice
+                .is_none()
+                .then(|| UInt32Array::from(std::mem::take(&mut rows)));
             let selected_rows = indices
                 .as_ref()
                 .map(|array| array.values().as_ref())
                 .unwrap_or(&rows);
             let columns: Vec<Option<ArrayRef>> = values
                 .iter()
-                .zip(&self.scalar_inputs)
                 .zip(&timestamps)
-                .map(|((value, scalar), timestamp)| {
+                .map(|(value, timestamp)| {
                     if timestamp.is_some() {
                         Ok(None)
                     } else {
-                        match (slice, scalar) {
-                            (Some((offset, length)), true) => Ok(Some(value.slice(offset, length))),
+                        match slice {
+                            Some((offset, length)) => Ok(Some(value.slice(offset, length))),
                             _ => take(value, indices.as_ref().expect("selection indices"), None)
                                 .map(Some),
                         }

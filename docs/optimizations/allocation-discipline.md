@@ -43,17 +43,20 @@ kernel instead of a row loop at all.
 
 ## Contiguous window input selections
 
-Window COUNT and exact SUM0 retain scalar state only. When a group's selected row indices are
-contiguous, their accumulators consume an Arrow slice instead of allocating a gathered array with
-`take`. A singleton group is the common case at high cardinality. The selection-index Arrow array
-is also omitted when every accumulator can use that slice. Signed row-kind selections share the
-same range and preserve the input offsets and validity.
+Window COUNT and exact SUM0 retain scalar state only. Their original contiguous-selection
+optimization now shares the primitive/UTF-8 selection path with other window aggregates. When
+a group's selected row indices are contiguous and every value column is primitive or UTF-8,
+the accumulators consume Arrow slices instead of gathered arrays from `take`. A singleton group
+is the common case at high cardinality. The selection-index Arrow array is also omitted.
+Signed row-kind selections share the same range and preserve the input offsets and validity.
 
-Sparse selections retain `take`. Other aggregate kinds keep their established selection paths,
-with timestamp extrema using the borrowed reads described below, so an
-accumulator that retains variable-width input buffers cannot accidentally retain an entire input
-batch through this shortcut. COUNT/SUM0 finish reading the slice during update; their checkpoint
-state, managed-memory accounting and final output contain only the original scalar accumulators.
+Sparse selections and groups with nested non-temporal value columns retain `take`,
+so a DISTINCT accumulator cannot retain an entire nested input batch through this
+shortcut. Timestamp extrema use borrowed millisecond/remainder accessors described
+below and retain owned scalar pairs. Primitive and UTF-8 accumulators consume slices
+for contiguous selections. The generalized selection technique and string
+measurements are described in the [string-copy ledger](string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges).
+
 The `window_zero_sum` all-distinct-key fixtures exercise this production path; complete
 jobs retain both row/Arrow transposes.
 
