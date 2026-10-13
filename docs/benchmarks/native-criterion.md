@@ -14,6 +14,16 @@ trailing bytes at 16, 1024 and 16384 rows. Input construction is outside the mea
 
 ## Running and comparing
 
+The `operators` target includes `append_top1`, covering the general and specialized
+rank loops over memory and RocksDB at 256/4096 rows, repeated/unique keys,
+nullable sorts and payload widths 8/256 in immediate and mini-batch modes.
+`append_top1_shared_pool` adds 16 production fixtures with 64 MiB configured
+write buffers and 10 MiB shared pools. The timed boundary includes state
+hydration, cache lookups, winner updates, write-through and output construction;
+fixture construction, store creation and seeding are outside it. Its persistent
+wrapper retains the shared native resource until the store closes. See
+[Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
+
 Run from a checkout with Rust, Maven, and a JDK available. The runner discovers workspace benchmark targets
 using Cargo metadata, so a new suite is picked up without another hard-coded runner list.
 
@@ -2172,3 +2182,12 @@ The q23 fix validation passes all 16 release join fixtures and records 18
 [updating-join allocation profiles](q23-mini-batch-fix-2026-10-08/native-allocations.csv).
 The [Fluss q23 reruns](../connectors/fluss.md#q23-mini-batch-fix-validation-2026-10-08)
 retain end-to-end stock/native parity and timing separately from these native costs.
+
+## BOOLEAN/TIME window DISTINCT fixtures
+
+`window_basic_distinct` calls production window aggregation for nullable BOOLEAN
+and millisecond TIME, at 64/4,096 rows and one/64/all-row partition cardinalities.
+It measures update and watermark flush, plus local partial drain/global union in
+the two-phase cases. Arrow fixtures and empty operator creation are outside the
+timed boundary. End-to-end comparisons and all raw trials are recorded on the
+[window aggregate page](../operators/window-aggregate.md#booleantime-distinct-performance).

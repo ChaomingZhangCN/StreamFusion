@@ -50,6 +50,8 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   private transient MiniBatchMetrics miniBatchMetrics;
   private transient BatchCoalescer coalescer;
   private transient long cacheSize;
+  private transient double cacheHitRate;
+  private transient long cacheBytes;
   private transient Counter invalidTopSize;
 
   public NativeColumnarTopNOperator(
@@ -337,7 +339,9 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
     if (firstBound) Native.enableTopNFirstBound(handle, directRocksDBState(), generateUpdateBefore);
     invalidTopSize = getMetricGroup().counter("topn.invalidTopSize");
     if (!retracting) {
-      getMetricGroup().gauge("topn.cache.hitRate", () -> 1.0);
+      cacheHitRate = directRocksDBState() ? 0.0 : 1.0;
+      getMetricGroup().gauge("topn.cache.hitRate", () -> cacheHitRate);
+      if (directRocksDBState()) getMetricGroup().gauge("topn.cache.bytes", () -> cacheBytes);
       getMetricGroup().gauge("topn.cache.size", () -> cacheSize);
       publishCacheSize();
     }
@@ -406,8 +410,13 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   }
 
   private void publishCacheSize() {
-    // The direct RocksDB rankers keep no resident cache between bundles; the gauge stays zero.
-    if (!retracting && handle != 0 && !directRocksDBState()) {
+    if (retracting || handle == 0) return;
+    if (directRocksDBState()) {
+      long[] stats = Native.rocksdbTopNRankerCacheStats(handle);
+      cacheSize = stats[0];
+      cacheHitRate = stats[1] + stats[2] == 0 ? 0.0 : (double) stats[1] / (stats[1] + stats[2]);
+      cacheBytes = stats[3];
+    } else {
       cacheSize = Native.topNRankerCacheSize(handle);
     }
   }

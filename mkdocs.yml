@@ -156,6 +156,7 @@ nav:
       - Borrowed key probes: optimizations/borrowed-key-probes.md
       - Mini-batch logical boundary: optimizations/mini-batch-logical-boundary.md
       - Top-N emit decodes distinct rows: optimizations/topn-emit-decodes-distinct-rows.md
+      - Top-1 winner state: optimizations/top1-winner-state.md
       - Aggregate specialization fast paths: optimizations/aggregate-specialization-fast-paths.md
       - Allocation discipline: optimizations/allocation-discipline.md
       - Memory accounting off the hot path: optimizations/memory-accounting-off-hot-path.md

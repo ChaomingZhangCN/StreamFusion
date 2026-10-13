@@ -26,9 +26,18 @@ pub(crate) use rocks_store::*;
 /// every key of those batches is resident, so point accesses are truthful and allocation-free.
 /// The memory store holds everything resident and the hooks default to no-ops.
 pub(crate) trait KeyedStateStore<V> {
+    fn enable_resident_cache(&mut self, _limit: usize, _reservation: Option<MemoryReservation>) {}
     fn contains(&self, key: &[u8]) -> bool;
     fn get(&self, key: &[u8]) -> Option<&V>;
     fn get_mut(&mut self, key: &[u8]) -> Option<&mut V>;
+    /// Admits a mutation before a read-through backend marks the state dirty.
+    fn get_mut_if<F: FnOnce(&V) -> bool>(&mut self, key: &[u8], admit: F) -> Option<&mut V> {
+        if self.get(key).is_some_and(admit) {
+            self.get_mut(key)
+        } else {
+            None
+        }
+    }
     /// Inserts a fresh value for a key not currently present and returns it for mutation.
     fn insert(&mut self, key: ByteKey, value: V) -> &mut V;
     fn remove(&mut self, key: &[u8]);
@@ -98,6 +107,11 @@ impl<V> KeyedStateStore<V> for MemoryStateStore<V> {
     #[inline]
     fn get_mut(&mut self, key: &[u8]) -> Option<&mut V> {
         self.map.get_mut(key)
+    }
+
+    #[inline]
+    fn get_mut_if<F: FnOnce(&V) -> bool>(&mut self, key: &[u8], admit: F) -> Option<&mut V> {
+        self.map.get_mut(key).filter(|value| admit(value))
     }
 
     #[inline]

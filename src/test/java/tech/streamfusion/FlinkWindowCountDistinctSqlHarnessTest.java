@@ -250,6 +250,55 @@ class FlinkWindowCountDistinctSqlHarnessTest {
     NativeParity.assertFallbackReasonContains(() -> environment("TWO_PHASE"), sql, "window");
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "ONE_PHASE,TUMBLE", "TWO_PHASE,TUMBLE",
+    "ONE_PHASE,HOP", "TWO_PHASE,HOP",
+    "ONE_PHASE,CUMULATE", "TWO_PHASE,CUMULATE"
+  })
+  void booleanAndTimeSetsPreserveNullsDuplicatesAndIndependentFilters(String phase, String shape)
+      throws Exception {
+    check(
+        phase,
+        "SELECT k, window_start, window_end, "
+            + "COUNT(DISTINCT i > 1), COUNT(DISTINCT CAST(t AS TIME(3))), "
+            + "COUNT(DISTINCT i > 1) FILTER (WHERE v > 20), "
+            + "COUNT(DISTINCT CAST(t AS TIME(3))) FILTER (WHERE v > 20) "
+            + "FROM TABLE("
+            + window(shape)
+            + ") GROUP BY k, window_start, window_end");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "ONE_PHASE,TUMBLE",
+    "TWO_PHASE,TUMBLE",
+    "ONE_PHASE,HOP",
+    "TWO_PHASE,HOP",
+    "ONE_PHASE,CUMULATE",
+    "TWO_PHASE,CUMULATE"
+  })
+  void booleanAndTimePlansRetainTypedNativeSetPartials(String phase, String shape) {
+    var table = environment(phase);
+    table.getConfig().set("table.optimizer.distinct-agg.split.enabled", "false");
+    var scan = NativePlanner.install(table);
+    String plan =
+        table.explainSql(
+            "SELECT k, window_start, window_end, "
+                + "COUNT(DISTINCT i > 1), COUNT(DISTINCT CAST(t AS TIME(3))) FROM TABLE("
+                + window(shape)
+                + ") GROUP BY k, window_start, window_end");
+    assertTrue(scan.fallbackReasons().isEmpty(), scan.fallbackReasons().toString());
+    assertTrue(
+        plan.contains(
+            phase.equals("TWO_PHASE")
+                ? "NativeColumnarGlobalWindowAggregate"
+                : "NativeColumnarWindowAggregate"),
+        plan);
+    if (phase.equals("TWO_PHASE"))
+      assertTrue(plan.contains("NativeColumnarLocalWindowAggregate"), plan);
+  }
+
   private static void check(String phase, String sql) throws Exception {
     check(phase, sql, false);
   }

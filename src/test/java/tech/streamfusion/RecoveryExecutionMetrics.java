@@ -40,6 +40,19 @@ final class RecoveryExecutionMetrics implements AutoCloseable {
         cluster.getMiniCluster(), jobConfig, parallelism, List.of(), List.of());
   }
 
+  void printTop1Cache(String jobId) {
+    reporter.getMetricsByGroup().forEach((group, metrics) -> {
+      if (!jobId.equals(group.getAllVariables().get("<job_id>"))) return;
+      if (!group.getAllVariables().getOrDefault("<operator_name>", "").startsWith("NativeColumnarTopN")) return;
+      metrics.forEach((name, metric) -> {
+        if (name.startsWith("topn.cache.") && metric instanceof org.apache.flink.metrics.Gauge) {
+          System.out.println("[append-top1-cache] job=" + jobId + " metric=" + name + " value="
+              + ((org.apache.flink.metrics.Gauge<?>) metric).getValue());
+        }
+      });
+    });
+  }
+
   long recordsIn(String jobId, String operatorPrefix) {
     long[] total = {0};
     reporter.getMetricsByGroup().forEach((group, metrics) -> {

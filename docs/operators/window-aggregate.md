@@ -336,10 +336,14 @@ state transfer. Updating DISTINCT and other remaining forms stay on Flink.
 ## Window COUNT(DISTINCT)
 
 Unfiltered `COUNT(DISTINCT value)` is native for integer, DECIMAL, CHAR/VARCHAR, DATE,
-TIMESTAMP and TIMESTAMP_LTZ values. It ignores NULLs and counts each value once per key/window.
+BOOLEAN, TIME, TIMESTAMP and TIMESTAMP_LTZ values. It ignores NULLs and counts each value once per key/window.
 TUMBLE, HOP and CUMULATE support single-phase and local/global execution; attached window
 results use the existing two-phase path. SESSION and admitted legacy group windows reuse the
 same distinct accumulator. Processing-time windows retain their timer-driven lifetime.
+
+BOOLEAN and TIME sets use typed partial values and ignore NULLs. TIME retains the internal
+millisecond value even under a resolved TIME(0) declaration. Recovery checks continue
+duplicate membership across raw and canonical memory/RocksDB state transitions.
 
 Each local partial carries an Arrow list of distinct values. The global unions those lists,
 so duplicates split across tasks or checkpoint barriers count once. Ordinary aggregates and
@@ -952,3 +956,34 @@ The [new result artifact](../benchmarks/results/window-string-extrema-main336-20
 retains all complete-job samples, library hashes and six matching Criterion cases with raw
 samples and confidence intervals. The [optimization ledger](../optimizations/string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges)
 records the native gains and the noncontiguous control's small regression.
+
+### BOOLEAN/TIME DISTINCT performance
+
+Released Flink 2.2.1/JDK 17, release/mimalloc, 2 million rows, 64 keys, parallelism
+two, two warmups and three alternating measured jobs per engine. The complete job
+includes startup, runtime row generation, both transposes, Arrow IPC and the row
+blackhole sink. Split-distinct is disabled. Previous StreamFusion falls back for
+these types; the same harness asserts that absence of native window aggregation.
+
+| Value | Phase | Window | Stock mean seconds | Previous SF seconds | Native mean seconds | Stock/native |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| boolean | ONE_PHASE | TUMBLE | 1.581753 | 1.559476 | 1.206371 | 1.31× |
+| boolean | ONE_PHASE | HOP | 1.638337 | 1.655612 | 1.155592 | 1.42× |
+| boolean | ONE_PHASE | CUMULATE | 1.463504 | 1.462124 | 1.117949 | 1.31× |
+| boolean | TWO_PHASE | TUMBLE | 1.742704 | 1.642221 | 1.117088 | 1.56× |
+| boolean | TWO_PHASE | HOP | 1.736487 | 1.649931 | 1.144570 | 1.52× |
+| boolean | TWO_PHASE | CUMULATE | 1.671661 | 1.649290 | 1.095747 | 1.53× |
+| time | ONE_PHASE | TUMBLE | 1.471052 | 1.448388 | 1.142120 | 1.29× |
+| time | ONE_PHASE | HOP | 1.543498 | 1.491625 | 1.146777 | 1.35× |
+| time | ONE_PHASE | CUMULATE | 1.456913 | 1.434737 | 1.127920 | 1.29× |
+| time | TWO_PHASE | TUMBLE | 1.699655 | 1.650318 | 1.092664 | 1.56× |
+| time | TWO_PHASE | HOP | 1.721434 | 1.679724 | 1.127246 | 1.53× |
+| time | TWO_PHASE | CUMULATE | 1.720180 | 1.666371 | 1.097980 | 1.57× |
+
+All 12 measured forms outperform stock and the previous fallback on this workload.
+[Raw trials, source/library hashes and configuration](../benchmarks/results/window-basic-distinct-2026-10-13.json)
+retain every sample. These elapsed-time means include startup and are separate from
+the sustained-throughput method used for Top-1. Other workloads may differ.
+The 20 native fixtures cover 64/4,096 rows, one/64/all-row keys, NULLs and both
+single-phase updates and local-partial/global unions. Cross-line SQL/recovery checks
+passed 57 cases on 2.2 and 56 plus one existing capability skip on 1.18.

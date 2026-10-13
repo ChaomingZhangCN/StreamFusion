@@ -423,6 +423,8 @@ final class WindowAggregateMatcher {
       case CHAR:
       case VARCHAR:
       case DATE:
+      case BOOLEAN:
+      case TIME:
       case TIMESTAMP:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         return true;
@@ -464,6 +466,10 @@ final class WindowAggregateMatcher {
         return 7;
       case DATE:
         return 8;
+      case TIME:
+        return 9;
+      case BOOLEAN:
+        return 10;
       case CHAR:
       case VARCHAR:
         return 3; // string value (MIN/MAX over a string); value_data_type maps 3 → Utf8

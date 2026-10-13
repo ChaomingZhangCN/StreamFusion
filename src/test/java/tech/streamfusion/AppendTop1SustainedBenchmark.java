@@ -93,6 +93,7 @@ class AppendTop1SustainedBenchmark {
             if (client.getJobStatus().get() != JobStatus.RUNNING || after <= before) {
               throw new IllegalStateException("Rank stopped consuming during measurement");
             }
+            if (engine == 1) metrics.printTop1Cache(jobId);
             rates[engine][trial] = (after - before) / elapsed;
             System.out.printf(Locale.ROOT,
                 "[append-top1-window] engine=%s trial=%d backend=%s keys=%d width=%d improving=%s "
