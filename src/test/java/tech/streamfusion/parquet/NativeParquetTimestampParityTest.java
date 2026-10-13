@@ -27,6 +27,66 @@ class NativeParquetTimestampParityTest {
   @TempDir Path directory;
 
   @ParameterizedTest
+  @ValueSource(strings = {"UTC", "Asia/Shanghai"})
+  void releasedLocalInt96EpochRoundTripRetainsItsWireAndReaderContract(String zone)
+      throws Exception {
+    var previous = java.util.TimeZone.getDefault();
+    java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone));
+    try {
+      RowType type = RowType.of(new TimestampType(3));
+      Path stock = directory.resolve("epoch-stock.parquet");
+      var path = new org.apache.flink.core.fs.Path(stock.toUri());
+      long[] millis = {-1001, -1, 0, 1, 1001, 1704067200001L};
+      try (var output = path.getFileSystem().create(path, WriteMode.NO_OVERWRITE)) {
+        var writer =
+            ParquetRowDataBuilder.createWriterFactory(type, new Configuration(false), false)
+                .create(output);
+        for (long value : millis) {
+          writer.addElement(GenericRowData.of(TimestampData.fromEpochMillis(value)));
+        }
+        writer.finish();
+      }
+      try (ParquetReader<Group> reader =
+          ParquetReader.builder(
+                  new GroupReadSupport(), new org.apache.hadoop.fs.Path(stock.toUri()))
+              .build()) {
+        for (long value : millis) {
+          var bytes =
+              reader.read().getInt96(0, 0).toByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN);
+          long nanosOfDay = bytes.getLong();
+          int julianDay = bytes.getInt();
+          var expected = TimestampData.fromEpochMillis(value).toTimestamp();
+          long localMillis = expected.getTime();
+          assertEquals((int) (localMillis / 86400000L) + 2440588, julianDay);
+          assertEquals(
+              ((localMillis % 86400000L) / 1000) * 1000000000L + expected.getNanos(), nanosOfDay);
+          String evidence =
+              zone + " input=" + value + " julianDay=" + julianDay + " nanosOfDay=" + nanosOfDay;
+          if (nanosOfDay % 1000000000L < 0) {
+            org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                    org.apache.flink.formats.parquet.vector.reader.TimestampColumnReader
+                        .int96ToTimestamp(false, nanosOfDay, julianDay),
+                evidence);
+          } else {
+            // Truncation also maps UTC -1ms to +999ms, without a reader exception.
+            long roundTripMillis = zone.equals("UTC") && value == -1 ? 999 : value;
+            assertEquals(
+                TimestampData.fromEpochMillis(roundTripMillis),
+                org.apache.flink.formats.parquet.vector.reader.TimestampColumnReader
+                    .int96ToTimestamp(false, nanosOfDay, julianDay),
+                evidence);
+          }
+          System.out.println("Released INT96 round trip: " + evidence);
+        }
+      }
+    } finally {
+      java.util.TimeZone.setDefault(previous);
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"millis", "micros", "nanos", "int96"})
   void physicalTimestampUnitsMatchFlinkIncludingOverflow(String unit) throws Exception {
     RowType type = RowType.of(new TimestampType(9));

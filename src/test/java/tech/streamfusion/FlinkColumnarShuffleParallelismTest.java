@@ -147,7 +147,7 @@ class FlinkColumnarShuffleParallelismTest {
                     Row.of(
                         i % 8,
                         i,
-                        Instant.ofEpochMilli((i / 8) * 1000L + (i % 8) * 100L)))
+                        Instant.ofEpochMilli(1704067200000L + (i / 8) * 1000L + (i % 8) * 100L)))
             .returns(Types.ROW_NAMED(new String[] {"k", "v", "rt"}, Types.LONG, Types.LONG, Types.INSTANT));
     tEnv.createTemporaryView(
         "s",

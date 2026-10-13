@@ -46,11 +46,11 @@ class FlinkWatermarkAssignerSqlHarnessTest {
             + "', 'format' = 'parquet')");
     tEnv.executeSql(
             "INSERT INTO in_write VALUES "
-                + "(1, 10, CAST(TIMESTAMP '1970-01-01 00:00:00.000' AS TIMESTAMP_LTZ(3))), "
-                + "(2, 20, CAST(TIMESTAMP '1970-01-01 00:00:00.500' AS TIMESTAMP_LTZ(3))), "
-                + "(3, 30, CAST(TIMESTAMP '1970-01-01 00:00:01.000' AS TIMESTAMP_LTZ(3))), "
-                + "(4, 40, CAST(TIMESTAMP '1970-01-01 00:00:01.500' AS TIMESTAMP_LTZ(3))), "
-                + "(5, 50, CAST(TIMESTAMP '1970-01-01 00:00:02.500' AS TIMESTAMP_LTZ(3)))")
+                + "(1, 10, CAST(TIMESTAMP '2024-01-01 00:00:00.000' AS TIMESTAMP_LTZ(3))), "
+                + "(2, 20, CAST(TIMESTAMP '2024-01-01 00:00:00.500' AS TIMESTAMP_LTZ(3))), "
+                + "(3, 30, CAST(TIMESTAMP '2024-01-01 00:00:01.000' AS TIMESTAMP_LTZ(3))), "
+                + "(4, 40, CAST(TIMESTAMP '2024-01-01 00:00:01.500' AS TIMESTAMP_LTZ(3))), "
+                + "(5, 50, CAST(TIMESTAMP '2024-01-01 00:00:02.500' AS TIMESTAMP_LTZ(3)))")
         .await();
   }
 
