@@ -73,6 +73,18 @@ impl Tumbling {
         self.0.update(batch).expect("budget exceeded");
     }
 
+    pub fn update_local(&mut self, batch: &RecordBatch) {
+        self.0.update_local(batch).expect("local window update");
+    }
+
+    pub fn drain_partial(&mut self) -> RecordBatch {
+        self.0.drain_partial()
+    }
+
+    pub fn update_partial(&mut self, batch: &RecordBatch) {
+        self.0.update_partial(batch).expect("global window merge");
+    }
+
     pub fn flush(&mut self, watermark: i64) -> RecordBatch {
         self.0.flush(watermark).expect("memory-backed flush")
     }

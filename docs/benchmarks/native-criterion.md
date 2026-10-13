@@ -2159,3 +2159,12 @@ The q23 fix validation passes all 16 release join fixtures and records 18
 [updating-join allocation profiles](q23-mini-batch-fix-2026-10-08/native-allocations.csv).
 The [Fluss q23 reruns](../connectors/fluss.md#q23-mini-batch-fix-validation-2026-10-08)
 retain end-to-end stock/native parity and timing separately from these native costs.
+
+## BOOLEAN/TIME window DISTINCT fixtures
+
+`window_basic_distinct` calls production window aggregation for nullable BOOLEAN
+and millisecond TIME, at 64/4,096 rows and one/64/all-row partition cardinalities.
+It measures update and watermark flush, plus local partial drain/global union in
+the two-phase cases. Arrow fixtures and empty operator creation are outside the
+timed boundary. End-to-end comparisons and all raw trials are recorded on the
+[window aggregate page](../operators/window-aggregate.md#booleantime-distinct-performance).

@@ -133,3 +133,7 @@ harness = false
 [[bench]]
 name = "window_string_extrema"
 harness = false
+
+[[bench]]
+name = "window_basic_distinct"
+harness = false

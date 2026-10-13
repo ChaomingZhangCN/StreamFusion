@@ -19,6 +19,7 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -66,10 +67,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
   protected static final int TYPE_TINYINT = 5;
   protected static final int TYPE_FLOAT = 6;
 
-  /** Boolean remains key-only; dates also carry distinct values. */
+  /** Grouping-key BOOLEAN keeps its key code; value BOOLEAN uses VALUE_BOOLEAN. */
   protected static final int TYPE_BOOLEAN = 7;
 
   protected static final int TYPE_DATE = 8;
+  protected static final int VALUE_TIME = 9;
+  protected static final int VALUE_BOOLEAN = 10;
 
   // Parameterized type codes pack precision/scale into the code so they thread through the existing
   // int[] without parallel arrays. Timestamp keys keep their milliseconds and fractional nanos (any Flink
@@ -517,6 +520,10 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return new DecimalVector(name, allocator, decimalPrecision(valueType), decimalScale(valueType));
     }
     switch (valueType) {
+      case VALUE_BOOLEAN:
+        return new BitVector(name, allocator);
+      case VALUE_TIME:
+        return new TimeMilliVector(name, allocator);
       case TYPE_STRING:
         return new VarCharVector(name, allocator);
       case TYPE_DATE:
@@ -553,6 +560,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (valueType) {
+      case VALUE_BOOLEAN:
+        ((BitVector) value).setSafe(i, row.getBoolean(column) ? 1 : 0);
+        break;
+      case VALUE_TIME:
+        ((TimeMilliVector) value).setSafe(i, row.getInt(column));
+        break;
       case TYPE_STRING:
         ((VarCharVector) value).setSafe(i, row.getString(column).toBytes());
         break;
@@ -594,6 +607,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (valueType) {
+      case VALUE_BOOLEAN:
+        ((BitVector) value).setSafe(i, ((BitVector) source).get(i));
+        break;
+      case VALUE_TIME:
+        ((TimeMilliVector) value).setSafe(i, ((TimeMilliVector) source).get(i));
+        break;
       case TYPE_STRING:
         ((VarCharVector) value).setSafe(i, ((VarCharVector) source).get(i));
         break;
