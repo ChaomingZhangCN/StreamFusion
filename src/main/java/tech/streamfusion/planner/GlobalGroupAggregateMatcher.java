@@ -17,15 +17,15 @@ import tech.streamfusion.operator.RowDataArrowConverter;
  * half's partials into the final per-key result, emitting a changelog exactly like the single-phase
  * {@link GroupAggregateMatcher} — so it reuses the same native group-aggregate operator. Its input
  * is the local's {@code [grouping.., partial0..]}; the partials are positional, walked with a
- * per-aggregate offset because an AVG spans <em>two</em> partial columns (the widened sum, then the
- * bigint count) where every other aggregate spans one.
+ * per-aggregate offset because AVG spans <em>two</em> partial columns (the widened sum, then the
+ * bigint count), and SINGLE_VALUE spans a typed value and an INT count. Other aggregates span one.
  *
  * <p>Each merge folds a partial into the running result: SUM/MIN/MAX merge as themselves, a COUNT
  * merges by <em>summing</em> the partial counts (the global treats COUNT as a SUM over its bigint
  * partial column), and an AVG folds its pre-summed sum partial into the ordinary AVG state while the
  * count partial bumps the state's non-null count — so the final emit (divide, truncate toward zero,
  * cast back to the value type) is byte-identical to the single-phase AVG. Scope matches the local
- * half: integer/double/decimal partials, and grouping keys the boundary carries.
+ * half: integer/float/double/decimal partials, and grouping keys the boundary carries.
  */
 final class GlobalGroupAggregateMatcher {
 
@@ -114,7 +114,7 @@ final class GlobalGroupAggregateMatcher {
                 result,
                 inputType.getFieldList().get(offset).getType(),
                 inputType.getFieldList().get(offset + 1).getType())) {
-          return "global group aggregate: SINGLE_VALUE expects matching string and INT count"
+          return "global group aggregate: SINGLE_VALUE expects matching string/float/double and INT count"
               + " partials";
         }
         offset += 2;
@@ -165,7 +165,7 @@ final class GlobalGroupAggregateMatcher {
         continue;
       }
       if (partialCode(partialRel) < 0) {
-        return "global group aggregate: partial columns must be integer/double/decimal, or a"
+        return "global group aggregate: partial columns must be integer/float/double/decimal, or a"
             + " string/date/time/boolean/timestamp under MIN/MAX";
       }
     }
@@ -208,6 +208,8 @@ final class GlobalGroupAggregateMatcher {
         return 0;
       case DOUBLE:
         return 1;
+      case FLOAT:
+        return 6;
       case INTEGER:
         return 2;
       case SMALLINT:
@@ -303,7 +305,9 @@ final class GlobalGroupAggregateMatcher {
             GroupAggregateMatcher.retainedValueTypeCode(
                 agg.localAggInputRowType().getFieldList().get(call.getArgList().get(0)).getType()));
       } else if (LocalGroupAggregateMatcher.aggregateKind(call.getAggregation().getKind()) == 14) {
-        codes.add(3);
+        codes.add(
+            GroupAggregateMatcher.retainedValueTypeCode(
+                inputType.getFieldList().get(offset).getType()));
       } else if (spanOf(agg, i) == 2) {
         // An AVG state is typed by its final result — except decimal, whose state is the sum
         // partial's DECIMAL(38, s) (the emit derives the result scale max(6, s) itself).

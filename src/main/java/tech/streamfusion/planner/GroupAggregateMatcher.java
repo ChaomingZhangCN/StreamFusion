@@ -149,6 +149,8 @@ final class GroupAggregateMatcher {
       case SMALLINT:
       case INTEGER:
       case BIGINT:
+      case FLOAT:
+      case DOUBLE:
       case DECIMAL:
       case CHAR:
       case VARCHAR:
@@ -177,7 +179,7 @@ final class GroupAggregateMatcher {
 
   /** Integer sums wrap at the input width; extrema retain that same type. */
   static boolean isRunningType(SqlTypeName type) {
-    return isIntegerType(type) || type == SqlTypeName.DOUBLE;
+    return isIntegerType(type) || type == SqlTypeName.FLOAT || type == SqlTypeName.DOUBLE;
   }
 
   /** The numeric types Flink's AvgAggFunction covers (its result casts back to the input type). */

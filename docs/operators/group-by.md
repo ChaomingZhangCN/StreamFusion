@@ -59,8 +59,18 @@ ignored and all-NULL groups return NULL. FILTER and integer SUM(DISTINCT) preser
 rules across batches and checkpoint restore. Retracting two-phase SUM/MIN/MAX retain
 the general fallback described below.
 
-Insert-only floating MIN/MAX uses primitive comparisons, retaining the first signed zero or
-NaN on a tie. Retracting floating extrema remain subject to the type admission below.
+FLOAT SUM/MIN/MAX preserve FLOAT input, partial and result widths; FLOAT SUM rounds at
+that width after every addition. Floating SUM starts from its first non-NULL input, preserving
+a lone negative zero. Insert-only FLOAT/DOUBLE MIN/MAX use primitive comparisons, retaining
+the first signed zero on a tie and retaining an initial NaN. Retracting extrema use Java boxed
+comparison instead: all NaN payloads share a membership key, NaN sorts above infinity, and
+negative zero sorts below positive zero. This distinction matches Flink's different accumulator
+implementations. Persistent membership probes and writes use the same canonical NaN key.
+
+Aggregate-result change detection uses Flink's primitive floating equality: opposite zero signs
+compare equal, while NaN never compares equal to itself. Even a suppressed update retains the
+new accumulator result for the next UPDATE_BEFORE or DELETE. Membership equality remains
+separate from this output rule.
 
 `MIN`/`MAX` over `TIMESTAMP(p)` and `TIMESTAMP_LTZ(p)` preserve both milliseconds and fractional
 nanoseconds. The single-phase path handles insertions and retractions with a value/multiplicity
@@ -109,11 +119,25 @@ checkpoint prefixes. Recovery metrics require consumed work in each intended
 native aggregate stage. See [release measurements](../benchmarks/basic-type-coverage.md)
 for the performance boundary and the decimal division optimization it required.
 
+### Floating aggregate validation
+
+`FlinkFloatingGroupAggregateSqlHarnessTest` compares released Flink values, result schemas,
+ordered single-phase RowKinds and materialized local/global output. It covers rounding at
+FLOAT width, NULL-only/empty/filtered groups, NaNs, infinities, both zero signs, DISTINCT
+membership, group removal/recreation and SINGLE_VALUE errors in local and global paths.
+Twelve profiles each force two checkpoint restores across memory/native RocksDB, reductions,
+ordered values, DISTINCT SUM and single/two-phase SINGLE_VALUE. Execution metrics require
+consumed rows in both intended native stages. Native tests also reopen a typed RocksDB
+checkpoint and retract NaNs with different payloads.
+
+See [floating GROUP BY release measurements](../benchmarks/floating-group-by.md) for the
+stock, previous fallback and native comparison, raw trials, workload limits and reproduction.
+
 ### FIRST_VALUE, LAST_VALUE and SINGLE_VALUE
 
 The one-argument forms run natively in the single-phase plan over TINYINT, SMALLINT,
-INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ. Each preserves
-the input value's type and precision. FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
+INT, BIGINT, FLOAT, DOUBLE, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP and
+TIMESTAMP_LTZ. Each preserves the input value's type and precision. FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
 Flink 1.18.1 cannot plan CHAR or temporal FIRST_VALUE/LAST_VALUE and fails a type assertion for
 SINGLE_VALUE over TIME(0), including string casts to TIME(3) that resolve to TIME(0);
 those host limitations remain unavailable on that release. Typed TIME(3) input is supported.
@@ -121,7 +145,8 @@ those host limitations remain unavailable on that release. Typed TIME(3) input i
 FIRST_VALUE and LAST_VALUE skip NULLs and follow arrival order within a key. Append-only
 input retains one scalar. Retracting input retains the ordered non-NULL occurrences;
 a retraction removes the oldest matching occurrence, including when values repeat across
-Arrow batches. Removing every contributing value yields NULL, and removing the last
+Arrow batches. Floating retractions use Java boxed equality: NaN payloads match, while opposite
+zero signs do not. Removing every contributing value yields NULL, and removing the last
 record deletes the group. Results depend on arrival order, so SQL parity fixtures use a
 controlled source rather than asserting equal results from independently reordered inputs.
 
@@ -192,7 +217,7 @@ The mini-batch plan splits the aggregate into four cooperating operators, all of
 4. **Global** reuses the single-phase group-aggregate operator to merge partials (`COUNT` merges
    as a `SUM` over partial counts).
 
-**Scope.** `SUM`/`MIN`/`MAX`/`COUNT` over bigint/int/double value columns (Flink's `SUM` partial
+**Scope.** `SUM`/`MIN`/`MAX`/`COUNT` over bigint/int/smallint/tinyint/float/double value columns (Flink's `SUM` partial
 keeps the value's own type, so nothing is lost to widening in the split), and `AVG` over the full
 single-phase numeric set — bigint/int/smallint/tinyint/float/double. An `AVG` spans **two
 positional partials**: the widened running sum (bigint for integer inputs, double for
@@ -245,11 +270,11 @@ state used by single-phase AVG DISTINCT; it does not add the local sums/counts, 
 count values appearing in several bundles more than once. Decimal sum fields must retain
 precision 38 and the input scale, and the result type must match Flink's AVG type.
 
-Insert-only two-phase `SINGLE_VALUE(STRING/VARCHAR)` retains a string value and an INT count
-in each local bundle. NULL increments the count. Both local accumulation and global merging
+Insert-only two-phase `SINGLE_VALUE` over STRING/VARCHAR, FLOAT and DOUBLE retains a typed
+value and an INT count in each local bundle. NULL increments the count. Both local accumulation and global merging
 raise Flink's cardinality exception on a second element; global checkpoints preserve that
 count even when the value is NULL. The global consumes the count partial, rather than
-counting bundles. The declared string partial must match the input type, and its count must
+counting bundles. The declared value partial must match the input type, and its count must
 be INT. Other value types and retracting SINGLE_VALUE splits remain on Flink.
 Local execution failures use the same Flink exception mapping as global aggregation, after
 releasing imported Arrow input, so cardinality failures are not reported as memory limits.
@@ -284,8 +309,8 @@ for the persistent-state-backend angle on this same raw-keyed-state layout.
 
 Still falling back, specific to the two-phase split: the opt-in `distinct-agg.split.enabled`
 incremental chain (a deliberate non-goal — see [Unsupported operators](unsupported.md)),
-`MIN`/`MAX` over `DISTINCT`, floating `AVG(DISTINCT)`, float `SUM`/`MIN`/`MAX`
-partials, and — under a
+`MIN`/`MAX` with a retained physical `DISTINCT` flag, floating `SUM(DISTINCT)` and
+`AVG(DISTINCT)`, and — under a
 retracting input — any aggregate other than `COUNT`/`AVG`/exact `SUM0` (Flink's `SUM`/`MIN`/`MAX` retract
 variants declare extra accumulator fields, and a monotonicity-exempt `MIN`/`MAX` ignores
 retractions in ways the native fold would not) plus `DISTINCT` (its view value switches to
@@ -302,7 +327,7 @@ agrees byte-for-byte with Flink's — this table is that guardrail; anything mar
 | INT | ✓ ² | ✓ ¹ | ✓ | ✓ | ✓ |
 | SMALLINT / TINYINT | ✓ ² | ✓ ¹ | ✓ | ✓ | ✓ |
 | DOUBLE | ✓ | ✓ | ✓ | ✓ | ✓ |
-| FLOAT (REAL) | ✗ | ✓ ³ | ✗ | ✗ | ✓ |
+| FLOAT | Yes | ✓ ³ | Yes | Yes | ✓ |
 | DECIMAL | ✓ ⁴ | ✓ ⁴ | ✓ | ✓ | ✓ |
 | CHAR / VARCHAR | ✗ | ✗ | ✓ ⁵ | ✓ ⁵ | ✓ |
 | TIMESTAMP / TIMESTAMP_LTZ | - | - | Yes | Yes | Yes |
@@ -317,9 +342,9 @@ sum — the host's exact "store the running sum in the input type, cast back eac
 pinned by an overflow-boundary parity test.
 
 ³ **`AVG` over FLOAT** sums in double and narrows the quotient to float, as Flink's
-`FloatAvgAggFunction` does. Non-windowed FLOAT SUM/MIN/MAX still fail the planner's
-running-value type gate; support for those types in other aggregate operators does not admit
-them here.
+`FloatAvgAggFunction` does. FLOAT SUM/MIN/MAX keep FLOAT state and results instead of
+using that widened AVG state. Released Flink rejects SQL `CAST(... AS REAL)` during validation
+with `Type is not supported: REAL`; this spelling retains the same planning failure.
 
 ⁴ **DECIMAL** carries type-preserving `MIN`/`MAX`/`COUNT` over the column's own precision/scale,
 `SUM` as an i128 running sum reported as `DECIMAL(38, s)`, and `AVG` as that sum divided by the
@@ -362,23 +387,23 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Local group aggregate (two-phase local half) only:**
 
-- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over STRING/VARCHAR.
-- A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/double/decimal (MIN/MAX also admit
+- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over STRING/VARCHAR/FLOAT/DOUBLE.
+- A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/float/double/decimal (MIN/MAX also admit
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
   bigint/int/smallint/tinyint/float/double/decimal.
 - A `COUNT(DISTINCT)` value type outside bigint/int/smallint/tinyint/float/double/string/decimal/
   BOOLEAN/TIMESTAMP_LTZ, or a `SUM(DISTINCT)` value outside bigint/int/smallint/tinyint/DECIMAL;
   DECIMAL sum partials with a different scale/precision other than 38;
   `AVG(DISTINCT)` outside integers/DECIMAL or with incorrectly widened partials;
-  `MIN`/`MAX` over `DISTINCT`.
+  `MIN`/`MAX` with a retained physical `DISTINCT` flag (Flink normally removes it).
 - A partial whose declared type differs from what the native side emits — defensive only, not
   reachable from Flink's own planner.
 - A retracting input with any aggregate other than plain COUNT/AVG/exact SUM0.
 
 **Global group aggregate (two-phase merge) only:**
 
-- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0.
-- A partial column outside bigint/int/smallint/tinyint/double/decimal (strings, DATE, TIME, BOOLEAN and timestamps
+- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or the typed SINGLE_VALUE split described above.
+- A partial column outside bigint/int/smallint/tinyint/float/double/decimal (strings, DATE, TIME, BOOLEAN and timestamps
   allowed under MIN/MAX).
 - An AVG whose partial pair isn't `(bigint, bigint)` for an integer average, `(double, bigint)` for
   float/double, or `(decimal(38, s), bigint)` for decimal.

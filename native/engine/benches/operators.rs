@@ -19,6 +19,7 @@ use streamfusion::bench::{
 };
 
 mod append_top1;
+mod floating_group;
 mod typed_distinct;
 
 const ROWS: usize = 4096;
@@ -1543,6 +1544,7 @@ criterion_group!(
     bench_local_group_by_extremes,
     bench_local_group_by_multi_distinct,
     typed_distinct::bench_typed_distinct,
+    floating_group::bench_floating_group,
     append_top1::bench_append_top1,
     bench_json_decode,
     bench_session_keyed,

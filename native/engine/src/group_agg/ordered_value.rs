@@ -86,8 +86,10 @@ impl OrderedValueState {
                 }
                 15 | 16 => {
                     if retract {
-                        if let Some(index) =
-                            self.values.iter().position(|existing| *existing == value)
+                        if let Some(index) = self
+                            .values
+                            .iter()
+                            .position(|existing| crate::flink_float::boxed_equal(existing, &value))
                         {
                             self.value_bytes -= self.values.remove(index).unwrap().size();
                         }

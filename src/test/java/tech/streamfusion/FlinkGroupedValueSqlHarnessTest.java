@@ -27,6 +27,8 @@ class FlinkGroupedValueSqlHarnessTest {
         "SMALLINT",
         "INT",
         "BIGINT",
+        "FLOAT",
+        "DOUBLE",
         "DECIMAL(20,3)",
         "STRING",
         "DATE",
@@ -48,6 +50,8 @@ class FlinkGroupedValueSqlHarnessTest {
       strings = {
         "INT",
         "BIGINT",
+        "FLOAT",
+        "DOUBLE",
         "DECIMAL(20,3)",
         "STRING",
         "DATE",
@@ -78,6 +82,8 @@ class FlinkGroupedValueSqlHarnessTest {
       strings = {
         "INT",
         "BIGINT",
+        "FLOAT",
+        "DOUBLE",
         "DECIMAL(20,3)",
         "STRING",
         "DATE",
@@ -110,15 +116,6 @@ class FlinkGroupedValueSqlHarnessTest {
     assertTrue(
         java.util.Arrays.stream(comparison.nativeRun().rootCause().getStackTrace())
             .anyMatch(frame -> frame.getMethodName().equals("updateGroupAggregator")));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"FLOAT", "DOUBLE"})
-  void unverifiedValueTypesRetainExplicitFallback(String type) throws Exception {
-    NativeParity.assertFallbackReasonContains(
-        () -> environment(type, false),
-        "SELECT k, FIRST_VALUE(v), LAST_VALUE(v) FROM src GROUP BY k",
-        "over an unsupported value type");
   }
 
   @ParameterizedTest
