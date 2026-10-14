@@ -28,7 +28,10 @@ The accumulator owns signed milliseconds and the fractional nanosecond remainder
 that pair without narrowing the date range, ignores NULLs and emits NULL for an all-NULL group.
 Local/global partials and checkpoint state use one nullable component timestamp with the
 original logical precision. Ordinary COUNT(timestamp) retains its separate numeric type gate.
-Both timestamp kinds can share a window with numeric aggregates and COUNT(DISTINCT).
+Both timestamp kinds can share a window with numeric aggregates, string extrema and COUNT(DISTINCT).
+Mixed string/temporal SQL comparisons cover TUMBLE/HOP/CUMULATE at precision 0/3/6/9
+in both phases. They verify default single-phase string fallback and the explicit native opt-in;
+adding temporal extrema does not bypass the [string admission gate](#string-minmax).
 
 Temporal extrema are enabled for single-phase and local/global TUMBLE/HOP/CUMULATE,
 event-time SESSION, admitted attached windows and legacy HOP. Processing-time fixed windows

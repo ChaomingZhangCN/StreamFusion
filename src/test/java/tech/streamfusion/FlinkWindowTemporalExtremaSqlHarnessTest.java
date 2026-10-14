@@ -68,6 +68,27 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
   }
 
   @ParameterizedTest
+  @MethodSource("fixtures")
+  void mixedStringAndTimestampExtremaPreserveSelectedRows(String phase, String shape, int precision) {
+    String query = sql(shape,
+        "MIN(tv), MAX(lv), MIN(CAST(k AS STRING)), MAX(CAST(ts AS STRING)), COUNT(*)");
+    if (phase.equals("ONE_PHASE")) {
+      var runs = NativeFailureParity.run(() -> environment(phase, precision, "UTC", false), query);
+      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
+      assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
+      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
+          reason -> reason.contains("single-phase string MIN/MAX requires")), runs.toString());
+    }
+    check(() -> {
+      var table = environment(phase, precision, "UTC", false);
+      if (phase.equals("ONE_PHASE")) {
+        table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
+      }
+      return table;
+    }, query, phase);
+  }
+
+  @ParameterizedTest
   @MethodSource("zones")
   void independentFiltersPreserveNullOnlyGroupsAndMixedPartialPositions(
       String phase, String zone, int precision) {
