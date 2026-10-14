@@ -139,8 +139,8 @@ fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
     let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
     let low = TimestampValue::new(-1, 999_998).unwrap();
     let high = TimestampValue::new(-1, 999_999).unwrap();
-    let kinds = vec![1, 2, 3];
-    let types = vec![1009, 1009, 0];
+    let kinds = vec![1, 2, 3, 1, 2];
+    let types = vec![1009, 1009, 0, 3, 3];
     let create = || TumblingAggregator::new(1000, 1000, false, types.clone(), kinds.clone());
     let mut single = create();
     let mut local = create();
@@ -155,6 +155,23 @@ fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
             .chain([(-99, None)])
             .collect();
         let values: ArrayRef = Arc::new(timestamp_array(rows.iter().map(|row| row.1)));
+        let strings: ArrayRef = Arc::new(StringArray::from(
+            rows.iter()
+                .map(|row| {
+                    row.1.map(|value| {
+                        if value == early {
+                            "a\0"
+                        } else if value == late {
+                            "\u{e000}"
+                        } else if value == low {
+                            ""
+                        } else {
+                            "z"
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ));
         let batch = RecordBatch::try_from_iter(vec![
             (
                 "ts",
@@ -170,6 +187,8 @@ fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
                 "value2",
                 Arc::new(Int64Array::from_value(1, rows.len())) as ArrayRef,
             ),
+            ("value3", strings.clone()),
+            ("value4", strings),
         ])
         .unwrap();
         let batch = batch.slice(1, rows.len() - 2);
@@ -201,22 +220,38 @@ fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
         TimestampColumn::try_new(result.column_by_name("result0").unwrap().as_ref()).unwrap();
     let maximum =
         TimestampColumn::try_new(result.column_by_name("result1").unwrap().as_ref()).unwrap();
+    let string_column = |name| {
+        result
+            .column_by_name(name)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+    };
+    let string_min = string_column("result3");
+    let string_max = string_column("result4");
     for row in 0..result.num_rows() {
         match keys.value(row) {
             1 => {
                 assert_eq!(minimum.value(row).unwrap(), early);
                 assert_eq!(maximum.value(row).unwrap(), late);
                 assert_eq!(column_i64(&result, "result2").value(row), 4);
+                assert_eq!(string_min.value(row), "a\0");
+                assert_eq!(string_max.value(row), "\u{e000}");
             }
             2 => {
                 assert!(minimum.is_null(row));
                 assert!(maximum.is_null(row));
                 assert_eq!(column_i64(&result, "result2").value(row), 2);
+                assert!(string_min.is_null(row));
+                assert!(string_max.is_null(row));
             }
             3 => {
                 assert_eq!(minimum.value(row).unwrap(), low);
                 assert_eq!(maximum.value(row).unwrap(), high);
                 assert_eq!(column_i64(&result, "result2").value(row), 2);
+                assert_eq!(string_min.value(row), "");
+                assert_eq!(string_max.value(row), "z");
             }
             _ => panic!("unexpected key"),
         }

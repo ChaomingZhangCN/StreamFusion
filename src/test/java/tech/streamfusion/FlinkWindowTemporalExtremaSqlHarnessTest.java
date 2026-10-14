@@ -68,6 +68,13 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
   }
 
   @ParameterizedTest
+  @CsvSource({"ONE_PHASE,3", "ONE_PHASE,9", "TWO_PHASE,3", "TWO_PHASE,9"})
+  void mixedStringAndTimestampExtremaPreserveSelectedRows(String phase, int precision) {
+    check(() -> environment(phase, precision, "UTC", false), sql("TUMBLE",
+        "MIN(tv), MAX(lv), MIN(CAST(k AS STRING)), MAX(CAST(ts AS STRING)), COUNT(*)"), phase);
+  }
+
+  @ParameterizedTest
   @MethodSource("zones")
   void independentFiltersPreserveNullOnlyGroupsAndMixedPartialPositions(
       String phase, String zone, int precision) {
