@@ -63,6 +63,7 @@ pub(crate) enum MinMaxKey {
 impl MinMaxKey {
     fn of(num: Num) -> Self {
         match num {
+            Num::Timestamp(value) => Self::Timestamp(value.nanos()),
             Num::I64(v) => MinMaxKey::I64(v),
             Num::I32(v) => MinMaxKey::I32(v),
             Num::I16(v) => MinMaxKey::I16(v),
@@ -274,7 +275,7 @@ pub(crate) enum GroupAggState {
     },
 }
 
-fn emit_running(agg: &RunningAgg, count: i64, result_type: &DataType) -> ScalarValue {
+pub(crate) fn emit_running(agg: &RunningAgg, count: i64, result_type: &DataType) -> ScalarValue {
     match agg {
         // AVG partials carry an accumulator, not an evaluated result. A -U/+U bundle
         // can have a zero net count but a nonzero sum adjustment for the global merge.

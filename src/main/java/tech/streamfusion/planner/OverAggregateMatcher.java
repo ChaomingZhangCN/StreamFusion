@@ -14,8 +14,8 @@ import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory$;
-import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalRel;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalOverAggregate;
+import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalRel;
 import org.apache.flink.table.planner.plan.utils.ChangelogPlanUtils;
 
 /**
@@ -61,13 +61,17 @@ final class OverAggregateMatcher {
     if (!rowtimeOrder && !proctimeOrder) {
       return "OVER: requires exactly one ascending event-time or proctime order column";
     }
-    // Proctime is materialized as a fixed per-batch timestamp, so a frame measured by that wall-clock
-    // value has no meaningful definition; only the row-count (ROWS) and running (unbounded) frames are
+    // Proctime is materialized as a fixed per-batch timestamp, so a frame measured by that
+    // wall-clock
+    // value has no meaningful definition; only the row-count (ROWS) and running (unbounded) frames
+    // are
     // well-defined over proctime (they depend on arrival order, not the clock value).
     if (proctimeOrder && !group.isRows && !group.lowerBound.isUnbounded()) {
-      return "OVER: a bounded RANGE frame over proctime is not supported (use ROWS or an event-time order)";
+      return "OVER: a bounded RANGE frame over proctime is not supported (use ROWS or an event-time"
+                 + " order)";
     }
-    // Window functions (ROW_NUMBER) are computed per partition with no value column over the default
+    // Window functions (ROW_NUMBER) are computed per partition with no value column over the
+    // default
     // ROWS UNBOUNDED PRECEDING frame.
     if (allWindowFunctions(group)) {
       if (group.lowerBound.isUnbounded() && group.lowerBound.isPreceding()) {
@@ -76,7 +80,8 @@ final class OverAggregateMatcher {
       return "OVER: window functions need the UNBOUNDED PRECEDING .. CURRENT ROW frame";
     }
     if (valueColumns(window, group, inputType) == null) {
-      return "OVER: expected COUNT(*) or one numeric argument per aggregate; direct AVG is unsupported";
+      return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
+                 + " DECIMAL";
     }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
@@ -109,21 +114,24 @@ final class OverAggregateMatcher {
     return group.lowerBound.isUnbounded() ? 0 : 2;
   }
 
-  /** The bounded-frame offset: n preceding rows (ROWS) or the preceding interval in millis (RANGE). */
+  /**
+   * The bounded-frame offset: n preceding rows (ROWS) or the preceding interval in millis (RANGE).
+   */
   static long frameOffset(StreamPhysicalOverAggregate over) {
     Window window = over.logicWindow();
     Window.Group group = window.groups.get(0);
     if (allWindowFunctions(group) || group.lowerBound.isUnbounded()) {
       return 0;
     }
-    Long offset = boundOffset(group.lowerBound, window, over.getInput().getRowType().getFieldCount());
+    Long offset =
+        boundOffset(group.lowerBound, window, over.getInput().getRowType().getFieldCount());
     return offset == null ? 0 : offset;
   }
 
   /**
-   * The constant offset of a {@code n PRECEDING} bound, or null if it is not a numeric constant. The
-   * planner hoists the literal into {@link Window#constants} and the bound references it as an input
-   * ref past the input columns (index {@code inputFieldCount + constantIndex}).
+   * The constant offset of a {@code n PRECEDING} bound, or null if it is not a numeric constant.
+   * The planner hoists the literal into {@link Window#constants} and the bound references it as an
+   * input ref past the input columns (index {@code inputFieldCount + constantIndex}).
    */
   private static Long boundOffset(RexWindowBound bound, Window window, int inputFieldCount) {
     RexNode offset = bound.getOffset();
@@ -167,7 +175,9 @@ final class OverAggregateMatcher {
     }
   }
 
-  /** The single ascending ORDER BY column index, or null if the order is not a lone ascending key. */
+  /**
+   * The single ascending ORDER BY column index, or null if the order is not a lone ascending key.
+   */
   private static Integer orderColumn(Window.Group group) {
     List<RelFieldCollation> collations = group.orderKeys.getFieldCollations();
     if (collations.size() != 1
@@ -178,8 +188,7 @@ final class OverAggregateMatcher {
   }
 
   /**
-   * One value-column index per aggregate if every aggregate is a supported kind over a single
-   * bigint/int/double input column (each may read a different one), or null otherwise.
+   * One value-column index per admitted aggregate argument, or null for an unsupported kind/type.
    */
   private static int[] valueColumns(Window window, Window.Group group, RelDataType inputType) {
     List<Window.RexWinAggCall> aggCalls = group.aggCalls;
@@ -196,9 +205,8 @@ final class OverAggregateMatcher {
       }
       if (call.getOperands().size() != 1
           || !(call.getOperands().get(0) instanceof RexInputRef)
-          || kind < 0
-          || kind == WindowAggregateMatcher.KIND_AVG) {
-        return null; // SUM/SUM0/MIN/MAX/COUNT only (no AVG), a single column argument each
+          || kind < 0) {
+        return null;
       }
       int index = ((RexInputRef) call.getOperands().get(0)).getIndex();
       RelDataType valueType;
@@ -210,12 +218,23 @@ final class OverAggregateMatcher {
           return null;
         }
         RexLiteral literal = window.constants.get(constant);
-        if (!literal.isNull() && !supportedValueType(literal.getType().getSqlTypeName())) {
+        if (!literal.isNull()
+            && !supportedValueType(
+                literal.getType().getSqlTypeName(), kind, aggCalls.get(a).distinct)) {
           return null;
         }
         valueType = literal.getType();
       }
-      if (!supportedValueType(valueType.getSqlTypeName())
+      if ((kind == 5 || kind == 6)
+          && GroupAggregateMatcher.isTimestampType(valueType.getSqlTypeName())
+          && !tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
+        return null;
+      }
+      if (kind == WindowAggregateMatcher.KIND_AVG
+          && valueType.getSqlTypeName() != SqlTypeName.DECIMAL) {
+        return null;
+      }
+      if (!supportedValueType(valueType.getSqlTypeName(), kind, aggCalls.get(a).distinct)
           && !(index >= inputType.getFieldCount()
               && window.constants.get(index - inputType.getFieldCount()).isNull())) {
         return null;
@@ -261,10 +280,33 @@ final class OverAggregateMatcher {
         || type == SqlTypeName.FLOAT;
   }
 
-  /**
-   * Value-type code per aggregate matching the native side: 0 = bigint, 1 = double, 2 = int, 4 =
-   * smallint, 5 = tinyint, 6 = float.
-   */
+  private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
+    if (supportedValueType(type)) return true;
+    if (distinct) return false;
+    if (type == SqlTypeName.DECIMAL) {
+      return kind == WindowAggregateMatcher.KIND_SUM
+          || kind == WindowAggregateMatcher.KIND_SUM_ZERO
+          || kind == WindowAggregateMatcher.KIND_AVG
+          || kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == 1
+          || kind == 2
+          || kind == 5
+          || kind == 6;
+    }
+    if (type == SqlTypeName.CHAR
+        || type == SqlTypeName.VARCHAR
+        || type == SqlTypeName.TIMESTAMP
+        || type == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+      return kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == 1
+          || kind == 2
+          || kind == 5
+          || kind == 6;
+    }
+    return false;
+  }
+
+  /** Shared native value codes, including decimal precision/scale and timestamp precision. */
   static int[] valueTypeCodes(StreamPhysicalOverAggregate over) {
     int[] columns = valueColumnIndices(over);
     RelDataType inputType = over.getInput().getRowType();
@@ -278,29 +320,7 @@ final class OverAggregateMatcher {
           columns[a] < inputType.getFieldCount()
               ? inputType.getFieldList().get(columns[a]).getType()
               : over.logicWindow().constants.get(columns[a] - inputType.getFieldCount()).getType();
-      switch (valueType.getSqlTypeName()) {
-        case DOUBLE:
-          codes[a] = 1;
-          break;
-        case INTEGER:
-          codes[a] = 2;
-          break;
-        case SMALLINT:
-          codes[a] = 4;
-          break;
-        case TINYINT:
-          codes[a] = 5;
-          break;
-        case FLOAT:
-          codes[a] = 6;
-          break;
-        case CHAR:
-        case VARCHAR:
-          codes[a] = 3;
-          break;
-        default:
-          codes[a] = 0;
-      }
+      codes[a] = WindowAggregateMatcher.windowValueTypeCode(valueType);
     }
     return codes;
   }
@@ -308,27 +328,29 @@ final class OverAggregateMatcher {
   static int[] kinds(StreamPhysicalOverAggregate over) {
     List<Window.RexWinAggCall> aggCalls = over.logicWindow().groups.get(0).aggCalls;
     int[] kinds = new int[aggCalls.size()];
+    int[] valueTypes = valueTypeCodes(over);
     for (int i = 0; i < aggCalls.size(); i++) {
       int kind = kindCode(aggCalls.get(i).getOperator().getKind());
+      if (aggCalls.get(i).getKind() == SqlKind.SUM0 && valueTypes[i] < 2000) {
+        kind = WindowAggregateMatcher.KIND_SUM;
+      }
       kinds[i] = aggCalls.get(i).distinct ? kind + 100 : kind;
     }
     return kinds;
   }
 
-  /** Native code for an OVER output: a window-function code if it is one, else an aggregate code. */
+  /**
+   * Native code for an OVER output: a window-function code if it is one, else an aggregate code.
+   */
   private static int kindCode(SqlKind kind) {
     int windowFunction = windowFunctionKind(kind);
     return windowFunction >= 0 ? windowFunction : overKind(kind);
   }
 
-  /**
-   * Native aggregate code, mapping Calcite's {@code $SUM0} (the planner decomposes user {@code SUM}
-   * into {@code $SUM0} + {@code COUNT}) to the native sum: an OVER frame always contains the current
-   * row, so it is never empty and {@code $SUM0} equals {@code SUM}.
-   */
+  /** Preserves the planner's zero-on-empty reduction independently of ordinary SUM. */
   private static int overKind(SqlKind kind) {
     if (kind == SqlKind.SUM0) {
-      return 0;
+      return WindowAggregateMatcher.KIND_SUM_ZERO;
     }
     if (kind == SqlKind.FIRST_VALUE) {
       return 5;
@@ -391,26 +413,29 @@ final class OverAggregateMatcher {
     }
     // Always columnar: the keyed shuffle becomes a native exchange (split by the
     // partition keys); the transition pass transposes below it only when the producer is rowwise.
-    RelNode nativeOver = new StreamPhysicalNativeOverAggregate(
-        over.getCluster(),
-        over.getTraitSet(),
-        input,
-        physicalOutputType,
-        OverAggregateMatcher.timeColumn(over),
-        OverAggregateMatcher.valueColumnIndices(over),
-        keyColumns,
-        OverAggregateMatcher.valueTypeCodes(over),
-        OverAggregateMatcher.kinds(over),
-        OverAggregateMatcher.frameKind(over),
-        OverAggregateMatcher.frameOffset(over),
-        OverAggregateMatcher.isProctime(over));
+    RelNode nativeOver =
+        new StreamPhysicalNativeOverAggregate(
+            over.getCluster(),
+            over.getTraitSet(),
+            input,
+            physicalOutputType,
+            OverAggregateMatcher.timeColumn(over),
+            OverAggregateMatcher.valueColumnIndices(over),
+            keyColumns,
+            OverAggregateMatcher.valueTypeCodes(over),
+            OverAggregateMatcher.kinds(over),
+            OverAggregateMatcher.frameKind(over),
+            OverAggregateMatcher.frameOffset(over),
+            OverAggregateMatcher.isProctime(over));
     if (constantCount == 0) {
       return nativeOver;
     }
     List<RexNode> outputProjections = new ArrayList<>();
     for (int i = 0; i < inputArity; i++) {
       outputProjections.add(
-          over.getCluster().getRexBuilder().makeInputRef(physicalOutputType.getFieldList().get(i).getType(), i));
+          over.getCluster()
+              .getRexBuilder()
+              .makeInputRef(physicalOutputType.getFieldList().get(i).getType(), i));
     }
     int aggregateCount = over.getRowType().getFieldCount() - inputArity;
     for (int i = 0; i < aggregateCount; i++) {

@@ -970,6 +970,12 @@ public final class Native {
       byte[][] snapshots,
       long memoryBudgetBytes);
 
+  /** Attaches the managed heap copy-on-write observer for decimal RANGE state. */
+  public static native void setOverAggregatorHeapSnapshotProbe(long handle, Object probe, int maxParallelism);
+
+  /** Applies heap RANGE map reconstruction for a canonical savepoint after raw OVER restore. */
+  public static native void restoreOverAggregatorCanonicalRangeOrder(long handle, byte[][] snapshots);
+
   /**
    * Creates an event-time sorter over the given rowtime column and returns an opaque handle. Each
    * input batch is buffered; on a watermark the sorter emits the rows whose rowtime is at or before

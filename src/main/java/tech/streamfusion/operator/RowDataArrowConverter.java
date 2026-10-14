@@ -14,6 +14,7 @@ import org.apache.flink.types.RowKind;
 import tech.streamfusion.arrow.ArrowConversion;
 import tech.streamfusion.arrow.ArrowReader;
 import tech.streamfusion.arrow.ArrowWriter;
+import tech.streamfusion.arrow.StringCacheColumns;
 
 /**
  * Converts whole {@link RowData} rows of a fixed schema to and from an Arrow {@link VectorSchemaRoot},
@@ -94,35 +95,44 @@ public final class RowDataArrowConverter {
    */
   public static VectorSchemaRoot write(
       List<RowData> rows, RowType rowType, BufferAllocator allocator, boolean withRowKind) {
+    return write(rows, rowType, allocator, withRowKind, false);
+  }
+
+  /** Draft string-representation transport; planner admission requires complete pipeline validation. */
+  public static VectorSchemaRoot write(List<RowData> rows, RowType rowType,
+      BufferAllocator allocator, boolean withRowKind, boolean preserveStringCaches) {
     VectorSchemaRoot dataRoot =
         VectorSchemaRoot.create(ArrowConversion.toArrowSchema(rowType), allocator);
     TinyIntVector kinds = null;
+    StringCacheColumns.Writer caches = null;
     try {
+      if (preserveStringCaches) caches = new StringCacheColumns.Writer(rowType, allocator);
       ArrowWriter<RowData> writer = ArrowConversion.createRowDataArrowWriter(dataRoot, rowType);
+      int position = 0;
       for (RowData row : rows) {
+        if (caches != null) caches.write(row, position++);
         writer.write(row);
       }
       writer.finish();
-      if (!withRowKind) {
-        return dataRoot;
-      }
+      if (!withRowKind && caches == null) return dataRoot;
       // Append the hidden RowKind byte column alongside the data vectors (a fresh root over the
       // same
       // vectors plus the kinds vector — the caller closes this root, freeing them all once).
-      kinds = new TinyIntVector(ROW_KIND_COLUMN, allocator);
-      kinds.allocateNew(rows.size());
-      for (int i = 0; i < rows.size(); i++) {
-        kinds.set(i, rows.get(i).getRowKind().toByteValue());
-      }
-      kinds.setValueCount(rows.size());
       List<FieldVector> columns = new ArrayList<>(dataRoot.getFieldVectors());
-      columns.add(kinds);
+      if (withRowKind) {
+        kinds = new TinyIntVector(ROW_KIND_COLUMN, allocator);
+        kinds.allocateNew(rows.size());
+        for (int i = 0; i < rows.size(); i++) kinds.set(i, rows.get(i).getRowKind().toByteValue());
+        kinds.setValueCount(rows.size());
+        columns.add(kinds);
+      }
+      if (caches != null) columns.addAll(caches.finish(rows.size()));
       VectorSchemaRoot root = new VectorSchemaRoot(columns);
       root.setRowCount(rows.size());
       return root;
     } catch (RuntimeException | Error failure) {
       try {
-        org.apache.flink.util.IOUtils.closeAll(dataRoot, kinds);
+        org.apache.flink.util.IOUtils.closeAll(dataRoot, kinds, caches);
       } catch (Exception | Error closeFailure) {
         failure.addSuppressed(closeFailure);
       }

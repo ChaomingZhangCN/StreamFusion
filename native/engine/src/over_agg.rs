@@ -1,15 +1,204 @@
 use crate::*;
 
+mod range_order;
+mod string_first_last;
+use range_order::HeapRangeOrder;
+mod string_extreme;
+mod string_views;
+use string_views::StringView;
+
+#[cfg(test)]
+mod tests;
+
+struct HeapSnapshotProbe {
+    object: jni::objects::GlobalRef,
+    max_parallelism: usize,
+}
+
+impl HeapSnapshotProbe {
+    fn call(&self, key_group: i32, key: &[u8], clear: bool, values: bool) -> bool {
+        use jni::objects::JValue;
+        use streamfusion_bridge::bridge::{JavaException, JVM};
+        let mut env = JVM
+            .get()
+            .expect("OVER heap probe JVM")
+            .attach_current_thread()
+            .expect("OVER heap probe thread");
+        let result = env
+            .with_local_frame(
+                4,
+                |env| -> jni::errors::Result<Result<bool, JavaException>> {
+                    let bytes = env.byte_array_from_slice(key)?;
+                    let args = [JValue::Int(key_group), JValue::Object(&bytes)];
+                    let called = env.call_method(
+                        self.object.as_obj(),
+                        if clear {
+                            "clear"
+                        } else if values {
+                            "touchValues"
+                        } else {
+                            "touch"
+                        },
+                        if clear { "(I[B)V" } else { "(I[B)Z" },
+                        &args,
+                    );
+                    if matches!(called, Err(jni::errors::Error::JavaException)) {
+                        let throwable = env.exception_occurred()?;
+                        env.exception_clear()?;
+                        return Ok(Err(JavaException(env.new_global_ref(throwable)?)));
+                    }
+                    Ok(Ok(if clear {
+                        called?;
+                        false
+                    } else {
+                        called?.z()?
+                    }))
+                },
+            )
+            .expect("OVER heap copy probe");
+        result.unwrap_or_else(|error| std::panic::resume_unwind(Box::new(error)))
+    }
+}
+
+enum OverResultColumn {
+    Scalars(Vec<ScalarValue>),
+    Strings {
+        values: Vec<Option<Arc<str>>>,
+        caches: Vec<Option<Arc<[u16]>>>,
+    },
+    Timestamps(Vec<Option<streamfusion_bridge::timestamp::TimestampValue>>),
+}
+
+impl OverResultColumn {
+    fn new(ty: &DataType, rows: usize) -> Self {
+        if streamfusion_bridge::timestamp::is_timestamp(ty) {
+            Self::Timestamps(vec![None; rows])
+        } else if *ty == DataType::Utf8 {
+            Self::Strings {
+                values: vec![None; rows],
+                caches: vec![None; rows],
+            }
+        } else {
+            Self::Scalars(vec![ScalarValue::Null; rows])
+        }
+    }
+
+    fn set(&mut self, row: usize, state: &OverAggState) {
+        match self {
+            Self::Scalars(values) => values[row] = state.emit(),
+            Self::Strings { values, caches } => {
+                let RunningAgg::OverStringValue {
+                    value, java_utf16, ..
+                } = &state.agg
+                else {
+                    unreachable!("string OVER result accumulator");
+                };
+                values[row] = value.clone();
+                caches[row] = java_utf16.clone();
+            }
+            Self::Timestamps(values) => {
+                let RunningAgg::OverTimestampValue { value, .. } = &state.agg else {
+                    unreachable!("timestamp OVER result accumulator");
+                };
+                values[row] = *value;
+            }
+        }
+    }
+
+    fn set_string_view(&mut self, row: usize, state: &StringView) {
+        let Self::Strings { values, caches } = self else {
+            unreachable!("STRING view output")
+        };
+        values[row] = state.selected().map(|value| value.text.clone());
+        caches[row] = state.selected().and_then(|value| value.cache.clone());
+    }
+
+    fn cache_array(&self, enabled: bool) -> Option<ArrayRef> {
+        match self {
+            Self::Strings { caches, .. } if enabled => Some(string_cache_array(
+                caches.iter().map(|value| value.as_deref()),
+            )),
+            _ => None,
+        }
+    }
+
+    fn finish(self, ty: &DataType) -> ArrayRef {
+        match self {
+            Self::Scalars(values) => scalars_to_array(values, ty),
+            Self::Strings { values, .. } => {
+                Arc::new(StringArray::from_iter(values.iter().map(|v| v.as_deref())))
+            }
+            Self::Timestamps(values) => {
+                Arc::new(streamfusion_bridge::timestamp::timestamp_array(values))
+            }
+        }
+    }
+}
+
+enum OverValueColumn<'a> {
+    Primitive(ValueColumn<'a>),
+    Text(&'a StringArray, Option<JavaStringCacheColumn<'a>>),
+}
+
+impl OverValueColumn<'_> {
+    fn at(&self, row: usize) -> Option<Num> {
+        match self {
+            Self::Primitive(column) => column.at(row),
+            Self::Text(..) => None,
+        }
+    }
+
+    fn text(&self, row: usize) -> Option<&str> {
+        match self {
+            Self::Text(column, _) => (!column.is_null(row)).then(|| column.value(row)),
+            Self::Primitive(_) => None,
+        }
+    }
+
+    fn java_cache(&self, row: usize) -> Option<&[u16]> {
+        match self {
+            Self::Text(_, Some(cache)) => cache.value(row),
+            _ => None,
+        }
+    }
+
+    fn fold(&self, row: usize, state: &mut OverAggState) {
+        if let Some(text) = self.text(row) {
+            let cache = match self {
+                Self::Text(_, Some(cache)) => cache.value(row),
+                _ => None,
+            };
+            if cache.is_some() {
+                state.fold_cached_text(text, cache);
+            } else {
+                state.fold_text(text);
+            }
+        } else if let Some(value) = self.at(row) {
+            state.fold(value);
+        }
+    }
+}
+
 /// Downcasts a projected OVER value column (`value{a}`) to its typed per-row reader.
-pub(crate) fn over_value_column<'a>(
+fn over_value_column<'a>(
     column: &'a ArrayRef,
     value_type: &DataType,
-) -> ValueColumn<'a> {
+    kind: i64,
+) -> OverValueColumn<'a> {
+    if kind == 3 {
+        return OverValueColumn::Primitive(ValueColumn::NullOnly(column));
+    }
     // Constant NULL arguments retain their declared Arrow type, including non-numeric types.
     if matches!(column.data_type(), DataType::Null) || column.null_count() == column.len() {
-        return ValueColumn::NullOnly(column);
+        return OverValueColumn::Primitive(ValueColumn::NullOnly(column));
     }
-    match value_type {
+    if *value_type == DataType::Utf8 {
+        return OverValueColumn::Text(
+            column.as_any().downcast_ref().expect("string OVER value"),
+            None,
+        );
+    }
+    OverValueColumn::Primitive(match value_type {
         DataType::Int64 => ValueColumn::I64(column.as_any().downcast_ref().expect("int64 value")),
         DataType::Int32 => ValueColumn::I32(column.as_any().downcast_ref().expect("int32 value")),
         DataType::Int16 => ValueColumn::I16(column.as_any().downcast_ref().expect("int16 value")),
@@ -20,21 +209,52 @@ pub(crate) fn over_value_column<'a>(
         DataType::Float32 => {
             ValueColumn::F32(column.as_any().downcast_ref().expect("float32 value"))
         }
+        DataType::Decimal128(_, _) => {
+            ValueColumn::Decimal128(column.as_any().downcast_ref().expect("decimal value"))
+        }
+        ty if streamfusion_bridge::timestamp::is_timestamp(ty) => ValueColumn::Timestamp(
+            streamfusion_bridge::timestamp::TimestampColumn::try_new(column.as_ref())
+                .expect("OVER timestamp column"),
+        ),
         other => panic!("unsupported OVER value type: {other:?}"),
+    })
+}
+
+fn over_buffer_scalar(value_type: &DataType, kind: i64, value: Option<Num>) -> ScalarValue {
+    if value.is_none() {
+        return null_scalar(value_type);
+    }
+    if kind == 3 {
+        // COUNT retains membership, not the original value. Keep the declared frame-column
+        // type so memory snapshots and persistent frame rows share their existing codec.
+        return ScalarValue::new_default(value_type).expect("COUNT frame membership");
+    }
+    num_to_scalar(value_type, value)
+}
+
+fn over_buffer_value(kind: i64, scalar: &ScalarValue) -> Option<Num> {
+    if scalar.is_null() {
+        None
+    } else if kind == 3 {
+        Some(Num::I64(0))
+    } else {
+        num_from_scalar(scalar)
     }
 }
 
 pub(crate) struct OverAggState {
     agg: RunningAgg,
+    non_null: i64,
     distinct: Option<DistinctSet>,
     value_type: DataType,
 }
 
 impl OverAggState {
-    fn new(kind: i64, value_type: &DataType) -> Self {
+    pub(crate) fn new(kind: i64, value_type: &DataType) -> Self {
         let distinct = kind >= 100;
         Self {
-            agg: RunningAgg::new(if distinct { kind - 100 } else { kind }, value_type),
+            agg: RunningAgg::new_over(if distinct { kind - 100 } else { kind }, value_type),
+            non_null: 0,
             distinct: distinct.then(|| DistinctSet::new(value_type)),
             value_type: value_type.clone(),
         }
@@ -47,18 +267,142 @@ impl OverAggState {
             }
         }
         self.agg.fold(value);
+        if self.has_count_state() {
+            self.non_null = self.non_null.wrapping_add(1);
+        }
     }
 
-    fn emit(&self) -> ScalarValue {
-        self.agg.emit()
+    fn fold_text(&mut self, candidate: &str) {
+        self.fold_cached_text(candidate, None);
+    }
+
+    pub(crate) fn fold_cached_text(&mut self, candidate: &str, cache: Option<&[u16]>) {
+        self.fold_text_with(candidate, cache, || {
+            (Arc::from(candidate), cache.map(Arc::from))
+        });
+    }
+
+    fn fold_shared_text(&mut self, candidate: &Arc<str>) {
+        self.fold_shared_cached_text(candidate, None);
+    }
+
+    fn fold_shared_cached_text(&mut self, candidate: &Arc<str>, cache: Option<&Arc<[u16]>>) {
+        self.fold_text_with(candidate, cache.map(|units| units.as_ref()), || {
+            (candidate.clone(), cache.cloned())
+        });
+    }
+
+    fn fold_text_with(
+        &mut self,
+        candidate: &str,
+        cache: Option<&[u16]>,
+        retain: impl FnOnce() -> (Arc<str>, Option<Arc<[u16]>>),
+    ) {
+        let RunningAgg::OverStringValue {
+            value,
+            java_utf16,
+            kind,
+        } = &mut self.agg
+        else {
+            unreachable!("string OVER accumulator");
+        };
+        assert!(self.distinct.is_none(), "string DISTINCT OVER admission");
+        if value.as_deref().is_none_or(|current| match *kind {
+            1 | 2 => {
+                let order = match (cache, java_utf16.as_deref()) {
+                    (Some(candidate), Some(current)) => candidate.cmp(current),
+                    _ => candidate.cmp(current),
+                };
+                if *kind == 1 {
+                    order.is_lt()
+                } else {
+                    order.is_gt()
+                }
+            }
+            5 => false,
+            6 => true,
+            _ => unreachable!("string value aggregate kind"),
+        }) {
+            let (text, units) = retain();
+            *value = Some(text);
+            *java_utf16 = units;
+        }
+    }
+
+    fn text_bytes(&self) -> usize {
+        match &self.agg {
+            RunningAgg::OverStringValue {
+                value: Some(value),
+                java_utf16,
+                ..
+            } => {
+                value.len()
+                    + 2 * std::mem::size_of::<usize>()
+                    + java_utf16.as_ref().map_or(0, |units| {
+                        units.len() * std::mem::size_of::<u16>() + 2 * std::mem::size_of::<usize>()
+                    })
+            }
+            _ => 0,
+        }
+    }
+
+    fn retract(&mut self, value: Num) {
+        assert!(
+            self.distinct.is_none(),
+            "persistent bounded DISTINCT reduction"
+        );
+        self.agg.retract(value);
+        if self.has_count_state() {
+            self.non_null = self.non_null.wrapping_sub(1);
+        }
+    }
+
+    pub(crate) fn emit(&self) -> ScalarValue {
+        if self.has_count_state() {
+            emit_running(&self.agg, self.non_null, &self.result_type())
+        } else {
+            self.agg.emit()
+        }
     }
 
     fn result_type(&self) -> DataType {
         self.agg.result_type()
     }
 
-    fn restore_value(&mut self, scalar: &ScalarValue) {
-        self.agg.restore_value(scalar);
+    fn has_count_state(&self) -> bool {
+        matches!(
+            self.agg,
+            RunningAgg::AvgInt { .. }
+                | RunningAgg::AvgFloat { .. }
+                | RunningAgg::AvgDecimal { .. }
+                | RunningAgg::SumDecimal { .. }
+        )
+    }
+
+    fn state_types(&self) -> Vec<DataType> {
+        let mut types = vec![self.agg.state_type()];
+        if self.has_count_state() {
+            types.push(DataType::Int64);
+        }
+        types
+    }
+
+    fn state(&self) -> Vec<ScalarValue> {
+        let mut values = vec![self.agg.emit()];
+        if self.has_count_state() {
+            values.push(ScalarValue::Int64(Some(self.non_null)));
+        }
+        values
+    }
+
+    fn restore_state(&mut self, scalars: &[ScalarValue]) {
+        self.agg.restore_value(&scalars[0]);
+        if self.has_count_state() {
+            let ScalarValue::Int64(Some(count)) = scalars[1] else {
+                panic!("OVER non-null count state");
+            };
+            self.non_null = count;
+        }
     }
 
     fn distinct_values(&self) -> Vec<ScalarValue> {
@@ -84,13 +428,20 @@ pub(crate) struct OverAggregator {
     keys: HashMap<ByteKey, Vec<OverAggState>>,
     key_converter: Option<RowConverter>,
     key_types: Vec<DataType>,
-    // Managed-memory accounting (driven by the owning OVER operator): per-key state is fixed-size,
-    // so the tracked bytes move only when a key is created.
+    // Managed-memory accounting includes each owned string winner beside fixed per-key state.
     track: bool,
     bytes: usize,
 }
 
 impl OverAggregator {
+    fn state_types(&self) -> Vec<DataType> {
+        self.kinds
+            .iter()
+            .zip(&self.value_types)
+            .flat_map(|(&kind, value_type)| OverAggState::new(kind, value_type).state_types())
+            .collect()
+    }
+
     pub(crate) fn new(value_types: Vec<i64>, kinds: Vec<i64>) -> Self {
         OverAggregator {
             rows_frame: false,
@@ -112,9 +463,13 @@ impl OverAggregator {
         self
     }
 
-    /// One key's fixed state footprint (the running aggregates plus the map entry).
+    /// One key's state footprint, including variable-width winners.
     fn key_state_bytes(&self, key: &[u8]) -> usize {
-        byte_key_bytes(key) + self.kinds.len() * std::mem::size_of::<OverAggState>()
+        byte_key_bytes(key)
+            + self.kinds.len() * std::mem::size_of::<OverAggState>()
+            + self.keys.get(key).map_or(0, |states| {
+                states.iter().map(OverAggState::text_bytes).sum::<usize>()
+            })
     }
 
     fn recompute_bytes(&mut self) {
@@ -143,14 +498,29 @@ impl OverAggregator {
     /// rowtime order and returns `[result0..resultN-1]` per input row, in input order. Each aggregate
     /// reads its own `value{a}` column.
     pub(crate) fn update(&mut self, batch: &RecordBatch) -> RecordBatch {
+        self.update_with_serialized_strings(batch, false)
+    }
+
+    fn update_with_serialized_strings(
+        &mut self,
+        batch: &RecordBatch,
+        serialized_strings: bool,
+    ) -> RecordBatch {
         let rt = column_i64(batch, "rt");
         let num_agg = self.kinds.len();
-        let value_columns: Vec<ValueColumn> = (0..num_agg)
+        let value_columns: Vec<OverValueColumn> = (0..num_agg)
             .map(|a| {
                 let column = batch
                     .column_by_name(&format!("value{a}"))
                     .expect("missing value column");
-                over_value_column(column, &self.value_types[a])
+                let reader = over_value_column(column, &self.value_types[a], self.kinds[a]);
+                match reader {
+                    OverValueColumn::Text(values, _) => OverValueColumn::Text(
+                        values,
+                        string_cache_column(batch, a + 1).map(JavaStringCacheColumn::new),
+                    ),
+                    other => other,
+                }
             })
             .collect();
         let key_arrays = key_arrays(batch);
@@ -160,7 +530,13 @@ impl OverAggregator {
 
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_by_key(|&row| rt.value(row));
-        let mut results: Vec<Vec<ScalarValue>> = vec![vec![ScalarValue::Null; n]; num_agg];
+        let mut results = self
+            .kinds
+            .iter()
+            .zip(&self.value_types)
+            .map(|(&kind, ty)| OverResultColumn::new(&OverAggState::new(kind, ty).result_type(), n))
+            .collect::<Vec<_>>();
+        let variable_width = self.value_types.contains(&DataType::Utf8);
         let mut start = 0;
         while start < n {
             let mut end = start + 1;
@@ -173,14 +549,22 @@ impl OverAggregator {
             for &row in &order[start..end] {
                 let key = keys_encoded.row(row).data();
                 let keys_before = self.keys.len();
+                let previous_bytes = if self.track && variable_width && self.keys.contains_key(key)
+                {
+                    self.key_state_bytes(key)
+                } else {
+                    0
+                };
                 let states = self.states(key);
                 for (a, state) in states.iter_mut().enumerate() {
-                    if let Some(num) = value_columns[a].at(row) {
-                        state.fold(num);
-                    }
+                    value_columns[a].fold(row, state);
                 }
-                if self.track && self.keys.len() > keys_before {
-                    self.bytes += self.key_state_bytes(key);
+                if self.track {
+                    if variable_width {
+                        self.bytes = self.bytes - previous_bytes + self.key_state_bytes(key);
+                    } else if self.keys.len() > keys_before {
+                        self.bytes += self.key_state_bytes(key);
+                    }
                 }
             }
             for &row in &order[start..end] {
@@ -189,38 +573,56 @@ impl OverAggregator {
                     .get(keys_encoded.row(row).data())
                     .expect("key present");
                 for (a, state) in states.iter().enumerate() {
-                    results[a][row] = state.emit();
+                    results[a].set(row, state);
+                }
+            }
+            if serialized_strings {
+                for &row in &order[start..end] {
+                    let key = keys_encoded.row(row).data();
+                    let before = self.track.then(|| self.key_state_bytes(key));
+                    for state in self.keys.get_mut(key).expect("serialized string key") {
+                        if let RunningAgg::OverStringValue { java_utf16, .. } = &mut state.agg {
+                            *java_utf16 = None;
+                        }
+                    }
+                    if let Some(before) = before {
+                        self.bytes = self.bytes - before + self.key_state_bytes(key);
+                    }
                 }
             }
             start = end;
         }
 
+        let cache_transport = batch
+            .schema()
+            .fields()
+            .iter()
+            .any(|field| is_string_cache_field(field));
+        let mut cache_columns = Vec::new();
         let mut fields = Vec::with_capacity(num_agg);
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(num_agg);
-        for a in 0..num_agg {
+        for (a, result) in results.into_iter().enumerate() {
             let result_type = OverAggState::new(self.kinds[a], &self.value_types[a]).result_type();
             fields.push(Field::new(format!("result{a}"), result_type.clone(), true));
-            columns.push(scalars_to_array(
-                std::mem::take(&mut results[a]),
-                &result_type,
-            ));
+            if let Some(cache) = result.cache_array(cache_transport) {
+                cache_columns.push((a, cache));
+            }
+            columns.push(result.finish(&result_type));
+        }
+        for (field, cache) in cache_columns {
+            fields.push(string_cache_field(field, cache.data_type().clone()));
+            columns.push(cache);
         }
         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
             .expect("failed to build over result batch")
     }
 
-    /// Serializes the per-key running state (`[key0.., state0..]`, one row per key, one scalar per
-    /// aggregate — the running value is itself the checkpointed state), the optional retention
-    /// stamp riding as a trailing per-key column.
+    /// Serializes one raw accumulator row per key. AVG and decimal SUM carry their non-null
+    /// count beside the sum; legacy aggregates retain their single-scalar layout.
     fn snapshot(&mut self, retention: RetentionStamps) -> Vec<u8> {
-        let result_types: Vec<DataType> = self
-            .kinds
-            .iter()
-            .zip(&self.value_types)
-            .map(|(&k, vt)| OverAggState::new(k, vt).result_type())
-            .collect();
+        let result_types = self.state_types();
         let mut keys: Vec<&[u8]> = Vec::new();
-        let mut state_columns: Vec<Vec<ScalarValue>> = vec![Vec::new(); self.kinds.len()];
+        let mut state_columns: Vec<Vec<ScalarValue>> = vec![Vec::new(); result_types.len()];
         let mut distinct_columns: Vec<Option<(Vec<i32>, Vec<ScalarValue>)>> = self
             .kinds
             .iter()
@@ -229,8 +631,12 @@ impl OverAggregator {
         let mut stamps: Vec<i64> = Vec::new();
         for (key, states) in self.keys.iter() {
             keys.push(&key.0);
+            let mut column = 0;
             for (i, state) in states.iter().enumerate() {
-                state_columns[i].push(state.emit());
+                for value in state.state() {
+                    state_columns[column].push(value);
+                    column += 1;
+                }
                 if let Some((offsets, values)) = &mut distinct_columns[i] {
                     values.extend(state.distinct_values());
                     offsets.push(values.len() as i32);
@@ -286,23 +692,30 @@ impl OverAggregator {
     ) -> Self {
         let mut aggregator = OverAggregator::new(value_types, kinds);
         let num_agg = aggregator.kinds.len();
+        let state_count = aggregator.state_types().len();
         let distinct_count = aggregator.kinds.iter().filter(|&&kind| kind >= 100).count();
         for batch in read_ipc(bytes) {
             let retention = retention_stamps(&batch);
             let arity =
-                batch.num_columns() - num_agg - distinct_count - retention.is_some() as usize;
+                batch.num_columns() - state_count - distinct_count - retention.is_some() as usize;
             let key_arrays: Vec<&ArrayRef> = (0..arity).map(|j| batch.column(j)).collect();
             aggregator.key_types = key_types(&key_arrays);
             let keys_encoded =
                 encode_keys(&mut aggregator.key_converter, &key_arrays, batch.num_rows());
             for row in 0..batch.num_rows() {
                 let key = keys_encoded.row(row).data();
-                for (i, state) in aggregator.states(key).iter_mut().enumerate() {
-                    let scalar = ScalarValue::try_from_array(batch.column(arity + i), row)
-                        .expect("over state scalar");
-                    state.restore_value(&scalar);
+                let mut column = arity;
+                for state in aggregator.states(key).iter_mut() {
+                    let scalars = (0..state.state_types().len())
+                        .map(|offset| {
+                            ScalarValue::try_from_array(batch.column(column + offset), row)
+                                .expect("over state scalar")
+                        })
+                        .collect::<Vec<_>>();
+                    state.restore_state(&scalars);
+                    column += scalars.len();
                 }
-                let mut distinct_column = arity + num_agg;
+                let mut distinct_column = arity + state_count;
                 for i in 0..num_agg {
                     if aggregator.kinds[i] < 100 {
                         continue;
@@ -338,20 +751,241 @@ impl OverAggregator {
 pub(crate) struct BufferedRow {
     rt: i64,
     values: Vec<Option<Num>>,
+    extra: Option<Box<BufferedExtra>>,
+}
+
+#[derive(Clone, Default)]
+struct BufferedExtra {
+    texts: Option<Box<[Option<Arc<str>>]>>,
+    caches: Option<Box<[Option<Arc<[u16]>>]>>,
+    string_views: Option<Box<[StringView]>>,
+    fold_state: Option<Vec<ScalarValue>>,
+}
+
+impl BufferedRow {
+    fn fold_state(&self) -> Option<&[ScalarValue]> {
+        self.extra.as_ref()?.fold_state.as_deref()
+    }
+
+    fn set_fold_state(&mut self, state: Option<Vec<ScalarValue>>) {
+        if let Some(state) = state {
+            self.extra.get_or_insert_with(Default::default).fold_state = Some(state);
+        } else if let Some(extra) = &mut self.extra {
+            extra.fold_state = None;
+            if extra.texts.is_none() && extra.string_views.is_none() && extra.caches.is_none() {
+                self.extra = None;
+            }
+        }
+    }
+
+    fn text_value(&self, slot: usize) -> Option<&Arc<str>> {
+        self.extra.as_ref()?.texts.as_ref()?[slot].as_ref()
+    }
+
+    fn java_cache(&self, slot: usize) -> Option<&Arc<[u16]>> {
+        self.extra.as_ref()?.caches.as_ref()?[slot].as_ref()
+    }
+
+    fn cache_bytes(&self) -> usize {
+        self.extra
+            .as_ref()
+            .and_then(|extra| extra.caches.as_ref())
+            .map_or(0, |caches| {
+                caches.len() * std::mem::size_of::<Option<Arc<[u16]>>>()
+                    + caches
+                        .iter()
+                        .flatten()
+                        .map(|units| {
+                            units.len() * std::mem::size_of::<u16>()
+                                + 2 * std::mem::size_of::<usize>()
+                        })
+                        .sum::<usize>()
+            })
+    }
+
+    fn clear_java_caches(&mut self) {
+        if let Some(extra) = &mut self.extra {
+            extra.caches = None;
+        }
+    }
+
+    fn text(&self, slot: usize) -> Option<&str> {
+        self.text_value(slot).map(|text| text.as_ref())
+    }
+
+    fn text_bytes(&self) -> usize {
+        self.views_bytes()
+            + self.cache_bytes()
+            + self
+                .extra
+                .as_ref()
+                .and_then(|extra| extra.texts.as_ref())
+                .map_or(0, |texts| {
+                    std::mem::size_of::<BufferedExtra>()
+                        + texts.len() * std::mem::size_of::<Option<Arc<str>>>()
+                        + texts
+                            .iter()
+                            .flatten()
+                            .map(|text| text.len() + 2 * std::mem::size_of::<usize>())
+                            .sum::<usize>()
+                })
+    }
+
+    fn views_bytes(&self) -> usize {
+        self.extra
+            .as_ref()
+            .and_then(|extra| extra.string_views.as_ref())
+            .map_or(0, |views| {
+                views.iter().map(StringView::bytes).sum::<usize>()
+                    + if self.extra.as_ref().unwrap().texts.is_none() {
+                        std::mem::size_of::<BufferedExtra>()
+                    } else {
+                        0
+                    }
+            })
+    }
+
+    fn take_string_views(&mut self) -> Option<Box<[StringView]>> {
+        let views = self.extra.as_mut()?.string_views.take();
+        self.prune_extra();
+        views
+    }
+
+    fn prune_extra(&mut self) {
+        if self.extra.as_ref().is_some_and(|extra| {
+            extra.texts.is_none()
+                && extra.caches.is_none()
+                && extra.string_views.is_none()
+                && extra.fold_state.is_none()
+        }) {
+            self.extra = None;
+        }
+    }
+
+    fn set_string_views(&mut self, views: Option<Box<[StringView]>>) {
+        if let Some(views) = views {
+            self.extra.get_or_insert_with(Default::default).string_views = Some(views);
+        } else if let Some(extra) = &mut self.extra {
+            extra.string_views = None;
+            self.prune_extra();
+        }
+    }
+
+    fn restore_string_views(&mut self, arithmetic_width: usize, kinds: &[i64]) {
+        let Some(extra) = &mut self.extra else {
+            return;
+        };
+        let Some(fold) = &mut extra.fold_state else {
+            return;
+        };
+        let encoded = fold.split_off(arithmetic_width);
+        if encoded.iter().any(|value| !value.is_null()) {
+            extra.string_views = Some(
+                encoded
+                    .iter()
+                    .zip(kinds)
+                    .map(|(value, &kind)| match value {
+                        ScalarValue::Binary(Some(bytes)) => StringView::restore(kind, bytes),
+                        _ => StringView::new(kind),
+                    })
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            );
+        }
+        if arithmetic_width == 0 {
+            extra.fold_state = None;
+        }
+    }
+
+    fn fold_scalar(&self, column: usize, arithmetic_width: usize, ty: &DataType) -> ScalarValue {
+        if column < arithmetic_width {
+            self.fold_state()
+                .map_or_else(|| null_scalar(ty), |state| state[column].clone())
+        } else {
+            self.extra
+                .as_ref()
+                .and_then(|extra| extra.string_views.as_ref())
+                .map_or_else(
+                    || null_scalar(ty),
+                    |views| ScalarValue::Binary(Some(views[column - arithmetic_width].snapshot())),
+                )
+        }
+    }
+
+    fn scalar(&self, ty: &DataType, kind: i64, slot: usize) -> ScalarValue {
+        if *ty == DataType::Utf8 && kind != 3 {
+            ScalarValue::Utf8(self.text(slot).map(str::to_owned))
+        } else {
+            over_buffer_scalar(ty, kind, self.values[slot])
+        }
+    }
+
+    fn from_scalars(
+        rt: i64,
+        scalars: &[ScalarValue],
+        kinds: &[i64],
+        fold: Option<Vec<ScalarValue>>,
+    ) -> Self {
+        let text_slots = scalars
+            .iter()
+            .zip(kinds)
+            .any(|(value, &kind)| kind != 3 && value.data_type() == DataType::Utf8);
+        let values = scalars
+            .iter()
+            .zip(kinds)
+            .map(|(value, &kind)| {
+                if kind != 3 && value.data_type() == DataType::Utf8 {
+                    None
+                } else {
+                    over_buffer_value(kind, value)
+                }
+            })
+            .collect();
+        let texts = text_slots.then(|| {
+            scalars
+                .iter()
+                .zip(kinds)
+                .map(|(value, &kind)| match value {
+                    ScalarValue::Utf8(value) if kind != 3 => value.as_deref().map(Arc::from),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        });
+        Self {
+            rt,
+            values,
+            extra: (texts.is_some() || fold.is_some()).then(|| {
+                Box::new(BufferedExtra {
+                    texts,
+                    caches: None,
+                    string_views: None,
+                    fold_state: fold,
+                })
+            }),
+        }
+    }
 }
 
 /// Bounded-frame event-time OVER (`ROWS BETWEEN n PRECEDING AND CURRENT ROW`, or `RANGE BETWEEN
 /// INTERVAL x PRECEDING AND CURRENT ROW`). Unlike the unbounded {@link OverAggregator}, which folds a
 /// single persistent accumulator per key, a bounded frame drops rows off its trailing edge — so the
 /// running value cannot be maintained incrementally for MIN/MAX (they would need a retractable
-/// multiset). Instead this keeps a per-key sorted buffer of the rows still reachable by some future
+/// multiset). This keeps a per-key sorted buffer of the rows still reachable by some future
 /// frame and **recomputes** each emitted row's aggregate over its frame slice with a fresh
 /// {@link RunningAgg}. The result is byte-identical to Flink's `*BoundedPrecedingFunction` (both
-/// aggregate over the same frame) and sidesteps MIN/MAX retraction entirely. See divergences/11.
+/// aggregate over the same frame) and sidesteps MIN/MAX retraction entirely. Decimal arithmetic
+/// retains its raw fold beside the last frame row so retractions preserve overflow history;
+/// other aggregates continue to recompute. See divergences/11 for the RANGE backend-order gap.
 pub(crate) struct BoundedOverAggregator {
     kinds: Vec<i64>,
     /// One value type per aggregate (aggregates may read different value columns of different types).
     value_types: Vec<DataType>,
+    arithmetic_slots: Vec<usize>,
+    string_view_slots: Vec<usize>,
+    arithmetic_width: usize,
+    range_order: Option<HashMap<ByteKey, HeapRangeOrder>>,
+    fold_types: Vec<DataType>,
     /// true = ROWS (count of rows), false = RANGE (rowtime interval).
     rows_frame: bool,
     /// n preceding rows (ROWS) or the preceding interval in millis (RANGE).
@@ -361,18 +995,56 @@ pub(crate) struct BoundedOverAggregator {
     keys: HashMap<ByteKey, Vec<BufferedRow>>,
     key_converter: Option<RowConverter>,
     key_types: Vec<DataType>,
-    // Managed-memory accounting: buffered rows are fixed-size, tracked on append and eviction.
+    // Managed-memory accounting includes string frame payloads on append and eviction.
     track: bool,
     bytes: usize,
 }
 
 impl BoundedOverAggregator {
     fn new(value_types: Vec<i64>, kinds: Vec<i64>, rows_frame: bool, offset: i64) -> Self {
+        let value_types = value_types
+            .iter()
+            .map(|&code| value_data_type(code))
+            .collect::<Vec<_>>();
+        let decimal_arithmetic = kinds.iter().zip(&value_types).any(|(&kind, ty)| {
+            matches!(kind, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
+        });
+        let arithmetic_slots = kinds
+            .iter()
+            .zip(&value_types)
+            .enumerate()
+            .filter_map(|(slot, (&kind, ty))| {
+                (decimal_arithmetic
+                    && (kind == 3
+                        || kind == 4
+                        || kind == 22
+                        || (kind == 0 && matches!(ty, DataType::Decimal128(_, _)))))
+                .then_some(slot)
+            })
+            .collect::<Vec<_>>();
+        let mut fold_types: Vec<DataType> = arithmetic_slots
+            .iter()
+            .flat_map(|&slot| OverAggState::new(kinds[slot], &value_types[slot]).state_types())
+            .collect();
+        let arithmetic_width = fold_types.len();
+        let string_view_slots = kinds
+            .iter()
+            .zip(&value_types)
+            .enumerate()
+            .filter_map(|(slot, (&kind, ty))| {
+                (matches!(kind, 1 | 2 | 5 | 6) && *ty == DataType::Utf8).then_some(slot)
+            })
+            .collect::<Vec<_>>();
+        fold_types.extend(string_view_slots.iter().map(|_| DataType::Binary));
         BoundedOverAggregator {
-            value_types: value_types
-                .iter()
-                .map(|&code| value_data_type(code))
-                .collect(),
+            value_types,
+            range_order: (!rows_frame
+                && (!arithmetic_slots.is_empty() || !string_view_slots.is_empty()))
+            .then(HashMap::default),
+            arithmetic_slots,
+            string_view_slots,
+            arithmetic_width,
+            fold_types,
             kinds,
             rows_frame,
             offset,
@@ -384,9 +1056,43 @@ impl BoundedOverAggregator {
         }
     }
 
+    fn register_time(&mut self, key: &[u8], time: i64) {
+        let Some(maps) = &mut self.range_order else {
+            return;
+        };
+        let old = maps
+            .get(key)
+            .map_or(0, |map| byte_key_bytes(key) + map.bytes());
+        let map = match maps.get_mut(key) {
+            Some(map) => map,
+            None => maps.entry(ByteKey::from(key)).or_default(),
+        };
+        map.insert(time);
+        if self.track {
+            self.bytes = self.bytes - old + byte_key_bytes(key) + map.bytes();
+        }
+    }
+
+    fn range_order_bytes(&self) -> usize {
+        self.range_order.as_ref().map_or(0, |maps| {
+            maps.iter()
+                .map(|(key, map)| byte_key_bytes(&key.0) + map.bytes())
+                .sum()
+        })
+    }
+
     /// One buffered row's fixed footprint (its rowtime and per-aggregate values).
     fn row_bytes(&self) -> usize {
         std::mem::size_of::<BufferedRow>() + self.kinds.len() * std::mem::size_of::<Option<Num>>()
+    }
+
+    fn fold_bytes(&self) -> usize {
+        if self.arithmetic_width == 0 {
+            0
+        } else {
+            std::mem::size_of::<BufferedExtra>()
+                + self.arithmetic_width * std::mem::size_of::<ScalarValue>()
+        }
     }
 
     fn recompute_bytes(&mut self) {
@@ -394,28 +1100,56 @@ impl BoundedOverAggregator {
         self.bytes = self
             .keys
             .iter()
-            .map(|(key, buffer)| byte_key_bytes(&key.0) + buffer.len() * row)
-            .sum();
+            .map(|(key, buffer)| {
+                byte_key_bytes(&key.0)
+                    + buffer.len() * row
+                    + self.fold_bytes()
+                    + buffer.iter().map(BufferedRow::text_bytes).sum::<usize>()
+            })
+            .sum::<usize>()
+            + self.range_order_bytes();
     }
 
     /// Folds the batch (`rt` i64, `value0..`, optional `key0..`) into the per-key buffer and returns
     /// `[result0..]` per input row, each computed by recomputing the aggregate over that row's frame.
     /// Each aggregate reads its own `value{a}` column.
     fn update(&mut self, batch: &RecordBatch) -> RecordBatch {
+        self.update_with_serialized_strings(batch, false, false)
+    }
+
+    fn update_with_serialized_strings(
+        &mut self,
+        batch: &RecordBatch,
+        serialized_strings: bool,
+        persistent_strings: bool,
+    ) -> RecordBatch {
         let rt = column_i64(batch, "rt");
         let num_agg = self.kinds.len();
-        let value_columns: Vec<ValueColumn> = (0..num_agg)
+        let value_columns: Vec<OverValueColumn> = (0..num_agg)
             .map(|a| {
                 let column = batch
                     .column_by_name(&format!("value{a}"))
                     .expect("missing value column");
-                over_value_column(column, &self.value_types[a])
+                let reader = over_value_column(column, &self.value_types[a], self.kinds[a]);
+                match reader {
+                    OverValueColumn::Text(values, _) => OverValueColumn::Text(
+                        values,
+                        string_cache_column(batch, a + 1).map(JavaStringCacheColumn::new),
+                    ),
+                    other => other,
+                }
             })
             .collect();
         let key_arrays = key_arrays(batch);
         self.key_types = key_types(&key_arrays);
         let n = batch.num_rows();
         let keys_encoded = encode_keys(&mut self.key_converter, &key_arrays, n);
+
+        if self.range_order.is_some() {
+            for row in 0..n {
+                self.register_time(keys_encoded.row(row).data(), rt.value(row));
+            }
+        }
 
         // Append the new rows to their per-key buffers in rowtime order (stable for ties). Every new
         // row's rowtime is past its key's last trigger, hence at or after all already-buffered rows, so
@@ -427,27 +1161,94 @@ impl BoundedOverAggregator {
             let row_rt = rt.value(row);
             let values: Vec<Option<Num>> = value_columns.iter().map(|c| c.at(row)).collect();
             let key = keys_encoded.row(row).data();
-            let (row_bytes, track) = (self.row_bytes(), self.track);
+            let (row_bytes, fold_bytes, track) = (self.row_bytes(), self.fold_bytes(), self.track);
             let buffer = match self.keys.get_mut(key) {
                 Some(buffer) => buffer,
                 None => {
                     if track {
-                        self.bytes += byte_key_bytes(key);
+                        self.bytes += byte_key_bytes(key) + fold_bytes;
                     }
                     self.keys.entry(ByteKey::from(key)).or_default()
                 }
             };
-            buffer.push(BufferedRow { rt: row_rt, values });
+            buffer.push(BufferedRow {
+                rt: row_rt,
+                values,
+                extra: value_columns
+                    .iter()
+                    .any(|column| matches!(column, OverValueColumn::Text(..)))
+                    .then(|| {
+                        Box::new(BufferedExtra {
+                            texts: Some(
+                                value_columns
+                                    .iter()
+                                    .map(|column| column.text(row).map(Arc::from))
+                                    .collect::<Vec<_>>()
+                                    .into_boxed_slice(),
+                            ),
+                            caches: value_columns
+                                .iter()
+                                .any(|column| column.java_cache(row).is_some())
+                                .then(|| {
+                                    value_columns
+                                        .iter()
+                                        .map(|column| column.java_cache(row).map(Arc::from))
+                                        .collect::<Vec<_>>()
+                                        .into_boxed_slice()
+                                }),
+                            string_views: None,
+                            fold_state: None,
+                        })
+                    }),
+            });
             buffer_index[row] = buffer.len() - 1;
             if track {
-                self.bytes += row_bytes;
+                self.bytes += row_bytes + buffer.last().expect("appended frame row").text_bytes();
             }
         }
 
-        let mut results: Vec<Vec<ScalarValue>> = vec![vec![ScalarValue::Null; n]; num_agg];
-        for row in 0..n {
-            let buffer = &self.keys[keys_encoded.row(row).data()];
+        let mut results = self
+            .kinds
+            .iter()
+            .zip(&self.value_types)
+            .map(|(&kind, ty)| OverResultColumn::new(&OverAggState::new(kind, ty).result_type(), n))
+            .collect::<Vec<_>>();
+        let mut running: HashMap<ByteKey, (usize, usize, Vec<OverAggState>)> = HashMap::default();
+        let mut string_running: HashMap<ByteKey, (usize, usize, Vec<StringView>)> =
+            HashMap::default();
+        let mut old_view_bytes = 0;
+        for &row in &order {
+            let key = keys_encoded.row(row).data();
             let i = buffer_index[row];
+            if !self.string_view_slots.is_empty() && !string_running.contains_key(key) {
+                let views = (i > 0)
+                    .then(|| {
+                        let previous = &mut self.keys.get_mut(key).unwrap()[i - 1];
+                        old_view_bytes += previous.views_bytes();
+                        previous.take_string_views()
+                    })
+                    .flatten()
+                    .map(|views| views.into_vec())
+                    .unwrap_or_else(|| {
+                        self.string_view_slots
+                            .iter()
+                            .map(|&slot| StringView::new(self.kinds[slot]))
+                            .collect()
+                    });
+                string_running.insert(ByteKey::from(key), (0, i, views));
+            }
+            if serialized_strings && i > 0 {
+                let prior = &mut self
+                    .keys
+                    .get_mut(key)
+                    .expect("bounded serialized string key")[i - 1];
+                let freed = prior.cache_bytes();
+                prior.clear_java_caches();
+                if self.track {
+                    self.bytes -= freed;
+                }
+            }
+            let buffer = &self.keys[key];
             let cur_rt = buffer[i].rt;
             // ROWS counts physical rows up to and including this one; RANGE covers all rows within the
             // rowtime interval and shares one frame across rows of equal rowtime (ending at the last).
@@ -458,35 +1259,176 @@ impl BoundedOverAggregator {
                 let hi = buffer.partition_point(|r| r.rt <= cur_rt) - 1;
                 (lo, hi)
             };
-            let mut aggs: Vec<OverAggState> = self
-                .kinds
-                .iter()
-                .zip(&self.value_types)
-                .map(|(&k, vt)| OverAggState::new(k, vt))
-                .collect();
-            for r in &buffer[lower..=upper] {
-                for (a, agg) in aggs.iter_mut().enumerate() {
-                    if let Some(v) = r.values[a] {
-                        agg.fold(v);
+            let mut expired_rows: Vec<usize> =
+                if !self.arithmetic_slots.is_empty() || !self.string_view_slots.is_empty() {
+                    let old_lower = running
+                        .get(key)
+                        .map(|cursor| cursor.0)
+                        .or_else(|| string_running.get(key).map(|cursor| cursor.0))
+                        .unwrap_or(0);
+                    (old_lower..lower).collect()
+                } else {
+                    Vec::new()
+                };
+            if !expired_rows.is_empty() {
+                if let Some(maps) = &mut self.range_order {
+                    let map = maps.get_mut(key).expect("RANGE timestamp map");
+                    let old_bytes = map.bytes();
+                    expired_rows.sort_by_cached_key(|&index| map.rank(buffer[index].rt));
+                    let mut previous = None;
+                    for &index in &expired_rows {
+                        let time = buffer[index].rt;
+                        if previous != Some(time) {
+                            map.remove(time);
+                            previous = Some(time);
+                        }
+                    }
+                    if self.track {
+                        self.bytes = self.bytes - old_bytes + map.bytes();
                     }
                 }
             }
-            for (a, agg) in aggs.iter().enumerate() {
-                results[a][row] = agg.emit();
+            if !self.arithmetic_slots.is_empty() {
+                let (old_lower, folded_end, states) = running
+                    .entry(ByteKey::from(keys_encoded.row(row).data()))
+                    .or_insert_with(|| {
+                        let mut states = self
+                            .arithmetic_slots
+                            .iter()
+                            .map(|&slot| {
+                                OverAggState::new(self.kinds[slot], &self.value_types[slot])
+                            })
+                            .collect::<Vec<_>>();
+                        if i > 0 {
+                            let saved = buffer[i - 1]
+                                .fold_state()
+                                .expect("bounded arithmetic fold state");
+                            let mut column = 0;
+                            for state in &mut states {
+                                let width = state.state_types().len();
+                                state.restore_state(&saved[column..column + width]);
+                                column += width;
+                            }
+                        }
+                        (0, i, states)
+                    });
+                for &index in &expired_rows {
+                    for (&slot, state) in self.arithmetic_slots.iter().zip(states.iter_mut()) {
+                        if let Some(value) = buffer[index].values[slot] {
+                            state.retract(value);
+                        }
+                    }
+                }
+                for added in &buffer[*folded_end..=upper] {
+                    for (&slot, state) in self.arithmetic_slots.iter().zip(states.iter_mut()) {
+                        if let Some(value) = added.values[slot] {
+                            state.fold(value);
+                        }
+                    }
+                }
+                *old_lower = lower;
+                *folded_end = upper + 1;
+                for (&slot, state) in self.arithmetic_slots.iter().zip(states.iter()) {
+                    results[slot].set(row, state);
+                }
+            }
+            if let Some((old_lower, folded_end, views)) = string_running.get_mut(key) {
+                for view in views.iter_mut() {
+                    view.set_persistent(persistent_strings);
+                }
+                for &index in &expired_rows {
+                    let expired = &buffer[index];
+                    for (&slot, view) in self.string_view_slots.iter().zip(views.iter_mut()) {
+                        if let Some(text) = expired.text_value(slot) {
+                            view.retract(text, expired.java_cache(slot));
+                        }
+                    }
+                }
+                for added in &buffer[*folded_end..=upper] {
+                    for (&slot, view) in self.string_view_slots.iter().zip(views.iter_mut()) {
+                        if let Some(text) = added.text_value(slot) {
+                            view.add(text, added.java_cache(slot));
+                        }
+                    }
+                }
+                *old_lower = lower;
+                *folded_end = upper + 1;
+                for (&slot, view) in self.string_view_slots.iter().zip(views.iter()) {
+                    results[slot].set_string_view(row, view);
+                }
+                if serialized_strings {
+                    for view in views {
+                        view.cold();
+                    }
+                }
+            }
+            let mut aggs: Vec<(usize, OverAggState)> = self
+                .kinds
+                .iter()
+                .zip(&self.value_types)
+                .enumerate()
+                .filter(|(slot, _)| {
+                    !self.arithmetic_slots.contains(slot) && !self.string_view_slots.contains(slot)
+                })
+                .map(|(slot, (&kind, ty))| (slot, OverAggState::new(kind, ty)))
+                .collect();
+            if !aggs.is_empty() {
+                for r in &buffer[lower..=upper] {
+                    for (slot, agg) in &mut aggs {
+                        if let Some(text) = r.text_value(*slot) {
+                            if let Some(cache) = r.java_cache(*slot) {
+                                agg.fold_shared_cached_text(text, Some(cache));
+                            } else {
+                                agg.fold_shared_text(text);
+                            }
+                        } else if let Some(v) = r.values[*slot] {
+                            agg.fold(v);
+                        }
+                    }
+                }
+            }
+            for (slot, agg) in &aggs {
+                results[*slot].set(row, agg);
             }
         }
 
+        for (key, (_, _, states)) in running {
+            let buffer = self.keys.get_mut(&*key.0).expect("bounded arithmetic key");
+            for row in buffer.iter_mut() {
+                row.set_fold_state(None);
+            }
+            buffer
+                .last_mut()
+                .expect("bounded arithmetic row")
+                .set_fold_state(Some(states.iter().flat_map(OverAggState::state).collect()));
+        }
+
+        let mut new_view_bytes = 0;
+        for (key, (_, _, views)) in string_running {
+            let row = self.keys.get_mut(&*key.0).unwrap().last_mut().unwrap();
+            row.set_string_views(Some(views.into_boxed_slice()));
+            new_view_bytes += row.views_bytes();
+        }
+        if self.track {
+            self.bytes = self.bytes - old_view_bytes + new_view_bytes;
+        }
         self.evict();
 
+        let cache_transport = has_string_caches(batch);
+        let mut cache_columns = Vec::new();
         let mut fields = Vec::with_capacity(num_agg);
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(num_agg);
-        for a in 0..num_agg {
+        for (a, result) in results.into_iter().enumerate() {
             let result_type = OverAggState::new(self.kinds[a], &self.value_types[a]).result_type();
             fields.push(Field::new(format!("result{a}"), result_type.clone(), true));
-            columns.push(scalars_to_array(
-                std::mem::take(&mut results[a]),
-                &result_type,
-            ));
+            if let Some(cache) = result.cache_array(cache_transport) {
+                cache_columns.push((a, cache));
+            }
+            columns.push(result.finish(&result_type));
+        }
+        for (index, cache) in cache_columns {
+            fields.push(string_cache_field(index, cache.data_type().clone()));
+            columns.push(cache);
         }
         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
             .expect("failed to build bounded over result batch")
@@ -497,13 +1439,24 @@ impl BoundedOverAggregator {
     /// Existing frame snapshots and persistent rows therefore preserve late admission too.
     fn evict(&mut self) {
         let (rows_frame, offset) = (self.rows_frame, self.offset);
-        let (track, row_bytes) = (self.track, self.row_bytes());
+        let (track, row_bytes, fold_bytes) = (self.track, self.row_bytes(), self.fold_bytes());
+        let incremental = !self.arithmetic_slots.is_empty() || !self.string_view_slots.is_empty();
         let mut freed = 0usize;
         self.keys.retain(|key, buffer| {
             let dropped = if rows_frame {
-                let keep = (offset as usize).max(1);
+                let keep = if incremental {
+                    (offset as usize).saturating_add(1)
+                } else {
+                    (offset as usize).max(1)
+                };
                 let dropped = buffer.len().saturating_sub(keep);
                 if dropped > 0 {
+                    if track {
+                        freed += buffer[..dropped]
+                            .iter()
+                            .map(BufferedRow::text_bytes)
+                            .sum::<usize>();
+                    }
                     buffer.drain(0..dropped);
                 }
                 dropped
@@ -513,6 +1466,12 @@ impl BoundedOverAggregator {
                     .map_or(i64::MIN, |row| row.rt.saturating_sub(offset));
                 let cut = buffer.partition_point(|r| r.rt < bound);
                 if cut > 0 {
+                    if track {
+                        freed += buffer[..cut]
+                            .iter()
+                            .map(BufferedRow::text_bytes)
+                            .sum::<usize>();
+                    }
                     buffer.drain(0..cut);
                 }
                 cut
@@ -520,7 +1479,7 @@ impl BoundedOverAggregator {
             if track {
                 freed += dropped * row_bytes;
                 if buffer.is_empty() {
-                    freed += byte_key_bytes(&key.0);
+                    freed += byte_key_bytes(&key.0) + fold_bytes;
                 }
             }
             !buffer.is_empty()
@@ -535,13 +1494,17 @@ impl BoundedOverAggregator {
         let mut keys: Vec<&[u8]> = Vec::new();
         let mut rts: Vec<ScalarValue> = Vec::new();
         let mut value_columns: Vec<Vec<ScalarValue>> = vec![Vec::new(); num_agg];
+        let mut fold_columns: Vec<Vec<ScalarValue>> = vec![Vec::new(); self.fold_types.len()];
         let mut stamps: Vec<i64> = Vec::new();
         for (key, buffer) in self.keys.iter() {
             for row in buffer {
                 keys.push(&key.0);
                 rts.push(ScalarValue::Int64(Some(row.rt)));
                 for a in 0..num_agg {
-                    value_columns[a].push(num_to_scalar(&self.value_types[a], row.values[a]));
+                    value_columns[a].push(row.scalar(&self.value_types[a], self.kinds[a], a));
+                }
+                for (column, ty) in self.fold_types.iter().enumerate() {
+                    fold_columns[column].push(row.fold_scalar(column, self.arithmetic_width, ty));
                 }
                 if let Some((_, per_key)) = retention {
                     stamps.push(
@@ -564,6 +1527,14 @@ impl BoundedOverAggregator {
                 true,
             ));
             columns.push(scalars_to_array(scalars, &self.value_types[a]));
+        }
+        for (column, scalars) in fold_columns.into_iter().enumerate() {
+            fields.push(Field::new(
+                format!("fold{column}"),
+                self.fold_types[column].clone(),
+                true,
+            ));
+            columns.push(scalars_to_array(scalars, &self.fold_types[column]));
         }
         if let Some((name, _)) = retention {
             fields.push(Field::new(name, DataType::Int64, false));
@@ -588,7 +1559,11 @@ impl BoundedOverAggregator {
         for batch in read_ipc(bytes) {
             let retention = retention_stamps(&batch);
             // Trailing rt + one value column per agg (+ the optional retention stamp).
-            let arity = batch.num_columns() - 1 - num_agg - retention.is_some() as usize;
+            let arity = batch.num_columns()
+                - 1
+                - num_agg
+                - aggregator.fold_types.len()
+                - retention.is_some() as usize;
             let key_arrays: Vec<&ArrayRef> = (0..arity).map(|j| batch.column(j)).collect();
             aggregator.key_types = key_types(&key_arrays);
             let keys_encoded =
@@ -596,23 +1571,57 @@ impl BoundedOverAggregator {
             let rt = column_i64(&batch, "rt");
             for row in 0..batch.num_rows() {
                 let key = ByteKey::from(keys_encoded.row(row).data());
-                let values: Vec<Option<Num>> = (0..num_agg)
+                let scalars = (0..num_agg)
                     .map(|a| {
-                        let column = batch
-                            .column_by_name(&format!("value{a}"))
-                            .expect("value column");
-                        num_from_scalar(
-                            &ScalarValue::try_from_array(column, row).expect("over value"),
+                        ScalarValue::try_from_array(
+                            batch
+                                .column_by_name(&format!("value{a}"))
+                                .expect("value column"),
+                            row,
                         )
+                        .expect("over value")
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
                 if let Some(column) = retention {
                     stamps.insert(key.clone(), column.value(row));
                 }
-                aggregator.keys.entry(key).or_default().push(BufferedRow {
-                    rt: rt.value(row),
-                    values,
+                let buffer = aggregator.keys.entry(key).or_default();
+                if let Some(previous) = buffer.last_mut() {
+                    previous.set_fold_state(None);
+                    previous.set_string_views(None);
+                }
+                let fold = (!aggregator.fold_types.is_empty()).then(|| {
+                    (0..aggregator.fold_types.len())
+                        .map(|column| {
+                            ScalarValue::try_from_array(
+                                batch.column(arity + 1 + num_agg + column),
+                                row,
+                            )
+                            .expect("bounded arithmetic state")
+                        })
+                        .collect()
                 });
+                buffer.push(BufferedRow::from_scalars(
+                    rt.value(row),
+                    &scalars,
+                    &aggregator.kinds,
+                    fold,
+                ));
+                buffer.last_mut().unwrap().restore_string_views(
+                    aggregator.arithmetic_width,
+                    &aggregator
+                        .string_view_slots
+                        .iter()
+                        .map(|&slot| aggregator.kinds[slot])
+                        .collect::<Vec<_>>(),
+                );
+            }
+        }
+        if let Some(maps) = &mut aggregator.range_order {
+            for (key, rows) in &aggregator.keys {
+                let mut times: Vec<i64> = rows.iter().map(|row| row.rt).collect();
+                times.dedup();
+                maps.insert(key.clone(), HeapRangeOrder::restored(&times));
             }
         }
         aggregator
@@ -983,14 +1992,26 @@ impl OverInner {
     fn clear_key(&mut self, key: &[u8]) {
         match self {
             OverInner::Aggregates(inner) => {
-                if inner.keys.remove(key).is_some() && inner.track {
-                    inner.bytes -= inner.key_state_bytes(key);
+                if let Some(states) = inner.keys.remove(key) {
+                    if inner.track {
+                        inner.bytes -= byte_key_bytes(key)
+                            + states.len() * std::mem::size_of::<OverAggState>()
+                            + states.iter().map(OverAggState::text_bytes).sum::<usize>();
+                    }
                 }
             }
             OverInner::Bounded(inner) => {
+                if let Some(map) = inner.range_order.as_mut().and_then(|maps| maps.remove(key)) {
+                    if inner.track {
+                        inner.bytes -= byte_key_bytes(key) + map.bytes();
+                    }
+                }
                 if let Some(buffer) = inner.keys.remove(key) {
                     if inner.track {
-                        inner.bytes -= byte_key_bytes(key) + buffer.len() * inner.row_bytes();
+                        inner.bytes -= byte_key_bytes(key)
+                            + buffer.len() * inner.row_bytes()
+                            + inner.fold_bytes()
+                            + buffer.iter().map(BufferedRow::text_bytes).sum::<usize>();
                     }
                 }
             }
@@ -1069,9 +2090,9 @@ impl OverInner {
     fn snapshot_state_columns(&self) -> usize {
         match self {
             OverInner::Aggregates(inner) => {
-                inner.kinds.len() + inner.kinds.iter().filter(|&&kind| kind >= 100).count()
+                inner.state_types().len() + inner.kinds.iter().filter(|&&kind| kind >= 100).count()
             }
-            OverInner::Bounded(inner) => 1 + inner.kinds.len(), // rt plus one value per aggregate
+            OverInner::Bounded(inner) => 1 + inner.kinds.len() + inner.fold_types.len(),
             OverInner::WindowFunctions(inner) => inner
                 .kinds
                 .iter()
@@ -1109,7 +2130,7 @@ impl OverInner {
                 .kinds
                 .iter()
                 .zip(&inner.value_types)
-                .map(|(&kind, vt)| OverAggState::new(kind, vt).result_type())
+                .flat_map(|(&kind, vt)| OverAggState::new(kind, vt).state_types())
                 .collect(),
             OverInner::WindowFunctions(inner) => inner
                 .kinds
@@ -1126,8 +2147,11 @@ impl OverInner {
     fn seed_key(&mut self, key: &[u8], scalars: &[ScalarValue]) {
         match self {
             OverInner::Aggregates(inner) => {
-                for (i, state) in inner.states(key).iter_mut().enumerate() {
-                    state.restore_value(&scalars[i]);
+                let mut column = 0;
+                for state in inner.states(key).iter_mut() {
+                    let count = state.state_types().len();
+                    state.restore_state(&scalars[column..column + count]);
+                    column += count;
                 }
             }
             OverInner::WindowFunctions(inner) => {
@@ -1155,7 +2179,7 @@ impl OverInner {
                 .get(key)
                 .expect("fired key folded")
                 .iter()
-                .map(OverAggState::emit)
+                .flat_map(OverAggState::state)
                 .collect(),
             OverInner::WindowFunctions(inner) => inner
                 .keys
@@ -1209,21 +2233,30 @@ pub(crate) fn rocks_over_state_types(
         kinds
             .iter()
             .zip(value_types)
-            .map(|(&kind, &vt)| OverAggState::new(kind, &value_data_type(vt)).result_type())
+            .flat_map(|(&kind, &vt)| OverAggState::new(kind, &value_data_type(vt)).state_types())
             .collect(),
     )
 }
 
-/// The bounded shapes' frame-row value column types (empty for the unbounded shapes).
+/// The bounded shapes' input values plus raw arithmetic state (empty for unbounded shapes).
 #[cfg(feature = "rocksdb-state")]
-pub(crate) fn rocks_over_frame_value_types(value_types: &[i64], frame_kind: i64) -> Vec<DataType> {
+pub(crate) fn rocks_over_frame_value_types(
+    value_types: &[i64],
+    kinds: &[i64],
+    frame_kind: i64,
+) -> Vec<DataType> {
     if matches!(frame_kind, 0 | 3) {
         return Vec::new();
     }
-    value_types
+    let mut types = value_types
         .iter()
         .map(|&code| value_data_type(code))
-        .collect()
+        .collect::<Vec<_>>();
+    types.extend(
+        BoundedOverAggregator::new(value_types.to_vec(), kinds.to_vec(), frame_kind == 1, 0)
+            .fold_types,
+    );
+    types
 }
 
 /// The unbounded fold's DISTINCT seen-set element types, in store slot order (empty when no
@@ -1253,6 +2286,7 @@ pub(crate) fn rocks_over_distinct_element_types(
 /// conversion the inner expects, and the passthrough.
 pub(crate) struct OverWindowAggregator {
     inner: OverInner,
+    heap_snapshot_probe: Option<HeapSnapshotProbe>,
     rt_column: usize,
     /// One input value-column index per aggregate (each aggregate reads its own), or empty for
     /// functions with no argument (e.g. ROW_NUMBER).
@@ -1332,6 +2366,7 @@ impl OverWindowAggregator {
         let key_arity = key_columns.len();
         OverWindowAggregator {
             inner: OverInner::new(value_types, kinds, frame_kind, frame_offset),
+            heap_snapshot_probe: None,
             rt_column,
             value_columns,
             key_columns,
@@ -1364,6 +2399,22 @@ impl OverWindowAggregator {
             distinct_slots: Vec::new(),
             key_timestamp_precisions: vec![-1; key_arity],
         }
+    }
+
+    pub(crate) fn with_heap_snapshot_probe(
+        &mut self,
+        object: jni::objects::GlobalRef,
+        max_parallelism: usize,
+    ) {
+        assert!(
+            matches!(&self.inner, OverInner::Bounded(inner)
+                if inner.range_order.is_some() || !inner.string_view_slots.is_empty()),
+            "heap incremental OVER copy probe shape"
+        );
+        self.heap_snapshot_probe = Some(HeapSnapshotProbe {
+            object,
+            max_parallelism,
+        });
     }
 
     pub(crate) fn with_key_timestamp_precisions(
@@ -1438,6 +2489,24 @@ impl OverWindowAggregator {
     /// (emitting nothing). On the persistent store the fold row tombstones with the call's other
     /// writes, so a restore cannot resurrect the cleared fold.
     fn clear_key(&mut self, key: &[u8]) {
+        if let Some(probe) = &self.heap_snapshot_probe {
+            let OverInner::Bounded(inner) = &self.inner else {
+                unreachable!();
+            };
+            let columns = decode_byte_keys(inner.key_converter.as_ref(), &[key], &inner.key_types);
+            let batch = RecordBatch::try_new_with_options(
+                Arc::new(Schema::new(key_fields(&inner.key_types))),
+                columns,
+                &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(1)),
+            )
+            .expect("OVER heap probe key");
+            let indices: Vec<usize> = (0..inner.key_types.len()).collect();
+            let group = flink_key_group(
+                binary_row_hash(&batch, &indices, 0, &self.key_timestamp_precisions),
+                probe.max_parallelism,
+            ) as i32;
+            probe.call(group, key, true, false);
+        }
         self.inner.clear_key(key);
         #[cfg(feature = "rocksdb-state")]
         self.stage_fold_tombstone(key);
@@ -1590,6 +2659,9 @@ impl OverWindowAggregator {
         self.next_seq = store.next_seq() as i64;
         self.key_converter = Some(key_row_converter_from_types(&key_types));
         self.inner.seed_key_codec(&key_types);
+        if let OverInner::Bounded(inner) = &mut self.inner {
+            inner.range_order = None;
+        }
         self.store_state_types = self.inner.store_state_types();
         self.store_key_types = key_types;
         self.distinct_slots = match &self.inner {
@@ -1742,6 +2814,7 @@ impl OverWindowAggregator {
         let state_count = self.store_state_types.len();
         let bounded = matches!(self.inner, OverInner::Bounded(_));
         for bytes in snapshots {
+            let (bytes, _) = Self::split_range_order(bytes);
             if bytes.len() < 12 {
                 continue;
             }
@@ -1849,7 +2922,10 @@ impl OverWindowAggregator {
     #[cfg(feature = "rocksdb-state")]
     fn import_frame_batch(&mut self, batch: &RecordBatch) -> Result<(), DataFusionError> {
         let stamps = retention_stamps(batch);
-        let value_count = self.value_columns.len();
+        let value_count = match &self.inner {
+            OverInner::Bounded(inner) => inner.kinds.len() + inner.fold_types.len(),
+            _ => unreachable!("bounded frame import"),
+        };
         let arity = batch.num_columns() - 1 - value_count - stamps.is_some() as usize;
         let key_columns: Vec<usize> = (0..arity).collect();
         let key_arrays: Vec<&ArrayRef> = (0..arity).map(|j| batch.column(j)).collect();
@@ -2009,7 +3085,7 @@ impl OverWindowAggregator {
     pub(crate) fn push(&mut self, batch: RecordBatch, now_ms: i64) -> Result<(), DataFusionError> {
         #[cfg(feature = "rocksdb-state")]
         let batch = if self.store.is_some() {
-            Self::normalize_interval_columns(&batch)
+            strip_string_caches(&Self::normalize_interval_columns(&batch))
         } else {
             batch
         };
@@ -2021,6 +3097,7 @@ impl OverWindowAggregator {
         if self.deadline_cleaning() {
             self.register_batch(&batch, now_ms);
         }
+        self.observe_heap_snapshot(&batch, false);
         self.register_range_batch(&batch);
         #[cfg(feature = "rocksdb-state")]
         if self.store.is_some() {
@@ -2048,6 +3125,69 @@ impl OverWindowAggregator {
         match &self.inner {
             OverInner::Bounded(inner) if !inner.rows_frame && !self.proctime => Some(inner.offset),
             _ => None,
+        }
+    }
+
+    fn observe_heap_snapshot(&mut self, batch: &RecordBatch, values: bool) {
+        let OverInner::Bounded(inner) = &self.inner else {
+            return;
+        };
+        if (values && inner.string_view_slots.is_empty())
+            || (!values && inner.range_order.is_none())
+        {
+            return;
+        }
+        let Some(probe) = &self.heap_snapshot_probe else {
+            return;
+        };
+        let arrays: Vec<&ArrayRef> = self
+            .key_columns
+            .iter()
+            .map(|&col| batch.column(col))
+            .collect();
+        let keys = encode_keys(&mut self.key_converter, &arrays, batch.num_rows());
+        let mut encoder =
+            BinaryRowBatchEncoder::new(batch, &self.key_columns, &self.key_timestamp_precisions);
+        let mut seen: ahash::HashSet<&[u8]> = ahash::HashSet::default();
+        for row in 0..batch.num_rows() {
+            let key = keys.row(row).data();
+            if !seen.insert(key) {
+                continue;
+            }
+            let group = flink_key_group(encoder.hash(row), probe.max_parallelism) as i32;
+            if !probe.call(group, key, false, values) {
+                continue;
+            }
+            let OverInner::Bounded(inner) = &mut self.inner else {
+                unreachable!();
+            };
+            if let Some(map) = (!values)
+                .then_some(&mut inner.range_order)
+                .and_then(|order| order.as_mut())
+                .and_then(|maps| maps.get_mut(key))
+            {
+                let old_bytes = map.bytes();
+                *map = HeapRangeOrder::restored(&map.keys());
+                if inner.track {
+                    inner.bytes = inner.bytes - old_bytes + map.bytes();
+                }
+            }
+            if let Some(views) = values
+                .then_some(&mut inner.keys)
+                .and_then(|keys| keys.get_mut(key))
+                .and_then(|rows| rows.last_mut())
+                .and_then(|row| row.extra.as_mut())
+                .and_then(|extra| extra.string_views.as_mut())
+            {
+                let before = views.iter().map(StringView::bytes).sum::<usize>();
+                for view in views.iter_mut() {
+                    view.copy_heap();
+                }
+                if inner.track {
+                    inner.bytes =
+                        inner.bytes - before + views.iter().map(StringView::bytes).sum::<usize>();
+                }
+            }
         }
     }
 
@@ -2081,6 +3221,17 @@ impl OverWindowAggregator {
         let rt = rt_to_millis(batch.column(self.rt_column));
         for row in 0..batch.num_rows() {
             self.register_range_cleanup(keys.row(row).data(), rt.value(row));
+        }
+        if let OverInner::Bounded(inner) = &mut self.inner {
+            if inner.range_order.is_some() {
+                inner.key_types = key_types(&arrays);
+                if inner.key_converter.is_none() {
+                    inner.key_converter = Some(key_row_converter_from_types(&inner.key_types));
+                }
+                for row in 0..batch.num_rows() {
+                    inner.register_time(keys.row(row).data(), rt.value(row));
+                }
+            }
         }
     }
 
@@ -2322,7 +3473,19 @@ impl OverWindowAggregator {
         }
         let additions = self.probe_store_distinct(batch)?;
 
-        let aggregates = self.inner.update(&self.keyed_subbatch(batch, rt));
+        let projected = self.keyed_subbatch(batch, rt);
+        let serialize_strings = self.proctime
+            && projected
+                .schema()
+                .fields()
+                .iter()
+                .any(|field| is_string_cache_field(field));
+        let aggregates = match &mut self.inner {
+            OverInner::Aggregates(inner) if serialize_strings => {
+                inner.update_with_serialized_strings(&projected, true)
+            }
+            _ => self.inner.update(&projected),
+        };
         if let Some(now_ms) = settle_now_ms {
             self.settle_fired(batch, now_ms);
         }
@@ -2361,8 +3524,8 @@ impl OverWindowAggregator {
         if self.distinct_slots.is_empty() {
             return Ok(Vec::new());
         }
-        let value_types: Vec<DataType> = match &self.inner {
-            OverInner::Aggregates(inner) => inner.value_types.clone(),
+        let (value_types, kinds) = match &self.inner {
+            OverInner::Aggregates(inner) => (inner.value_types.clone(), inner.kinds.clone()),
             _ => return Ok(Vec::new()),
         };
         let key_arrays: Vec<&ArrayRef> =
@@ -2376,7 +3539,7 @@ impl OverWindowAggregator {
         let mut deduped: ahash::HashSet<Vec<u8>> = ahash::HashSet::default();
         for (slot, &agg) in self.distinct_slots.clone().iter().enumerate() {
             let column = batch.column(self.value_columns[agg]);
-            let reader = over_value_column(column, &value_types[agg]);
+            let reader = over_value_column(column, &value_types[agg], kinds[agg]);
             let mut scalars: Vec<ScalarValue> = Vec::new();
             let mut rows: Vec<usize> = Vec::new();
             for row in 0..batch.num_rows() {
@@ -2466,14 +3629,28 @@ impl OverWindowAggregator {
             let mut loaded_meta: Vec<Vec<(i64, u64)>> = Vec::with_capacity(loaded.len());
             for ((key, _), rows) in touched.iter().zip(loaded) {
                 let mut meta = Vec::with_capacity(rows.len());
+                let row_count = rows.len();
                 let buffer: Vec<BufferedRow> = rows
                     .into_iter()
-                    .map(|row| {
+                    .enumerate()
+                    .map(|(index, row)| {
                         meta.push((row.rt, row.seq));
-                        BufferedRow {
-                            rt: row.rt,
-                            values: row.values.iter().map(num_from_scalar).collect(),
-                        }
+                        let mut frame = BufferedRow::from_scalars(
+                            row.rt,
+                            &row.values[..inner.kinds.len()],
+                            &inner.kinds,
+                            (index + 1 == row_count && !inner.fold_types.is_empty())
+                                .then(|| row.values[inner.kinds.len()..].to_vec()),
+                        );
+                        frame.restore_string_views(
+                            inner.arithmetic_width,
+                            &inner
+                                .string_view_slots
+                                .iter()
+                                .map(|&slot| inner.kinds[slot])
+                                .collect::<Vec<_>>(),
+                        );
+                        frame
                     })
                     .collect();
                 if !buffer.is_empty() {
@@ -2501,9 +3678,14 @@ impl OverWindowAggregator {
             appended_meta[row_owner[row]].push((rt.value(row), seq_start + position as u64, row));
         }
 
-        let aggregates = self
-            .inner
-            .update(&self.keyed_subbatch(batch, Arc::new(rt.clone())));
+        let projected = self.keyed_subbatch(batch, Arc::new(rt.clone()));
+        let serialized_strings = self.proctime && has_string_caches(&projected);
+        let aggregates = match &mut self.inner {
+            OverInner::Bounded(inner) => {
+                inner.update_with_serialized_strings(&projected, serialized_strings, true)
+            }
+            _ => self.inner.update(&projected),
+        };
 
         let OverInner::Bounded(inner) = &self.inner else {
             unreachable!("bounded store fold on a non-bounded shape");
@@ -2534,12 +3716,39 @@ impl OverWindowAggregator {
 
         let mut value_columns: Vec<ArrayRef> = Vec::with_capacity(self.value_columns.len());
         for (a, &value_column) in self.value_columns.iter().enumerate() {
-            let reader = over_value_column(batch.column(value_column), &value_types[a]);
+            if inner.kinds[a] == 3 || value_types[a] == DataType::Utf8 {
+                let indices = arrow::array::UInt32Array::from_iter_values(
+                    write_rows.iter().map(|&row| row as u32),
+                );
+                value_columns.push(take(batch.column(value_column), &indices, None)?);
+                continue;
+            }
+            let reader =
+                over_value_column(batch.column(value_column), &value_types[a], inner.kinds[a]);
             let scalars: Vec<ScalarValue> = write_rows
                 .iter()
-                .map(|&row| num_to_scalar(&value_types[a], reader.at(row)))
+                .map(|&row| over_buffer_scalar(&value_types[a], inner.kinds[a], reader.at(row)))
                 .collect();
             value_columns.push(scalars_to_array(scalars, &value_types[a]));
+        }
+        for (column, ty) in inner.fold_types.iter().enumerate() {
+            let scalars = write_rows
+                .iter()
+                .map(|&row| {
+                    let owner = row_owner[row];
+                    if appended_meta[owner].last().expect("appended frame row").2 != row {
+                        return null_scalar(ty);
+                    }
+                    inner
+                        .keys
+                        .get(&*touched[owner].0 .0)
+                        .expect("bounded frame key")
+                        .last()
+                        .expect("bounded frame row")
+                        .fold_scalar(column, inner.arithmetic_width, ty)
+                })
+                .collect::<Vec<_>>();
+            value_columns.push(scalars_to_array(scalars, ty));
         }
         let store = self.store.as_mut().expect("over rocksdb store");
         store.write_frames(&writes, &value_columns)?;
@@ -2574,16 +3783,36 @@ impl OverWindowAggregator {
 
     /// The emitted batch: the completed input columns with the aggregate column(s) appended.
     fn append_aggregates(complete: &RecordBatch, aggregates: &RecordBatch) -> RecordBatch {
-        let mut fields: Vec<Field> = complete
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| f.as_ref().clone())
-            .collect();
-        let mut columns: Vec<ArrayRef> = complete.columns().to_vec();
-        for (i, field) in aggregates.schema().fields().iter().enumerate() {
-            fields.push(field.as_ref().clone());
-            columns.push(aggregates.column(i).clone());
+        let mut fields = Vec::new();
+        let mut columns = Vec::new();
+        let input_arity = data_arity(complete);
+        for batch in [complete, aggregates] {
+            for (field, array) in batch.schema().fields().iter().zip(batch.columns()) {
+                if !is_string_cache_field(field) && field.name() != ROW_KIND_COLUMN {
+                    fields.push(field.as_ref().clone());
+                    columns.push(array.clone());
+                }
+            }
+        }
+        if let Some(kinds) = complete.column_by_name(ROW_KIND_COLUMN) {
+            fields.push(Field::new(
+                ROW_KIND_COLUMN,
+                kinds.data_type().clone(),
+                false,
+            ));
+            columns.push(kinds.clone());
+        }
+        for (offset, batch) in [(0, complete), (input_arity, aggregates)] {
+            for (field, array) in batch.schema().fields().iter().zip(batch.columns()) {
+                if is_string_cache_field(field) {
+                    let index = string_cache_index(field.name()).expect("Java string cache index");
+                    fields.push(string_cache_field(
+                        offset + index,
+                        array.data_type().clone(),
+                    ));
+                    columns.push(array.clone());
+                }
+            }
         }
         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
             .expect("failed to build over output batch")
@@ -2664,6 +3893,7 @@ impl OverWindowAggregator {
         if self.store.is_some() {
             return self.push_proctime_store(batch);
         }
+        self.observe_heap_snapshot(&batch, true);
         let n = batch.num_rows();
         let seq: Int64Array = (0..n as i64).map(|i| self.next_seq + i).collect();
         self.next_seq += n as i64;
@@ -2754,6 +3984,8 @@ impl OverWindowAggregator {
             return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
         }
 
+        self.observe_heap_snapshot(&complete, false);
+        self.observe_heap_snapshot(&complete, true);
         let rt = Arc::new(rt_to_millis(complete.column(self.rt_column)));
         // The inner fold grows here (completed rows enter the per-key state), so even a flush can
         // exceed the budget.
@@ -2789,6 +4021,12 @@ impl OverWindowAggregator {
             ));
             columns.push(complete.column(key).clone());
         }
+        for (a, &value_column) in self.value_columns.iter().enumerate() {
+            if let Some(cache) = string_cache_column(complete, value_column) {
+                fields.push(string_cache_field(a + 1, cache.data_type().clone()));
+                columns.push(cache.clone());
+            }
+        }
         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
             .expect("failed to build over sub-batch")
     }
@@ -2797,7 +4035,8 @@ impl OverWindowAggregator {
     pub(crate) fn snapshot(&mut self) -> Vec<u8> {
         let accumulators = self.snapshot_accumulators();
         let buffer = self.snapshot_buffer();
-        Self::snapshot_parts(self.next_seq, accumulators, buffer)
+        let range_order = self.snapshot_range_order();
+        Self::snapshot_parts(self.next_seq, accumulators, buffer, range_order)
     }
 
     /// The per-key state batch, with a trailing cleanup stamp for bounded RANGE or enabled TTL.
@@ -2816,19 +4055,185 @@ impl OverWindowAggregator {
 
     fn snapshot_buffer(&self) -> Vec<u8> {
         match (&self.input_schema, self.buffered.is_empty()) {
-            (Some(schema), false) => {
-                write_ipc(&concat_batches(schema, &self.buffered).expect("concat over buffer"))
-            }
+            (Some(schema), false) => write_ipc(&cold_string_caches(
+                &concat_batches(schema, &self.buffered).expect("concat over buffer"),
+            )),
             _ => Vec::new(),
         }
     }
 
-    fn snapshot_parts(next_seq: i64, accumulators: Vec<u8>, buffer: Vec<u8>) -> Vec<u8> {
+    fn snapshot_range_order(&mut self) -> Vec<u8> {
+        let OverInner::Bounded(inner) = &mut self.inner else {
+            return Vec::new();
+        };
+        if inner.rows_frame || inner.arithmetic_slots.is_empty() {
+            return Vec::new();
+        }
+        let mut records: Vec<(ByteKey, Vec<i64>)> = Vec::new();
+        if let Some(maps) = &inner.range_order {
+            records.extend(maps.iter().map(|(key, map)| (key.clone(), map.keys())));
+        } else {
+            // Canonical RocksDB export: the host MapState serializes positive Long keys in
+            // byte order. The target heap backend rebuilds its table from that sequence.
+            let mut times: HashMap<ByteKey, std::collections::BTreeSet<i64>> = HashMap::default();
+            for (key, rows) in &inner.keys {
+                times
+                    .entry(key.clone())
+                    .or_default()
+                    .extend(rows.iter().map(|row| row.rt));
+            }
+            for batch in &self.buffered {
+                let arrays: Vec<&ArrayRef> = self
+                    .key_columns
+                    .iter()
+                    .map(|&col| batch.column(col))
+                    .collect();
+                inner.key_types = key_types(&arrays);
+                let keys = encode_keys(&mut inner.key_converter, &arrays, batch.num_rows());
+                let rt = rt_to_millis(batch.column(self.rt_column));
+                for row in 0..batch.num_rows() {
+                    times
+                        .entry(ByteKey::from(keys.row(row).data()))
+                        .or_default()
+                        .insert(rt.value(row));
+                }
+            }
+            records.extend(
+                times
+                    .into_iter()
+                    .map(|(key, times)| (key, times.into_iter().collect())),
+            );
+        }
+        if records.is_empty() {
+            return Vec::new();
+        }
+        let keys: Vec<&[u8]> = records.iter().map(|(key, _)| &*key.0).collect();
+        let mut fields = key_fields(&inner.key_types);
+        let mut columns = decode_byte_keys(inner.key_converter.as_ref(), &keys, &inner.key_types);
+        let mut values = arrow::array::ListBuilder::new(arrow::array::Int64Builder::new());
+        for (_, times) in records {
+            values.values().append_slice(&times);
+            values.append(true);
+        }
+        let values = values.finish();
+        fields.push(Field::new("range_order", values.data_type().clone(), false));
+        columns.push(Arc::new(values));
+        write_ipc(
+            &RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
+                .expect("RANGE order snapshot"),
+        )
+    }
+
+    fn restore_range_order(&mut self, bytes: &[u8]) {
+        if bytes.is_empty() {
+            return;
+        }
+        self.restore_range_batches(read_ipc(bytes), false);
+    }
+
+    fn restore_range_batches(&mut self, batches: Vec<RecordBatch>, canonical: bool) {
+        if batches.is_empty() {
+            return;
+        }
+        let OverInner::Bounded(inner) = &mut self.inner else {
+            panic!("RANGE metadata on another frame");
+        };
+        let maps = inner.range_order.as_mut().expect("heap RANGE metadata");
+        maps.clear();
+        for batch in batches {
+            let arity = batch.num_columns() - 1;
+            let arrays: Vec<&ArrayRef> = (0..arity).map(|col| batch.column(col)).collect();
+            inner.key_types = key_types(&arrays);
+            let keys = encode_keys(&mut inner.key_converter, &arrays, batch.num_rows());
+            let values = batch
+                .column(arity)
+                .as_any()
+                .downcast_ref::<arrow::array::ListArray>()
+                .expect("RANGE timestamp list");
+            for row in 0..batch.num_rows() {
+                let value = values.value(row);
+                let times = value
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .expect("RANGE timestamps");
+                maps.insert(
+                    ByteKey::from(keys.row(row).data()),
+                    if canonical {
+                        HeapRangeOrder::canonical(times.values())
+                    } else {
+                        HeapRangeOrder::restored(times.values())
+                    },
+                );
+            }
+        }
+    }
+
+    fn restore_canonical_range_order(
+        &mut self,
+        snapshots: &[Vec<u8>],
+    ) -> Result<(), DataFusionError> {
+        let OverInner::Bounded(inner) = &mut self.inner else {
+            return Ok(());
+        };
+        for rows in inner.keys.values_mut() {
+            if let Some(views) = rows
+                .last_mut()
+                .and_then(|row| row.extra.as_mut())
+                .and_then(|extra| extra.string_views.as_mut())
+            {
+                for view in views.iter_mut() {
+                    view.restore_canonical_order();
+                }
+            }
+        }
+        if inner.range_order.is_some() {
+            let batches = snapshots
+                .iter()
+                .flat_map(|bytes| {
+                    let (_, range_order) = Self::split_range_order(bytes);
+                    read_ipc_if_present(range_order)
+                })
+                .collect();
+            self.restore_range_batches(batches, true);
+        }
+        if let OverInner::Bounded(inner) = &mut self.inner {
+            if inner.track {
+                inner.recompute_bytes();
+            }
+        }
+        self.account()
+    }
+
+    fn split_range_order(bytes: &[u8]) -> (&[u8], &[u8]) {
+        const TAG: &[u8; 8] = b"SFOVR001";
+        if !bytes.ends_with(TAG) {
+            return (bytes, &[]);
+        }
+        assert!(bytes.len() >= 24, "truncated RANGE metadata footer");
+        let tail = bytes.len() - 12;
+        let len = u32::from_le_bytes(bytes[tail..tail + 4].try_into().unwrap()) as usize;
+        let start = tail.checked_sub(len).expect("truncated RANGE metadata");
+        assert!(start >= 12, "truncated RANGE metadata header");
+        (&bytes[..start], &bytes[start..tail])
+    }
+
+    fn snapshot_parts(
+        next_seq: i64,
+        accumulators: Vec<u8>,
+        buffer: Vec<u8>,
+        range_order: Vec<u8>,
+    ) -> Vec<u8> {
         // Prefix the proctime arrival counter so the sequence continues across a checkpoint.
         let mut out = next_seq.to_le_bytes().to_vec();
         out.extend_from_slice(&(accumulators.len() as u32).to_le_bytes());
         out.extend_from_slice(&accumulators);
         out.extend_from_slice(&buffer);
+        if !range_order.is_empty() {
+            let len = u32::try_from(range_order.len()).expect("RANGE metadata size");
+            out.extend_from_slice(&range_order);
+            out.extend_from_slice(&len.to_le_bytes());
+            out.extend_from_slice(b"SFOVR001");
+        }
         out
     }
 
@@ -2860,11 +4265,27 @@ impl OverWindowAggregator {
                 unreachable!("bounded canonical on a non-bounded shape");
             };
             for (key, rows) in frames {
+                let row_count = rows.len();
                 let buffer: Vec<BufferedRow> = rows
                     .into_iter()
-                    .map(|row| BufferedRow {
-                        rt: row.rt,
-                        values: row.values.iter().map(num_from_scalar).collect(),
+                    .enumerate()
+                    .map(|(index, row)| {
+                        let mut frame = BufferedRow::from_scalars(
+                            row.rt,
+                            &row.values[..inner.kinds.len()],
+                            &inner.kinds,
+                            (index + 1 == row_count && !inner.fold_types.is_empty())
+                                .then(|| row.values[inner.kinds.len()..].to_vec()),
+                        );
+                        frame.restore_string_views(
+                            inner.arithmetic_width,
+                            &inner
+                                .string_view_slots
+                                .iter()
+                                .map(|&slot| inner.kinds[slot])
+                                .collect::<Vec<_>>(),
+                        );
+                        frame
                     })
                     .collect();
                 inner.keys.insert(ByteKey(key), buffer);
@@ -2934,7 +4355,18 @@ impl OverWindowAggregator {
             max_parallelism,
             timestamp_precisions,
         );
-        let mut groups: Vec<i32> = accumulators.keys().chain(buffer.keys()).copied().collect();
+        let range_order = Self::partition_snapshot(
+            &self.snapshot_range_order(),
+            1,
+            max_parallelism,
+            timestamp_precisions,
+        );
+        let mut groups: Vec<i32> = accumulators
+            .keys()
+            .chain(buffer.keys())
+            .chain(range_order.keys())
+            .copied()
+            .collect();
         groups.sort_unstable();
         groups.dedup();
         let mut snapshots = BTreeMap::new();
@@ -2948,6 +4380,10 @@ impl OverWindowAggregator {
                         .map(Self::merge_snapshot_batches)
                         .unwrap_or_default(),
                     buffer
+                        .get(&key_group)
+                        .map(Self::merge_snapshot_batches)
+                        .unwrap_or_default(),
+                    range_order
                         .get(&key_group)
                         .map(Self::merge_snapshot_batches)
                         .unwrap_or_default(),
@@ -3056,6 +4492,7 @@ impl OverWindowAggregator {
             )
             .with_state_retention(min_retention_ms);
         }
+        let (bytes, range_order) = Self::split_range_order(bytes);
         let next_seq = i64::from_le_bytes(bytes[0..8].try_into().expect("next_seq"));
         let accumulators_len = u32::from_le_bytes(bytes[8..12].try_into().expect("len")) as usize;
         assert!(
@@ -3078,6 +4515,7 @@ impl OverWindowAggregator {
         let key_arity = key_columns.len();
         let mut aggregator = OverWindowAggregator {
             inner,
+            heap_snapshot_probe: None,
             rt_column,
             value_columns,
             key_columns,
@@ -3122,6 +4560,7 @@ impl OverWindowAggregator {
             }
         }
         aggregator.adopt_restored_stamps(stamps, restored_at_ms);
+        aggregator.restore_range_order(range_order);
         aggregator
     }
 
@@ -3204,7 +4643,10 @@ impl OverWindowAggregator {
         let mut next_seq = 0i64;
         let mut accumulator_batches = Vec::new();
         let mut buffer_batches = Vec::new();
+        let mut range_batches = Vec::new();
         for bytes in snapshots {
+            let (bytes, range_order) = Self::split_range_order(bytes);
+            range_batches.extend(read_ipc_if_present(range_order));
             if bytes.len() < 12 {
                 continue;
             }
@@ -3226,6 +4668,9 @@ impl OverWindowAggregator {
         let buffer = (!buffer_batches.is_empty())
             .then(|| Self::merge_snapshot_batches(&buffer_batches))
             .unwrap_or_default();
+        let range_order = (!range_batches.is_empty())
+            .then(|| Self::merge_snapshot_batches(&range_batches))
+            .unwrap_or_default();
         OverWindowAggregator::restore(
             value_types,
             kinds,
@@ -3235,7 +4680,7 @@ impl OverWindowAggregator {
             frame_kind,
             frame_offset,
             proctime,
-            &Self::snapshot_parts(next_seq, accumulators, buffer),
+            &Self::snapshot_parts(next_seq, accumulators, buffer, range_order),
             min_retention_ms,
             restored_at_ms,
         )
@@ -3457,5 +4902,57 @@ pub extern "system" fn Java_tech_streamfusion_Native_restoreOverAggregatorPartit
         )
         .with_memory_budget(memory_budget_bytes);
         boxed_or_throw(&mut env, aggregator)
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_restoreOverAggregatorCanonicalRangeOrder<
+    'local,
+>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    snapshots: JObjectArray<'local>,
+) {
+    crate::bridge::jni_guard(env, move |mut env| {
+        let aggregator = unsafe { &mut *(handle as *mut OverWindowAggregator) };
+        if !matches!(&aggregator.inner, OverInner::Bounded(_)) {
+            return;
+        }
+        let count = env
+            .get_array_length(&snapshots)
+            .expect("OVER canonical partition count");
+        let mut restored = Vec::with_capacity(count as usize);
+        for index in 0..count {
+            let bytes = JByteArray::from(
+                env.get_object_array_element(&snapshots, index)
+                    .expect("OVER canonical partition"),
+            );
+            restored.push(
+                env.convert_byte_array(&bytes)
+                    .expect("OVER canonical partition bytes"),
+            );
+        }
+        if let Err(error) = aggregator.restore_canonical_range_order(&restored) {
+            throw_memory_limit(&mut env, &error.to_string());
+        }
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_setOverAggregatorHeapSnapshotProbe<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    probe: jni::objects::JObject<'local>,
+    max_parallelism: jint,
+) {
+    crate::bridge::jni_guard(env, move |env| {
+        let aggregator = unsafe { &mut *(handle as *mut OverWindowAggregator) };
+        aggregator.with_heap_snapshot_probe(
+            env.new_global_ref(probe)
+                .expect("OVER heap copy probe reference"),
+            max_parallelism as usize,
+        );
     })
 }

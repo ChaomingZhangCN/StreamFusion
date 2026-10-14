@@ -3066,6 +3066,7 @@ pub extern "system" fn Java_tech_streamfusion_Native_rocksdbOverAggregatorSuppor
                     rocks_row_supported(&state_types)
                         && rocks_row_supported(&rocks_over_frame_value_types(
                             &value_types,
+                            &kinds,
                             frame_kind as i64,
                         ))
                         && rocks_row_supported(&rocks_over_distinct_element_types(
@@ -3185,7 +3186,7 @@ pub extern "system" fn Java_tech_streamfusion_Native_createRocksDBOverAggregator
                     &mut env,
                     config,
                     &state_types,
-                    &rocks_over_frame_value_types(&value_types, frame_kind as i64),
+                    &rocks_over_frame_value_types(&value_types, &kinds, frame_kind as i64),
                     &rocks_over_distinct_element_types(&value_types, &kinds, frame_kind as i64),
                     schema,
                     &source_directories,

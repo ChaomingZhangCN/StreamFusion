@@ -284,6 +284,57 @@ impl Session {
 pub struct Over(OverWindowAggregator);
 
 impl Over {
+    pub fn framed(value_type: i64, kind: i64, frame: i64, offset: i64, proctime: bool) -> Self {
+        Over(OverWindowAggregator::new(
+            vec![value_type],
+            vec![kind],
+            1,
+            vec![2],
+            vec![0],
+            frame,
+            offset,
+            proctime,
+        ))
+    }
+
+    pub fn heap_snapshot_probe(&mut self, probe: jni::objects::GlobalRef) {
+        self.0.with_heap_snapshot_probe(probe, 128);
+    }
+
+    pub fn push_proctime(&mut self, batch: RecordBatch) -> RecordBatch {
+        self.0.push_proctime(batch, 0).expect("OVER proctime fold")
+    }
+
+    pub fn snapshot(&mut self) -> Vec<Vec<u8>> {
+        self.0
+            .snapshot_partitions(128, &[-1])
+            .into_values()
+            .collect()
+    }
+
+    pub fn restore_framed(
+        value_type: i64,
+        kind: i64,
+        frame: i64,
+        offset: i64,
+        proctime: bool,
+        snapshots: &[Vec<u8>],
+    ) -> Self {
+        Over(OverWindowAggregator::restore_partitions(
+            vec![value_type],
+            vec![kind],
+            1,
+            vec![2],
+            vec![0],
+            frame,
+            offset,
+            proctime,
+            snapshots,
+            0,
+            0,
+        ))
+    }
+
     pub fn new(
         value_type: i64,
         kinds: Vec<i64>,
@@ -1785,5 +1836,27 @@ impl PersistentOver {
             .checkpoint_store(directory)
             .expect("persistent OVER checkpoint")
             .snapshot_id
+    }
+}
+
+/// Running STRING reduction kernel, excluding row/Arrow transport and frame/key management.
+pub struct StringOverReduction(OverAggState);
+
+impl StringOverReduction {
+    pub fn new(kind: i64) -> Self {
+        Self(OverAggState::new(kind, &DataType::Utf8))
+    }
+
+    pub fn update(&mut self, values: &StringArray, java_utf16: &[Option<Vec<u16>>]) {
+        assert_eq!(values.len(), java_utf16.len());
+        for (row, cache) in java_utf16.iter().enumerate() {
+            if !values.is_null(row) {
+                self.0.fold_cached_text(values.value(row), cache.as_deref());
+            }
+        }
+    }
+
+    pub fn value(&self) -> ScalarValue {
+        self.0.emit()
     }
 }

@@ -234,7 +234,8 @@ public final class ArrowConversion {
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       columnVectors.add(createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i)));
     }
-    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]));
+    org.apache.arrow.vector.complex.ListVector[] caches = StringCacheColumns.readers(root, rowType.getFieldCount());
+    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches);
   }
 
   /** A writer that appends {@link RowData} rows into the (pre-built, matching) Arrow vectors. */

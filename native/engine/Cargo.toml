@@ -141,3 +141,11 @@ harness = false
 [[bench]]
 name = "window_basic_distinct"
 harness = false
+
+[[bench]]
+name = "over_heap_snapshot"
+harness = false
+
+[[bench]]
+name = "over_basic_values"
+harness = false

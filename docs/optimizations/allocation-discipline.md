@@ -330,3 +330,22 @@ state and row collection. The
 contains every warmup/trial and rejected intermediate implementation. Earlier direct
 folding and compact-vector-only candidates did not consistently beat stock; the final
 fixed-footprint accounting removes their repeated state-size scans.
+
+## Typed OVER selection and retraction
+
+Typed OVER winners read timestamp components and decimal scalars directly. String winners
+copy only selected values and share immutable retained payloads with bounded outputs.
+Timestamp results build one component column per batch, instead of constructing a Struct
+scalar for each output row. COUNT observes validity without converting unused values.
+Bounded decimal reductions and string views retract expired membership incrementally,
+preserving the released backend’s overflow and selected-value history. Numeric frames
+retain their existing layout and folding path.
+
+The first release comparison at 500,000 rows and 64 keys covers four value families and
+all four event-time frames, with row sources, both transposes, IPC, JNI, state and a row
+blackhole sink. Every profile beats stock and the matched previous-OVER-fallback path.
+These are complete-feature results, without attributing each gain to one allocation change.
+All warmups and observations, including the earlier EOF-buffering diagnostic, are retained
+in the [raw artifact](../benchmarks/results/over-basic-values-2026-10-13.json). Eight one-million-row/4096-key comparisons also beat both controls. The final string-state ordering/copy/restore implementation was remeasured in all six affected
+profiles: 2.176–3.913× stock, also beating the previous fallback. Intermediate samples remain
+in the artifact.

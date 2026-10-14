@@ -962,6 +962,7 @@ pub(crate) fn accumulators_bytes(accumulators: &[Box<dyn Accumulator>]) -> usize
 /// One non-null value of the OVER value column, in the column's type.
 #[derive(Clone, Copy)]
 pub(crate) enum Num {
+    Timestamp(streamfusion_bridge::timestamp::TimestampValue),
     I64(i64),
     I32(i32),
     I16(i16),
@@ -975,6 +976,7 @@ pub(crate) enum Num {
 /// The OVER value column downcast once, so the per-row fold reads a typed value without a per-row
 /// downcast. `None` for a null row (which the aggregates skip).
 pub(crate) enum ValueColumn<'a> {
+    Timestamp(streamfusion_bridge::timestamp::TimestampColumn<'a>),
     I64(&'a Int64Array),
     I32(&'a Int32Array),
     I16(&'a arrow::array::Int16Array),
@@ -991,6 +993,8 @@ pub(crate) enum ValueColumn<'a> {
 impl ValueColumn<'_> {
     pub(crate) fn at(&self, row: usize) -> Option<Num> {
         match self {
+            ValueColumn::Timestamp(column) => (!column.is_null(row))
+                .then(|| Num::Timestamp(column.value(row).expect("OVER timestamp value"))),
             ValueColumn::I64(a) => (!a.is_null(row)).then(|| Num::I64(a.value(row))),
             ValueColumn::I32(a) => (!a.is_null(row)).then(|| Num::I32(a.value(row))),
             ValueColumn::I16(a) => (!a.is_null(row)).then(|| Num::I16(a.value(row))),
@@ -1009,6 +1013,21 @@ impl ValueColumn<'_> {
 /// fixed per aggregator, so each variant pairs a kind with that type. See divergences/11.
 #[derive(Debug)]
 pub(crate) enum RunningAgg {
+    OverStringValue {
+        value: Option<Arc<str>>,
+        java_utf16: Option<Arc<[u16]>>,
+        kind: i64,
+    },
+    OverTimestampValue {
+        value: Option<streamfusion_bridge::timestamp::TimestampValue>,
+        kind: i64,
+    },
+    OverDecimalValue {
+        value: Option<i128>,
+        precision: u8,
+        scale: i8,
+        kind: i64,
+    },
     ZeroSumInt {
         sum: i64,
         result: DataType,
@@ -1111,6 +1130,29 @@ pub(crate) enum RunningAgg {
 }
 
 impl RunningAgg {
+    pub(crate) fn new_over(kind: i64, value_type: &DataType) -> Self {
+        if matches!(kind, 1 | 2 | 5 | 6) && *value_type == DataType::Utf8 {
+            return Self::OverStringValue {
+                value: None,
+                java_utf16: None,
+                kind,
+            };
+        }
+        if matches!(kind, 1 | 2 | 5 | 6) && streamfusion_bridge::timestamp::is_timestamp(value_type)
+        {
+            return Self::OverTimestampValue { value: None, kind };
+        }
+        if let (1 | 2 | 5 | 6, DataType::Decimal128(precision, scale)) = (kind, value_type) {
+            return Self::OverDecimalValue {
+                value: None,
+                precision: *precision,
+                scale: *scale,
+                kind,
+            };
+        }
+        Self::new(kind, value_type)
+    }
+
     pub(crate) fn new(kind: i64, value_type: &DataType) -> Self {
         use RunningAgg::*;
         if matches!(kind, 22 | 23) {
@@ -1276,6 +1318,28 @@ impl RunningAgg {
     pub(crate) fn fold(&mut self, value: Num) {
         use RunningAgg::*;
         match (self, value) {
+            (OverTimestampValue { value, kind }, Num::Timestamp(candidate)) => {
+                if value.is_none_or(|current| match *kind {
+                    1 => candidate < current,
+                    2 => candidate > current,
+                    5 => false,
+                    6 => true,
+                    _ => unreachable!("timestamp value aggregate kind"),
+                }) {
+                    *value = Some(candidate);
+                }
+            }
+            (OverDecimalValue { value, kind, .. }, Num::I128(candidate)) => {
+                if value.is_none_or(|current| match *kind {
+                    1 => candidate < current,
+                    2 => candidate > current,
+                    5 => false,
+                    6 => true,
+                    _ => unreachable!("decimal value aggregate kind"),
+                }) {
+                    *value = Some(candidate);
+                }
+            }
             (ZeroSumInt { sum, .. }, Num::I64(v)) => *sum = sum.wrapping_add(v),
             (ZeroSumInt { sum, .. }, Num::I32(v)) => *sum = sum.wrapping_add(v as i64),
             (ZeroSumInt { sum, .. }, Num::I16(v)) => *sum = sum.wrapping_add(v as i64),
@@ -1387,6 +1451,18 @@ impl RunningAgg {
     pub(crate) fn emit(&self) -> ScalarValue {
         use RunningAgg::*;
         match self {
+            OverStringValue { value, .. } => ScalarValue::Utf8(value.as_deref().map(str::to_owned)),
+            OverTimestampValue { value, .. } => {
+                ScalarValue::Struct(Arc::new(streamfusion_bridge::timestamp::timestamp_array([
+                    *value,
+                ])))
+            }
+            OverDecimalValue {
+                value,
+                precision,
+                scale,
+                ..
+            } => ScalarValue::Decimal128(*value, *precision, *scale),
             ZeroSumInt { sum, result } => avg_int_scalar(*sum, result),
             SumI64(v) | MinI64(v) | MaxI64(v) | FirstI64(v) | LastI64(v) => ScalarValue::Int64(*v),
             SumI32(v) | MinI32(v) | MaxI32(v) | FirstI32(v) | LastI32(v) => ScalarValue::Int32(*v),
@@ -1461,6 +1537,11 @@ impl RunningAgg {
     pub(crate) fn result_type(&self) -> DataType {
         use RunningAgg::*;
         match self {
+            OverStringValue { .. } => DataType::Utf8,
+            OverTimestampValue { .. } => streamfusion_bridge::timestamp::timestamp_type(),
+            OverDecimalValue {
+                precision, scale, ..
+            } => DataType::Decimal128(*precision, *scale),
             ZeroSumInt { result, .. } => result.clone(),
             SumI64(_) | MinI64(_) | MaxI64(_) | Count(_) | FirstI64(_) | LastI64(_) => {
                 DataType::Int64
@@ -1488,6 +1569,26 @@ impl RunningAgg {
     pub(crate) fn restore_value(&mut self, scalar: &ScalarValue) {
         use RunningAgg::*;
         match (self, scalar) {
+            (
+                OverStringValue {
+                    value, java_utf16, ..
+                },
+                ScalarValue::Utf8(saved),
+            ) => {
+                *value = saved.as_deref().map(Arc::from);
+                *java_utf16 = None;
+            }
+            (OverTimestampValue { value, .. }, ScalarValue::Struct(array)) => {
+                *value = (!array.is_null(0)).then(|| {
+                    streamfusion_bridge::timestamp::TimestampColumn::try_new(array.as_ref())
+                        .expect("OVER timestamp state")
+                        .value(0)
+                        .expect("OVER timestamp state value")
+                });
+            }
+            (OverDecimalValue { value, .. }, ScalarValue::Decimal128(saved, _, _)) => {
+                *value = *saved
+            }
             (ZeroSumInt { sum, .. }, ScalarValue::Int8(Some(v))) => *sum = *v as i64,
             (ZeroSumInt { sum, .. }, ScalarValue::Int16(Some(v))) => *sum = *v as i64,
             (ZeroSumInt { sum, .. }, ScalarValue::Int32(Some(v))) => *sum = *v as i64,
@@ -1579,19 +1680,30 @@ pub(crate) fn accumulate_decimal(sum: &mut i128, overflow: &mut bool, delta: i12
 /// A single OVER value as a typed Arrow scalar of the value column's type (null = no value).
 pub(crate) fn num_to_scalar(value_type: &DataType, num: Option<Num>) -> ScalarValue {
     match (value_type, num) {
+        (_, Some(Num::Timestamp(value))) => {
+            ScalarValue::Struct(Arc::new(streamfusion_bridge::timestamp::timestamp_array([
+                Some(value),
+            ])))
+        }
         (_, Some(Num::I64(v))) => ScalarValue::Int64(Some(v)),
         (_, Some(Num::I32(v))) => ScalarValue::Int32(Some(v)),
         (_, Some(Num::I16(v))) => ScalarValue::Int16(Some(v)),
         (_, Some(Num::I8(v))) => ScalarValue::Int8(Some(v)),
         (_, Some(Num::F64(v))) => ScalarValue::Float64(Some(v)),
         (_, Some(Num::F32(v))) => ScalarValue::Float32(Some(v)),
-        (_, Some(Num::I128(_))) => unreachable!("decimal bounded OVER is not admitted"),
+        (DataType::Decimal128(precision, scale), Some(Num::I128(value))) => {
+            ScalarValue::Decimal128(Some(value), *precision, *scale)
+        }
         (DataType::Int64, None) => ScalarValue::Int64(None),
         (DataType::Int32, None) => ScalarValue::Int32(None),
         (DataType::Int16, None) => ScalarValue::Int16(None),
         (DataType::Int8, None) => ScalarValue::Int8(None),
         (DataType::Float64, None) => ScalarValue::Float64(None),
         (DataType::Float32, None) => ScalarValue::Float32(None),
+        (DataType::Decimal128(precision, scale), None) => {
+            ScalarValue::Decimal128(None, *precision, *scale)
+        }
+        (ty, None) if streamfusion_bridge::timestamp::is_timestamp(ty) => null_scalar(ty),
         (other, _) => panic!("unsupported bounded OVER value type: {other:?}"),
     }
 }
@@ -1599,12 +1711,25 @@ pub(crate) fn num_to_scalar(value_type: &DataType, num: Option<Num>) -> ScalarVa
 /// Reads a typed Arrow scalar back into an OVER value (null → None, skipped by the aggregates).
 pub(crate) fn num_from_scalar(scalar: &ScalarValue) -> Option<Num> {
     match scalar {
+        ScalarValue::Struct(array)
+            if streamfusion_bridge::timestamp::is_timestamp(array.data_type()) =>
+        {
+            (!array.is_null(0)).then(|| {
+                Num::Timestamp(
+                    streamfusion_bridge::timestamp::TimestampColumn::try_new(array.as_ref())
+                        .expect("OVER timestamp scalar")
+                        .value(0)
+                        .expect("OVER timestamp scalar value"),
+                )
+            })
+        }
         ScalarValue::Int64(v) => v.map(Num::I64),
         ScalarValue::Int32(v) => v.map(Num::I32),
         ScalarValue::Int16(v) => v.map(Num::I16),
         ScalarValue::Int8(v) => v.map(Num::I8),
         ScalarValue::Float64(v) => v.map(Num::F64),
         ScalarValue::Float32(v) => v.map(Num::F32),
+        ScalarValue::Decimal128(v, _, _) => v.map(Num::I128),
         other => panic!("unsupported bounded OVER value scalar: {other:?}"),
     }
 }

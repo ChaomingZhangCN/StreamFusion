@@ -24,6 +24,28 @@ fixture construction, store creation and seeding are outside it. Its persistent
 wrapper retains the shared native resource until the store closes. See
 [Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
 
+The `over_basic_values` target isolates the four production OVER frame shapes without
+initializing unrelated persistent operator fixtures. Its 2,236 release fixture checks cover
+validity-only counts; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
+FIRST/LAST; cached/binary strings, malformed-surrogate recovery collisions, timestamp-group
+retraction order, pending rows and counted-value tree-bin retirement. Fixtures cover small/full batches, one/64 keys, NULLs,
+wide strings, decimal precision 38 and full-range fractional timestamps. The tests validate
+results before timing; setup is outside the measured fold, eviction, output and state-codec
+boundary. Smoke checks establish fixture correctness, without producing timing estimates.
+
+`over_heap_snapshot` separately exercises the production JNI observer with a real released
+Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
+serialization, a held snapshot, and completion between input and firing. It has 128 fixtures.
+The runner prepares its Java test fixture and released Maven classpath. Its embedded JVM
+uses a 128 MiB initial and 512 MiB maximum heap; startup and backend setup are outside timing.
+The between-input/firing profile includes actual snapshot serialization/completion inside its
+measured push/flush boundary.
+
+```sh
+python3 bin/bench-native.py --package streamfusion --bench over_basic_values --features mimalloc --smoke
+python3 bin/bench-native.py --package streamfusion --bench over_heap_snapshot --features mimalloc --smoke
+```
+
 Run from a checkout with Rust, Maven, and a JDK available. The runner discovers workspace benchmark targets
 using Cargo metadata, so a new suite is picked up without another hard-coded runner list.
 

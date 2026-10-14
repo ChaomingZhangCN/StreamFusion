@@ -15,12 +15,12 @@ pub fn row_kind_column(batch: &RecordBatch) -> Option<&Int8Array> {
     })
 }
 
-/// The number of data columns: every column except a trailing `$row_kind$`, if present.
+/// Logical data columns, excluding RowKind and Java string-cache companions.
 pub fn data_arity(batch: &RecordBatch) -> usize {
-    batch.num_columns()
-        - if row_kind_column(batch).is_some() {
-            1
-        } else {
-            0
-        }
+    batch
+        .schema()
+        .fields()
+        .iter()
+        .filter(|field| field.name() != ROW_KIND_COLUMN && !crate::is_string_cache_field(field))
+        .count()
 }

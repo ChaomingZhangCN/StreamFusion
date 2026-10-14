@@ -15,6 +15,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import tech.streamfusion.arrow.ArrowConversion;
 import tech.streamfusion.arrow.ArrowWriter;
+import tech.streamfusion.arrow.StringCacheColumns;
 import tech.streamfusion.compat.FlinkStreamOperator;
 import tech.streamfusion.planner.NativeConfig;
 
@@ -35,6 +36,8 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
   private final int batchSize;
   private final boolean carryRowKind;
   private final RowType sourceType;
+  private final boolean preserveStringCaches;
+  private transient StringCacheColumns.Writer stringCaches;
 
   private transient boolean writeRowKind;
   private transient BufferAllocator allocator;
@@ -51,6 +54,12 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
 
   public RowDataToArrowOperator(
       RowType rowType, int batchSize, boolean carryRowKind, RowType sourceType) {
+    this(rowType, batchSize, carryRowKind, sourceType, false);
+  }
+
+  public RowDataToArrowOperator(RowType rowType, int batchSize, boolean carryRowKind,
+      RowType sourceType, boolean preserveStringCaches) {
+    this.preserveStringCaches = preserveStringCaches;
     this.rowType = rowType;
     this.batchSize = batchSize;
     this.carryRowKind = carryRowKind;
@@ -86,6 +95,7 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
       if (pendingRoot == null) {
         pendingRoot = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(rowType), allocator);
         writer = ArrowConversion.createRowDataArrowWriter(pendingRoot, rowType, batchSize);
+        if (preserveStringCaches) stringCaches = new StringCacheColumns.Writer(rowType, allocator);
       }
       RowData row =
           projector == null ? element.getValue() : projector.replaceRow(element.getValue());
@@ -100,6 +110,7 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
           kinds.setSafe(i, org.apache.flink.types.RowKind.INSERT.toByteValue());
         }
       }
+      if (stringCaches != null) stringCaches.write(row, pendingRows);
       writer.write(row);
       if (kinds != null) kinds.setSafe(pendingRows, row.getRowKind().toByteValue());
       pendingRows++;
@@ -169,14 +180,16 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
   private void releasePending() throws Exception {
     VectorSchemaRoot root = pendingRoot;
     TinyIntVector rowKinds = kinds;
+    StringCacheColumns.Writer caches = stringCaches;
     clearPending();
-    org.apache.flink.util.IOUtils.closeAll(root, rowKinds);
+    org.apache.flink.util.IOUtils.closeAll(root, rowKinds, caches);
   }
 
   private void clearPending() {
     pendingRoot = null;
     writer = null;
     kinds = null;
+    stringCaches = null;
     pendingRows = 0;
     flushDeadline = Long.MIN_VALUE;
   }
@@ -187,10 +200,10 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
     long started = System.nanoTime();
     writer.finish();
     VectorSchemaRoot root = pendingRoot;
-    if (kinds != null) {
-      kinds.setValueCount(pendingRows);
+    if (kinds != null || stringCaches != null) {
       var columns = new ArrayList<FieldVector>(root.getFieldVectors());
-      columns.add(kinds);
+      if (kinds != null) { kinds.setValueCount(pendingRows); columns.add(kinds); }
+      if (stringCaches != null) columns.addAll(stringCaches.finish(pendingRows));
       root = new VectorSchemaRoot(columns);
       root.setRowCount(pendingRows);
     }
