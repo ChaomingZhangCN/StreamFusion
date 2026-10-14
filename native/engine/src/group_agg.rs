@@ -5,15 +5,32 @@ mod distinct;
 mod java_map_order;
 use decimal_map_order::DecimalMapOrder;
 use java_map_order::JavaMapOrder;
+#[cfg(test)]
+mod floating_tests;
 mod ordered_value;
 pub(crate) use distinct::DistinctSet;
 use distinct::{DistinctColumn, DistinctValues};
 use ordered_value::{is_ordered_value, OrderedValueState};
 
-/// Total ordering over f64 so a MIN/MAX value multiset can be a `BTreeMap` (floats compared by
-/// `total_cmp`); a given aggregate's column has no NaN in practice, so the tie-break is moot.
-#[derive(Clone, Copy, PartialEq)]
+/// Java boxed comparison for retractable extrema: NaNs share one key and signed zeros differ.
+#[derive(Clone, Copy)]
 pub(crate) struct OrdF64(f64);
+
+impl OrdF64 {
+    fn new(value: f64) -> Self {
+        Self(value)
+    }
+
+    fn canonical(self) -> f64 {
+        crate::flink_float::canonical_f64(self.0)
+    }
+}
+
+impl PartialEq for OrdF64 {
+    fn eq(&self, other: &Self) -> bool {
+        self.canonical().to_bits() == other.canonical().to_bits()
+    }
+}
 
 impl Eq for OrdF64 {}
 
@@ -25,14 +42,14 @@ impl PartialOrd for OrdF64 {
 
 impl Ord for OrdF64 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.total_cmp(&other.0)
+        self.canonical().total_cmp(&other.canonical())
     }
 }
 
-// Bit-pattern hash, consistent with the total_cmp equality (equal iff same bits).
+// Membership canonicalizes NaNs while the stored value retains the first payload.
 impl std::hash::Hash for OrdF64 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state);
+        self.canonical().to_bits().hash(state);
     }
 }
 
@@ -45,6 +62,7 @@ pub(crate) enum MinMaxKey {
     I16(i16),
     I8(i8),
     F64(OrdF64),
+    F32(OrdF64),
     // A DECIMAL extreme as its unscaled i128. All values of one aggregate share a scale, so ordering
     // the raw i128 is the decimal ordering; the precision/scale are restored from the result type on
     // emit (the key carries only the value, since the fold path has no precision/scale).
@@ -68,11 +86,9 @@ impl MinMaxKey {
             Num::I32(v) => MinMaxKey::I32(v),
             Num::I16(v) => MinMaxKey::I16(v),
             Num::I8(v) => MinMaxKey::I8(v),
-            Num::F64(v) => MinMaxKey::F64(OrdF64(v)),
+            Num::F64(v) => MinMaxKey::F64(OrdF64::new(v)),
             Num::I128(v) => MinMaxKey::Decimal128(v),
-            Num::F32(_) => {
-                unreachable!("float MIN/MAX uses the running path, not the Extremes multiset")
-            }
+            Num::F32(v) => MinMaxKey::F32(OrdF64::new(v as f64)),
         }
     }
 
@@ -85,7 +101,8 @@ impl MinMaxKey {
             ScalarValue::Int32(Some(v)) => MinMaxKey::I32(*v),
             ScalarValue::Int16(Some(v)) => MinMaxKey::I16(*v),
             ScalarValue::Int8(Some(v)) => MinMaxKey::I8(*v),
-            ScalarValue::Float64(Some(v)) => MinMaxKey::F64(OrdF64(*v)),
+            ScalarValue::Float64(Some(v)) => MinMaxKey::F64(OrdF64::new(*v)),
+            ScalarValue::Float32(Some(v)) => MinMaxKey::F32(OrdF64::new(*v as f64)),
             ScalarValue::Decimal128(Some(v), _, _) => MinMaxKey::Decimal128(*v),
             ScalarValue::Utf8(Some(v))
             | ScalarValue::LargeUtf8(Some(v))
@@ -112,6 +129,7 @@ impl MinMaxKey {
             MinMaxKey::I16(v) => ScalarValue::Int16(Some(*v)),
             MinMaxKey::I8(v) => ScalarValue::Int8(Some(*v)),
             MinMaxKey::F64(v) => ScalarValue::Float64(Some(v.0)),
+            MinMaxKey::F32(v) => ScalarValue::Float32(Some(v.0 as f32)),
             MinMaxKey::Decimal128(v) => match result_type {
                 DataType::Decimal128(p, s) => ScalarValue::Decimal128(Some(*v), *p, *s),
                 other => panic!("decimal MIN/MAX result type must be Decimal128, got {other:?}"),
@@ -702,7 +720,9 @@ impl GroupAggState {
                     .drain()
                     .map(|key| {
                         let count = counts.get(&key).copied().filter(|count| *count > 0);
-                        (key.scalar(element_type), count)
+                        let value = key.scalar(element_type);
+                        let element = crate::flink_float::canonical_scalar(&value).unwrap_or(value);
+                        (element, count)
                     })
                     .collect()
             }),
@@ -916,7 +936,7 @@ impl crate::state::RocksStateCodec for GroupStateCodec {
             return None;
         }
         let column = batch.column(self.value_columns[agg] as usize);
-        let column = if matches!(self.kinds[agg], 7 | 9 | 17 | 18) {
+        let column = if matches!(self.kinds[agg], 1 | 2 | 7 | 9 | 17 | 18) {
             crate::flink_float::canonical_array(column)
         } else {
             column.clone()
@@ -1809,22 +1829,18 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
             // it out only on the key's first touch and retains an Arrow row reference for the key;
             // intermediate rows then mutate state without materializing aggregate output.
             let first_bundle_touch = self.mini_batch && !self.staged_changes.contains_key(key);
-            let (mut prev, prev_bytes) = if exists && (!self.mini_batch || first_bundle_touch) {
+            let mut prev = if exists && (!self.mini_batch || first_bundle_touch) {
                 let state = self.store.get_mut(key).expect("key present");
                 match state.last_output.take() {
                     Some(cached) => {
-                        let bytes = std::mem::take(&mut state.last_output_bytes);
-                        (Some(cached), bytes)
+                        state.last_output_bytes = 0;
+                        Some(cached)
                     }
                     // Restored state or immediate, unfiltered SINGLE_VALUE has no cache.
-                    None => {
-                        let tuple = output_of(state, &self.result_types);
-                        let bytes = scalar_row_bytes(&tuple);
-                        (Some(tuple), bytes)
-                    }
+                    None => Some(output_of(state, &self.result_types)),
                 }
             } else {
-                (None, 0)
+                None
             };
             if first_bundle_touch {
                 if !retained_key_batch {
@@ -2034,7 +2050,10 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                     let value = state.aggs[0].emit(&self.result_types[0]);
                     match prev {
                         None => output.push(0, row, [value]),
-                        Some(prev) if value != prev[0] || ttl.enabled() => {
+                        Some(prev)
+                            if !crate::flink_float::record_equal(&value, &prev[0])
+                                || ttl.enabled() =>
+                        {
                             if self.generate_update_before {
                                 output.push(1, row, prev);
                             }
@@ -2053,7 +2072,10 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                         }
                         // With TTL on the no-change suppression is disabled: Flink always emits -U/+U
                         // so downstream state keeps refreshing instead of expiring too early.
-                        Some(prev) if new != prev || ttl.enabled() => {
+                        Some(prev)
+                            if !crate::flink_float::record_row_equal(&new, &prev)
+                                || ttl.enabled() =>
+                        {
                             state.last_output_bytes = scalar_row_bytes(&new);
                             if self.generate_update_before {
                                 output.push(1, row, prev); // -U — moved out of the cache, not recomputed
@@ -2061,9 +2083,10 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                             output.push(2, row, new.iter().cloned()); // +U
                             state.last_output = Some(new);
                         }
-                        Some(prev) => {
-                            state.last_output_bytes = prev_bytes;
-                            state.last_output = Some(prev); // unchanged result — suppressed
+                        Some(_) => {
+                            // Equal signed zeros can still differ in the next pre-update tuple.
+                            state.last_output_bytes = scalar_row_bytes(&new);
+                            state.last_output = Some(new);
                         }
                     }
                 }
@@ -2246,7 +2269,9 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 (Some(before), None) => push(3, staged, before.clone()),
                 // The same TTL rule as immediate mode: no-change transitions are suppressed only
                 // with retention off (Flink's MiniBatchGroupAggFunction gate).
-                (Some(before), Some(after)) if before != after || ttl_on => {
+                (Some(before), Some(after))
+                    if !crate::flink_float::record_row_equal(before, after) || ttl_on =>
+                {
                     if self.generate_update_before {
                         push(1, staged, before.clone());
                     }

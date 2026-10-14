@@ -12,6 +12,14 @@ fixture does not measure Flink job throughput. UTF-16 DECODE fixtures cover all 
 variants with both JDK U+FFFE rules, sliced nullable arrays, narrow/wide text, and malformed
 trailing bytes at 16, 1024 and 16384 rows. Input construction is outside the measured kernel.
 
+The `operators` target includes `floating_group`: FLOAT/DOUBLE SUM/MIN/MAX, ordered
+FIRST/LAST, SINGLE_VALUE, DISTINCT SUM, and typed local partials at 256/4096 rows, one/64 keys,
+nullable/non-null inputs, NaNs and signed zeros. Retraction fixtures seed state outside the
+measurement and time deletion batches; single-value fixtures use unique keys. The measured
+boundary includes production state lookup, accumulation, result construction and, for local
+aggregation, flush. Arrow fixtures and operator setup/destruction are outside the timed
+`iter_batched_ref` routine. Schema and nonempty-output checks run before timing.
+
 ## Running and comparing
 
 The `operators` target includes `append_top1`, covering the general and specialized

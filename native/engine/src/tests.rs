@@ -9124,6 +9124,77 @@ mod rocksdb_group_multisets {
 
     // The multisets survive a native checkpoint and a fresh store opened from it.
     #[test]
+    fn floating_extrema_lookup_nan_payloads_after_checkpoint() {
+        for (code, ty) in [(6, DataType::Float32), (1, DataType::Float64)] {
+            let scalar = |value: f64| match ty {
+                DataType::Float32 => ScalarValue::Float32(Some(value as f32)),
+                _ => ScalarValue::Float64(Some(value)),
+            };
+            let batch = |values: Vec<f64>, kinds: Vec<i8>| {
+                let len = values.len();
+                RecordBatch::try_new(
+                    Arc::new(Schema::new(vec![
+                        Field::new("k", DataType::Int64, false),
+                        Field::new("v", ty.clone(), true),
+                        Field::new(ROW_KIND_COLUMN, DataType::Int8, false),
+                    ])),
+                    vec![
+                        Arc::new(Int64Array::from(vec![1; len])),
+                        ScalarValue::iter_to_array(values.into_iter().map(scalar)).unwrap(),
+                        Arc::new(Int8Array::from(kinds)),
+                    ],
+                )
+                .unwrap()
+            };
+            let make =
+                || GroupAggregator::new(vec![1, 2], vec![code; 2], vec![1; 2], vec![0], true);
+            let codec =
+                || GroupStateCodec::new(vec![1, 2], vec![ty.clone(); 2], vec![1; 2], vec![]);
+            let directory = tempfile::tempdir().unwrap();
+            let configuration = |name: &str| {
+                let mut config = store_config("floating-options", 0);
+                config.table_dir = directory.path().join(name).to_string_lossy().into_owned();
+                config
+            };
+            let store = RocksGroupStore::create(configuration("initial"), codec()).unwrap();
+            let mut rocks = make().with_backend(store);
+            let mut memory = make();
+            for seed in [
+                batch(vec![f64::NAN, -0.0, 0.0], vec![0; 3]),
+                batch(vec![-f64::NAN], vec![0]),
+            ] {
+                assert_parity(&mut rocks, &mut memory, &seed, 0);
+            }
+            let snapshot = directory
+                .path()
+                .join("checkpoint")
+                .to_string_lossy()
+                .into_owned();
+            let manifest = rocks.store_mut().checkpoint(&snapshot).unwrap();
+            drop(rocks);
+            let store = RocksGroupStore::open_merged(
+                configuration("restored"),
+                codec(),
+                &[(snapshot, manifest.snapshot_id)],
+                0..=127,
+                true,
+                0,
+            )
+            .unwrap();
+            let mut rocks = make().with_backend(store);
+            for probe in [
+                batch(vec![f64::from_bits(0x7ff8000000000077)], vec![3]),
+                batch(vec![-f64::NAN], vec![3]),
+                batch(vec![-0.0], vec![3]),
+                batch(vec![0.0], vec![3]),
+                batch(vec![-0.0], vec![0]),
+            ] {
+                assert_parity(&mut rocks, &mut memory, &probe, 0);
+            }
+        }
+    }
+
+    #[test]
     fn typed_distinct_counts_survive_memory_and_rocks_restore() {
         for (code, value) in [
             (0, ScalarValue::Int64(Some(i64::MAX))),

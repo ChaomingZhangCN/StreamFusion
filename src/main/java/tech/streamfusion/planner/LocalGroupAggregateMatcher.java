@@ -16,7 +16,7 @@ import tech.streamfusion.operator.RowDataArrowConverter;
  * Recognizes the local half of a two-phase non-windowed {@code GROUP BY}: a stateless per-batch
  * pre-aggregate that emits one partial row per key ({@code [grouping.., partial0..]}) for the
  * {@link GlobalGroupAggregateMatcher global half} to merge. Scope mirrors the single-phase
- * {@link GroupAggregateMatcher}: SUM/MIN/MAX/COUNT over integer/double/decimal values, AVG over any of
+ * {@link GroupAggregateMatcher}: SUM/MIN/MAX/COUNT over integer/float/double/decimal values, AVG over
  * Flink's AvgAggFunction numerics (the narrow integers and float included — the sum partial widens
  * to bigint/double), and COUNT/SUM/AVG(DISTINCT) whose per-bundle value set rides a trailing view
  * column, with grouping keys the boundary carries. A FILTER clause is native: the boolean column
@@ -50,7 +50,10 @@ final class LocalGroupAggregateMatcher {
 
   static boolean supportedSinglePartials(
       RelDataType value, RelDataType partial, RelDataType count) {
-    return value.getSqlTypeName() == SqlTypeName.VARCHAR
+    SqlTypeName type = value.getSqlTypeName();
+    return (type == SqlTypeName.VARCHAR
+            || type == SqlTypeName.FLOAT
+            || type == SqlTypeName.DOUBLE)
         && org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(value, partial)
         && count.getSqlTypeName() == SqlTypeName.INTEGER;
   }
@@ -481,8 +484,11 @@ final class LocalGroupAggregateMatcher {
         codes.add(code);
         if (kind == WindowAggregateMatcher.KIND_AVG) codes.add(code);
       } else if (kind == 14) {
-        codes.add(3);
-        codes.add(3); // Both local states read the original string; kind 21 emits INT.
+        int code =
+            GroupAggregateMatcher.retainedValueTypeCode(
+                inputType.getFieldList().get(call.getArgList().get(0)).getType());
+        codes.add(code);
+        codes.add(code); // Both local states read the original value; kind 21 emits INT.
       } else if (kind == WindowAggregateMatcher.KIND_AVG) {
         RelDataType valueRel = inputType.getFieldList().get(call.getArgList().get(0)).getType();
         // The widened sum: a packed decimal code (the native partial reports DECIMAL(38, s)),
@@ -541,9 +547,9 @@ final class LocalGroupAggregateMatcher {
   }
 
   static String unsupportedReason(StreamPhysicalLocalGroupAggregate agg) {
-    return "local group aggregate: needs SUM/MIN/MAX/COUNT over integer/double/decimal values with"
+    return "local group aggregate: needs SUM/MIN/MAX/COUNT over integer/float/double/decimal values with"
         + " no widening of the partial, MIN/MAX over string/date/time/boolean/timestamp, AVG"
-        + " over any AvgAggFunction numeric, or insert-only SINGLE_VALUE over string, and"
+        + " over any AvgAggFunction numeric, or insert-only SINGLE_VALUE over string/float/double, and"
         + " bigint/int/string/boolean/date/timestamp/decimal grouping keys";
   }
 }
