@@ -86,11 +86,6 @@ final class GroupWindowAggregateMatcher {
     if (stringReason != null) {
       return "legacy group-window: " + stringReason;
     }
-    if (window instanceof SlidingGroupWindow) {
-      String timestampReason = WindowAggregateMatcher.overlappingTimestampExtremaReason(
-          agg.aggCalls(), agg.getInput().getRowType());
-      if (timestampReason != null) return "legacy group-window: " + timestampReason;
-    }
 
     if (session) {
       if (gap(agg) == null) {

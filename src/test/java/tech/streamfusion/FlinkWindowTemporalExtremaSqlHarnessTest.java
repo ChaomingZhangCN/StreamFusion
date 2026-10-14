@@ -78,7 +78,9 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @CsvSource({"ONE_PHASE,false,TUMBLE", "TWO_PHASE,false,HOP", "ONE_PHASE,true,TUMBLE",
-      "TWO_PHASE,true,HOP", "ONE_PHASE,false,SESSION", "ONE_PHASE,true,SESSION"})
+      "TWO_PHASE,true,HOP", "ONE_PHASE,false,SESSION", "ONE_PHASE,true,SESSION",
+      "ONE_PHASE,false,HOP", "ONE_PHASE,true,HOP", "ONE_PHASE,false,CUMULATE",
+      "ONE_PHASE,true,CUMULATE"})
   void checkpointRecoveryKeepsFractionalExtremaAndNullOnlyState(String phase, boolean rocks, String shape) {
     if (shape.equals("SESSION")) {
       tech.streamfusion.compat.FlinkTestCapabilities.requireSessionTableFunction();
@@ -106,7 +108,9 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
           ? "SESSION(TABLE recovery_input PARTITION BY k, DESCRIPTOR(rt), INTERVAL '1' SECOND)"
           : shape.equals("TUMBLE")
               ? "TUMBLE(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '2' SECOND)"
-              : "HOP(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '1' SECOND, INTERVAL '2' SECOND)";
+              : shape.equals("HOP")
+                  ? "HOP(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '1' SECOND, INTERVAL '2' SECOND)"
+                  : "CUMULATE(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '1' SECOND, INTERVAL '2' SECOND)";
       String query = "SELECT k, window_start, window_end, MIN(tv), MAX(lv), COUNT(*) FROM TABLE("
           + window + ") "
           + "GROUP BY k, window_start, window_end";
@@ -223,13 +227,6 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
 
   private static void check(Supplier<TableEnvironment> factory, String query, String phase) {
     var runs = NativeFailureParity.run(factory, query);
-    if (phase.equals("ONE_PHASE") && (query.contains("HOP(") || query.contains("CUMULATE("))) {
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("single-phase timestamp MIN/MAX")), runs.toString());
-      return;
-    }
     runs.assertSuccess(NativeFailureParity.Route.NATIVE);
     assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
     assertTrue(runs.nativeRun().plan().contains(phase.equals("TWO_PHASE")

@@ -1,6 +1,86 @@
 use super::*;
 
 #[test]
+fn timestamp_panes_match_direct_windows_across_boundaries_late_rows_and_restore() {
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let batch = |times: Vec<i64>| {
+        let values: ArrayRef = Arc::new(timestamp_array(times.iter().enumerate().map(
+            |(row, _)| match row % 4 {
+                0 => Some(early),
+                1 => Some(late),
+                _ => None,
+            },
+        )));
+        RecordBatch::try_from_iter(vec![
+            ("ts", Arc::new(Int64Array::from(times.clone())) as ArrayRef),
+            (
+                "key0",
+                Arc::new(StringArray::from_iter(times.iter().enumerate().map(
+                    |(row, _)| {
+                        if row % 3 == 0 {
+                            None
+                        } else {
+                            Some(if row % 2 == 0 { "A" } else { "B" })
+                        }
+                    },
+                ))) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values.clone()),
+            (
+                "value2",
+                Arc::new(Int64Array::from_value(1, times.len())) as ArrayRef,
+            ),
+            ("value3", values),
+        ])
+        .unwrap()
+    };
+    let types = vec![1009, 1009, 0, 1009];
+    let kinds = vec![1, 2, 3, 3];
+    for cumulative in [false, true] {
+        let mut panes =
+            TumblingAggregator::new(10_000, 2000, cumulative, types.clone(), kinds.clone())
+                .with_memory_budget(1024 * 1024)
+                .unwrap();
+        let mut direct =
+            TumblingAggregator::new(10_000, 2000, cumulative, types.clone(), kinds.clone());
+        direct.timestamp_panes = false;
+        for times in [
+            vec![-2001, -2000, -1, 0, 1, 1999, 2000, 7999, 8000, 9999],
+            vec![0, 3000, 8000, 9999, 10_000, 10_001, 15_999, 16_000],
+        ] {
+            let input = batch(times);
+            panes.update(&input).unwrap();
+            assert_eq!(panes.memory.state_bytes, panes.computed_state_bytes());
+            direct.update(&input).unwrap();
+            assert_eq!(panes.flush(3999).unwrap(), direct.flush(3999).unwrap());
+            assert_eq!(panes.late_drops, direct.late_drops);
+            let restore = |operator: &mut TumblingAggregator| {
+                TumblingAggregator::restore(
+                    10_000,
+                    2000,
+                    cumulative,
+                    types.clone(),
+                    kinds.clone(),
+                    &operator.snapshot(),
+                )
+            };
+            panes = restore(&mut panes);
+            panes = panes.with_memory_budget(1024 * 1024).unwrap();
+            direct = restore(&mut direct);
+            direct.timestamp_panes = false;
+        }
+        assert_eq!(
+            panes.flush(i64::MAX).unwrap(),
+            direct.flush(i64::MAX).unwrap()
+        );
+        assert_eq!(panes.flush(i64::MAX).unwrap().num_rows(), 0);
+        assert_eq!(panes.memory.state_bytes, 0);
+    }
+}
+
+#[test]
 fn temporal_sessions_bridge_restored_values_without_retaining_source_batches() {
     use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
     let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();

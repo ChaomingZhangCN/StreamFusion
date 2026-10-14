@@ -24,6 +24,25 @@ import tech.streamfusion.arrow.writers.TimestampWriter;
 
 class TimestampAccessorTest {
   @Test
+  void compactWritesClearOldFractionsAndNullsAcrossTheFullMillisecondRange() {
+    try (BufferAllocator allocator = new RootAllocator();
+        StructVector vector = (StructVector) TimestampAccessor.field("ts", true).createVector(allocator)) {
+      vector.allocateNew();
+      var accessor = new TimestampAccessor(vector);
+      long[] values = {Long.MIN_VALUE, -62135596800000L, -1, 0, 253402300799999L, Long.MAX_VALUE};
+      for (int i = 0; i < values.length; i++) {
+        accessor.set(i, i % 2 == 0 ? null : TimestampData.fromEpochMillis(values[i], 999999));
+        accessor.setMillis(i, values[i]);
+      }
+      vector.setValueCount(values.length);
+      for (int i = 0; i < values.length; i++) {
+        assertEquals(TimestampData.fromEpochMillis(values[i]), accessor.getTimestamp(i));
+        assertEquals(false, accessor.isNull(i));
+      }
+    }
+  }
+
+  @Test
   void componentWriterPreservesRangeAndHiddenFractions() {
     try (BufferAllocator allocator = new RootAllocator();
         StructVector vector =

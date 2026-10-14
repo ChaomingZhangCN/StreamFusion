@@ -20,6 +20,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.TimeMilliVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -465,6 +466,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     BigIntVector ts = new BigIntVector("ts", allocator);
     FieldVector[] values = new FieldVector[valueColumns.length];
     FieldVector[] srcValues = new FieldVector[valueColumns.length];
+    boolean[] countValues = new boolean[valueColumns.length];
     TimestampAccessor[] timestampSources = new TimestampAccessor[valueColumns.length];
     TimestampAccessor[] timestampTargets = new TimestampAccessor[valueColumns.length];
     boolean[] sharedValues = new boolean[valueColumns.length];
@@ -473,12 +475,20 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     List<FieldVector> vectors = new ArrayList<>();
     vectors.add(ts);
     for (int a = 0; a < valueColumns.length; a++) {
-      values[a] = newValueVector("value" + a, valueTypes[a]);
+      countValues[a] = aggregateKinds[a] == KIND_COUNT;
+      if (countValues[a]) {
+        values[a] = new BigIntVector("value" + a, allocator);
+      } else if (isTimestamp(valueTypes[a]) && timestampPrecision(valueTypes[a]) <= 3
+          && (aggregateKinds[a] == KIND_MIN || aggregateKinds[a] == KIND_MAX)) {
+        values[a] = new TimeStampMilliVector("value" + a, allocator);
+      } else {
+        values[a] = newValueVector("value" + a, valueTypes[a]);
+      }
       srcValues[a] = valueColumns[a] < 0 ? null : in.getFieldVectors().get(valueColumns[a]);
       if (filterColumns != null && filterColumns[a] >= 0) {
         filters[a] = (BitVector) in.getVector(filterColumns[a]);
       }
-      if (srcValues[a] != null && isTimestamp(valueTypes[a])) {
+      if (!countValues[a] && srcValues[a] != null && isTimestamp(valueTypes[a])) {
         timestampSources[a] = new TimestampAccessor(srcValues[a]);
         timestampTargets[a] = new TimestampAccessor(values[a]);
         // Arrow can retain a view only within one root allocator; external roots need a copy.
@@ -519,13 +529,17 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
             values[a].setNull(i);
           } else if (valueColumns[a] < 0) {
             ((BigIntVector) values[a]).setSafe(i, 1L); // COUNT(*): a non-null constant counts rows
+          } else if (countValues[a]) {
+            if (srcValues[a].isNull(i)) values[a].setNull(i);
+            else ((BigIntVector) values[a]).setSafe(i, 1L);
           } else if (timestampSources[a] != null) {
-            TimestampData timestamp = timestampSources[a].isNull(i)
-                ? null : timestampSources[a].getTimestamp(i);
-            if (timestamp != null && timestampPrecision(valueTypes[a]) <= 3) {
-              timestamp = TimestampData.fromEpochMillis(timestamp.getMillisecond());
+            if (timestampSources[a].isNull(i)) {
+              timestampTargets[a].set(i, null);
+            } else if (timestampPrecision(valueTypes[a]) <= 3) {
+              timestampTargets[a].setMillis(i, timestampSources[a].getMillis(i));
+            } else {
+              timestampTargets[a].set(i, timestampSources[a].getTimestamp(i));
             }
-            timestampTargets[a].set(i, timestamp);
           } else {
             copyValue(values[a], i, srcValues[a], valueTypes[a]);
           }

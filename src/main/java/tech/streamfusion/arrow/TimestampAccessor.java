@@ -114,6 +114,21 @@ public final class TimestampAccessor {
     primitive.setSafe(row, encoded);
   }
 
+  /** Writes a compact timestamp without constructing a host timestamp object. */
+  public void setMillis(int row, long epochMillis) {
+    if (primitive != null) {
+      if (unit == TimeUnit.MILLISECOND) {
+        primitive.setSafe(row, epochMillis);
+        return;
+      }
+      set(row, TimestampData.fromEpochMillis(epochMillis));
+      return;
+    }
+    millis.setSafe(row, epochMillis);
+    nanos.setSafe(row, 0);
+    ((StructVector) vector).setIndexDefined(row);
+  }
+
   public TimestampAccessor(ValueVector vector) {
     if (!isTimestamp(vector)) {
       throw new IllegalArgumentException("Expected an Arrow timestamp, got " + vector.getField());

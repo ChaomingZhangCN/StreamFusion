@@ -308,3 +308,25 @@ Native sample ranges are 357.6–393.4 → 361.9–392.2 ms for BIGINT and
 535.5–557.0 → 533.9–545.8 ms for STRING. The boundary optimization therefore carries no
 claim of a general complete-job throughput win. All 1,860 shaping observations and 20 job
 observations from this pair are archived alongside historical evidence.
+
+## Timestamp slice folding
+
+Overlapping timestamp extrema and ordinary counts fold once per key and input slice,
+then merge owned scalar states directly into each open window. This avoids repeated
+value reads, selection arrays and singleton Arrow partial arrays. Keys are cloned only
+when a window group is created. Timestamp pairs and counts have a fixed footprint, so
+memory accounting records that footprint at creation rather than scanning every
+accumulator after every update; closing a window releases the same tracked bytes.
+Compact MIN/MAX inputs use millisecond vectors, and COUNT inputs carry only validity.
+Full-precision values retain both timestamp digits. Snapshot codecs and window firing
+order retain the existing window-state layout.
+
+Boundary, late-row, NULL, restore and memory-reclamation controls compare slice folding
+with direct per-window updates. The final precision-3, two-million-row, 4096-key complete
+jobs are 1.11–1.32× faster than stock Flink for single-phase HOP/CUMULATE over TIMESTAMP
+and TIMESTAMP_LTZ. The measured path includes row inputs, both transposes, IPC, JNI,
+state and row collection. The
+[retained comparison](../benchmarks/results/window-temporal-overlap-integration-2026-10-13.json)
+contains every warmup/trial and rejected intermediate implementation. Earlier direct
+folding and compact-vector-only candidates did not consistently beat stock; the final
+fixed-footprint accounting removes their repeated state-size scans.

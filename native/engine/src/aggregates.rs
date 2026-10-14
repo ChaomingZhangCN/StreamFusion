@@ -3,6 +3,8 @@ use crate::*;
 mod floating_extreme;
 mod retracting_window;
 mod timestamp_extreme;
+mod window_count;
+pub(crate) use window_count::WindowCountAccumulator;
 mod zero_sum;
 pub(crate) use retracting_window::{HIDDEN_LIVE_COUNT, LIVE_COUNT, RETRACT_COUNT, RETRACT_SUM};
 pub(crate) use timestamp_extreme::TimestampExtremeAccumulator;
@@ -650,6 +652,7 @@ impl Accumulator for DoubleAvgAccumulator {
 /// exactly. All expose mergeable partial state, so windows accumulate incrementally and checkpoint
 /// uniformly.
 pub(crate) enum WindowAggregate {
+    Count,
     ZeroSum(DataType),
     RetractingSum(DataType),
     RetractingCount,
@@ -738,6 +741,7 @@ impl WindowAggregate {
 
     pub(crate) fn create_accumulator(&self) -> Box<dyn Accumulator> {
         match self {
+            WindowAggregate::Count => Box::<WindowCountAccumulator>::default(),
             WindowAggregate::ZeroSum(value_type) => {
                 Box::new(zero_sum::ZeroSumAccumulator::new(value_type))
             }
@@ -793,6 +797,7 @@ impl WindowAggregate {
 
     pub(crate) fn state_fields(&self) -> Vec<Field> {
         match self {
+            WindowAggregate::Count => vec![Field::new("count", DataType::Int64, false)],
             WindowAggregate::ZeroSum(_) => vec![Field::new("sum", self.result_type(), true)],
             WindowAggregate::RetractingSum(value_type) => vec![
                 Field::new("sum", value_type.clone(), true),
@@ -843,6 +848,7 @@ impl WindowAggregate {
     /// The aggregate's output type (e.g. int64 for a sum of int64, float64 for a sum of float64).
     pub(crate) fn result_type(&self) -> DataType {
         match self {
+            WindowAggregate::Count => DataType::Int64,
             WindowAggregate::ZeroSum(value_type) => RunningAgg::new(22, value_type).result_type(),
             WindowAggregate::RetractingSum(value_type) => value_type.clone(),
             WindowAggregate::RetractingCount => DataType::Int64,

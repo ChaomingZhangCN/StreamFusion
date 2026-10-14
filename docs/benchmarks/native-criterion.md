@@ -158,7 +158,7 @@ Some historical suites use
 | Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64/all-distinct keys |
 | Window string extrema | `window_string_extrema` | Production MIN/MAX update and watermark flush over 256/4096 rows, 1/64/batch-sized keys and nullable 16/256-byte UTF-8 values; independent extrema checked before timing |
 | Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
-| Window temporal extrema | `window_temporal_extrema` | Accounted TUMBLE MIN/MAX update/flush and SESSION update/merge/flush over 256/4096 rows, 1/64/batch-sized keys and nullable full-range component timestamps at precision 3/9; independent extrema checked before timing |
+| Window temporal extrema | `window_temporal_extrema` | Accounted TUMBLE/HOP/CUMULATE extrema/count update/flush and SESSION update/merge/flush over 256/4096 rows, 1/64/batch-sized keys and nullable full-range component timestamps at precision 3/9; independent extrema and counts checked before timing |
 
 `window_zero_sum` covers the production COUNT/SUM0 window update and final flush
 over nullable BIGINT and DECIMAL(38,2), at 256/4096 rows and 1/64/all-distinct keys. Fixture construction
@@ -178,14 +178,16 @@ from the release+mimalloc JVM job results. Every raw timing sample, estimate int
 allocation probe and whole-job observation is retained in
 [the benchmark artifact](results/window-sum0-2026-10-12.json).
 
-`window_temporal_extrema` also registers `session_temporal_extrema`. Its 24 release fixtures
-check every key's extrema independently before timing, including all-NULL groups and a
+`window_temporal_extrema` also registers hopping, cumulative and session groups. Its 48 release fixtures
+check every key's extrema and count independently before timing, including all-NULL groups and a
 second session batch whose bounds touch and whose values extend the previous maximum.
 Accumulator construction and fixture setup stay outside timing; grouping, update, state merge,
-final output and disposal remain inside. The October 13, 2026 run uses one second of warmup,
+final output and disposal remain inside. The initial 24-fixture October 13, 2026 run uses one second of warmup,
 two seconds of measurement and ten samples per fixture with the counting System allocator.
-Every sample, confidence interval and allocation probe is retained in the
+Every initial sample, confidence interval and allocation probe is retained in the
 [temporal window artifact](results/window-temporal-extrema-2026-10-13.json).
+The expanded HOP/CUMULATE extrema/count fixtures exercise slice folding; they extend
+fixture coverage rather than reusing the initial TUMBLE/SESSION timings.
 These native measurements do not replace the
 [complete Flink comparisons](../operators/window-aggregate.md#temporal-extrema-benchmarks),
 which use release+mimalloc and retain both transposes, JNI and state.

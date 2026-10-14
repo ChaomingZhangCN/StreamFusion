@@ -9,6 +9,14 @@ enum WindowResultColumn {
     Timestamps(Vec<Option<TimestampValue>>),
 }
 
+enum TimestampPaneValue {
+    Extreme {
+        minimum: bool,
+        value: Option<TimestampValue>,
+    },
+    Count(i64),
+}
+
 impl WindowResultColumn {
     fn new(aggregate: &WindowAggregate) -> Self {
         match aggregate {
@@ -254,6 +262,7 @@ pub(crate) struct TumblingAggregator {
     slide_millis: i64,
     cumulative: bool,
     aggregates: Vec<WindowAggregate>,
+    timestamp_panes: bool,
     live_count: Option<usize>,
     windows: BTreeMap<i64, AlignedWindow>,
     // Groups are keyed by the arrow-row memcomparable encoding of the key columns, not a
@@ -295,11 +304,34 @@ impl TumblingAggregator {
         value_types: Vec<i64>,
         kinds: Vec<i64>,
     ) -> Self {
+        let timestamp_panes = slide_millis > 0
+            && window_millis > slide_millis
+            && window_millis % slide_millis == 0
+            && kinds.iter().zip(&value_types).any(|(kind, value_type)| {
+                matches!(*kind, 1 | 2)
+                    && streamfusion_bridge::timestamp::is_timestamp(&value_data_type(*value_type))
+            })
+            && kinds.iter().zip(&value_types).all(|(kind, value_type)| {
+                *kind == 3
+                    || (matches!(*kind, 1 | 2)
+                        && streamfusion_bridge::timestamp::is_timestamp(&value_data_type(
+                            *value_type,
+                        )))
+            });
+        let mut aggregates = build_aggregates(&kinds, &value_types);
+        if timestamp_panes {
+            for (aggregate, kind) in aggregates.iter_mut().zip(&kinds) {
+                if *kind == 3 {
+                    *aggregate = WindowAggregate::Count;
+                }
+            }
+        }
         TumblingAggregator {
             window_millis,
             slide_millis,
             cumulative,
-            aggregates: build_aggregates(&kinds, &value_types),
+            aggregates,
+            timestamp_panes,
             live_count: kinds
                 .iter()
                 .position(|kind| matches!(*kind, LIVE_COUNT | HIDDEN_LIVE_COUNT)),
@@ -527,6 +559,10 @@ impl TumblingAggregator {
         self.key_types = key_types(&key_arrays);
         let keys_encoded = encode_keys(&mut self.key_converter, &key_arrays, batch.num_rows());
 
+        if self.timestamp_panes && discard_closed_windows {
+            return self.update_timestamp_panes(batch, &keys_encoded, &values);
+        }
+
         // Group the row positions for each (window, key); column selection preserves each
         // accumulator's own value type (int, double, ...). The
         // grouping key is a borrowed byte-row view into the batch's encoded keys — no per-row
@@ -553,6 +589,145 @@ impl TumblingAggregator {
             }
         }
         self.hydrate_and_accumulate(batch, grouped, &values)
+    }
+
+    // Timestamp extrema and counts have exact, order-independent partials. Fold each slice once
+    // before the existing global merge fans it out to the still-open overlapping windows.
+    fn update_timestamp_panes(
+        &mut self,
+        batch: &RecordBatch,
+        keys: &Rows,
+        values: &[&ArrayRef],
+    ) -> Result<(), DataFusionError> {
+        let times = column_i64(batch, "ts");
+        let timestamps: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(values)
+            .map(|(aggregate, value)| aggregate.timestamp_column(value))
+            .collect::<Result<_, _>>()?;
+        let mut positions = ahash::HashMap::default();
+        let mut pane_keys = Vec::new();
+        let mut slice_ends = Vec::new();
+        let mut pane_rows = Vec::new();
+        let mut panes: Vec<Vec<TimestampPaneValue>> = Vec::new();
+        for row in 0..batch.num_rows() {
+            let slice_end =
+                (times.value(row).div_euclid(self.slide_millis) + 1) * self.slide_millis;
+            let last_end = if self.cumulative {
+                times.value(row) - times.value(row).rem_euclid(self.window_millis)
+                    + self.window_millis
+            } else {
+                slice_end + self.window_millis - self.slide_millis
+            };
+            if last_end <= self.current_watermark {
+                self.late_drops += 1;
+                continue;
+            }
+            let key = keys.row(row);
+            let position = *positions.entry((slice_end, key)).or_insert_with(|| {
+                pane_keys.push(key);
+                slice_ends.push(slice_end);
+                pane_rows.push(row as u32);
+                panes.push(
+                    self.aggregates
+                        .iter()
+                        .map(|aggregate| match aggregate {
+                            WindowAggregate::TimestampExtreme { minimum } => {
+                                TimestampPaneValue::Extreme {
+                                    minimum: *minimum,
+                                    value: None,
+                                }
+                            }
+                            _ => TimestampPaneValue::Count(0),
+                        })
+                        .collect(),
+                );
+                panes.len() - 1
+            });
+            for (i, value) in panes[position].iter_mut().enumerate() {
+                match value {
+                    TimestampPaneValue::Count(count) => {
+                        if !values[i].is_null(row) {
+                            *count += 1;
+                        }
+                    }
+                    TimestampPaneValue::Extreme { minimum, value } => {
+                        let column = timestamps[i].as_ref().expect("timestamp pane column");
+                        if !column.is_null(row) {
+                            let next = column.value(row)?;
+                            if value
+                                .is_none_or(|old| if *minimum { next < old } else { next > old })
+                            {
+                                *value = Some(next);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let pane_windows: Vec<_> = slice_ends
+            .iter()
+            .map(|end| self.partial_windows(*end))
+            .collect();
+        #[cfg(feature = "rocksdb-state")]
+        if self.store.is_some() {
+            let mut seen = ahash::HashSet::default();
+            let mut touched = Vec::new();
+            for (pane, windows) in pane_windows.iter().enumerate() {
+                for &(start, end) in windows {
+                    if seen.insert((end, pane_keys[pane])) {
+                        touched.push((start, end, pane_keys[pane], pane_rows[pane]));
+                    }
+                }
+            }
+            self.hydrate_store_groups(batch, &touched)?;
+        }
+        let track = self.memory.tracking();
+        for ((pane, key), windows) in panes.iter().zip(pane_keys).zip(pane_windows) {
+            let key = key.owned();
+            for (start, end) in windows {
+                let aggregates = &self.aggregates;
+                let window = self.windows.entry(end).or_insert_with(|| AlignedWindow {
+                    start,
+                    keys: HashMap::default(),
+                });
+                if !window.keys.contains_key(&key) {
+                    let accumulators = aggregates
+                        .iter()
+                        .map(WindowAggregate::create_accumulator)
+                        .collect::<Vec<_>>();
+                    // Scalar timestamp/count state cannot grow after this group is created.
+                    if track {
+                        self.memory.record(
+                            (owned_row_bytes(&key) + accumulators_bytes(&accumulators)) as isize,
+                        );
+                    }
+                    window.keys.insert(key.clone(), accumulators);
+                }
+                let accumulators = window.keys.get_mut(&key).expect("timestamp pane window");
+                for (accumulator, value) in accumulators.iter_mut().zip(pane) {
+                    match value {
+                        TimestampPaneValue::Extreme { value, .. } => {
+                            (accumulator.as_mut() as &mut dyn std::any::Any)
+                                .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()
+                                .expect("timestamp extrema factory")
+                                .merge_value(*value);
+                        }
+                        TimestampPaneValue::Count(count) => {
+                            (accumulator.as_mut() as &mut dyn std::any::Any)
+                                .downcast_mut::<crate::aggregates::WindowCountAccumulator>()
+                                .expect("timestamp pane COUNT factory")
+                                .merge_count(*count);
+                        }
+                    }
+                }
+            }
+        }
+        self.memory.account()?;
+        #[cfg(feature = "rocksdb-state")]
+        self.write_through_store()?;
+        Ok(())
     }
 
     /// Window-attached local half: each row already carries its window as `window_start`/`window_end`

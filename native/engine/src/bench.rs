@@ -61,9 +61,27 @@ impl Tumbling {
         kinds: Vec<i64>,
         budget_bytes: i64,
     ) -> Self {
+        Self::with_window_budget(
+            window_millis,
+            window_millis,
+            false,
+            value_type,
+            kinds,
+            budget_bytes,
+        )
+    }
+
+    pub fn with_window_budget(
+        window_millis: i64,
+        slide_millis: i64,
+        cumulative: bool,
+        value_type: i64,
+        kinds: Vec<i64>,
+        budget_bytes: i64,
+    ) -> Self {
         let value_types = vec![value_type; kinds.len()];
         Tumbling(
-            TumblingAggregator::new(window_millis, window_millis, false, value_types, kinds)
+            TumblingAggregator::new(window_millis, slide_millis, cumulative, value_types, kinds)
                 .with_memory_budget(budget_bytes)
                 .expect("empty state fits any budget"),
         )

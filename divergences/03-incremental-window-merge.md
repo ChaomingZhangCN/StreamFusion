@@ -92,3 +92,18 @@ demand (Flink's `MaxWithRetractAccumulator` is a running scalar plus a
 `MapView<value, count>`; Arroyo's `IncrementalState::Batch` is a `HashMap<value,
 count>`). We would follow that — per-aggregate state selection, value-multiset for
 the non-mergeable set — rather than retaining raw rows alongside partials.
+
+## Temporal overlapping slices
+
+Insert-only timestamp extrema combined with ordinary COUNT reduce each input
+slice once then merge those scalar partial states directly into open HOP/CUMULATE
+windows. This follows Arroyo's sliding partial/final aggregation structure while
+retaining StreamFusion's window accumulator state, snapshot codecs and firing
+order. Only exact, order-independent extrema/count states take this path; numeric
+reductions, retracting inputs and other aggregate combinations keep their existing
+fold. Late rows are discarded only when their last assigned window has closed.
+
+Counts use the same non-null Int64 partial state as DataFusion, including logical-null
+unions for multi-argument updates. Owned extrema and counts have fixed size; accounting
+charges new groups once and releases their recorded footprint when a window closes.
+Persistent stores still hydrate and write through each affected window group.

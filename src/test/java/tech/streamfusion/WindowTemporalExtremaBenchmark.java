@@ -58,8 +58,7 @@ class WindowTemporalExtremaBenchmark {
     }
     if (!List.of("ONE_PHASE", "TWO_PHASE").contains(phase)
         || !List.of("TUMBLE", "HOP", "CUMULATE", "SESSION").contains(shape)
-        || (shape.equals("SESSION") && !phase.equals("ONE_PHASE"))
-        || (phase.equals("ONE_PHASE") && (shape.equals("HOP") || shape.equals("CUMULATE")))) {
+        || (shape.equals("SESSION") && !phase.equals("ONE_PHASE"))) {
       throw new IllegalArgumentException("fixture is outside native temporal window admission");
     }
     java.time.LocalDateTime[] values = new java.time.LocalDateTime[1024];
@@ -107,6 +106,9 @@ class WindowTemporalExtremaBenchmark {
             }
           }
           double seconds = (System.nanoTime() - start) / 1e9;
+          System.out.printf(Locale.ROOT,
+              "[temporal-window-trial] shape=%s phase=%s precision=%d ltz=%s engine=%d trial=%d warmup=%s seconds=%.6f%n",
+              shape, phase, precision, ltz, engine, trial, trial < WARMUP, seconds);
           outputs.set(engine, output);
           if (scan != null) {
             assertEquals(engine == 1, scan.substitutions() > 0, scan.explainSummary());

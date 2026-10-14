@@ -31,15 +31,18 @@ impl TemporalWindow {
 
 fn bench_window_temporal_extrema(c: &mut Criterion) {
     header();
-    fixtures(c, false);
-    fixtures(c, true);
+    for shape in ["TUMBLE", "HOP", "CUMULATE", "SESSION"] {
+        fixtures(c, shape);
+    }
 }
 
-fn fixtures(c: &mut Criterion, session: bool) {
-    let label = if session {
-        "session_temporal_extrema"
-    } else {
-        "window_temporal_extrema"
+fn fixtures(c: &mut Criterion, shape: &str) {
+    let session = shape == "SESSION";
+    let label = match shape {
+        "SESSION" => "session_temporal_extrema",
+        "HOP" => "hopping_temporal_extrema",
+        "CUMULATE" => "cumulative_temporal_extrema",
+        _ => "window_temporal_extrema",
     };
     let mut group = c.benchmark_group(label);
     for rows in [256usize, 4096] {
@@ -69,7 +72,8 @@ fn fixtures(c: &mut Criterion, session: bool) {
                         )) as ArrayRef,
                     ),
                     ("value0", values.clone()),
-                    ("value1", values),
+                    ("value1", values.clone()),
+                    ("value2", values),
                 ])
                 .unwrap();
                 let mut following_columns = batch.columns().to_vec();
@@ -88,14 +92,16 @@ fn fixtures(c: &mut Criterion, session: bool) {
                         TemporalWindow::Session(Session::with_budget(
                             1000,
                             1000 + precision,
-                            vec![1, 2],
+                            vec![1, 2, 3],
                             64 * 1024 * 1024,
                         ))
                     } else {
-                        TemporalWindow::Tumbling(Tumbling::with_budget(
+                        TemporalWindow::Tumbling(Tumbling::with_window_budget(
                             1000,
+                            if shape == "TUMBLE" { 1000 } else { 500 },
+                            shape == "CUMULATE",
                             1000 + precision,
-                            vec![1, 2],
+                            vec![1, 2, 3],
                             64 * 1024 * 1024,
                         ))
                     }
@@ -106,13 +112,34 @@ fn fixtures(c: &mut Criterion, session: bool) {
                     probe.update(&following);
                 }
                 let output = probe.flush();
-                assert_eq!(output.num_rows(), cardinality);
+                assert_eq!(
+                    output.num_rows(),
+                    cardinality
+                        * if shape == "HOP" || shape == "CUMULATE" {
+                            2
+                        } else {
+                            1
+                        }
+                );
                 let keys = output
                     .column_by_name("key0")
                     .unwrap()
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .unwrap();
+                let counts = output
+                    .column_by_name("result2")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap();
+                for row in 0..output.num_rows() {
+                    let count = (keys.value(row) as usize..rows)
+                        .step_by(cardinality)
+                        .filter(|i| source[*i].is_some())
+                        .count() as i64;
+                    assert_eq!(counts.value(row), count * if session { 2 } else { 1 });
+                }
                 for (name, minimum) in [("result0", true), ("result1", false)] {
                     let actual =
                         TimestampColumn::try_new(output.column_by_name(name).unwrap().as_ref())

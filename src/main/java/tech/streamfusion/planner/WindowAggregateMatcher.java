@@ -58,7 +58,6 @@ final class WindowAggregateMatcher {
       scala.collection.Seq<AggregateCall> aggCalls,
       RelDataType inputType) {
     if (singlePhaseStringExtremaReason(node, aggCalls, inputType) != null
-        || singlePhaseTimestampExtremaReason(node, windowing.getWindow(), aggCalls, inputType) != null
         || !supportedInput(node, windowing, aggCalls, inputType)
         || !WindowZoneGate.admits(node, windowing)) {
       return false;
@@ -359,31 +358,6 @@ final class WindowAggregateMatcher {
               + SINGLE_PHASE_STRING_EXTREMA.key()
               + "=true; high-cardinality single-phase execution regressed against Flink";
         }
-      }
-    }
-    return null;
-  }
-
-  static String singlePhaseTimestampExtremaReason(
-      RelNode node, WindowSpec window,
-      scala.collection.Seq<AggregateCall> calls, RelDataType inputType) {
-    if (node instanceof StreamPhysicalLocalWindowAggregate
-        || (!(window instanceof HoppingWindowSpec) && !(window instanceof CumulativeWindowSpec))) {
-      return null;
-    }
-    return overlappingTimestampExtremaReason(calls, inputType);
-  }
-
-  static String overlappingTimestampExtremaReason(
-      scala.collection.Seq<AggregateCall> calls, RelDataType inputType) {
-    for (int i = 0; i < calls.size(); i++) {
-      AggregateCall call = calls.apply(i);
-      int kind = aggregateKind(call.getAggregation().getKind());
-      if ((kind == KIND_MIN || kind == KIND_MAX) && call.getArgList().size() == 1
-          && GroupAggregateMatcher.isTimestampType(
-              inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName())) {
-        return "single-phase timestamp MIN/MAX over HOP/CUMULATE requires two-phase execution;"
-            + " high-cardinality overlapping windows did not consistently outperform Flink";
       }
     }
     return null;
@@ -828,10 +802,6 @@ final class WindowAggregateMatcher {
       String reason =
           singlePhaseStringExtremaReason(
               node, aggregate.aggCalls(), aggregate.getInput().getRowType());
-      if (reason == null) {
-        reason = singlePhaseTimestampExtremaReason(node, windowing.getWindow(),
-            aggregate.aggCalls(), aggregate.getInput().getRowType());
-      }
       if (reason != null) {
         return "window aggregate: " + reason;
       }

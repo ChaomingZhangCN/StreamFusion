@@ -114,9 +114,15 @@ result column. It avoids creating and concatenating a single-row Struct array fo
 group; non-temporal results and persistent checkpoint scalars retain their existing layout.
 This keeps Arroyo's batched Arrow output structure and Flink's full timestamp range, without
 changing source-buffer ownership or the state envelope. Single-phase overlapping temporal
-extrema remain on Flink until the performance work in
-[#324](https://github.com/datafusion-contrib/StreamFusion/issues/324) establishes a consistent gain.
+extrema reduce exact extrema/count partials per input slice before merging into open windows.
+This preserves the existing window-state envelope and late-row decisions.
 Session updates also borrow typed timestamp columns, and merging two existing sessions
 compares their owned extrema directly. This avoids generic Struct state serialization during
 an in-memory merge; partial/checkpoint serialization remains unchanged. Session bounds,
 arrival-order lateness decisions and the merge behavior of other aggregates remain intact.
+
+Compact window MIN/MAX inputs use a millisecond Arrow vector instead of allocating
+component pairs; this retains Flink’s precision-0/3 normalization at that aggregate boundary.
+Non-compact inputs retain both components. Ordinary COUNT copies only the argument’s
+validity into its prepared vector, because the accumulator observes no argument values.
+Neither optimization changes source, shuffle or checkpoint timestamp representation.

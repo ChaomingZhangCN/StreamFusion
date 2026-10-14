@@ -30,14 +30,10 @@ Local/global partials and checkpoint state use one nullable component timestamp 
 original logical precision. Ordinary COUNT(timestamp) retains its separate numeric type gate.
 Both timestamp kinds can share a window with numeric aggregates and COUNT(DISTINCT).
 
-Temporal extrema are enabled for TUMBLE, event-time SESSION and the local/global split of
-TUMBLE/HOP/CUMULATE, including admitted attached windows. Single-phase HOP/CUMULATE and
-legacy HOP retain stock Flink: repeated high-cardinality complete jobs did not consistently
-outperform it. The planner reports that timestamp extrema in overlapping windows require
-two-phase execution. This performance limitation remains tracked in
-[#324](https://github.com/datafusion-contrib/StreamFusion/issues/324); no experimental switch
-enables the slower path. Processing-time TUMBLE retains the same typed value state and timer
-contract; processing-time HOP/CUMULATE retain Flink as well.
+Temporal extrema are enabled for single-phase and local/global TUMBLE/HOP/CUMULATE,
+event-time SESSION, admitted attached windows and legacy HOP. Processing-time fixed windows
+retain the same typed value state and timer contract. The ordinary filtering, input-changelog,
+attached-window and LTZ assignment gates still apply.
 
 SQL comparisons cover precision 0/3/6/9, years 0001 through 9999, pre-epoch fractions,
 nanosecond differences within one millisecond, independent filters, both aggregation phases,
@@ -172,7 +168,7 @@ as documented above.
 
 ## Temporal extrema benchmarks
 
-The October 13, 2026 comparison uses main `49ebe3cf` as its base, released Flink 2.2.1,
+The pre-integration October 13, 2026 comparison uses main `49ebe3cf` as its base, released Flink 2.2.1,
 JDK 17 on an Apple M4 Pro, UTC, parallelism two, and a release+mimalloc native library.
 Local exchanges use Arrow IPC. Every complete job retains its runtime row source, both
 transposes, JNI, state and collecting row sink. Two warmups precede five measured trials;
@@ -180,7 +176,7 @@ stock, native and forced-window-fallback runs rotate order. All output fields an
 are compared, and current-job counters must show work from every intended native stage.
 Forced window fallback represents the previous planner behavior for these value types.
 
-The final production-path measurements below use precision 9. Times are median complete-job
+The author’s pre-integration production-path measurements below use precision 9. Times are median complete-job
 seconds. Startup and scheduling remain included; the 20-million-row cases also exercise
 sustained processing. No timing samples are discarded.
 
@@ -204,16 +200,66 @@ Session merging originally took 1.873077/1.840005 seconds for TIMESTAMP/LTZ at 4
 before borrowing selected timestamps and merging owned extrema directly. Those separate
 process runs have drifting stock controls; they do not isolate each optimization's causal gain.
 
-Single-phase overlapping candidate results remain visible: at 4096 keys, HOP takes
-1.009755/0.991080 seconds against stock 0.806110/0.895012, or 0.798x/0.903x for
-TIMESTAMP/LTZ. CUMULATE takes 0.775960/0.772689 against 0.794308/0.926869, or
-1.024x/1.200x, after an earlier candidate had also regressed. These results do not establish
-a consistent improvement across the overlapping family. The planner keeps those single-phase
-shapes on Flink; [#324](https://github.com/datafusion-contrib/StreamFusion/issues/324)
-remains open for that work.
+The pre-integration single-phase overlapping candidate was rejected: at 4096 keys,
+HOP took 1.009755/0.991080 seconds against stock 0.806110/0.895012, or
+0.798x/0.903x for TIMESTAMP/LTZ. CUMULATE took 0.775960/0.772689 against
+0.794308/0.926869. Those historical observations remain in the original artifact.
 
-The Rust release fixture set covers accounted TUMBLE update/flush and SESSION update/merge/flush
-at 256/4096 rows, one/64/all-distinct keys, NULLs and precision 3/9. At precision 9, final
+The integrated implementation reduces timestamp extrema and ordinary counts once per
+input slice, then merges scalar states into each open window. It accounts fixed-size
+state only when a group is created. Compact extrema use millisecond input vectors;
+COUNT copies argument validity rather than unused values. Full-precision extrema retain
+both timestamp components. The final Linux/JDK 17 comparison uses released Flink 2.2.1,
+UTC, parallelism two, release+mimalloc, IPC exchanges, runtime row inputs and a collecting
+row sink with both transposes. Two warmups precede three measured trials per engine;
+stock, native and forced previous-window-fallback jobs rotate execution order.
+
+At two million rows and 4096 keys, final precision-3 single-phase medians are:
+
+| Window | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| HOP | TIMESTAMP | 0.988690 | 1.451889 | 0.863396 | 1.145x |
+| CUMULATE | TIMESTAMP | 0.996699 | 0.994038 | 0.754463 | 1.321x |
+| HOP | TIMESTAMP_LTZ | 0.857069 | 0.983879 | 0.772530 | 1.109x |
+| CUMULATE | TIMESTAMP_LTZ | 0.963046 | 0.950239 | 0.747960 | 1.288x |
+
+Final precision-9 single-phase medians with the same data and resources are:
+
+| Window | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| HOP | TIMESTAMP | 1.012819 | 1.033396 | 0.882862 | 1.147x |
+| CUMULATE | TIMESTAMP | 0.875389 | 0.880503 | 0.769802 | 1.137x |
+| HOP | TIMESTAMP_LTZ | 0.868805 | 0.965907 | 0.751604 | 1.156x |
+| CUMULATE | TIMESTAMP_LTZ | 0.858336 | 0.866395 | 0.743625 | 1.154x |
+
+The eight final local/global HOP/CUMULATE comparisons at precision 3/9, including
+both timestamp kinds and 4096 keys, are 1.058–1.245× faster than stock and also
+beat their matched forced-fallback medians. Their samples are retained in the same artifact.
+
+At 64 keys, the four final TIMESTAMP overlap cases span 1.018–1.183× stock.
+The precision-3 medians are close: HOP is 0.749551 seconds versus stock 0.771266,
+and CUMULATE is 0.739467 versus 0.753017. This startup-inclusive comparison
+establishes a modest improvement in those cases, rather than a large throughput gain.
+
+Final TIMESTAMP TUMBLE controls at precision 3/9 are 1.184/1.189× stock;
+SESSION controls are 1.554/1.667×. These use two million rows and 4096 keys with
+the same release library and full production boundary. The precision-3 high-cardinality
+overlap samples above preceded removal of the planner guard; their native implementation
+is identical to the final admitted build. Both released Flink lines then passed
+188 Java checks (four existing capability skips on 1.18), alongside 686 native tests
+and 48 release Criterion fixture checks.
+
+Every trial compares all output values and RowKinds; current-job counters establish execution
+of every intended native aggregate stage. Startup and scheduling remain included. Native HOP
+TIMESTAMP samples range from 0.855970 to 0.969962 seconds; its fallback observations include
+1.128929, 1.451889 and 2.215375 seconds. The
+[integration artifact](../benchmarks/results/window-temporal-overlap-integration-2026-10-13.json)
+retains every warmup, measured sample, unfavorable intermediate candidate, source fingerprint
+and library hash. Earlier direct folding, temporary Arrow partials and compact-vector-only
+candidates were slower and were superseded by the fixed-state-accounting implementation.
+
+The 48 Rust release fixtures cover accounted TUMBLE/HOP/CUMULATE update/flush and SESSION update/merge/flush
+at 256/4096 rows, one/64/all-distinct keys, NULLs and precision 3/9. The historical pre-integration precision-9
 TUMBLE estimates are 65.21/73.92/809.31 microseconds for 4096 rows and one/64/4096 keys.
 SESSION estimates are 218.11/282.93/3871.35 microseconds, including two input batches and
 state merging. Setup stays outside timing; grouping, accumulation, output and disposal remain
@@ -229,7 +275,7 @@ Reproduce complete-job comparisons with `SF_BENCHMARK=true mvn -Pbench
 `window.temporal.rows`, `window.temporal.groups`, `window.temporal.precisions`,
 `window.temporal.phases`, `window.temporal.ltz`, `window.temporal.shapes`,
 `window.temporal.warmup` and `window.temporal.runs`. SESSION uses ONE_PHASE;
-HOP/CUMULATE use TWO_PHASE under production admission.
+HOP/CUMULATE support ONE_PHASE and TWO_PHASE under production admission.
 
 ## Filtered MIN/MAX on append-only input
 
@@ -510,13 +556,10 @@ enables columnar composition with downstream consumers; it is not a standalone t
   while ordinary COUNT(value) remains numeric.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
-- Single-phase TIMESTAMP/TIMESTAMP_LTZ MIN/MAX in HOP/CUMULATE, including legacy HOP.
-  Two-phase event-time execution is admitted; single-phase overlapping execution still needs
-  performance work in [#324](https://github.com/datafusion-contrib/StreamFusion/issues/324).
 - Single-phase aggregation over attached window bounds. Attached windows are native through
   the two-phase local/global path.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:
-  SUM/AVG DISTINCT, FLOAT/DOUBLE, BOOLEAN, TIME and complex values.
+  SUM/AVG DISTINCT, FLOAT/DOUBLE and complex values.
   Non-windowed DISTINCT has separate coverage; see [GROUP BY](group-by.md).
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
