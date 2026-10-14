@@ -6,7 +6,7 @@ removed slice and replaced accumulator sizes. A final whole-state recount remain
 boundary. Recounting every pending key after each fired key made the original wide hopping
 aggregate quadratic: its first native warmup took 70.8s versus 4.2s stock. A CPU capture attributed
 13,242 of 14,956 samples to the full-state recount. Those unfavorable and instrumented trials
-are retained. Revised correctness and performance checks are still in progress.
+are retained. The subsequent revisions and final validation are recorded below.
 
 The release fixture compares tracked bytes with the independent full recount after each firing
 for accounted HOP and CUMULATE state. Removing slices subtracts their accumulator/key footprint;
@@ -92,3 +92,16 @@ released Flink line and all 288 TVF release fixtures. Its matched five-trial mea
 are 1.152s native versus 1.232s stock for TUMBLE, 2.794s versus 2.991s for HOP,
 and 1.974s versus 2.116s for CUMULATE: about 1.07× stock for all three. The earlier
 losses remain in the artifact.
+
+## Accepted persistent aggregate limitation
+
+The maintainer accepted shipping the regional-calendar implementation on 2026-10-14 with
+the final low-cardinality RocksDB COUNT measurements above: HOP is about 6% slower and
+CUMULATE about 9% slower than stock Flink by the three-trial means. This is an accepted
+coverage tradeoff, not a claim that these two paths accelerate the workload. Other measured
+consumer and wide-key profiles outperform stock.
+
+Further profiling of the exact shipped revision and optimization of the persistent aggregate
+path are tracked in [#350](https://github.com/datafusion-contrib/StreamFusion/issues/350),
+outside the accepted original ticket-batch shipping scope. All earlier losses, instrumented
+captures and trial variability remain in the linked artifact.
