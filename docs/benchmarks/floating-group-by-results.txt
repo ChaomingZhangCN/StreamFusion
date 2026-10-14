@@ -44,4 +44,3 @@ benchmark-baseline-additional.log
 [floating-group] profile=float-retract-reductions rows=2000000 keys=64 flink=0.989214 native=0.996313 ratio=0.993 flink_trials=[0.989213916, 0.979239125, 0.9945485, 0.979872625, 0.996712625] native_trials=[0.998061375, 1.014605209, 0.996313083, 0.981905375, 0.982856666]
 [floating-group] profile=float-retract-first-last rows=2000000 keys=64 flink=1.283448 native=1.293202 ratio=0.992 flink_trials=[1.260105708, 1.276013042, 1.2834475, 1.319355959, 1.285928083] native_trials=[1.272658292, 1.265530875, 1.31707325, 1.293202083, 1.293820666]
 [floating-group] profile=double-retract-first-last rows=2000000 keys=64 flink=1.284958 native=1.284776 ratio=1.000 flink_trials=[1.284957833, 1.290622416, 1.302737167, 1.279333542, 1.268914958] native_trials=[1.284776292, 1.293145417, 1.280382375, 1.28778625, 1.28152375]
-
