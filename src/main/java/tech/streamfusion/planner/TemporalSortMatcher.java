@@ -55,7 +55,7 @@ final class TemporalSortMatcher {
     return new StreamPhysicalNativeTemporalSort(
         sort.getCluster(),
         sort.getTraitSet(),
-        ctx.columnarInput(sort.getInputs().get(0), new int[0]),
+        ctx.columnarInput(sort.getInputs().get(0), new int[0], true),
         sort.getRowType(),
         TemporalSortMatcher.rowtimeColumn(sort));
   }

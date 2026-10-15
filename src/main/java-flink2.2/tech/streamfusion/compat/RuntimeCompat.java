@@ -35,6 +35,10 @@ public final class RuntimeCompat {
     return context.getTaskInfo().getNumberOfParallelSubtasks();
   }
 
+  public static int maxParallelism(RuntimeContext context) {
+    return context.getTaskInfo().getMaxNumberOfParallelSubtasks();
+  }
+
   public static int subtask(RuntimeContext context) {
     return context.getTaskInfo().getIndexOfThisSubtask();
   }

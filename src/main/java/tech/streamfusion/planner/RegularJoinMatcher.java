@@ -195,8 +195,8 @@ final class RegularJoinMatcher {
     return new StreamPhysicalNativeColumnarUpdatingJoin(
         join.getCluster(),
         join.getTraitSet(),
-        ctx.columnarInput(join.getLeft(), leftKeys),
-        ctx.columnarInput(join.getRight(), rightKeys),
+        ctx.columnarInput(join.getLeft(), leftKeys, leftKeys.length == 0),
+        ctx.columnarInput(join.getRight(), rightKeys, rightKeys.length == 0),
         join.getRowType(),
         leftKeys,
         rightKeys,

@@ -67,6 +67,25 @@ final class RecoveryExecutionMetrics implements AutoCloseable {
     return total[0];
   }
 
+  long completedCheckpoints(String jobId) {
+    long[] completed = {0};
+    reporter
+        .getMetricsByGroup()
+        .forEach(
+            (group, metrics) -> {
+              if (!jobId.equals(group.getAllVariables().get("<job_id>"))) return;
+              var metric = metrics.get("numberOfCompletedCheckpoints");
+              if (metric instanceof org.apache.flink.metrics.Gauge) {
+                completed[0] =
+                    Math.max(
+                        completed[0],
+                        ((Number) ((org.apache.flink.metrics.Gauge<?>) metric).getValue())
+                            .longValue());
+              }
+            });
+    return completed[0];
+  }
+
   List<Map<String, Object>> nativeOperators() {
     List<Map<String, Object>> observations = new ArrayList<>();
     reporter

@@ -1,5 +1,7 @@
 package tech.streamfusion.planner;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
+
 import tech.streamfusion.operator.ArrowBatch;
 import tech.streamfusion.operator.ArrowBatchTypeInformation;
 import tech.streamfusion.operator.OrderedKeyGroupReassembler;
@@ -21,7 +23,7 @@ import org.apache.flink.table.types.logical.RowType;
 
 /**
  * Builds the columnar keyed exchange transformation: a {@link SplitByKeyGroupOperator} that splits
- * each Arrow batch into one sub-batch per non-empty key group, followed by a {@link
+ * each Arrow batch into one sub-batch per destination (or recoverable key group), followed by a {@link
  * PartitionTransformation} using {@link ColumnarKeyGroupPartitioner} to route each sub-batch to its
  * current owner. The result is an {@code ArrowBatch} stream the downstream native operator consumes
  * without a row transpose; watermarks ride through the partition transformation as usual.
@@ -33,6 +35,7 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
 
   private final int[] keyColumns;
   private final int[] timestampPrecisions;
+  private final boolean singleKeyGroup;
 
   public NativeColumnarExchangeExecNode(
       ReadableConfig tableConfig,
@@ -40,7 +43,8 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
       RowType outputType,
       String description,
       int[] keyColumns,
-      int[] timestampPrecisions) {
+      int[] timestampPrecisions,
+      boolean singleKeyGroup) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-native-columnar-exchange_1"),
@@ -48,8 +52,12 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
         Collections.singletonList(inputProperty),
         outputType,
         description);
+    checkArgument(
+        !singleKeyGroup || keyColumns.length == 0,
+        "A single-key-group exchange requires a SINGLETON distribution");
     this.keyColumns = keyColumns;
     this.timestampPrecisions = timestampPrecisions;
+    this.singleKeyGroup = singleKeyGroup;
   }
 
   @Override
@@ -64,16 +72,16 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
     // Flink's HASH exchange deliberately uses PARALLELISM_DEFAULT rather than inheriting the
     // producer's parallelism.  The target therefore runs at the execution environment's default
     // parallelism (for example, a parallelism-one collection source can still feed a four-way
-    // keyed aggregate).  The splitter must know that concrete target count up front, so resolve the
-    // default here instead of using the producer count.  Inheriting the producer count can also put
-    // a parallelism-one aggregate in front of a parallel sink, whose rescale edge separates an
-    // UPDATE_BEFORE from its earlier INSERT/UPDATE_AFTER.
+    // keyed aggregate). Resolve the initial transformation default here; the splitter binds to
+    // its actual network output at runtime after resource planning. Inheriting the producer count
+    // can also put a parallelism-one aggregate in front of a parallel sink, whose rescale edge
+    // separates an UPDATE_BEFORE from its earlier INSERT/UPDATE_AFTER.
     int numChannels =
         keyColumns.length == 0 ? 1 : Math.max(1, planner.getExecEnv().getParallelism());
+    // Match the consumer's state namespace: sorts/keyless joins use one group, global
+    // aggregates use the configured count. Both still have exactly one destination.
     int maxParallelism =
-        keyColumns.length == 0
-            ? 1
-            : FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), numChannels);
+        singleKeyGroup ? 1 : FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), numChannels);
     boolean recoverable = planner.getExecEnv().getCheckpointConfig().isUnalignedCheckpointsEnabled();
     // Aligned jobs keep destination batching. Unaligned-enabled jobs use independently recoverable
     // key-group fragments because any checkpoint can capture the already-buffered network records.
@@ -82,7 +90,7 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
             input,
             createTransformationMeta(TRANSFORMATION, config),
             new SplitByKeyGroupOperator(
-                keyColumns, timestampPrecisions, maxParallelism, numChannels, recoverable),
+                keyColumns, timestampPrecisions, maxParallelism, recoverable),
             NativeConfig.zeroCopyExchange(planner.getExecEnv())
                 ? ArrowBatchTypeInformation.ZERO_COPY
                 : ArrowBatchTypeInformation.INSTANCE,

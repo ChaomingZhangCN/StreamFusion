@@ -24,15 +24,18 @@ public class StreamPhysicalNativeColumnarExchange extends StreamPhysicalNativeSi
     implements ColumnarInput, ColumnarOutput {
 
   private final int[] keyColumns;
+  private final boolean singleKeyGroup;
 
   public StreamPhysicalNativeColumnarExchange(
       RelOptCluster cluster,
       RelTraitSet traitSet,
       RelNode input,
       RelDataType outputRowType,
-      int[] keyColumns) {
+      int[] keyColumns,
+      boolean singleKeyGroup) {
     super(cluster, traitSet, input, outputRowType);
     this.keyColumns = keyColumns;
+    this.singleKeyGroup = singleKeyGroup;
   }
 
   @Override
@@ -43,7 +46,7 @@ public class StreamPhysicalNativeColumnarExchange extends StreamPhysicalNativeSi
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new StreamPhysicalNativeColumnarExchange(
-        getCluster(), traitSet, inputs.get(0), outputRowType, keyColumns);
+        getCluster(), traitSet, inputs.get(0), outputRowType, keyColumns, singleKeyGroup);
   }
 
   @Override
@@ -54,6 +57,7 @@ public class StreamPhysicalNativeColumnarExchange extends StreamPhysicalNativeSi
         FlinkTypeFactory$.MODULE$.toLogicalRowType(getRowType()),
         getRelDetailedDescription(),
         keyColumns,
-        FlinkKeyGroupUtils.timestampPrecisions(outputRowType, keyColumns));
+        FlinkKeyGroupUtils.timestampPrecisions(outputRowType, keyColumns),
+        singleKeyGroup);
   }
 }

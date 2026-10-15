@@ -135,7 +135,7 @@ class OrderedKeyGroupReassemblerTest {
   private static OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness()
       throws Exception {
     OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness =
-        new OneInputStreamOperatorTestHarness<>(new OrderedKeyGroupReassembler(128));
+        new OneInputStreamOperatorTestHarness<>(new OrderedKeyGroupReassembler(128), 128, 1, 0);
     harness.setup(new ArrowBatchSerializer());
     return harness;
   }
