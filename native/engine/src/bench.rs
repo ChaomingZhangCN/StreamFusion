@@ -751,6 +751,18 @@ impl AppendTopN {
         ))
     }
 
+    pub fn non_time_row_number(partition_columns: Vec<usize>, sort_column: usize) -> Self {
+        let mut operator = Self::new(
+            partition_columns,
+            vec![(sort_column, true)],
+            i64::MAX,
+            true,
+            false,
+        );
+        operator.0.enable_non_time_row_number();
+        operator
+    }
+
     pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
         self.0.push(batch, 0).expect("budget exceeded")
     }

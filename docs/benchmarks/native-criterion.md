@@ -30,6 +30,14 @@ aggregation, flush. Arrow fixtures and operator setup/destruction are outside th
 
 ## Running and comparing
 
+The `non_time_row_number` target includes eight production-kernel fixtures
+cross 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
+and ascending/descending arrival, with nullable order columns. Fixture setup and a separate inversion-count cardinality oracle stay
+outside timing. Each measurement creates an empty ranker, processes the batch and materializes
+all row-identity rank updates; it does not measure a fixed-state lookup or exclude output work.
+This native boundary complements the complete Flink job benchmark `NonTimeRowNumberBenchmark`,
+which retains both transposes and a rowwise sink.
+
 The `operators` target includes `append_top1`, covering the general and specialized
 rank loops over memory and RocksDB at 256/4096 rows, repeated/unique keys,
 nullable sorts and payload widths 8/256 in immediate and mini-batch modes.

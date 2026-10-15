@@ -169,3 +169,7 @@ harness = false
 [[bench]]
 name = "coalescing"
 harness = false
+
+[[bench]]
+name = "non_time_row_number"
+harness = false
