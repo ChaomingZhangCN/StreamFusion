@@ -1253,7 +1253,8 @@ public final class Native {
    * @param keyTimestampPrecisions pre-order logical key type descriptors (timestamp precision or
    *     {@code -1}); this lets the native BinaryRow codec preserve nested timestamp layout
    * @param countColumns per-aggregate secondary input column ({@code -1} otherwise): a two-phase
-   *     numeric merge reads its count partial, while single-phase LISTAGG reads its separator.
+   *     numeric merge reads its count partial; LISTAGG reads its separator and JSON_OBJECTAGG
+   *     reads its key.
    *     An empty array retains the historical single-phase encoding.
    * @param distinctViewColumns per-aggregate two-phase distinct-view column ({@code -1} otherwise):
    *     the column carries a local bundle's distinct (value, count) entries as a list of structs,

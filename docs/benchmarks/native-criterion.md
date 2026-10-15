@@ -2302,3 +2302,14 @@ after a production snapshot/restore with uninterrupted execution. All 16 release
 pass; ten-sample timing estimates are retained with the
 [complete-job measurements](results/listagg-2026-10-15.json). Run
 `python3 bin/bench-native.py --bench string_group_aggregates --smoke` for fixture validation.
+
+The same suite now includes 32 JSON array/object cases over both batch sizes, key
+cardinalities and widths, with append and retract input. Each calls production update
+and materialization and verifies the next retraction after snapshot/restore. Serialized
+value and unique object-key fixtures, operator setup and retract seeding are outside timing.
+
+Untimed probes in this suite count Rust allocation requests and requested bytes for the
+same production update, then report shared/new Arrow output buffer lengths. These are
+allocation traffic and buffer sharing observations, not copied bytes, peak memory or
+native C/C++ allocations. Timing runs keep the counting probe disabled. The allocator
+wrapper follows the repository's existing production-operator benchmark support.

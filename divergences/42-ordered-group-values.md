@@ -42,3 +42,11 @@ and pending unmatched retractions. Both use a versioned binary accumulator snaps
 the existing keyed store, with O(1) capacity accounting. Secondary separator columns reuse
 the aggregate argument metadata without changing the JNI signature. Numeric plans retain
 their historical empty secondary-column encoding and TTL emission mode.
+
+JSON_ARRAYAGG likewise retains an ordered sequence of already serialized JSON values,
+removing the first equal occurrence rather than recomputing from an unordered multiset.
+JSON_OBJECTAGG owns a per-key field map and sorts Java UTF-16 keys at materialization.
+Both store versioned accumulator snapshots. Flink 1.18 NULL-key serialization failures
+are deferred until materialization; structured errors cross JNI only after the imported
+Arrow batch has been dropped. The cold legacy failure delegates to the released Flink
+aggregate, preserving its wrapped exception without reconstructing JDK-specific messages.

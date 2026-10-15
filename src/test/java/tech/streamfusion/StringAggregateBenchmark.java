@@ -30,16 +30,20 @@ class StringAggregateBenchmark {
     boolean expectNative =
         Boolean.parseBoolean(System.getProperty("stringagg.expectNative", "true"));
     String function = System.getProperty("stringagg.function", "LISTAGG");
+    String valueType = System.getProperty("stringagg.value", "string");
+    assertTrue(valueType.equals("string") || valueType.equals("bigint"));
+    String argument = valueType.equals("bigint") ? "CAST(k AS BIGINT)" : "v";
+    System.out.println("[string-aggregate-value] " + valueType);
     String aggregate;
     switch (function) {
       case "LISTAGG":
         aggregate = "LISTAGG(v, ',')";
         break;
       case "JSON_ARRAYAGG":
-        aggregate = "JSON_ARRAYAGG(v)";
+        aggregate = "JSON_ARRAYAGG(" + argument + ")";
         break;
       case "JSON_OBJECTAGG":
-        aggregate = "JSON_OBJECTAGG(json_key VALUE v)";
+        aggregate = "JSON_OBJECTAGG(json_key VALUE " + argument + ")";
         break;
       default:
         throw new IllegalArgumentException("Unknown string aggregate " + function);

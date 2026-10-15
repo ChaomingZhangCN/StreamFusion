@@ -86,6 +86,27 @@ final class GroupAggregateMatcher {
         if (retention > 0) return "GROUP BY: LISTAGG with state TTL is not yet verified";
         continue;
       }
+      if (kind >= 26 && kind <= 31) {
+        int arity = kind <= 27 ? 1 : 2;
+        if (call.isDistinct()
+            || !call.getCollation().getFieldCollations().isEmpty()
+            || call.filterArg >= 0
+            || call.getArgList().size() != arity)
+          return "GROUP BY: JSON aggregates require unfiltered unordered non-DISTINCT arguments";
+        for (int column : call.getArgList()) {
+          if (!isStringType(inputType.getFieldList().get(column).getType().getSqlTypeName()))
+            return "GROUP BY: JSON aggregates require serialized character arguments";
+        }
+        Long hint = FlinkCompat.singleStateTtl(agg);
+        long retention =
+            hint == null
+                ? org.apache.flink.table.planner.utils.ShortcutUtils.unwrapTableConfig(agg)
+                    .getIdleStateRetention()
+                    .toMillis()
+                : hint;
+        if (retention > 0) return "GROUP BY: JSON aggregate state TTL is not yet verified";
+        continue;
+      }
       if (call.getArgList().size() > 1) {
         return "GROUP BY: only single-argument aggregates";
       }
@@ -300,6 +321,19 @@ final class GroupAggregateMatcher {
 
   private static int aggregateKind(StreamPhysicalGroupAggregate agg, AggregateCall call) {
     switch (call.getAggregation().getKind()) {
+      case JSON_ARRAYAGG:
+        return ((org.apache.calcite.sql.fun.SqlJsonArrayAggAggFunction) call.getAggregation())
+                    .getNullClause()
+                == org.apache.calcite.sql.SqlJsonConstructorNullClause.ABSENT_ON_NULL
+            ? 26
+            : 27;
+      case JSON_OBJECTAGG:
+        return (tech.streamfusion.compat.JsonRuntimeCompat.LEGACY_SQL_JSON ? 30 : 28)
+            + (((org.apache.calcite.sql.fun.SqlJsonObjectAggAggFunction) call.getAggregation())
+                        .getNullClause()
+                    == org.apache.calcite.sql.SqlJsonConstructorNullClause.ABSENT_ON_NULL
+                ? 0
+                : 1);
       case LISTAGG:
         return ChangelogPlanUtils.inputInsertOnly(agg) ? KIND_LISTAGG_APPEND : KIND_LISTAGG_RETRACT;
       case FIRST_VALUE:
@@ -380,12 +414,20 @@ final class GroupAggregateMatcher {
       var call = agg.aggCalls().apply(i);
       if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.LISTAGG
           && call.getArgList().size() == 2) columns[i] = call.getArgList().get(1);
+      if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.JSON_OBJECTAGG
+          && call.getArgList().size() == 2) columns[i] = call.getArgList().get(0);
     }
     return java.util.Arrays.stream(columns).anyMatch(column -> column >= 0) ? columns : new int[0];
   }
 
   static int[] valueColumns(StreamPhysicalGroupAggregate agg) {
-    return WindowAggregateMatcher.valueColumns(agg.aggCalls());
+    int[] columns = WindowAggregateMatcher.valueColumns(agg.aggCalls());
+    for (int i = 0; i < columns.length; i++) {
+      var call = agg.aggCalls().apply(i);
+      if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.JSON_OBJECTAGG)
+        columns[i] = call.getArgList().get(1);
+    }
+    return columns;
   }
 
   /**

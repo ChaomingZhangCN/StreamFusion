@@ -140,7 +140,7 @@ binary accumulator snapshots preserve this state across memory/native RocksDB re
 Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
 profiles each force two restores and verify native consumption and released memory.
 Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
-JSON array/object aggregates remain tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
+JSON array/object performance admission remains tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
 
 Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
 mimalloc, 1,024-row transposes, ONE_PHASE without mini-batching, two warmups and five
@@ -167,8 +167,60 @@ Java conversion and JNI remain visible. No speculative micro-optimization is inc
 All raw trials, Criterion estimates, source/library hashes and compressed profile stacks
 are retained in [the measurement artifact](../benchmarks/results/listagg-2026-10-15.json).
 Reproduce complete jobs with `SF_BENCHMARK=true mvn test -Pbench
--Dtest=StringAggregateBenchmark -Dsf.benchmarkJvmArgs=-Xmx2g`; workload properties are
+-Dtest=StringAggregateBenchmark
+-Dsf.benchmarkJvmArgs="-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false"`; workload properties are
 `stringagg.rows`, `stringagg.keys`, `stringagg.width` and `stringagg.updating`.
+
+### JSON_ARRAYAGG and JSON_OBJECTAGG
+
+Single-phase JSON array/object aggregation accepts append and retracting input whose
+arguments are serialized character values. Flink's planner inserts JSON_STRING for
+value arguments; its existing native expression whitelist still applies. Arrays retain
+arrival order and duplicates, and remove the first matching serialized value on
+retraction. Both NULL ON NULL and ABSENT ON NULL are supported, with the released
+default for each function. Objects remove by key regardless of the retracted value,
+permit reinsertion after removal, and sort output keys by Java UTF-16 order.
+Duplicate keys fail before ABSENT ON NULL can omit a NULL value.
+
+The result retains VARCHAR(2000) NOT NULL. Owned per-key strings checkpoint through
+the existing binary state representation; ordered arrays are not stored as unordered
+multisets. Positive state TTL, DISTINCT, explicit ordering and local/global JSON
+aggregation remain fallback. Both released parsers reject JSON aggregate FILTER syntax.
+Flink 1.18 decimal JSON_STRING expressions use the existing generated evaluator
+inside Calc because that line strips decimal scale; the grouped accumulator still runs
+natively. The 2.2 expression retains scale.
+
+NULL object keys preserve release-specific error timing: Flink 2.2 rejects them on
+accumulation, before NULL omission. Flink 1.18 retains the key until serialization,
+except an omitted NULL value; the cold failure delegates to the released host to retain
+its exception and cause. Group output materialization is fallible so this error occurs
+after all accumulators have processed the input. JNI reports structured JSON errors
+after releasing the imported Arrow batch, preserving the Comet ownership pattern.
+
+All 19 JSON SQL tests pass on each of released Flink 2.2.1 and 1.18.1/JDK 17. They
+compare exact ordered RowKinds, schemas, escaping, NULLs, duplicates, retractions,
+malformed UTF-16 boundaries and mini-batch error precedence. Eight recovery profiles
+exercise two successive restores across memory/native RocksDB and both input changelog
+modes. Three release native state tests and all 48 string/JSON Criterion fixtures pass.
+
+Initial complete-job release results on Flink 2.2.1/JDK 17, p=1, 2 GiB heap,
+production IPC, mimalloc, 1,024-row transposes and both row boundaries:
+
+| Workload | Stock median | Native median | Speedup |
+|---|---:|---:|---:|
+| JSON_ARRAYAGG, 2M rows / 65,536 keys / 16-byte strings | 8.939 s | 1.891 s | 4.73× |
+| JSON_OBJECTAGG, same size and width | 26.992 s | 4.046 s | 6.67× |
+
+These large cases use two warmups and five alternating pairs. Native ranges are
+1.857–1.960 and 3.946–4.167 s; stock ranges are 8.540–9.588 and 26.841–27.798 s.
+The actual previous StreamFusion array median is 8.757 s, with a separately paired
+8.863 s stock control. The object comparison at 500k rows / 16,384 keys is
+1.033 s native versus 6.290 s stock and 6.173 s previous StreamFusion. Smaller
+controls use one warmup/three alternating pairs and preserve roughly 30 rows per key.
+Full retracting, wide-string, numeric, CPU and allocation validation is still running;
+this implementation remains draft until admission is complete. Completed raw trials,
+configuration and source/library hashes are retained in
+[the result artifact](../benchmarks/results/json-aggregates-2026-10-15.json).
 
 ### Floating aggregate validation
 
@@ -432,10 +484,8 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- `JSON_ARRAYAGG` and `JSON_OBJECTAGG` currently use explicit Flink fallback;
-  LISTAGG falls back for DISTINCT, explicit ordering or positive state TTL;
-  native implementation and performance admission are tracked in
-  [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
+- LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
+  JSON performance admission remains tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
@@ -466,7 +516,7 @@ serialization, while ABSENT ON NULL with a NULL value returns `{}`. A singleton 
 Java UTF-16 string remains visible before aggregation but normalizes at the tested global
 and keyed aggregate boundaries, with either object-reuse setting and either changelog mode.
 Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
-input in streaming mode emits no aggregate row. These are host contracts; native LISTAGG coverage is described above. JSON remains fallback.
+input in streaming mode emits no aggregate row. These are host contracts; native LISTAGG coverage is described above. JSON implementation scope and pending performance admission are described above.
 
 **Local group aggregate (two-phase local half) only:**
 
