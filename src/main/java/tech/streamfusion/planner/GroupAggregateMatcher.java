@@ -14,11 +14,15 @@ import tech.streamfusion.operator.RowDataArrowConverter;
 /**
  * Recognizes native single-phase grouped aggregation. Numeric and distinct aggregates retain their
  * typed accumulators; FIRST_VALUE/LAST_VALUE preserve arrival order, and SINGLE_VALUE enforces
- * cardinality. The admission checks below keep unsupported value types and aggregate forms on Flink.
+ * cardinality. The admission checks below keep unsupported value types and aggregate forms on
+ * Flink.
  */
 final class GroupAggregateMatcher {
   static final int KIND_SUM_ZERO = 22;
   static final int KIND_SUM_ZERO_MERGE = 23;
+  static final int KIND_LISTAGG_APPEND = 24;
+  static final int KIND_LISTAGG_RETRACT = 25;
+
   private GroupAggregateMatcher() {}
 
   static boolean matches(StreamPhysicalGroupAggregate agg) {
@@ -28,10 +32,10 @@ final class GroupAggregateMatcher {
   /** The specific reason this aggregate is not accelerable, or null if it is. */
   static String unsupportedReason(StreamPhysicalGroupAggregate agg) {
     RelDataType inputType = agg.getInput().getRowType();
-    // The whole row crosses the boundary in both directions, so every input and output column must be
+    // The whole row crosses the boundary in both directions, so every input and output column must
+    // be
     // a type the conversion handles (this also covers the grouping-key and pass-through types).
-    if (!RowDataArrowConverter.supports(
-            FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType))
+    if (!RowDataArrowConverter.supports(FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType))
         || !RowDataArrowConverter.supports(
             FlinkTypeFactory$.MODULE$.toLogicalRowType(agg.getRowType()))) {
       return "GROUP BY: an input or output column type the boundary cannot carry";
@@ -39,7 +43,8 @@ final class GroupAggregateMatcher {
     Seq<AggregateCall> aggCalls = agg.aggCalls();
     for (int i = 0; i < aggCalls.size(); i++) {
       AggregateCall call = aggCalls.apply(i);
-      // A FILTER (call.filterArg >= 0) is native — the filter is a boolean input column the operator
+      // A FILTER (call.filterArg >= 0) is native — the filter is a boolean input column the
+      // operator
       // gates each fold on; only an approximate aggregate is rejected.
       if (call.isApproximate()) {
         return "GROUP BY: an approximate aggregate";
@@ -59,6 +64,27 @@ final class GroupAggregateMatcher {
       if (kind < 0) {
         return "GROUP BY: only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE"
             + " aggregates";
+      }
+      if (kind == KIND_LISTAGG_APPEND || kind == KIND_LISTAGG_RETRACT) {
+        if (call.isDistinct() || !call.getCollation().getFieldCollations().isEmpty())
+          return "GROUP BY: LISTAGG DISTINCT and explicit ordering are not yet verified";
+        if (call.getArgList().isEmpty()
+            || call.getArgList().size() > 2
+            || !isStringType(
+                inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName()))
+          return "GROUP BY: LISTAGG requires a character value";
+        if (call.getArgList().size() == 2
+            && !literalStringColumn(agg.getInput(), call.getArgList().get(1)))
+          return "GROUP BY: LISTAGG requires a non-null character literal separator";
+        Long hint = FlinkCompat.singleStateTtl(agg);
+        long retention =
+            hint == null
+                ? org.apache.flink.table.planner.utils.ShortcutUtils.unwrapTableConfig(agg)
+                    .getIdleStateRetention()
+                    .toMillis()
+                : hint;
+        if (retention > 0) return "GROUP BY: LISTAGG with state TTL is not yet verified";
+        continue;
       }
       if (call.getArgList().size() > 1) {
         return "GROUP BY: only single-argument aggregates";
@@ -91,8 +117,10 @@ final class GroupAggregateMatcher {
         }
         continue;
       }
-      // DISTINCT: COUNT(DISTINCT x) keeps a value→multiplicity set (Flink's DistinctAccumulator) over
-      // any type the row admits; SUM(DISTINCT x) adds a running sum folded as values enter/leave the
+      // DISTINCT: COUNT(DISTINCT x) keeps a value→multiplicity set (Flink's DistinctAccumulator)
+      // over
+      // any type the row admits; SUM(DISTINCT x) adds a running sum folded as values enter/leave
+      // the
       // set (same value types as plain SUM, gated below); MIN/MAX(DISTINCT x) are semantically the
       // plain MIN/MAX — the extreme of the live values ignores multiplicity — so they run as such.
       // Exact AVG(DISTINCT) divides the running sum by the number of live distinct values.
@@ -105,16 +133,20 @@ final class GroupAggregateMatcher {
         }
         // SUM/MIN/MAX DISTINCT fall through to their plain forms' value-type gates.
       }
-      // SUM/MIN/MAX read a present argument as a typed running value, so it must be a running type or
-      // DECIMAL: SUM folds an i128 at the input scale → DECIMAL(38, s); MIN/MAX keep the extreme as an
-      // i128 → DECIMAL(p, s) — both matching Flink. COUNT only reads null-ness, so it counts any column
+      // SUM/MIN/MAX read a present argument as a typed running value, so it must be a running type
+      // or
+      // DECIMAL: SUM folds an i128 at the input scale → DECIMAL(38, s); MIN/MAX keep the extreme as
+      // an
+      // i128 → DECIMAL(p, s) — both matching Flink. COUNT only reads null-ness, so it counts any
+      // column
       // the row already admits (incl. a complex ARRAY/MAP/ROW value); COUNT(*) (no argument) is
       // unrestricted.
       if (!call.getArgList().isEmpty() && kind != WindowAggregateMatcher.KIND_COUNT) {
         SqlTypeName valueType =
             inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
         if (kind == WindowAggregateMatcher.KIND_AVG) {
-          // AVG keeps a (sum, count) running state: for the numerics, the sum widens to bigint/double
+          // AVG keeps a (sum, count) running state: for the numerics, the sum widens to
+          // bigint/double
           // and the result casts back to the input type; for DECIMAL(p, s), the sum is SUM's
           // DECIMAL(38, s) accumulator and the emit divides with Flink's exact decimal division,
           // reporting DECIMAL(38, max(6, s)) — findAvgAggType's derivation.
@@ -193,7 +225,9 @@ final class GroupAggregateMatcher {
         || type == SqlTypeName.DOUBLE;
   }
 
-  /** Native aggregate kind 7 (COUNT(DISTINCT)); matches the convention in the Rust GroupAggState. */
+  /**
+   * Native aggregate kind 7 (COUNT(DISTINCT)); matches the convention in the Rust GroupAggState.
+   */
   private static final int KIND_COUNT_DISTINCT = 7;
 
   /** Native aggregate kind 9 (SUM(DISTINCT)); matches the convention in the Rust GroupAggState. */
@@ -204,8 +238,8 @@ final class GroupAggregateMatcher {
   /**
    * Native kinds 10/11: MIN/MAX over an insert-only input. No retraction can ever arrive, so the
    * state is a plain running extreme — one scalar in the main row — instead of the retractable
-   * value multiset (and, on the RocksDB backend, no companion element table). Numeric, DATE, TIME and
-   * BOOLEAN running folds use these kinds; other value types keep the multiset kinds.
+   * value multiset (and, on the RocksDB backend, no companion element table). Numeric, DATE, TIME
+   * and BOOLEAN running folds use these kinds; other value types keep the multiset kinds.
    */
   static final int KIND_MIN_APPEND = 10;
 
@@ -266,23 +300,25 @@ final class GroupAggregateMatcher {
 
   private static int aggregateKind(StreamPhysicalGroupAggregate agg, AggregateCall call) {
     switch (call.getAggregation().getKind()) {
+      case LISTAGG:
+        return ChangelogPlanUtils.inputInsertOnly(agg) ? KIND_LISTAGG_APPEND : KIND_LISTAGG_RETRACT;
       case FIRST_VALUE:
         {
           {
-        return ChangelogPlanUtils.inputInsertOnly(agg) ? 12 : 15;
-      }
+            return ChangelogPlanUtils.inputInsertOnly(agg) ? 12 : 15;
+          }
         }
       case LAST_VALUE:
         {
           {
-        return ChangelogPlanUtils.inputInsertOnly(agg) ? 13 : 16;
-      }
+            return ChangelogPlanUtils.inputInsertOnly(agg) ? 13 : 16;
+          }
         }
       case SINGLE_VALUE:
         {
           {
-        return 14;
-      }
+            return 14;
+          }
         }
       default:
         {
@@ -306,6 +342,46 @@ final class GroupAggregateMatcher {
       default:
         return -1;
     }
+  }
+
+  private static boolean literalStringColumn(RelNode input, int column) {
+    if (input instanceof org.apache.calcite.rel.core.Exchange
+        || input instanceof org.apache.calcite.rel.core.Filter
+        || input instanceof StreamPhysicalNativeColumnarExchange
+        || input instanceof StreamPhysicalRowDataToArrow
+        || input instanceof StreamPhysicalArrowToRowData)
+      return literalStringColumn(input.getInput(0), column);
+    org.apache.calcite.rex.RexProgram program;
+    if (input instanceof org.apache.calcite.rel.core.Calc)
+      program = ((org.apache.calcite.rel.core.Calc) input).getProgram();
+    else if (input instanceof StreamPhysicalNativeCalc)
+      program = ((StreamPhysicalNativeCalc) input).sourceProgram();
+    else return false;
+    if (program == null || column < 0 || column >= program.getProjectList().size()) return false;
+    var value = program.expandLocalRef(program.getProjectList().get(column));
+    if (value instanceof org.apache.calcite.rex.RexLiteral) {
+      var literal = (org.apache.calcite.rex.RexLiteral) value;
+      return !literal.isNull()
+          && isStringType(literal.getType().getSqlTypeName())
+          && java.nio.charset.StandardCharsets.UTF_8
+              .newEncoder()
+              .canEncode(literal.getValueAs(String.class));
+    }
+    return input instanceof org.apache.calcite.rel.core.Calc
+        && value instanceof org.apache.calcite.rex.RexInputRef
+        && literalStringColumn(
+            input.getInput(0), ((org.apache.calcite.rex.RexInputRef) value).getIndex());
+  }
+
+  private static int[] auxiliaryColumns(StreamPhysicalGroupAggregate agg) {
+    int[] columns = new int[agg.aggCalls().size()];
+    java.util.Arrays.fill(columns, -1);
+    for (int i = 0; i < columns.length; i++) {
+      var call = agg.aggCalls().apply(i);
+      if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.LISTAGG
+          && call.getArgList().size() == 2) columns[i] = call.getArgList().get(1);
+    }
+    return java.util.Arrays.stream(columns).anyMatch(column -> column >= 0) ? columns : new int[0];
   }
 
   static int[] valueColumns(StreamPhysicalGroupAggregate agg) {
@@ -407,7 +483,7 @@ final class GroupAggregateMatcher {
         GroupAggregateMatcher.valueColumns(agg),
         keyColumns,
         GroupAggregateMatcher.filterColumns(agg),
-        new int[0], // single-phase: no AVG-merge count partials
+        auxiliaryColumns(agg), // secondary arguments; numeric merges use this slot for counts
         new int[0], // single-phase: distinct values fold per row, no view columns
         -1, // single-phase: liveness counts rows ±1, no count1 partial
         GroupAggregateMatcher.generateUpdateBefore(agg),

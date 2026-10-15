@@ -119,6 +119,51 @@ checkpoint prefixes. Recovery metrics require consumed work in each intended
 native aggregate stage. See [release measurements](../benchmarks/basic-type-coverage.md)
 for the performance boundary and the decimal division optimization it required.
 
+### LISTAGG
+
+Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, with an
+omitted comma separator or a verified non-null character literal. Empty, quoted and
+multi-byte separators are supported. NULL values are skipped; empty strings and
+duplicates contribute in arrival order. A retraction removes the first matching
+occurrence. FILTER, numeric aggregate composition and single-phase mini-batching
+retain Flink's result types and changelog behavior.
+
+Append input retains an owned concatenated prefix. Retracting input retains ordered
+owned occurrences and pending unmatched retractions, matching released Flink. Versioned
+binary accumulator snapshots preserve this state across memory/native RocksDB restores.
+Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
+profiles each force two restores and verify native consumption and released memory.
+Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
+JSON array/object aggregates remain tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
+
+Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
+mimalloc, 1,024-row transposes, ONE_PHASE without mini-batching, two warmups and five
+alternating stock/native trials. Complete jobs retain the row source, both transposes,
+JNI, state and row blackhole sink. Values are NULL every seventh input.
+
+| Workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 2M rows, 65,536 keys, 16-byte strings, append | 2.414 s | 2.420 s | 1.322 s | 1.83× |
+| Same, insert/insert/delete input | 3.801 s | 3.660 s | 1.336 s | 2.84× |
+| 1M rows, 32,768 keys, 128-byte strings, append | 2.103 s | 2.038 s | 1.840 s | 1.14× |
+
+The previous revision is actual main `f88dc237`, using identical harness/configuration
+and asserting zero native substitutions. Its separately paired stock controls are
+2.435/3.587/2.028 s; the 4–6% drift in the latter controls limits fine comparisons.
+Native ranges are 1.257–1.361/1.324–1.355/1.785–1.977 s; corresponding stock ranges
+are 2.347–2.483/3.690–4.109/1.959–2.206 s. These bounded cardinalities do not establish
+performance for arbitrarily large per-key strings.
+
+Mixed Java/Rust CPU and allocation profiles were captured with async-profiler 4.0,
+`cpu-clock`, 2 ms sampling, DWARF native stacks and 1 MB allocation sampling.
+Rust state updates, allocation and result materialization dominate the native task;
+Java conversion and JNI remain visible. No speculative micro-optimization is included.
+All raw trials, Criterion estimates, source/library hashes and compressed profile stacks
+are retained in [the measurement artifact](../benchmarks/results/listagg-2026-10-15.json).
+Reproduce complete jobs with `SF_BENCHMARK=true mvn test -Pbench
+-Dtest=StringAggregateBenchmark -Dsf.benchmarkJvmArgs=-Xmx2g`; workload properties are
+`stringagg.rows`, `stringagg.keys`, `stringagg.width` and `stringagg.updating`.
+
 ### Floating aggregate validation
 
 `FlinkFloatingGroupAggregateSqlHarnessTest` compares released Flink values, result schemas,
@@ -381,7 +426,8 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- `LISTAGG`, `JSON_ARRAYAGG` and `JSON_OBJECTAGG` currently use explicit Flink fallback;
+- `JSON_ARRAYAGG` and `JSON_OBJECTAGG` currently use explicit Flink fallback;
+  LISTAGG falls back for DISTINCT, explicit ordering or positive state TTL;
   native implementation and performance admission are tracked in
   [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
 - A UDAF (no native path for arbitrary user aggregation logic).
@@ -414,7 +460,7 @@ serialization, while ABSENT ON NULL with a NULL value returns `{}`. A singleton 
 Java UTF-16 string remains visible before aggregation but normalizes at the tested global
 and keyed aggregate boundaries, with either object-reuse setting and either changelog mode.
 Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
-input in streaming mode emits no aggregate row. These are host contracts, not native coverage.
+input in streaming mode emits no aggregate row. These are host contracts; native LISTAGG coverage is described above. JSON remains fallback.
 
 **Local group aggregate (two-phase local half) only:**
 

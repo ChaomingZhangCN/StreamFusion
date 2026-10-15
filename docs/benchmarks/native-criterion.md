@@ -2291,3 +2291,14 @@ NULL contributions and repeated accumulate/retract/retract/accumulate deltas. It
 negative record counts remain live until exactly zero, then times update
 and changelog materialization. Input construction and aggregator creation stay outside the
 measurement; this isolates the native boundary and does not replace Flink end-to-end validation.
+
+## String group aggregates
+
+`string_group_aggregates` calls production LISTAGG update and changelog materialization
+for 16/1,024 rows, one/64 keys, 8/128-byte values, NULLs and append/retract input.
+Operator creation, Arrow fixture construction, retract seeding and destruction stay outside
+timing (`iter_batched_ref`, large-input batching). Each case also compares the next update
+after a production snapshot/restore with uninterrupted execution. All 16 release fixtures
+pass; ten-sample timing estimates are retained with the
+[complete-job measurements](results/listagg-2026-10-15.json). Run
+`python3 bin/bench-native.py --bench string_group_aggregates --smoke` for fixture validation.

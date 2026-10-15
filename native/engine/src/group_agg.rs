@@ -8,6 +8,8 @@ use java_map_order::JavaMapOrder;
 #[cfg(test)]
 mod floating_tests;
 mod ordered_value;
+mod list_agg;
+use list_agg::{is_list_agg, ListAggState, StringColumn};
 pub(crate) use distinct::DistinctSet;
 use distinct::{DistinctColumn, DistinctValues};
 use ordered_value::{is_ordered_value, OrderedValueState};
@@ -256,6 +258,7 @@ mod distinct_set_tests {
 /// its emit needs (the distinct cardinality, the SUM(DISTINCT) fold, the current extreme), which
 /// the backend persists in the main row.
 pub(crate) enum GroupAggState {
+    List(ListAggState),
     Ordered(OrderedValueState),
     Running {
         agg: RunningAgg,
@@ -334,6 +337,7 @@ pub(crate) fn emit_running(agg: &RunningAgg, count: i64, result_type: &DataType)
 impl GroupAggState {
     fn new(kind: i64, value_type: &DataType) -> Self {
         match kind {
+            24 | 25 => Self::List(ListAggState::new(kind)),
             12..=16 | 19..=21 => Self::Ordered(OrderedValueState::new(kind, value_type)),
             1 => GroupAggState::Extremes {
                 is_min: true,
@@ -484,7 +488,7 @@ impl GroupAggState {
                 *non_null += 1;
             }
             GroupAggState::Extremes { .. } => self.accumulate_extreme_key(MinMaxKey::of(value)),
-            GroupAggState::Ordered(_)
+            GroupAggState::List(_) | GroupAggState::Ordered(_)
             | GroupAggState::Distinct { .. }
             | GroupAggState::DistinctRunning { .. } => {
                 unreachable!("distinct folds a scalar, not a Num")
@@ -540,7 +544,7 @@ impl GroupAggState {
                 *non_null -= 1;
             }
             GroupAggState::Extremes { .. } => self.retract_extreme_key(MinMaxKey::of(value)),
-            GroupAggState::Ordered(_)
+            GroupAggState::List(_) | GroupAggState::Ordered(_)
             | GroupAggState::Distinct { .. }
             | GroupAggState::DistinctRunning { .. } => {
                 unreachable!("distinct retracts a scalar, not a Num")
@@ -594,6 +598,7 @@ impl GroupAggState {
     /// The current output value; SUM and MIN/MAX report NULL when they hold no live non-null input.
     fn emit(&self, result_type: &DataType) -> ScalarValue {
         match self {
+            Self::List(state) => state.emit(),
             Self::Ordered(state) => state.emit(),
             GroupAggState::Running { agg, non_null } => emit_running(agg, *non_null, result_type),
             GroupAggState::Extremes {
@@ -635,6 +640,7 @@ impl GroupAggState {
     /// main row; a SUM(DISTINCT) refolds each element into its running sum either way.
     fn import_multiset_entry(&mut self, value: ScalarValue, count: i64) {
         match self {
+            Self::List(_) => unreachable!("LISTAGG has no element side table"),
             Self::Ordered(state) => state.restore_entry(value, count),
             GroupAggState::Extremes {
                 is_min,
@@ -684,7 +690,7 @@ impl GroupAggState {
             GroupAggState::Extremes { journal, .. } => *journal = Some(Box::default()),
             GroupAggState::Distinct { set, .. } => set.arm_journal(),
             GroupAggState::DistinctRunning { counts, .. } => counts.arm_journal(),
-            GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {}
+            GroupAggState::List(_) | GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {}
         }
     }
 
@@ -698,7 +704,7 @@ impl GroupAggState {
             }
             GroupAggState::Distinct { set, .. } => set.insert_restored(value, count),
             GroupAggState::DistinctRunning { counts, .. } => counts.insert_restored(value, count),
-            GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {
+            GroupAggState::List(_) | GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {
                 unreachable!("multiset restore on an aggregate without a multiset")
             }
         }
@@ -728,7 +734,7 @@ impl GroupAggState {
             }),
             GroupAggState::Distinct { set, .. } => set.drain_journal(),
             GroupAggState::DistinctRunning { counts, .. } => counts.drain_journal(),
-            GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {
+            GroupAggState::List(_) | GroupAggState::Ordered(_) | GroupAggState::Running { .. } => {
                 unreachable!("multiset drain on an aggregate without a multiset")
             }
         }
@@ -1024,6 +1030,7 @@ impl crate::state::RocksStateCodec for GroupStateCodec {
             let scalar = ScalarValue::try_from_array(&columns[1 + 2 * i], row)?;
             let mut state = GroupAggState::new(kind, value_type);
             match &mut state {
+                GroupAggState::List(list) => list.restore(scalar)?,
                 GroupAggState::Ordered(ordered) => ordered.restore_value(scalar, count(2 + 2 * i)),
                 GroupAggState::Running { agg, non_null } => {
                     agg.restore_value(&scalar);
@@ -1072,7 +1079,9 @@ pub(crate) fn group_state_types(kinds: &[i64], value_types: &[DataType]) -> Vec<
         .iter()
         .zip(value_types)
         .map(|(&kind, vt)| {
-            if is_ordered_value(kind) {
+            if is_list_agg(kind) {
+                DataType::Binary
+            } else if is_ordered_value(kind) {
                 vt.clone()
             } else {
                 RunningAgg::new(kind, vt).state_type()
@@ -1087,6 +1096,7 @@ pub(crate) fn group_state_types(kinds: &[i64], value_types: &[DataType]) -> Vec<
 impl GroupAggState {
     fn persisted_scalar(&self, state_type: &DataType) -> ScalarValue {
         match self {
+            Self::List(state) => state.snapshot(),
             Self::Ordered(state) => state.snapshot_value(),
             Self::Running { agg, .. } | Self::DistinctRunning { agg, .. } => agg.emit(),
             Self::Extremes { extreme, stale, .. } => {
@@ -1101,6 +1111,7 @@ impl GroupAggState {
 
     fn persisted_count(&self) -> i64 {
         match self {
+            Self::List(_) => 0,
             Self::Ordered(state) => state.count(),
             Self::Running { non_null, .. } => *non_null,
             Self::DistinctRunning { live, .. } => *live,
@@ -1196,6 +1207,7 @@ pub(crate) struct GroupAggregator<S: KeyedStateStore<GroupKeyState> = MemoryGrou
     filter_columns: Vec<i64>,
     // Per-aggregate count-partial column for a two-phase AVG merge (-1 otherwise): the value column
     // is then the local's pre-summed sum partial and each row bumps the count by this column.
+    // Secondary argument: numeric merge count, or LISTAGG separator.
     count_columns: Vec<i64>,
     // Per-aggregate distinct-view column for a two-phase distinct merge (-1 otherwise): the column
     // carries the local bundle's (value, count) entries as a list of structs, folded into the
@@ -1255,6 +1267,7 @@ pub(crate) const MULTISET_ENTRY_BYTES: usize = 64;
 /// O(1) estimated footprint of one aggregate's per-key state (multisets counted by `len`).
 pub(crate) fn group_agg_state_bytes(state: &GroupAggState) -> usize {
     let inner = match state {
+        GroupAggState::List(list) => list.bytes() - std::mem::size_of::<ListAggState>(),
         GroupAggState::Ordered(ordered) => {
             ordered.bytes() - std::mem::size_of::<OrderedValueState>()
         }
@@ -1322,6 +1335,8 @@ impl GroupAggregator {
             .map(|(&kind, vt)| {
                 if kind == 21 {
                     DataType::Int32
+                } else if is_list_agg(kind) {
+                    DataType::Utf8
                 } else if is_ordered_value(kind) {
                     vt.clone()
                 } else {
@@ -1730,6 +1745,12 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 }
             })
             .collect();
+        let list_columns: Vec<_> = (0..num_agg).map(|i| {
+            is_list_agg(self.kinds[i]).then(|| (
+                StringColumn::new(batch.column(self.value_columns[i] as usize)),
+                (self.count_columns[i] >= 0).then(|| StringColumn::new(batch.column(self.count_columns[i] as usize))),
+            ))
+        }).collect();
         // Per aggregate, the two-phase AVG count-partial column (None = not a merge): the value
         // column is the pre-summed sum partial and the count folds from this column, not +1 per row.
         let single_count_cols: Vec<Option<&Int32Array>> = (0..num_agg)
@@ -1745,7 +1766,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
             .collect();
         let merge_count_cols: Vec<Option<&Int64Array>> = (0..num_agg)
             .map(|i| {
-                (self.count_columns[i] >= 0 && self.kinds[i] != 14).then(|| {
+                (self.count_columns[i] >= 0 && self.kinds[i] != 14 && !is_list_agg(self.kinds[i])).then(|| {
                     batch
                         .column(self.count_columns[i] as usize)
                         .as_any()
@@ -1903,6 +1924,13 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                         if filter.is_null(row) || !filter.value(row) {
                             continue;
                         }
+                    }
+                    if let GroupAggState::List(list) = &mut state.aggs[i] {
+                        let (value, separator) = list_columns[i].as_ref().expect("LISTAGG columns");
+                        let separator = separator.as_ref().map_or(Some(","), |column| column.at(row))
+                            .expect("validated non-null LISTAGG separator");
+                        list.update(value.at(row), separator, retract);
+                        continue;
                     }
                     if let GroupAggState::Ordered(ordered) = &mut state.aggs[i] {
                         let column =
@@ -2369,6 +2397,10 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
             write_timestamps.push(state.last_write_ms);
             for i in 0..num_agg {
                 match &state.aggs[i] {
+                    GroupAggState::List(list) => {
+                        state_columns[i].push(list.snapshot());
+                        non_null_columns[i].push(0);
+                    }
                     GroupAggState::Ordered(ordered) => {
                         state_columns[i].push(ordered.snapshot_value());
                         non_null_columns[i].push(ordered.count());
@@ -2637,6 +2669,10 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 .as_ref()
                 .map_or(restored_at_ms, |ts| ts.value(row));
             for i in 0..num_agg {
+                if let GroupAggState::List(list) = &mut state.aggs[i] {
+                    list.restore(ScalarValue::try_from_array(main.column(2 + 2 * i), row)
+                        .expect("LISTAGG snapshot column")).expect("LISTAGG snapshot state");
+                }
                 if let GroupAggState::Ordered(ordered) = &mut state.aggs[i] {
                     ordered.restore_value(
                         ScalarValue::try_from_array(main.column(2 + 2 * i), row)

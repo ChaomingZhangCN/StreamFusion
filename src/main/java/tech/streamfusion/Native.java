@@ -1252,9 +1252,9 @@ public final class Native {
    * @param keyColumns grouping-key column indices in the input batch (empty for global aggregation)
    * @param keyTimestampPrecisions pre-order logical key type descriptors (timestamp precision or
    *     {@code -1}); this lets the native BinaryRow codec preserve nested timestamp layout
-   * @param countColumns per-aggregate two-phase AVG count-partial column ({@code -1} otherwise):
-   *     the value column is then the local's pre-summed sum partial, and each row bumps the count
-   *     by this column instead of by one
+   * @param countColumns per-aggregate secondary input column ({@code -1} otherwise): a two-phase
+   *     numeric merge reads its count partial, while single-phase LISTAGG reads its separator.
+   *     An empty array retains the historical single-phase encoding.
    * @param distinctViewColumns per-aggregate two-phase distinct-view column ({@code -1} otherwise):
    *     the column carries a local bundle's distinct (value, count) entries as a list of structs,
    *     folded into the per-key distinct set with multiplicities instead of one value per row
