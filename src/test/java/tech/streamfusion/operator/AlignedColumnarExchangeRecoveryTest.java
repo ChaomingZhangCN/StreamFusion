@@ -156,7 +156,7 @@ class AlignedColumnarExchangeRecoveryTest {
     }
     StreamExecutionEnvironment env =
         StreamExecutionEnvironment.getExecutionEnvironment(configuration);
-    env.setParallelism(parallelism);
+    env.setParallelism(1);
     env.setMaxParallelism(MAX_PARALLELISM);
     env.enableCheckpointing(50);
     tech.streamfusion.compat.CheckpointTestCapabilities.configure(env, recoverable);
@@ -183,7 +183,6 @@ class AlignedColumnarExchangeRecoveryTest {
                     new int[] {0},
                     new int[] {-1},
                     MAX_PARALLELISM,
-                    parallelism,
                     recoverable))
             .uid("aligned-key-group-split")
             .setMaxParallelism(MAX_PARALLELISM);
@@ -192,7 +191,7 @@ class AlignedColumnarExchangeRecoveryTest {
             split.getTransformation(),
             new ColumnarKeyGroupPartitioner(MAX_PARALLELISM, recoverable),
             StreamExchangeMode.PIPELINED);
-    partition.setParallelism(parallelism);
+    partition.setParallelism(1);
     partition.setMaxParallelism(MAX_PARALLELISM);
     DataStream<ArrowBatch> shuffled = new DataStream<>(env, partition);
     if (recoverable) {
@@ -219,6 +218,8 @@ class AlignedColumnarExchangeRecoveryTest {
         output,
         "aligned-file-sink");
     var graph = env.getStreamGraph();
+    // Resource planning may set the final parallelism after every operator has been constructed.
+    graph.getStreamNodes().forEach(node -> node.setParallelism(parallelism));
     var hashes =
         new org.apache.flink.streaming.api.graph.StreamGraphHasherV2()
             .traverseStreamGraphAndGenerateHashes(graph);

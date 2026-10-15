@@ -1,5 +1,7 @@
 package tech.streamfusion.operator;
 
+import static org.apache.flink.util.Preconditions.checkState;
+
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongBinaryOperator;
@@ -15,6 +17,7 @@ import org.apache.flink.table.types.logical.RowType;
 import tech.streamfusion.Native;
 import tech.streamfusion.arrow.ArrowConversion;
 import tech.streamfusion.compat.FlinkStreamOperator;
+import tech.streamfusion.compat.RuntimeCompat;
 import tech.streamfusion.state.CanonicalNativeState;
 import tech.streamfusion.state.RocksDBNativeKeyedStateBackend;
 import tech.streamfusion.state.RocksDBNativeState;
@@ -183,6 +186,15 @@ public abstract class AbstractNativeStatefulOperator<OUT> extends FlinkStreamOpe
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
+    if (getKeyedStateBackend() != null) {
+      int deployedMaxParallelism = RuntimeCompat.maxParallelism(getRuntimeContext());
+      checkState(
+          maxParallelism == deployedMaxParallelism,
+          "Native %s state max parallelism changed after planning: expected %s key groups, deployed %s",
+          stateLabel,
+          maxParallelism,
+          deployedMaxParallelism);
+    }
     List<byte[]> snapshots;
     if (carriesProcessingTimeTimer()) {
       RawKeyedState.TimedRestore restored = RawKeyedState.restoreWithTimer(context);

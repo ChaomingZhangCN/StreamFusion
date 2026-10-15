@@ -72,6 +72,14 @@ public class ColumnarKeyGroupPartitioner
     this.maxParallelism = maxParallelism;
   }
 
+  public int maxParallelism() {
+    return maxParallelism;
+  }
+
+  public boolean recoverable() {
+    return recoverable;
+  }
+
   @Override
   public String toString() {
     return "columnar-key-group";
