@@ -1,5 +1,10 @@
 use super::*;
 
+/// Post-exchange coalescing, including physical sidecar validation and normalization.
+pub fn coalesce(batches: &[RecordBatch]) -> RecordBatch {
+    crate::exchange::coalesce_batches(batches).expect("compatible coalescer fixtures")
+}
+
 /// The production Flink scalar UDFs, including scalar adaptation and result allocation.
 pub fn flink_scalar_function(op: i64, arity: usize) -> datafusion::logical_expr::ScalarUDF {
     crate::flink_functions::function(op, arity).expect("registered scalar benchmark")

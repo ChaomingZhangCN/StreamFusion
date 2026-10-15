@@ -1,7 +1,5 @@
 package tech.streamfusion.operator;
 
-import tech.streamfusion.Native;
-import tech.streamfusion.planner.NativeConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
@@ -13,14 +11,16 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
+import tech.streamfusion.Native;
+import tech.streamfusion.planner.NativeConfig;
 
 /**
  * Re-assembles processing-sized batches in front of a keyed native operator. The columnar exchange
  * splits every source batch by destination channel, and a changelog operator feeding another keyed
- * operator can still compound physical fragmentation. Buffered sub-batches are merged
- * natively into one batch once the row target is reached; a processing-time timer bounds the wait
- * on trickle streams. Coalescing changes only physical chunking, never the record-level changelog:
- * the operator must flush before watermarks, checkpoint barriers, and finish, which preserves every
+ * operator can still compound physical fragmentation. Buffered sub-batches are merged natively into
+ * one batch once the row target is reached; a processing-time timer bounds the wait on trickle
+ * streams. Coalescing changes only physical chunking, never the record-level changelog: the
+ * operator must flush before watermarks, checkpoint barriers, and finish, which preserves every
  * row-before-watermark ordering the fine-grained watermark protocol relies on.
  */
 public final class BatchCoalescer implements AutoCloseable {
@@ -100,14 +100,21 @@ public final class BatchCoalescer implements AutoCloseable {
     }
   }
 
-  /** Delivers everything pending as one batch; the caller invokes this before any watermark, barrier, or finish. */
+  /**
+   * Delivers everything pending as one batch; the caller invokes this before any watermark,
+   * barrier, or finish.
+   */
   void flush() {
     if (pending.isEmpty()) {
       return;
     }
-    VectorSchemaRoot batch = pending.size() == 1 ? pending.get(0) : merge();
-    pending.clear();
-    pendingRows = 0;
+    VectorSchemaRoot batch;
+    try {
+      batch = pending.size() == 1 ? pending.get(0) : merge();
+    } finally {
+      pending.clear();
+      pendingRows = 0;
+    }
     sink.accept(batch);
   }
 
@@ -138,9 +145,11 @@ public final class BatchCoalescer implements AutoCloseable {
     } finally {
       for (int i = 0; i < count; i++) {
         if (inArrays[i] != null) {
+          inArrays[i].release();
           inArrays[i].close();
         }
         if (inSchemas[i] != null) {
+          inSchemas[i].release();
           inSchemas[i].close();
         }
         pending.get(i).close();

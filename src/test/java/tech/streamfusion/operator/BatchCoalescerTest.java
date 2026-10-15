@@ -2,11 +2,13 @@ package tech.streamfusion.operator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +18,68 @@ import org.junit.jupiter.api.Test;
  * close. Latency 0 disables the processing-time backstop so no timer service is needed.
  */
 class BatchCoalescerTest {
+
+  @Test
+  void mixedAppendAndChangelogBatchesPreserveAllKindsInEitherOrder() {
+    for (boolean appendFirst : new boolean[] {true, false}) {
+      List<VectorSchemaRoot> delivered = new ArrayList<>();
+      long allocatedBefore = NativeAllocator.SHARED.getAllocatedMemory();
+      try (BatchCoalescer coalescer = coalescer(100, delivered)) {
+        VectorSchemaRoot append = rootOf(10, 11);
+        VectorSchemaRoot changes = kindedRoot(new int[] {0, 1, 2, 3}, 20, 21, 22, 23);
+        coalescer.add(appendFirst ? append : changes);
+        coalescer.add(appendFirst ? changes : append);
+        coalescer.flush();
+        VectorSchemaRoot merged = delivered.get(0);
+        assertValues(
+            merged,
+            appendFirst
+                ? new long[] {10, 11, 20, 21, 22, 23}
+                : new long[] {20, 21, 22, 23, 10, 11});
+        TinyIntVector kinds =
+            (TinyIntVector) merged.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
+        int[] expected = appendFirst ? new int[] {0, 0, 0, 1, 2, 3} : new int[] {0, 1, 2, 3, 0, 0};
+        for (int i = 0; i < expected.length; i++) assertEquals(expected[i], kinds.get(i));
+      } finally {
+        delivered.forEach(VectorSchemaRoot::close);
+      }
+      assertEquals(allocatedBefore, NativeAllocator.SHARED.getAllocatedMemory());
+    }
+  }
+
+  @Test
+  void failedMergeReleasesInputsAndDoesNotLeaveClosedRootsPending() {
+    List<VectorSchemaRoot> delivered = new ArrayList<>();
+    long allocatedBefore = NativeAllocator.SHARED.getAllocatedMemory();
+    try (BatchCoalescer coalescer = coalescer(100, delivered)) {
+      coalescer.add(rootOf(1));
+      coalescer.add(kindedRoot(new int[] {4}, 2));
+      assertTrue(
+          assertThrows(tech.streamfusion.NativeException.class, coalescer::flush)
+              .getMessage()
+              .contains("RowKind"));
+      coalescer.flush();
+      coalescer.add(rootOf(3));
+      coalescer.flush();
+      assertEquals(1, delivered.size());
+      assertValues(delivered.get(0), 3);
+    } finally {
+      delivered.forEach(VectorSchemaRoot::close);
+    }
+    assertEquals(allocatedBefore, NativeAllocator.SHARED.getAllocatedMemory());
+  }
+
+  private static VectorSchemaRoot kindedRoot(int[] tags, long... values) {
+    VectorSchemaRoot data = rootOf(values);
+    TinyIntVector kinds =
+        new TinyIntVector(RowDataArrowConverter.ROW_KIND_COLUMN, NativeAllocator.SHARED);
+    kinds.allocateNew(tags.length);
+    for (int i = 0; i < tags.length; i++) kinds.set(i, tags[i]);
+    kinds.setValueCount(tags.length);
+    VectorSchemaRoot root = VectorSchemaRoot.of(data.getVector(0), kinds);
+    root.setRowCount(values.length);
+    return root;
+  }
 
   @Test
   void buffersUntilFlushAndMergesInOrder() {
