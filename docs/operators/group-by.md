@@ -381,6 +381,9 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
+- `LISTAGG`, `JSON_ARRAYAGG` and `JSON_OBJECTAGG` currently use explicit Flink fallback;
+  native implementation and performance admission are tracked in
+  [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
@@ -393,6 +396,18 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
   or with more than one argument.
 - DISTINCT or retracting FIRST_VALUE/LAST_VALUE with positive state TTL.
 - An unsupported grouping-key or value column type.
+
+The released-host string aggregate baseline passes 12 checks on each of Flink 2.2.1 and
+1.18.1/JDK 17. LISTAGG accepts an omitted separator (comma) or a non-null character literal;
+dynamic and NULL separators fail SQL validation. Supported literals include empty, multi-byte
+and quoted separators. Append and retract inputs preserve arrival order and duplicates, skip
+NULL values, and honor FILTER. Retraction removes the first matching duplicate.
+
+Plain GROUP BY JSON array/object aggregates accept the tested retracting input on both releases;
+there is no blanket JSON changelog exclusion for these forms. Tests preserve array order and
+duplicates, NULL/ABSENT clauses, escaping, and duplicate-object-key errors before NULL omission.
+Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
+input in streaming mode emits no aggregate row. These are host contracts, not native coverage.
 
 **Local group aggregate (two-phase local half) only:**
 
