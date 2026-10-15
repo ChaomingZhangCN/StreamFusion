@@ -34,13 +34,17 @@ particular count; external resource planners must preserve it too. This does not
 state to a new key-group count. Splitter gauges `target_channels` and `target_key_groups` expose the
 bound routing parameters.
 
-SINGLETON exchanges retain exactly one destination but share the downstream state's key-group count:
-one destination does not mean one key group. Changing a SINGLETON destination to multiple subtasks
-is rejected rather than producing independent global results. Previously an unaligned SINGLETON
-reassembler used maximum parallelism 1 even when its downstream accumulator planned a larger count.
+SINGLETON exchanges retain exactly one destination and use the downstream operator's planned state
+namespace, not a universal key-group count. Global aggregates use the configured/default count;
+event-time sort and keyless joins retain their fixed one-key-group namespace, even when the job-wide
+maximum parallelism is larger. The matcher carries that contract through physical-plan copies into
+the splitter, partitioner, and optional reassembler. Their startup consistency checks remain enabled.
+Changing a SINGLETON destination to multiple subtasks is rejected rather than producing independent
+global results. Previously an unaligned global-aggregate reassembler used maximum parallelism 1
+even when its downstream accumulator planned a larger count.
 Existing checkpoints of that old topology need an explicit upgrade/recovery decision; this fix does
 not migrate their state or claim that they restore into the corrected topology. Ordinary HASH
-exchange layouts are unchanged.
+exchange layouts and the one-key-group sort/keyless-join layouts are unchanged.
 
 SQL regression tests change StreamNode parallelism after translation from 1 to 4, 2 to 4, 4 to 3,
 3 to 1, and 1 to 5, including different producer/consumer parallelism. They verify every key's actual
@@ -48,10 +52,16 @@ Flink owner and exact COUNT/SUM values. Aligned and unaligned-enabled SQL jobs m
 checkpoints after the late change. Exchange recovery tests also apply parallelism after graph
 generation before checkpointing and rescaling in both directions.
 
+Sort and keyless-join SQL regressions additionally cover both aligned and unaligned-enabled
+checkpoints with the default job maximum parallelism and an explicit value of 256. They require
+native execution, matching one-key-group exchange metadata, exact ordered-sort/cross-product rows,
+and a real completed checkpoint. The existing temporal-sort and keyless-join parity suites are also
+part of the regression selection.
+
 On public Flink 1.18.1 / JDK 11, adding only the SQL reproduction to the unmodified upstream
 baseline makes four of five routing cases fail with incorrect owners; the 3-to-1 control passes.
-With the fix, focused regressions on macOS ARM run 301 tests on each released line: Flink 1.18.1
-has 298 passes and three existing SESSION/STATE_TTL capability skips; Flink 2.2.1 has 301 passes.
+With the fix, focused regressions on macOS ARM run 327 tests on each released line: Flink 1.18.1
+has 324 passes and three existing SESSION/STATE_TTL capability skips; Flink 2.2.1 has 327 passes.
 Both runs use JDK 11 and a freshly built debug native core from the upstream source, with no
 failures or errors. They include RocksDB state, stateful SQL rescale, exchange recovery,
 window/Top-N/join, serializer, and one-/two-phase aggregate checks. They are not full-suite runs

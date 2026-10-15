@@ -1,5 +1,7 @@
 package tech.streamfusion.planner;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
+
 import tech.streamfusion.operator.ArrowBatch;
 import tech.streamfusion.operator.ArrowBatchTypeInformation;
 import tech.streamfusion.operator.OrderedKeyGroupReassembler;
@@ -33,6 +35,7 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
 
   private final int[] keyColumns;
   private final int[] timestampPrecisions;
+  private final boolean singleKeyGroup;
 
   public NativeColumnarExchangeExecNode(
       ReadableConfig tableConfig,
@@ -40,7 +43,8 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
       RowType outputType,
       String description,
       int[] keyColumns,
-      int[] timestampPrecisions) {
+      int[] timestampPrecisions,
+      boolean singleKeyGroup) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-native-columnar-exchange_1"),
@@ -48,8 +52,12 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
         Collections.singletonList(inputProperty),
         outputType,
         description);
+    checkArgument(
+        !singleKeyGroup || keyColumns.length == 0,
+        "A single-key-group exchange requires a SINGLETON distribution");
     this.keyColumns = keyColumns;
     this.timestampPrecisions = timestampPrecisions;
+    this.singleKeyGroup = singleKeyGroup;
   }
 
   @Override
@@ -70,8 +78,10 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
     // separates an UPDATE_BEFORE from its earlier INSERT/UPDATE_AFTER.
     int numChannels =
         keyColumns.length == 0 ? 1 : Math.max(1, planner.getExecEnv().getParallelism());
-    // A SINGLETON has one destination, not necessarily one state key group.
-    int maxParallelism = FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), numChannels);
+    // Match the consumer's state namespace: sorts/keyless joins use one group, global
+    // aggregates use the configured count. Both still have exactly one destination.
+    int maxParallelism =
+        singleKeyGroup ? 1 : FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), numChannels);
     boolean recoverable = planner.getExecEnv().getCheckpointConfig().isUnalignedCheckpointsEnabled();
     // Aligned jobs keep destination batching. Unaligned-enabled jobs use independently recoverable
     // key-group fragments because any checkpoint can capture the already-buffered network records.

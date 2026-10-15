@@ -73,13 +73,19 @@ final class PlanContext {
    * when it is columnar no transpose is needed. A non-exchange input is returned unchanged.
    */
   RelNode columnarInput(RelNode input, int[] keyColumns) {
+    return columnarInput(input, keyColumns, false);
+  }
+
+  /** Some SINGLETON consumers keep their state in a fixed one-key-group namespace. */
+  RelNode columnarInput(RelNode input, int[] keyColumns, boolean singleKeyGroup) {
     if (input instanceof StreamPhysicalExchange) {
       return new StreamPhysicalNativeColumnarExchange(
           input.getCluster(),
           input.getTraitSet(),
           input.getInputs().get(0),
           input.getRowType(),
-          keyColumns);
+          keyColumns,
+          singleKeyGroup);
     }
     return input;
   }
