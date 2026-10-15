@@ -145,5 +145,41 @@ fn functions(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, functions);
+fn uuid_generation(c: &mut Criterion) {
+    let udf = flink_scalar_function(166, 0);
+    let return_field = Arc::new(Field::new("uuid", DataType::Utf8, false));
+    let options = Arc::new(ConfigOptions::new());
+    let mut group = c.benchmark_group("scalar/uuid");
+    for rows in [0, 16, 1024, 16384] {
+        let run = || {
+            udf.invoke_with_args(ScalarFunctionArgs {
+                args: vec![],
+                arg_fields: vec![],
+                number_rows: rows,
+                return_field: return_field.clone(),
+                config_options: options.clone(),
+            })
+            .unwrap()
+            .into_array(rows)
+            .unwrap()
+        };
+        let output = run();
+        assert_eq!(output.len(), rows);
+        assert_eq!(output.null_count(), 0);
+        let values = output.as_any().downcast_ref::<StringArray>().unwrap();
+        let distinct = values
+            .iter()
+            .map(|value| value.unwrap())
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(distinct.len(), rows);
+        assert!(distinct.iter().all(|value| value.len() == 36));
+        group.throughput(Throughput::Elements(rows as u64));
+        group.bench_function(BenchmarkId::from_parameter(rows), |b| {
+            b.iter(|| std::hint::black_box(run()))
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, functions, uuid_generation);
 criterion_main!(benches);

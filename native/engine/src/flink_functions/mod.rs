@@ -186,6 +186,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         161 => instr::function(arity),
         162 => hash_code::function(),
         165 => array_distinct::function(),
+        166 => datafusion::functions::string::uuid().as_ref().clone(),
         _ => return None,
     })
 }

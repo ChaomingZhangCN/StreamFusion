@@ -1,5 +1,16 @@
 # Native Criterion suites
 
+`scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
+as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
+formatting and output allocation; fixture and schema setup remain outside timing. Full-job
+comparison uses `ScalarFunctionBenchmark#individualFunctions` with `scalar.functions=UUID`,
+which asserts native Calc and both row/Arrow transposes and retains the rowwise source and sink.
+The completeness-checked `scalar_registry` catalog also includes opcode 166 with no arguments;
+its explicit row count must produce the requested number of non-NULL UUID values. This covers
+all nine batch/null/Unicode fixture profiles without pretending UUID consumes those inputs.
+Direct Calc regressions separately cover zero-column pruning, repeated batches, empty and
+all-filtered batches, independent call sites and preserved changelog tags.
+
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise
 inside a native island. They complement release-mode Flink comparisons; they cannot establish an
@@ -29,6 +40,14 @@ aggregation, flush. Arrow fixtures and operator setup/destruction are outside th
 `iter_batched_ref` routine. Schema and nonempty-output checks run before timing.
 
 ## Running and comparing
+
+The `non_time_row_number` target includes eight production-kernel fixtures
+cross 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
+and ascending/descending arrival, with nullable order columns. Fixture setup and a separate inversion-count cardinality oracle stay
+outside timing. Each measurement creates an empty ranker, processes the batch and materializes
+all row-identity rank updates; it does not measure a fixed-state lookup or exclude output work.
+This native boundary complements the complete Flink job benchmark `NonTimeRowNumberBenchmark`,
+which retains both transposes and a rowwise sink.
 
 The `operators` target includes `append_top1`, covering the general and specialized
 rank loops over memory and RocksDB at 256/4096 rows, repeated/unique keys,

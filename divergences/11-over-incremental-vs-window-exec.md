@@ -261,3 +261,32 @@ arrival order, and exact-hash ties use stable native identifiers. These cases re
 there is no unique stock execution output to mirror. Deterministic valid-Unicode tree histories
 retain exact parity across uninterrupted execution, normal/canonical restore, and outstanding/
 completed heap snapshots. The OVER page links all retained control and performance samples.
+
+
+## Non-time ROW_NUMBER uses a retained sorted buffer
+
+Released Flink 2.2.1 also plans an ordinary numeric `ORDER BY` as `StreamPhysicalOverAggregate`.
+Its exec node chooses `NonTimeRowsUnboundedPrecedingFunction` for ROWS unbounded preceding,
+verified against the released planner JAR before broadening StreamFusion admission. A nonmonotonic
+arrival changes already-emitted ranks: the inserted row emits +I, then each shifted existing row
+emits -U at its previous rank and +U at its new rank. Equal sort keys retain arrival order.
+This differs from Top-N's rank-slot replacements and from arrival-order proctime counters.
+
+Arroyo's planner `plan/window_fn.rs` rejects non-windowed input ("Window functions require
+already windowed input"); its worker buffers by timestamp and drains a window exec after a
+watermark. A non-time Flink rank can never finalize an unbounded partition that way. We instead
+reuse StreamFusion's Arrow-row sorted rank state and key-group/checkpoint representation, adding
+an explicit row-identity emission mode. No generic OVER time guard is removed. Native operators
+still consume and emit Arrow batches, and existing Top-N slot updates remain unchanged.
+
+Initial admission is one ascending INT/BIGINT key, one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
+through CURRENT ROW, insert-only input and disabled TTL. NULL placement is explicit; ties remain
+stable across physical batches and recovery. Every row remains in state; there is no implicit
+Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
+Updating input, TTL, other order specifications and other non-time analytic functions retain
+fallback. Flink 1.18 rejects this query itself, before native admission.
+
+The released heap operator failed an injected restore with a NULL prior accumulator in its
+update emission. Native checkpoint validation therefore compares its twice-restored output
+with an uninterrupted stock run, independently verifying restored offsets and source cleanup;
+it does not claim parity between two successfully restored host/native jobs.

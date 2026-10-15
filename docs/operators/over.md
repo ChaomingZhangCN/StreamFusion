@@ -1,8 +1,9 @@
 # OVER
 
-**Status:** Native across all four frame shapes, with the gaps enumerated below.
+**Status:** Native across all four time-based frame shapes and the verified non-time ROW_NUMBER
+shape, with the gaps enumerated below.
 
-`OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
+Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
@@ -19,6 +20,80 @@ Running MIN/MAX checkpoints preserve this typed NULL state alongside other aggre
 Event-time parity fixtures keep the watermark behind the entire input timestamp range until
 end of input, so file enumeration order cannot introduce accidental late rows. Late-row tests
 control the input order separately.
+
+## Ordinary numeric ROW_NUMBER (Flink 2.2)
+
+An unfiltered `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY v ASC)` also runs over an ordinary
+INT or BIGINT column. This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
+PRECEDING through CURRENT ROW, insert-only input, supported partition/payload types and disabled
+idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
+its validation is unchanged. Other non-time analytic functions and order specifications retain
+fallback.
+
+Each new row emits INSERT at its rank, followed by UPDATE_BEFORE/UPDATE_AFTER pairs for the
+same existing rows whose ranks shifted. Ties retain arrival order. The implementation reuses
+[Top-N](top-n.md)'s sorted Arrow-row state with an explicit emission mode; ordinary filtered
+Top-N keeps its existing rank-slot update contract. Mini-batching does not collapse these
+row-identity updates. The generic event-time/proctime OVER guard is unchanged.
+
+Every input row remains in state, including duplicate rows; state grows with the input rather
+than a configured Top-N bound. Watermarks do not retire this numeric rank state. Native memory
+accounting and configured off-heap limits apply. Updating input and positive TTL retain fallback
+until their separate contracts are verified. MAP/MULTISET payloads unsupported by the Arrow row
+codec also retain fallback.
+
+The released-host oracle covers ties, nullable partitions/order, nonmonotonic arrival, reversed
+input and NULL placement. Native recovery compares two checkpoint restores on memory/RocksDB
+with uninterrupted stock output, because the released heap host failed an injected restore with
+a missing prior accumulator. See the [architecture note](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/11-over-incremental-vs-window-exec.md#non-time-row_number-uses-a-retained-sorted-buffer).
+
+### Numeric ranking measurements
+
+Release+mimalloc, Flink 2.2.1/JDK 17, Core i7-12650H, 2 GiB heap, parallelism one,
+1,024-row batches and production IPC. A runtime row source supplies nullable sort values
+(NULL every 31 rows); a blackhole row sink drains every emitted change. Complete jobs include
+both transposes, JNI, retained rank state and output materialization. Two warmups precede five
+alternating stock/native pairs; plans and native input counters are asserted.
+
+| Rows / partitions | Order type | Arrival | Stock median (range), s | Native median (range), s |
+| --- | --- | --- | ---: | ---: |
+| 131,072 / 1,024 | BIGINT | ascending | 0.811 (0.647–0.930) | 0.229 (0.212–0.285) |
+| 131,072 / 1,024 | BIGINT | descending | 4.727 (4.648–5.338) | 1.775 (1.661–1.840) |
+| 262,144 / 2,048 | BIGINT | ascending | 1.649 (1.366–1.816) | 0.400 (0.365–0.426) |
+| 262,144 / 2,048 | BIGINT | descending | 8.816 (8.543–9.195) | 3.535 (3.485–3.707) |
+| 131,072 / 1,024 | INT | ascending | 0.922 (0.762–1.031) | 0.206 (0.199–0.246) |
+| 131,072 / 1,024 | INT | descending | 7.633 (6.983–8.201) | 1.824 (1.748–1.839) |
+
+Descending arrival changes many previously emitted ranks, so it performs much more output work
+than ascending arrival. Compare engines within the same row, retaining all output costs. The
+[raw trials](../benchmarks/results/non-time-row-number-2026-10-15.json) include every measured
+and warmup job, the previous correct fallback, source/library hashes and variability. Separate
+JVM stock controls drift; cross-run differences are descriptive rather than isolated attribution.
+
+For the 262,144-row BIGINT fixture, the previous correct fallback measured 1.662 s ascending
+and 11.264 s descending, with paired stock controls 1.479/10.431 s. Its descending range was
+7.550–12.078 s; all those trials remain in the artifact. The final native medians improve
+4.12×/2.49× against their paired stock controls, and 4.15×/3.19× against the earlier fallback.
+At 131,072 rows, INT's previous fallback measured 0.985/6.732 s, with stock 0.851/6.732 s;
+final native medians are 0.206/1.824 s. Control drift limits precision of cross-run attribution.
+
+Each measured job has its own metrics reporter and local cluster, closed after timing and
+native-work assertions. The JVM/2 GiB heap remains shared across trials; both engines have the
+same configured off-heap budget from the metrics fixture (48 GiB, not reserved physical memory).
+An initial reporter retained closed-job gauges across a whole case and the fallback JVM ran out
+of heap after 13 jobs. All initial samples and the failure are retained as diagnostics; the
+reported comparisons use the matched per-job lifetimes on both engines and complete normally.
+
+Reproduce with `SF_BENCHMARK=true mvn test -Pbench -pl streamfusion-runtime -am
+-Dtest=NonTimeRowNumberBenchmark -Dsurefire.failIfNoSpecifiedTests=false
+-Dsf.extraJvmArgs=-Xmx2g`. Defaults are 131,072 rows / 1,024 partitions / BIGINT; use
+`-Drank.rows=262144 -Drank.keys=2048` for the larger fixture or `-Drank.orderType=INT`
+for the INT sort projection. `-Drank.expectNative=false` asserts the previous fallback.
+
+The focused SQL, existing Top-N and time-OVER suites pass 62 checks on Flink 2.2.1;
+Flink 1.18.1 passes 49 with 13 host-capability skips, including its non-time validation boundary.
+Three release Rust tests cover emitted row identities, complete retained-state restore and
+memory limits; eight release Criterion fixtures validate the production kernel separately.
 
 ## Frame shapes
 

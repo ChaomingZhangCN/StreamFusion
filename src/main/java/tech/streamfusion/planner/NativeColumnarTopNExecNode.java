@@ -17,7 +17,7 @@ import tech.streamfusion.operator.ArrowBatch;
 import tech.streamfusion.operator.ArrowBatchTypeInformation;
 import tech.streamfusion.operator.NativeColumnarTopNOperator;
 
-/** Wraps the columnar append-only Top-N operator into the plan; Arrow batches in and out. */
+/** Plans columnar ranking, including the separate non-time ROW_NUMBER emission mode. */
 public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
     implements StreamExecNode<ArrowBatch> {
 
@@ -31,6 +31,7 @@ public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
   private final long limit;
   private final int rankEndColumn;
   private final boolean firstBound;
+  private final boolean nonTimeRowNumber;
   private final boolean outputRankNumber;
   private final boolean retracting;
   // Update-fast mode: the unique-key columns identifying the row a record replaces (null otherwise).
@@ -58,6 +59,48 @@ public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
       int[] rowKeyTimestampPrecisions,
       int[] keyTimestampPrecisions,
       boolean firstBound) {
+    this(
+        tableConfig,
+        inputProperty,
+        outputType,
+        description,
+        partitionColumns,
+        sortIndices,
+        sortAscending,
+        sortNullsFirst,
+        offset,
+        limit,
+        rankEndColumn,
+        outputRankNumber,
+        retracting,
+        rowKeyColumns,
+        generateUpdateBefore,
+        rowKeyTimestampPrecisions,
+        keyTimestampPrecisions,
+        firstBound,
+        false);
+  }
+
+  public NativeColumnarTopNExecNode(
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType outputType,
+      String description,
+      int[] partitionColumns,
+      int[] sortIndices,
+      int[] sortAscending,
+      int[] sortNullsFirst,
+      long offset,
+      long limit,
+      int rankEndColumn,
+      boolean outputRankNumber,
+      boolean retracting,
+      int[] rowKeyColumns,
+      boolean generateUpdateBefore,
+      int[] rowKeyTimestampPrecisions,
+      int[] keyTimestampPrecisions,
+      boolean firstBound,
+      boolean nonTimeRowNumber) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-native-columnar-top-n_1"),
@@ -73,6 +116,7 @@ public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
     this.limit = limit;
     this.rankEndColumn = rankEndColumn;
     this.firstBound = firstBound;
+    this.nonTimeRowNumber = nonTimeRowNumber;
     this.outputRankNumber = outputRankNumber;
     this.retracting = retracting;
     this.rowKeyColumns = rowKeyColumns;
@@ -92,7 +136,8 @@ public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
     // mini-batch off, the per-input-row changelog remains byte-identical to the host path.
     // Hidden-rank OFFSET mutates retained row kinds on each emission, affecting later equality.
     boolean netDiff =
-        !firstBound
+        !nonTimeRowNumber
+            && !firstBound
             && config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_ENABLED)
             && !(retracting && offset > 0 && !outputRankNumber && rowKeyColumns == null);
     long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
@@ -125,7 +170,8 @@ public class NativeColumnarTopNExecNode extends ExecNodeBase<ArrowBatch>
                 stateTtlMillis,
                 maxParallelism,
                 rankEndColumn,
-                firstBound),
+                firstBound,
+                nonTimeRowNumber),
             ArrowBatchTypeInformation.INSTANCE,
             input.getParallelism(),
             false);
