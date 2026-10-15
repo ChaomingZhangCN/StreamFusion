@@ -397,7 +397,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 - DISTINCT or retracting FIRST_VALUE/LAST_VALUE with positive state TTL.
 - An unsupported grouping-key or value column type.
 
-The released-host string aggregate baseline passes 12 checks on each of Flink 2.2.1 and
+The released-host string aggregate baseline passes 18 checks on each of Flink 2.2.1 and
 1.18.1/JDK 17. LISTAGG accepts an omitted separator (comma) or a non-null character literal;
 dynamic and NULL separators fail SQL validation. Supported literals include empty, multi-byte
 and quoted separators. Append and retract inputs preserve arrival order and duplicates, skip
@@ -406,6 +406,13 @@ NULL values, and honor FILTER. Retraction removes the first matching duplicate.
 Plain GROUP BY JSON array/object aggregates accept the tested retracting input on both releases;
 there is no blanket JSON changelog exclusion for these forms. Tests preserve array order and
 duplicates, NULL/ABSENT clauses, escaping, and duplicate-object-key errors before NULL omission.
+Object keys sort by Java UTF-16 order, including supplementary Unicode keys. JSON aggregate
+FILTER syntax is rejected by both released parsers. Flink 2.2 preserves decimal scale in JSON
+arrays (`[1.00,2.00]`); Flink 1.18 returns `[1,2]`. A NULL object key fails at accumulation on
+2.2, even with ABSENT ON NULL and a NULL value. On 1.18 the non-null-value case fails at
+serialization, while ABSENT ON NULL with a NULL value returns `{}`. A singleton malformed
+Java UTF-16 string remains visible before aggregation but normalizes at the tested global
+and keyed aggregate boundaries, with either object-reuse setting and either changelog mode.
 Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
 input in streaming mode emits no aggregate row. These are host contracts, not native coverage.
 

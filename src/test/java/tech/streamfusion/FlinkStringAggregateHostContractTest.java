@@ -9,7 +9,9 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.types.Row;
@@ -168,13 +170,133 @@ class FlinkStringAggregateHostContractTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void singletonStringRepresentationAtTheAggregateBoundary(boolean changelog) throws Exception {
+    var before = environment(changelog, row(new String(new char[] {'\ud800'}), ","));
+    before.createTemporarySystemFunction("cache_tag", new CacheTag());
+    assertEquals(true, latest(collect(before.sqlQuery("SELECT cache_tag(v) FROM src"))));
+    for (boolean objectReuse : new boolean[] {false, true}) {
+      for (String grouping : List.of("", " GROUP BY json_key")) {
+        var table =
+            environment(changelog, objectReuse, row(new String(new char[] {'\ud800'}), ","));
+        table.createTemporarySystemFunction("cache_tag", new CacheTag());
+        var rows = collect(table.sqlQuery("SELECT cache_tag(LISTAGG(v, ',')) FROM src" + grouping));
+        assertEquals(
+            false, latest(rows), "changelog=" + changelog + ", reuse=" + objectReuse + grouping);
+      }
+    }
+  }
+
+  @Test
+  void jsonObjectKeysUseJavaUtf16Order() throws Exception {
+    List<Row> input = new ArrayList<>();
+    for (String key : List.of("\ue000", "🚀", "z", "a")) {
+      var row = row("unused", ",");
+      row.setField(2, key);
+      input.add(row);
+    }
+    assertEquals(
+        "{\"a\":1,\"z\":1,\"🚀\":1,\"\ue000\":1}",
+        latest(
+            run(
+                false,
+                "SELECT JSON_OBJECTAGG(json_key VALUE n) FROM src",
+                input.toArray(new Row[0]))));
+  }
+
+  @Test
+  void jsonArraysPreserveTypedScalarSerialization() throws Exception {
+    var first = row("a", ",");
+    var second = row("b", ",");
+    second.setField(3, 2L);
+    second.setField(4, false);
+    var absent = row(null, ",");
+    absent.setField(3, null);
+    absent.setField(4, null);
+    assertEquals(
+        "[1,null,2]",
+        latest(run(false, "SELECT JSON_ARRAYAGG(n NULL ON NULL) FROM src", first, absent, second)));
+    assertEquals(
+        legacy() ? "[1,2]" : "[1.00,2.00]",
+        latest(
+            run(false, "SELECT JSON_ARRAYAGG(CAST(n AS DECIMAL(20,2))) FROM src", first, second)));
+    assertEquals(
+        "[true,false]",
+        latest(run(false, "SELECT JSON_ARRAYAGG(keep_row) FROM src", first, absent, second)));
+  }
+
+  @Test
+  void jsonAggregateFilterSyntaxIsRejected() {
+    for (String expression : List.of("JSON_OBJECTAGG(json_key VALUE n)", "JSON_ARRAYAGG(v)")) {
+      assertThrows(
+          org.apache.flink.table.api.SqlParserException.class,
+          () ->
+              run(
+                  false,
+                  "SELECT " + expression + " FILTER (WHERE keep_row) FROM src",
+                  row("unused", ",")));
+    }
+  }
+
+  @Test
+  void jsonObjectNullKeyUsesTheReleasedHostContract() throws Exception {
+    var invalid = row("unused", ",");
+    invalid.setField(2, null);
+    var failure =
+        assertThrows(
+            Exception.class,
+            () -> run(false, "SELECT JSON_OBJECTAGG(json_key VALUE n) FROM src", invalid));
+    assertCause(
+        failure,
+        legacy()
+            ? "org.apache.flink.table.api.TableException"
+            : "org.apache.flink.table.api.TableRuntimeException",
+        legacy()
+            ? "The accumulator state could not be serialized."
+            : "Map views don't support null keys.");
+    invalid.setField(3, null);
+    String absent = "SELECT JSON_OBJECTAGG(json_key VALUE n ABSENT ON NULL) FROM src";
+    if (legacy()) {
+      assertEquals("{}", latest(run(false, absent, invalid)));
+    } else {
+      var absentFailure = assertThrows(Exception.class, () -> run(false, absent, invalid));
+      assertCause(
+          absentFailure,
+          "org.apache.flink.table.api.TableRuntimeException",
+          "Map views don't support null keys.");
+    }
+  }
+
+  private static boolean legacy() {
+    return org.apache.flink.runtime.util.EnvironmentInformation.getVersion().startsWith("1.18");
+  }
+
+  private static void assertCause(Throwable failure, String type, String message) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause.getClass().getName().equals(type) && message.equals(cause.getMessage())) return;
+    }
+    fail("Missing " + type + ": " + message, failure);
+  }
+
+  public static class CacheTag extends ScalarFunction {
+    public Boolean eval(String value) {
+      return value != null && !value.isEmpty() && Character.isHighSurrogate(value.charAt(0));
+    }
+  }
+
   private static Row row(String value, String separator) {
     return Row.of(value, separator, "key", 1L, true);
   }
 
-  private static List<Row> run(boolean changelog, String sql, Row... input) throws Exception {
+  static StreamTableEnvironment environment(boolean changelog, Row... input) {
+    return environment(changelog, false, input);
+  }
+
+  static StreamTableEnvironment environment(boolean changelog, boolean objectReuse, Row... input) {
     var environment = StreamExecutionEnvironment.getExecutionEnvironment();
     environment.setParallelism(1);
+    if (objectReuse) environment.getConfig().enableObjectReuse();
     var table = StreamTableEnvironment.create(environment);
     table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
     table.getConfig().set("table.exec.mini-batch.enabled", "false");
@@ -203,12 +325,21 @@ class FlinkStringAggregateHostContractTest {
         changelog
             ? table.fromChangelogStream(source, schema)
             : table.fromDataStream(source, schema));
+    return table;
+  }
+
+  private static List<Row> run(boolean changelog, String sql, Row... input) throws Exception {
+    var table = environment(changelog, input);
     var query = table.sqlQuery(sql);
     var type = query.getResolvedSchema().getColumnDataTypes().get(0).getLogicalType();
     assertEquals(LogicalTypeRoot.VARCHAR, type.getTypeRoot());
     boolean json = sql.contains("JSON_");
     assertEquals(!json, type.isNullable(), type.asSummaryString());
     assertEquals(json ? 2000 : VarCharType.MAX_LENGTH, ((VarCharType) type).getLength());
+    return collect(query);
+  }
+
+  private static List<Row> collect(Table query) throws Exception {
     List<Row> rows = new ArrayList<>();
     try (var iterator = query.execute().collect()) {
       while (iterator.hasNext()) {
