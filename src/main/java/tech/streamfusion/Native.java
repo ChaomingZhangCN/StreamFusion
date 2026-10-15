@@ -1295,9 +1295,7 @@ public final class Native {
         miniBatch,
         stateTtlMillis,
         memoryBudgetBytes,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long createGroupAggregatorWithTtlEmission(
@@ -1378,9 +1376,7 @@ public final class Native {
         nowMillis,
         snapshots,
         memoryBudgetBytes,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long restoreGroupAggregatorPartitionsWithTtlEmission(
@@ -1468,9 +1464,7 @@ public final class Native {
         keyGroupEnd,
         aligned,
         restoredPartitions,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long createRocksDBGroupAggregatorWithTtlEmission(

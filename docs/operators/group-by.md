@@ -119,6 +119,12 @@ checkpoint prefixes. Recovery metrics require consumed work in each intended
 native aggregate stage. See [release measurements](../benchmarks/basic-type-coverage.md)
 for the performance boundary and the decimal division optimization it required.
 
+Released Flink 1.18.1 suppresses unchanged mini-batch aggregate results even with
+positive state TTL, in both single-phase and global merge plans. Flink 2.2.1 emits
+those unchanged updates with TTL enabled. The native operator selects this behavior
+from the Flink compatibility line for heap, raw restore and typed RocksDB state;
+secondary input metadata does not determine the emission mode.
+
 ### LISTAGG
 
 Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, with an

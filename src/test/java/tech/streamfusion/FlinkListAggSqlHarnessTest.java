@@ -96,6 +96,29 @@ class FlinkListAggSqlHarnessTest {
     NativeParity.assertChangelogParity(environment, sql);
   }
 
+  @Test
+  void numericSinglePhaseMiniBatchKeepsItsTtlEmissionMode() throws Exception {
+    java.util.function.Supplier<org.apache.flink.table.api.TableEnvironment> environment =
+        () -> {
+          var table =
+              FlinkStringAggregateHostContractTest.environment(
+                  false,
+                  Row.of("a", ",", "key", 1L, true),
+                  Row.of("b", ",", "key", 0L, true),
+                  Row.of("c", ",", "key", 0L, true),
+                  Row.of("d", ",", "key", 0L, true));
+          table.getConfig().set("table.exec.mini-batch.enabled", "true");
+          table.getConfig().set("table.exec.mini-batch.size", "2");
+          table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
+          table.getConfig().set("table.exec.state.ttl", "1 h");
+          return table;
+        };
+    var comparison = NativeFailureParity.run(environment, "SELECT SUM(n) FROM src");
+    comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertTrue(comparison.nativeRun().plan().contains("NativeColumnarGroupAggregate"));
+    assertEquals(comparison.host().rows(), comparison.nativeRun().rows());
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({
     "hashmap,false",
