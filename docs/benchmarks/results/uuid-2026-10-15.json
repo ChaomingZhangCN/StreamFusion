@@ -1,0 +1,60 @@
+{
+  "baselineMain": "35b54e57771f92de9dfc649d8800f797b907fbd2",
+  "previousUuidBehaviorCommit": "f8af66214e447c1e86c97b26bbcccda355b906a9",
+  "fallbackReproductionBase": "3dfb0997994279a69632ffb18e0450e4e17e8eb6",
+  "os": "Darwin 25.5.0",
+  "arch": "arm64",
+  "cpu": "Apple M4 Pro",
+  "flink": "2.2.1",
+  "jdk": 17,
+  "nativeProfile": "release",
+  "rows": 2000000,
+  "parallelism": 1,
+  "warmupsPerEngine": 2,
+  "measuredTrialsPerEngine": 5,
+  "source": "bounded rowwise integer datagen",
+  "sink": "rowwise blackhole with CHAR(36) result",
+  "boundary": "submit through completed job, including startup, JNI and both row/Arrow transposes",
+  "query": "SELECT UUID() FROM source",
+  "before": {
+    "flink": [
+      0.708498,
+      0.724915,
+      0.722579,
+      0.717384,
+      0.742979
+    ],
+    "native": [
+      0.725532,
+      0.726002,
+      0.721475,
+      0.746525,
+      0.734797
+    ]
+  },
+  "after": {
+    "flink": [
+      0.737246,
+      0.742349,
+      0.729911,
+      0.737346,
+      0.733221
+    ],
+    "native": [
+      0.331619,
+      0.33409,
+      0.330558,
+      0.335433,
+      0.334725
+    ]
+  },
+  "stockOverNative": 2.206728725792451,
+  "previousFallbackOverNative": 2.173073124008501,
+  "command": "SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test -Dtest=ScalarFunctionBenchmark#individualFunctions -Dscalar.functions=UUID -Dscalar.rows=2000000 -Dscalar.warmup=2 -Dscalar.runs=5",
+  "previousControl": "Same command before admission with -Dscalar.native.expected=false. Expected fallback is asserted; current command asserts NativeCalc and both transposes. The measured control also contains an unrelated coalescer fix, which is not exercised by this stateless parallelism-1 query. Reproduce the UUID fallback on fallbackReproductionBase with the final benchmark entry and without production UUID admission.",
+  "notes": [
+    "Input is INT, so scalar.bytes and Unicode/NULL text-payload settings do not apply.",
+    "Independent UUID values are validated by separate correctness tests, not compared byte for byte.",
+    "This full-job result includes startup; it does not isolate sustained kernel throughput."
+  ]
+}

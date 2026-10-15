@@ -207,6 +207,35 @@ still retain their normal fallback rules. SQL tests cover values, schemas, excep
 volatile argument evaluation, all-filtered batches, and an IFNULL projection/filter composed
 with native Top-1.
 
+## UUID
+
+The zero-argument built-in `UUID()` runs in native Calc using DataFusion's volatile UUID v4
+batch implementation. It returns one lowercase, hyphenated UUID per evaluated row, with Flink's
+declared `CHAR(36) NOT NULL` result type. Values are independent across rows, batches and call
+sites; independent engine executions are not expected to generate equal identifiers. Empty
+inputs and all-filtered batches produce no UUID rows. Conditional expressions retain their
+selection and NULL behavior.
+
+Admission checks the resolved builtin identity and its zero-argument CHAR(36) signature.
+A registered scalar function named UUID retains its own implementation and existing scalar-UDF
+routing, including fallback for unverified signatures.
+This supports the string-returning SQL function, not a new UUID logical data type or overload.
+
+Release full-job diagnostic on Apple M4 Pro, JDK 17/Flink 2.2.1: two million rows, parallelism 1,
+two warmups and five interleaved trials per engine, bounded rowwise integer source and blackhole
+CHAR(36) sink. Native Calc and both transposes are asserted. Median times are 0.737s stock
+Flink (0.730-0.742s), 0.726s previous native-enabled fallback (0.721-0.747s), and 0.334s native
+UUID (0.331-0.335s): 2.21x versus stock and 2.17x versus fallback. Startup is included;
+this is not an isolated sustained-throughput claim. Raw trials, environment and command are in
+[`uuid-2026-10-15.json`](../benchmarks/results/uuid-2026-10-15.json). The integer input does not
+use the scalar benchmark's text-width setting. Criterion separately covers batch sizes 0/16/1024/16384.
+
+A pure `SELECT UUID()` projection is also checked after every input column is pruned, at
+1/127/1,024-row batch boundaries with 5,003 runtime rows. Direct Calc checks retain row counts
+for no-column batches and preserve each input changelog tag. Mixed CASE/COALESCE regressions
+also verify nullable results and independent values; existing string-identity COALESCE paths
+continue through released Flink evaluation inside the island, as shown in function diagnostics.
+
 ## RAND and RAND_INTEGER
 
 `RAND()`, `RAND(seed)`, `RAND_INTEGER(bound)` and `RAND_INTEGER(seed, bound)` run in Rust.
@@ -261,6 +290,10 @@ external Java types are `String`, boxed/primitive numeric and boolean values, `B
 `DECIMAL(p,s)`, and `byte[]` for `VARBINARY`/`BYTES`. Overload resolution must be unambiguous.
 Fixed-size `BINARY`, temporal UDF signatures, collections, and alternate Java conversion classes
 outside these mappings retain their existing fallback.
+
+Non-folded zero-argument scalar UDF calls retain Flink because the generic JVM bridge signature
+does not admit them. Flink can constant-fold deterministic calls before native planning. The
+separately resolved UUID builtin uses its own niladic signature.
 
 Functions implementing Flink's `SpecializedFunction` also fall back. Their implementation must
 be created with the resolved call types and Flink's code-generation context; invoking the
