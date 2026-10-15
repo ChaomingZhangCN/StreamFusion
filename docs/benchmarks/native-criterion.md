@@ -5,6 +5,11 @@ as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batc
 formatting and output allocation; fixture and schema setup remain outside timing. Full-job
 comparison uses `ScalarFunctionBenchmark#individualFunctions` with `scalar.functions=UUID`,
 which asserts native Calc and both row/Arrow transposes and retains the rowwise source and sink.
+The completeness-checked `scalar_registry` catalog also includes opcode 166 with no arguments;
+its explicit row count must produce the requested number of non-NULL UUID values. This covers
+all nine batch/null/Unicode fixture profiles without pretending UUID consumes those inputs.
+Direct Calc regressions separately cover zero-column pruning, repeated batches, empty and
+all-filtered batches, independent call sites and preserved changelog tags.
 
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise
