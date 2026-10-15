@@ -7,11 +7,11 @@ use decimal_map_order::DecimalMapOrder;
 use java_map_order::JavaMapOrder;
 #[cfg(test)]
 mod floating_tests;
-mod ordered_value;
 mod list_agg;
-use list_agg::{is_list_agg, ListAggState, StringColumn};
+mod ordered_value;
 pub(crate) use distinct::DistinctSet;
 use distinct::{DistinctColumn, DistinctValues};
+use list_agg::{is_list_agg, ListAggState, StringColumn};
 use ordered_value::{is_ordered_value, OrderedValueState};
 
 /// Java boxed comparison for retractable extrema: NaNs share one key and signed zeros differ.
@@ -488,7 +488,8 @@ impl GroupAggState {
                 *non_null += 1;
             }
             GroupAggState::Extremes { .. } => self.accumulate_extreme_key(MinMaxKey::of(value)),
-            GroupAggState::List(_) | GroupAggState::Ordered(_)
+            GroupAggState::List(_)
+            | GroupAggState::Ordered(_)
             | GroupAggState::Distinct { .. }
             | GroupAggState::DistinctRunning { .. } => {
                 unreachable!("distinct folds a scalar, not a Num")
@@ -544,7 +545,8 @@ impl GroupAggState {
                 *non_null -= 1;
             }
             GroupAggState::Extremes { .. } => self.retract_extreme_key(MinMaxKey::of(value)),
-            GroupAggState::List(_) | GroupAggState::Ordered(_)
+            GroupAggState::List(_)
+            | GroupAggState::Ordered(_)
             | GroupAggState::Distinct { .. }
             | GroupAggState::DistinctRunning { .. } => {
                 unreachable!("distinct retracts a scalar, not a Num")
@@ -1745,12 +1747,18 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 }
             })
             .collect();
-        let list_columns: Vec<_> = (0..num_agg).map(|i| {
-            is_list_agg(self.kinds[i]).then(|| (
-                StringColumn::new(batch.column(self.value_columns[i] as usize)),
-                (self.count_columns[i] >= 0).then(|| StringColumn::new(batch.column(self.count_columns[i] as usize))),
-            ))
-        }).collect();
+        let list_columns: Vec<_> = (0..num_agg)
+            .map(|i| {
+                is_list_agg(self.kinds[i]).then(|| {
+                    (
+                        StringColumn::new(batch.column(self.value_columns[i] as usize)),
+                        (self.count_columns[i] >= 0).then(|| {
+                            StringColumn::new(batch.column(self.count_columns[i] as usize))
+                        }),
+                    )
+                })
+            })
+            .collect();
         // Per aggregate, the two-phase AVG count-partial column (None = not a merge): the value
         // column is the pre-summed sum partial and the count folds from this column, not +1 per row.
         let single_count_cols: Vec<Option<&Int32Array>> = (0..num_agg)
@@ -1766,13 +1774,14 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
             .collect();
         let merge_count_cols: Vec<Option<&Int64Array>> = (0..num_agg)
             .map(|i| {
-                (self.count_columns[i] >= 0 && self.kinds[i] != 14 && !is_list_agg(self.kinds[i])).then(|| {
-                    batch
-                        .column(self.count_columns[i] as usize)
-                        .as_any()
-                        .downcast_ref::<Int64Array>()
-                        .expect("avg count partial column must be bigint")
-                })
+                (self.count_columns[i] >= 0 && self.kinds[i] != 14 && !is_list_agg(self.kinds[i]))
+                    .then(|| {
+                        batch
+                            .column(self.count_columns[i] as usize)
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .expect("avg count partial column must be bigint")
+                    })
             })
             .collect();
         // Per aggregate, the FILTER boolean column (None = unfiltered). A row folds into aggregate i
@@ -1927,7 +1936,9 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                     }
                     if let GroupAggState::List(list) = &mut state.aggs[i] {
                         let (value, separator) = list_columns[i].as_ref().expect("LISTAGG columns");
-                        let separator = separator.as_ref().map_or(Some(","), |column| column.at(row))
+                        let separator = separator
+                            .as_ref()
+                            .map_or(Some(","), |column| column.at(row))
                             .expect("validated non-null LISTAGG separator");
                         list.update(value.at(row), separator, retract);
                         continue;
@@ -2670,8 +2681,11 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 .map_or(restored_at_ms, |ts| ts.value(row));
             for i in 0..num_agg {
                 if let GroupAggState::List(list) = &mut state.aggs[i] {
-                    list.restore(ScalarValue::try_from_array(main.column(2 + 2 * i), row)
-                        .expect("LISTAGG snapshot column")).expect("LISTAGG snapshot state");
+                    list.restore(
+                        ScalarValue::try_from_array(main.column(2 + 2 * i), row)
+                            .expect("LISTAGG snapshot column"),
+                    )
+                    .expect("LISTAGG snapshot state");
                 }
                 if let GroupAggState::Ordered(ordered) = &mut state.aggs[i] {
                     ordered.restore_value(
