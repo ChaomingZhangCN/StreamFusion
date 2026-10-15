@@ -1,8 +1,8 @@
 package tech.streamfusion;
 
 /**
- * Thrown when a native call fails in a way it cannot recover from — a Rust panic caught at the JNI
- * boundary and converted here.
+ * Thrown when a native call cannot complete safely, including an invalid physical batch layout or a
+ * Rust panic caught at the JNI boundary.
  *
  * <p>Without this conversion a panic unwinds out of a native frame, which the Rust ABI turns into
  * an immediate process abort: the whole TaskManager dies, taking every other task in the process

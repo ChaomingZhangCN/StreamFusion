@@ -165,3 +165,7 @@ harness = false
 [[bench]]
 name = "over_basic_values"
 harness = false
+
+[[bench]]
+name = "coalescing"
+harness = false

@@ -5,6 +5,14 @@ fixtures built before measurement. They isolate where allocation and materializa
 inside a native island. They complement release-mode Flink comparisons; they cannot establish an
 end-to-end speedup or replace both transposes, JNI, scheduling, or host-backed I/O in those comparisons.
 
+The `coalescing` target calls production post-exchange validation, sidecar normalization and
+concatenation over nullable STRING/DECIMAL batches. It covers append-only, updating and both
+mixed physical orders at 16/1024/4096 rows and 8/256-byte strings. Fixture construction is outside
+timing; output row/column counts are checked before measurement. Allocation requests and Arrow
+buffer sharing are reported separately. `MixedUnionBenchmark` measures the complete mixed
+append/update UNION followed by GROUP BY against stock Flink, retaining both transposes and
+production IPC shuffle costs (`-Pbench`, `SF_BENCHMARK=true`, `-Dbasic.miniBatch=false`).
+
 The `scalar_registry` fixtures also exercise the production IS JSON kernel with the JDK 11
 and JDK 17 Unicode profiles, including a token suffix whose classification changed after
 Unicode 10.0. This includes the JSON recycler upcall; JVM startup remains outside measurement and the
