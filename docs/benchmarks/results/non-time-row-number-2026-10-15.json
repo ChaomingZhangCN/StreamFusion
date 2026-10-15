@@ -1,0 +1,3306 @@
+{
+  "date": "2026-10-15",
+  "issue": 363,
+  "base_commit": "7aeb0c677d929d6c1922cae451db4dadda4e2271",
+  "fallback_commit": "c81600272d4705302a150d5d51d89f69c5960bdc",
+  "fallback_note": "The later 7aeb0c67 commit adds only UNION cache tests/docs; production fallback is unchanged.",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": "17",
+    "native_build": "release+mimalloc",
+    "parallelism": 1,
+    "heap": "2 GiB",
+    "batch_rows": 1024,
+    "local_exchange": "production IPC",
+    "source": "Runtime row source, partition id modulo keys, nullable sort value every 31 rows; sort values rise/fall by source-id/keys",
+    "sink": "Flink blackhole row sink",
+    "measurement": "Complete executeSql().await(), including source/sink, both transposes, JNI, all retained state and rank-update output",
+    "warmups": 2,
+    "measured_pairs": 5,
+    "engine_order": "Alternates each trial",
+    "stock_checkpointing": "disabled",
+    "native_assertions": [
+      "NativeColumnarTopN",
+      "RowDataToArrow",
+      "ArrowToRowData",
+      "positive NativeColumnarTopN input metrics"
+    ],
+    "previous_fallback_assertion": "zero native substitutions",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12650H",
+    "task_off_heap_budget": "48 GiB for each engine via the metrics fixture; a configured budget, not reserved or allocated physical memory",
+    "metrics_lifetime": "One metrics reporter and local MiniCluster per job, closed after timing and native consumption assertion; no gauges retained across jobs. The JVM and its 2 GiB heap are shared across warmup/measured jobs.",
+    "state_backend": "Flink default heap; resident native Top-N store",
+    "idle_state_ttl_millis": 0
+  },
+  "runs": {
+    "candidate_bigint_131072": {
+      "trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.494624
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.647516
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.338724
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.916789
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.857608
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.285232
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.265175
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.929825
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.717954
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.219846
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.212241
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.810553
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.646794
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.229223
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.67373
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.860223
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.644304
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.377447
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.678386
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.775128
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.68582
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.647505
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.805476
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.792999
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.660571
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.726964
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.337634
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.839707
+        }
+      ],
+      "summary": {
+        "ascending": {
+          "Flink": {
+            "median_seconds": 0.810553,
+            "min_seconds": 0.646794,
+            "max_seconds": 0.929825,
+            "stdev_seconds": 0.1120384439587591
+          },
+          "StreamFusion": {
+            "median_seconds": 0.229223,
+            "min_seconds": 0.212241,
+            "max_seconds": 0.285232,
+            "stdev_seconds": 0.03140520003598129
+          }
+        },
+        "descending": {
+          "Flink": {
+            "median_seconds": 4.726964,
+            "min_seconds": 4.647505,
+            "max_seconds": 5.337634,
+            "stdev_seconds": 0.2849468352184319
+          },
+          "StreamFusion": {
+            "median_seconds": 1.775128,
+            "min_seconds": 1.660571,
+            "max_seconds": 1.839707,
+            "stdev_seconds": 0.07523417532943387
+          }
+        }
+      }
+    },
+    "candidate_bigint_262144": {
+      "trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 2.464113
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.762112
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.491927
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.620257
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.583886
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.400403
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.393724
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.686975
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.648561
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.407905
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.364539
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.815849
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.36585
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.425634
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 10.246252
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.639694
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.693307
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 12.81376
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.543452
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.522464
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.484905
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.665547
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.816243
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.681617
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.534506
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 9.194727
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.864034
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.707053
+        }
+      ],
+      "summary": {
+        "ascending": {
+          "Flink": {
+            "median_seconds": 1.648561,
+            "min_seconds": 1.36585,
+            "max_seconds": 1.815849,
+            "stdev_seconds": 0.16549501828967542
+          },
+          "StreamFusion": {
+            "median_seconds": 0.400403,
+            "min_seconds": 0.364539,
+            "max_seconds": 0.425634,
+            "stdev_seconds": 0.02238566328032297
+          }
+        },
+        "descending": {
+          "Flink": {
+            "median_seconds": 8.816243,
+            "min_seconds": 8.543452,
+            "max_seconds": 9.194727,
+            "stdev_seconds": 0.24630102387383618
+          },
+          "StreamFusion": {
+            "median_seconds": 3.534506,
+            "min_seconds": 3.484905,
+            "max_seconds": 3.707053,
+            "stdev_seconds": 0.10087744352678664
+          }
+        }
+      }
+    },
+    "candidate_int_131072": {
+      "trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.736202
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.494929
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.35026
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.083398
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.031205
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.20635
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.199076
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.928402
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.898962
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.214797
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.203437
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.762112
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.92228
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.245682
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.032035
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.839282
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.7512
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.769268
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.983114
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.823622
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.777763
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.118986
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 8.201157
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.8263
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.748397
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.633135
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 8.054427
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.838734
+        }
+      ],
+      "summary": {
+        "ascending": {
+          "Flink": {
+            "median_seconds": 0.92228,
+            "min_seconds": 0.762112,
+            "max_seconds": 1.031205,
+            "stdev_seconds": 0.09638837133285319
+          },
+          "StreamFusion": {
+            "median_seconds": 0.20635,
+            "min_seconds": 0.199076,
+            "max_seconds": 0.245682,
+            "stdev_seconds": 0.018689054184200977
+          }
+        },
+        "descending": {
+          "Flink": {
+            "median_seconds": 7.633135,
+            "min_seconds": 6.983114,
+            "max_seconds": 8.201157,
+            "stdev_seconds": 0.5433455420454836
+          },
+          "StreamFusion": {
+            "median_seconds": 1.823622,
+            "min_seconds": 1.748397,
+            "max_seconds": 1.838734,
+            "stdev_seconds": 0.03828662510198573
+          }
+        }
+      }
+    },
+    "previous_fallback_bigint_262144": {
+      "trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 2.428325
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.728965
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.45131
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.500339
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.582026
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.772853
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.821552
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.479065
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.731329
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.662065
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.49817
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.400172
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.350014
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.39019
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 11.349032
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.57816
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.407408
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 8.765932
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 10.431322
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 12.0778
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 11.717688
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 11.949005
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 12.319484
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 11.26368
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 7.549797
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 7.70657
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 7.450133
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 7.991732
+        }
+      ],
+      "summary": {
+        "ascending": {
+          "Flink": {
+            "median_seconds": 1.479065,
+            "min_seconds": 1.350014,
+            "max_seconds": 1.731329,
+            "stdev_seconds": 0.15229742338168423
+          },
+          "StreamFusion": {
+            "median_seconds": 1.662065,
+            "min_seconds": 1.39019,
+            "max_seconds": 1.821552,
+            "stdev_seconds": 0.18235264719630478
+          }
+        },
+        "descending": {
+          "Flink": {
+            "median_seconds": 10.431322,
+            "min_seconds": 7.450133,
+            "max_seconds": 12.319484,
+            "stdev_seconds": 2.2979442127755623
+          },
+          "StreamFusion": {
+            "median_seconds": 11.26368,
+            "min_seconds": 7.549797,
+            "max_seconds": 12.0778,
+            "stdev_seconds": 2.169623226024233
+          }
+        }
+      }
+    },
+    "previous_fallback_int_131072": {
+      "trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.686043
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.150561
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.068699
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.95992
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.96383
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.073933
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.946803
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.907433
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.851121
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.008945
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.984507
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.827612
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.785108
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.853847
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 8.743401
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 8.752388
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.552283
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.872848
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.723997
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.731863
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.972207
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.221053
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.600198
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 8.08949
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.595803
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.731535
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.718275
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.557968
+        }
+      ],
+      "summary": {
+        "ascending": {
+          "Flink": {
+            "median_seconds": 0.851121,
+            "min_seconds": 0.785108,
+            "max_seconds": 0.96383,
+            "stdev_seconds": 0.06985830493720842
+          },
+          "StreamFusion": {
+            "median_seconds": 0.984507,
+            "min_seconds": 0.853847,
+            "max_seconds": 1.073933,
+            "stdev_seconds": 0.08138458474428681
+          }
+        },
+        "descending": {
+          "Flink": {
+            "median_seconds": 6.731535,
+            "min_seconds": 6.718275,
+            "max_seconds": 7.600198,
+            "stdev_seconds": 0.3989728283978747
+          },
+          "StreamFusion": {
+            "median_seconds": 6.731863,
+            "min_seconds": 6.557968,
+            "max_seconds": 8.08949,
+            "stdev_seconds": 0.635977802450447
+          }
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Separate JVM stock controls drift; cross-run comparisons are descriptive, not isolated attribution.",
+    "Every completed warmup and measured trial is retained.",
+    "Increasing and decreasing arrivals emit different quantities of rank changes; compare engines only within the same fixture.",
+    "No timing from the initial Criterion run overlapping the docs build is used.",
+    "Native recovery is compared with uninterrupted stock; the released heap host failed an injected restore with a missing prior accumulator."
+  ],
+  "validation": {
+    "22": {
+      "tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tech.streamfusion.FlinkChangingTopNSqlHarnessTest": {
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tech.streamfusion.operator.NativeColumnarTopNOperatorTest": {
+        "tests": 21,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tech.streamfusion.FlinkOverAggregateSqlHarnessTest": {
+        "tests": 20,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "118": {
+      "tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 12
+      },
+      "tech.streamfusion.FlinkChangingTopNSqlHarnessTest": {
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tech.streamfusion.operator.NativeColumnarTopNOperatorTest": {
+        "tests": 21,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tech.streamfusion.FlinkOverAggregateSqlHarnessTest": {
+        "tests": 20,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      }
+    },
+    "rust": {
+      "release_tests": 3,
+      "failures": 0,
+      "scope": "row-identity changelog, 2048-row retained-state restore continuation, empty input and memory limit"
+    }
+  },
+  "criterion": {
+    "rows=16_keys=64_reverse=true": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7212.688447478447,
+          "upper_bound": 7615.418992858991
+        },
+        "point_estimate": 7376.320164650165,
+        "standard_error": 108.04328489033524
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7174.221245421246,
+          "upper_bound": 7425.608974358975
+        },
+        "point_estimate": 7249.60385910386,
+        "standard_error": 77.32936105620614
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 24.51905865560907,
+          "upper_bound": 321.16020342802466
+        },
+        "point_estimate": 119.30295806065989,
+        "standard_error": 81.54670896104928
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7201.115550118741,
+          "upper_bound": 7645.907882015614
+        },
+        "point_estimate": 7378.920098083734,
+        "standard_error": 114.18979757414479
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 74.92711342998432,
+          "upper_bound": 537.8542886706506
+        },
+        "point_estimate": 359.94979005720216,
+        "standard_error": 145.70575126329385
+      }
+    },
+    "rows=1024_keys=1_reverse=false": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 1128351.9429894178,
+          "upper_bound": 1196637.9314444445
+        },
+        "point_estimate": 1161111.9671560847,
+        "standard_error": 17525.205741605634
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 1111217.5625,
+          "upper_bound": 1215904.861111111
+        },
+        "point_estimate": 1136139.7407407407,
+        "standard_error": 32647.384502772067
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 1822.856667637825,
+          "upper_bound": 88781.03789604362
+        },
+        "point_estimate": 49850.852774692554,
+        "standard_error": 26302.77482007342
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 1116828.8334534534,
+          "upper_bound": 1163775.4287011807
+        },
+        "point_estimate": 1134475.9558441557,
+        "standard_error": 12052.579018972521
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 33494.73374854618,
+          "upper_bound": 70054.03515939378
+        },
+        "point_estimate": 58595.33622862998,
+        "standard_error": 9117.59231815761
+      }
+    },
+    "rows=1024_keys=1_reverse=true": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 21586936.3,
+          "upper_bound": 21923007.79
+        },
+        "point_estimate": 21758214.7,
+        "standard_error": 86351.90224447279
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 21571904.0,
+          "upper_bound": 21987825.0
+        },
+        "point_estimate": 21763651.5,
+        "standard_error": 94966.05284607282
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 35404.4873714447,
+          "upper_bound": 533590.6957268715
+        },
+        "point_estimate": 262123.6753463745,
+        "standard_error": 129904.5243485882
+      },
+      "slope": null,
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 154035.00146770393,
+          "upper_bound": 368477.9067141787
+        },
+        "point_estimate": 288727.73820948804,
+        "standard_error": 55066.62774454726
+      }
+    },
+    "rows=16_keys=1_reverse=false": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 5843.7403756329295,
+          "upper_bound": 5936.124566756272
+        },
+        "point_estimate": 5890.29141591284,
+        "standard_error": 23.624226862655238
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 5838.880525686977,
+          "upper_bound": 5939.4186379928315
+        },
+        "point_estimate": 5893.631770211072,
+        "standard_error": 31.405607361346565
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 13.60458180148102,
+          "upper_bound": 137.9241765298509
+        },
+        "point_estimate": 74.52890132917719,
+        "standard_error": 31.54872530462618
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 5831.218993453597,
+          "upper_bound": 5940.536411677365
+        },
+        "point_estimate": 5880.88100358423,
+        "standard_error": 27.34454909071445
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 39.9691175526272,
+          "upper_bound": 104.25219534571626
+        },
+        "point_estimate": 78.77679625777212,
+        "standard_error": 16.88033175395888
+      }
+    },
+    "rows=1024_keys=64_reverse=false": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 285494.54288095236,
+          "upper_bound": 303086.5731680403
+        },
+        "point_estimate": 292700.75702075707,
+        "standard_error": 4689.301586150109
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 284637.2521367521,
+          "upper_bound": 296638.07371794875
+        },
+        "point_estimate": 287074.8096153846,
+        "standard_error": 2840.2531176120233
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 707.025859755509,
+          "upper_bound": 14984.343314743915
+        },
+        "point_estimate": 6274.4343674527,
+        "standard_error": 3752.147066521135
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 287116.511891094,
+          "upper_bound": 294256.07771202235
+        },
+        "point_estimate": 290284.1618381618,
+        "standard_error": 1812.8755159038997
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 3126.5742177906463,
+          "upper_bound": 23135.076608439707
+        },
+        "point_estimate": 15586.977668531896,
+        "standard_error": 6145.432317514141
+      }
+    },
+    "rows=1024_keys=64_reverse=true": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 554729.4746428572,
+          "upper_bound": 603824.358095238
+        },
+        "point_estimate": 575183.975436508,
+        "standard_error": 12983.726147817755
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 549970.3392857143,
+          "upper_bound": 584717.0
+        },
+        "point_estimate": 565448.9523809524,
+        "standard_error": 7633.658313647394
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 3343.7262531369925,
+          "upper_bound": 41096.14631039749
+        },
+        "point_estimate": 20548.073155198745,
+        "standard_error": 11476.385924408056
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 562943.6084415584,
+          "upper_bound": 639664.8116532575
+        },
+        "point_estimate": 597918.7261595547,
+        "standard_error": 21005.670796214996
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 11445.316649585164,
+          "upper_bound": 64622.21366417702
+        },
+        "point_estimate": 43327.99483573311,
+        "standard_error": 16758.07111756807
+      }
+    },
+    "rows=16_keys=64_reverse=false": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7209.573599031008,
+          "upper_bound": 7433.026172942045
+        },
+        "point_estimate": 7313.9269041159105,
+        "standard_error": 57.56143441444907
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7178.1142118863045,
+          "upper_bound": 7441.995066445183
+        },
+        "point_estimate": 7283.941279069768,
+        "standard_error": 52.09284541666935
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 23.056843125542702,
+          "upper_bound": 325.538673910456
+        },
+        "point_estimate": 95.94081134903564,
+        "standard_error": 76.12349428213969
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 7171.348220008245,
+          "upper_bound": 7402.989691534257
+        },
+        "point_estimate": 7273.779673814557,
+        "standard_error": 58.66452989374425
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 75.56119826698325,
+          "upper_bound": 252.5472829432788
+        },
+        "point_estimate": 192.29884334336128,
+        "standard_error": 46.068984630666115
+      }
+    },
+    "rows=16_keys=1_reverse=true": {
+      "mean": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 10302.129159656502,
+          "upper_bound": 10798.219061514194
+        },
+        "point_estimate": 10526.232312478094,
+        "standard_error": 127.74946171662694
+      },
+      "median": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 10236.380520504732,
+          "upper_bound": 10843.986277602524
+        },
+        "point_estimate": 10346.200315457412,
+        "standard_error": 143.37701411756743
+      },
+      "median_abs_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 27.611378334722485,
+          "upper_bound": 604.7801233955005
+        },
+        "point_estimate": 205.4179679303901,
+        "standard_error": 145.51437757221953
+      },
+      "slope": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 10326.71210080431,
+          "upper_bound": 10773.425616453584
+        },
+        "point_estimate": 10491.173460608792,
+        "standard_error": 113.32510119482313
+      },
+      "std_dev": {
+        "confidence_interval": {
+          "confidence_level": 0.95,
+          "lower_bound": 119.16221343728778,
+          "upper_bound": 539.4892344799916
+        },
+        "point_estimate": 426.16030414361194,
+        "standard_error": 109.98279275846257
+      }
+    }
+  },
+  "initial_retained_metrics_diagnostics": {
+    "candidate-131072": {
+      "completed_trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.453823
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.664771
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.323406
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.911477
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.840828
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.278883
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.239382
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.854995
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.720273
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.21555
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.212371
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.70351
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.660047
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.2043
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.273266
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.816937
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.715345
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.790895
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.530807
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.805367
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.739747
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.373032
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.567251
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.796979
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.668119
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 4.674441
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 5.451311
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.873927
+        }
+      ],
+      "completed": true,
+      "out_of_memory": false,
+      "limitation": "Initial reporter retained metrics across all jobs in a case. Baseline exhausted its 2 GiB heap after 13 ascending jobs. These samples are retained as diagnostics and excluded from final comparisons; resource lifetimes were matched per job for all final reruns."
+    },
+    "candidate-262144": {
+      "completed_trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 2.425636
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.795791
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.61405
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.615708
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.658142
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.488684
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.364114
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.543046
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.549983
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.401264
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.365975
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.511049
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.673428
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 0.433904
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 9.718136
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.691802
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.539527
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 9.230892
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 9.343444
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.692491
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.538198
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 10.11764
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 11.321905
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.811561
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.710621
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 12.912703
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 12.772573
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 3.846933
+        }
+      ],
+      "completed": true,
+      "out_of_memory": false,
+      "limitation": "Initial reporter retained metrics across all jobs in a case. Baseline exhausted its 2 GiB heap after 13 ascending jobs. These samples are retained as diagnostics and excluded from final comparisons; resource lifetimes were matched per job for all final reruns."
+    },
+    "candidate-int-131072": {
+      "completed_trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.765043
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.556339
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.357019
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.043764
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.977944
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.26076
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.361866
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.05138
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.95644
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.231063
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.202687
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.870662
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.928212
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 0.239808
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.513427
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.806223
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.672933
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.374324
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.743779
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.813041
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.696052
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 6.766639
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.087546
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.799072
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.757038
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.144396
+        },
+        {
+          "case": "descending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 7.916303
+        },
+        {
+          "case": "descending",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 131072,
+          "keys": 1024,
+          "null_every": 31,
+          "order_type": "INT",
+          "seconds": 1.848865
+        }
+      ],
+      "completed": true,
+      "out_of_memory": false,
+      "limitation": "Initial reporter retained metrics across all jobs in a case. Baseline exhausted its 2 GiB heap after 13 ascending jobs. These samples are retained as diagnostics and excluded from final comparisons; resource lifetimes were matched per job for all final reruns."
+    },
+    "baseline-262144": {
+      "completed_trials": [
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 2.243667
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.740106
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.567262
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.514351
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.589629
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.503143
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.528174
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.738181
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.483253
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.51548
+        },
+        {
+          "case": "ascending",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.527641
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 2.001396
+        },
+        {
+          "case": "ascending",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 262144,
+          "keys": 2048,
+          "null_every": 31,
+          "order_type": "BIGINT",
+          "seconds": 1.935411
+        }
+      ],
+      "completed": false,
+      "out_of_memory": true,
+      "limitation": "Initial reporter retained metrics across all jobs in a case. Baseline exhausted its 2 GiB heap after 13 ascending jobs. These samples are retained as diagnostics and excluded from final comparisons; resource lifetimes were matched per job for all final reruns."
+    }
+  },
+  "criterion_configuration": {
+    "build": "release Rust with default allocator",
+    "samples": 10,
+    "warmup_seconds": 0.1,
+    "measurement_seconds": 0.2,
+    "boundary": "Fresh ranker and production push/output materialization; input setup and independent cardinality oracle excluded"
+  },
+  "source_sha256": {
+    "native/engine/src/topn.rs": "1bfeb998aad6495438545e14cb87e48c9af2e7d430839e624df7e6ecd8562624",
+    "native/engine/src/topn/non_time_row_number_tests.rs": "8414f98e9347018b0ae8c33509d50f62024fe05321b1ec013b55a8af7eafeab0",
+    "native/engine/src/bench.rs": "bb0f9c93bfc34bf626f22427a77555afa0a60459e0cca9755116abbca41e5b58",
+    "native/engine/benches/non_time_row_number.rs": "d9162e1a8649cf77bc9e6b5c8e1ad7a238a494151e3d4d0133106688103cc1c5",
+    "src/main/java/tech/streamfusion/planner/NonTimeRowNumberMatcher.java": "5faffdd31790f8caca89bc79db8b5a1a705dc59267c50f4aae16f7fd0447c07c",
+    "src/main/java/tech/streamfusion/planner/NativeColumnarTopNExecNode.java": "5d4b73719871a9030174193720f637528788005d2d70b2ae93a8a4fb7f4a16aa",
+    "src/main/java/tech/streamfusion/planner/StreamPhysicalNativeColumnarTopN.java": "cd95cd50aea60cff63b504053afd76995bbf7ac28494a0500906cb0c045d1b83",
+    "src/main/java/tech/streamfusion/operator/NativeColumnarTopNOperator.java": "06a268065066e82297e106541a4d1c54c0e3d1d7b6aea718470d833fd3ac18e3",
+    "src/main/java/tech/streamfusion/Native.java": "22feaebd4a82f83003f1611e2124092067aee2afe51498a60fee59e83e5129d4",
+    "src/test/java/tech/streamfusion/FlinkNonTimeRowNumberSqlHarnessTest.java": "80d16f07a83f9c32b3995ecd8d053d352db036695bf4199907203766f6cf5af5",
+    "src/test/java/tech/streamfusion/NonTimeRowNumberBenchmark.java": "2662d27aebe8cab38b01b70823853a7aebc4d03ffeea6bba66f38d9eabd373e5"
+  },
+  "native_library_sha256": "09faf91ad982338d21b63f602806a1a36f4bdb83565c75a958a68565d9c20f08",
+  "native_library_note": "Pinned release+mimalloc build contains the production row-identity emission mode. Subsequent Rust source edits expose the benchmark adapter, add test modules and format existing code; emission and state logic are unchanged.",
+  "queries": {
+    "BIGINT": "SELECT k, v, id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v ASC NULLS FIRST) AS rn FROM src",
+    "INT": "SELECT k, v, id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY CAST(v AS INT) ASC NULLS FIRST) AS rn FROM src"
+  }
+}

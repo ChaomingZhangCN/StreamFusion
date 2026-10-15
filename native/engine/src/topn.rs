@@ -3,6 +3,8 @@ use crate::*;
 mod append_top1;
 #[cfg(test)]
 mod first_bound_tests;
+#[cfg(test)]
+mod non_time_row_number_tests;
 mod retract_offset;
 
 fn sort_array(array: &ArrayRef) -> ArrayRef {
@@ -302,6 +304,7 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     limit: i64,
     rank_end_column: Option<usize>,
     first_bound: bool,
+    non_time_row_number: bool,
     invalid_top_size: u64,
     generate_update_before: bool,
     output_rank_number: bool,
@@ -607,6 +610,7 @@ impl TopNRanker {
             limit,
             rank_end_column: None,
             first_bound: false,
+            non_time_row_number: false,
             invalid_top_size: 0,
             generate_update_before: true,
             output_rank_number,
@@ -662,6 +666,13 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         self
     }
 
+    pub(crate) fn enable_non_time_row_number(&mut self) {
+        assert!(self.limit == i64::MAX && self.output_rank_number);
+        assert!(!self.net_diff && !self.first_bound && self.rank_end_column.is_none());
+        assert_eq!(self.ttl_ms, 0);
+        self.non_time_row_number = true;
+    }
+
     /// Moves this freshly built (empty, memory-backed) ranker's configuration onto another state
     /// backend; construction goes through `new` + builders first so backend choice stays
     /// orthogonal to the shape builders.
@@ -676,6 +687,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             limit: self.limit,
             rank_end_column: self.rank_end_column,
             first_bound: self.first_bound,
+            non_time_row_number: self.non_time_row_number,
             invalid_top_size: self.invalid_top_size,
             generate_update_before: self.generate_update_before,
             output_rank_number: self.output_rank_number,
@@ -897,24 +909,40 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 if ttl.enabled() {
                     refresh_sort_key_ties(buffer, pos, ttl.now());
                 }
-                // Cascade from the new row's rank to the buffer end (capped at the limit): each rank's
-                // occupant changes, so retract the old and append the new; a brand-new rank inserts.
-                let upper = (old_len + 1).min(limit); // highest 1-based rank to emit
-                for rank in (pos + 1)..=upper {
-                    let new_occupant = buffer[rank - 1].payload.clone();
-                    if rank <= old_len {
-                        if self.generate_update_before {
-                            out_rows.push(buffer[rank].payload.clone()); // old occupant, shifted down
-                            out_kinds.push(1); // -U
+                if self.non_time_row_number {
+                    // Non-time OVER updates the same row's rank, rather than replacing the
+                    // occupant of a Top-N slot. The inserted row precedes shifted-row updates.
+                    out_rows.push(buffer[pos].payload.clone());
+                    out_kinds.push(0);
+                    out_ranks.push((pos + 1) as i64);
+                    for (index, shifted) in buffer.iter().enumerate().skip(pos + 1) {
+                        out_rows.push(shifted.payload.clone());
+                        out_kinds.push(1);
+                        out_ranks.push(index as i64);
+                        out_rows.push(shifted.payload.clone());
+                        out_kinds.push(2);
+                        out_ranks.push((index + 1) as i64);
+                    }
+                } else {
+                    // Cascade from the new row's rank to the buffer end (capped at the limit): each rank's
+                    // occupant changes, so retract the old and append the new; a brand-new rank inserts.
+                    let upper = (old_len + 1).min(limit); // highest 1-based rank to emit
+                    for rank in (pos + 1)..=upper {
+                        let new_occupant = buffer[rank - 1].payload.clone();
+                        if rank <= old_len {
+                            if self.generate_update_before {
+                                out_rows.push(buffer[rank].payload.clone()); // old occupant, shifted down
+                                out_kinds.push(1); // -U
+                                out_ranks.push(rank as i64);
+                            }
+                            out_rows.push(new_occupant);
+                            out_kinds.push(2); // +U
+                            out_ranks.push(rank as i64);
+                        } else {
+                            out_rows.push(new_occupant);
+                            out_kinds.push(0); // +I a brand-new rank
                             out_ranks.push(rank as i64);
                         }
-                        out_rows.push(new_occupant);
-                        out_kinds.push(2); // +U
-                        out_ranks.push(rank as i64);
-                    } else {
-                        out_rows.push(new_occupant);
-                        out_kinds.push(0); // +I a brand-new rank
-                        out_ranks.push(rank as i64);
                     }
                 }
                 // Flink retains the whole first overflow sort group. An expiring bound may
@@ -3650,6 +3678,13 @@ pub(crate) enum TopNHandle {
 }
 
 impl TopNHandle {
+    fn enable_non_time_row_number(&mut self) {
+        match self {
+            Self::Append(ranker) => ranker.enable_non_time_row_number(),
+            _ => panic!("non-time ROW_NUMBER requires an insert-only ranker"),
+        }
+    }
+
     fn enable_first_bound(&mut self, generate_update_before: bool) {
         match self {
             Self::Append(ranker) => ranker.enable_first_bound(generate_update_before),
@@ -3777,6 +3812,13 @@ pub(crate) enum RocksTopNHandle {
 
 #[cfg(feature = "rocksdb-state")]
 impl RocksTopNHandle {
+    fn enable_non_time_row_number(&mut self) {
+        match self {
+            Self::Append(ranker) => ranker.enable_non_time_row_number(),
+            _ => panic!("non-time ROW_NUMBER requires an insert-only ranker"),
+        }
+    }
+
     pub(crate) fn cache_stats(&self) -> [i64; 4] {
         match self {
             Self::Append(r) => r.groups.decoded_cache_stats(),
@@ -4907,6 +4949,25 @@ pub extern "system" fn Java_tech_streamfusion_Native_createTopNRanker<'local>(
 }
 
 /// Enables independent first-bound state at operator initialization, before the first batch.
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_enableNonTimeRowNumber<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    persistent: jboolean,
+) {
+    crate::bridge::jni_guard(env, move |_env| {
+        if persistent != 0 {
+            #[cfg(feature = "rocksdb-state")]
+            unsafe { &mut *(handle as *mut RocksTopNHandle) }.enable_non_time_row_number();
+            #[cfg(not(feature = "rocksdb-state"))]
+            panic!("native RocksDB support is unavailable");
+        } else {
+            unsafe { &mut *(handle as *mut TopNHandle) }.enable_non_time_row_number();
+        }
+    })
+}
+
 #[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_Native_enableTopNFirstBound<'local>(
     env: JNIEnv<'local>,

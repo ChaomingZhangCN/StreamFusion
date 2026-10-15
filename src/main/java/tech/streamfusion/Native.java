@@ -2685,6 +2685,9 @@ public final class Native {
       long stateTtlMillis,
       long memoryBudgetBytes);
 
+  /** Selects row-identity changelogs for an unbounded, insert-only non-time ROW_NUMBER. */
+  public static native void enableNonTimeRowNumber(long handle, boolean persistent);
+
   /** Retains each partition's first variable bound independently of its ranked rows. */
   public static native void enableTopNFirstBound(
       long handle, boolean persistent, boolean generateUpdateBefore);
