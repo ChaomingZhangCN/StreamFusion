@@ -269,6 +269,66 @@ mod tests {
     }
 
     #[test]
+    fn caches_for_different_logical_columns_do_not_exchange_string_values() {
+        let make = |logical| {
+            let values = if logical == 0 {
+                ["?", "left"]
+            } else {
+                ["right", "?"]
+            };
+            let mut fields = vec![
+                Field::new("a", DataType::Utf8, true),
+                Field::new("b", DataType::Utf8, true),
+            ];
+            let mut columns: Vec<ArrayRef> = values
+                .iter()
+                .map(|value| Arc::new(StringArray::from(vec![*value])) as ArrayRef)
+                .collect();
+            if logical == 1 {
+                fields.push(Field::new(ROW_KIND_COLUMN, DataType::Int8, false));
+                columns.push(Arc::new(Int8Array::from(vec![2])));
+            }
+            let units: &[u16] = if logical == 0 { &[0xd800] } else { &[0xdc00] };
+            let cache = string_cache_array([Some(units)]);
+            fields.push(string_cache_field(logical, cache.data_type().clone()));
+            columns.push(cache);
+            RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap()
+        };
+        for reverse in [false, true] {
+            let mut inputs = vec![make(0), make(1)];
+            if reverse {
+                inputs.reverse();
+            }
+            let output = coalesce_batches(&inputs).unwrap();
+            assert_eq!(output.num_columns(), 5);
+            for (row, input) in inputs.iter().enumerate() {
+                for logical in 0..2 {
+                    let actual = output
+                        .column(logical)
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+                    let expected = input
+                        .column(logical)
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+                    assert_eq!(actual.value(row), expected.value(0));
+                    let cache =
+                        JavaStringCacheColumn::new(string_cache_column(&output, logical).unwrap());
+                    let expected = string_cache_column(input, logical)
+                        .and_then(|cache| JavaStringCacheColumn::new(cache).value(0));
+                    assert_eq!(cache.value(row), expected);
+                }
+            }
+            assert_eq!(
+                row_kind_column(&output).unwrap().values().as_ref(),
+                if reverse { &[2, 0] } else { &[0, 2] }
+            );
+        }
+    }
+
+    #[test]
     fn incompatible_shapes_fail_before_arrow_concat() {
         let plain = batch(vec![Some(1)], None);
         let different_type = RecordBatch::try_from_iter(vec![(

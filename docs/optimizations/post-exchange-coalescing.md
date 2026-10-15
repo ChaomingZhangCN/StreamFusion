@@ -33,6 +33,9 @@ carries a changelog; absent string caches contribute null cache entries. Logical
 may differ between producers. Existing arrays remain borrowed during normalization; only
 concatenation materializes their values, and equal physical schemas use direct concat.
 A failed merge releases exported inputs and clears the pending roots before cleanup can run again.
+The cache-alignment regression also combines two string columns whose branches cache different
+logical positions, using distinct isolated UTF-16 surrogates. Both branch orders must preserve
+the UTF-8 values, each column's original UTF-16 cache, missing cache entries and RowKinds.
 
 ## Measured
 
@@ -54,7 +57,7 @@ checks, while all four disabled-coalescing controls pass. The corrected path pas
 tests on each of Flink 2.2.1 and 1.18.1/JDK 17, including both UNION arm orders, SELECT and typed
 sink collection, multi-branch ROLLUP, different batch sizes, parallelism 1/3, local zero-copy/IPC,
 and two checkpoint restores with controlled watermarks on memory and RocksDB. Native consumed-row
-metrics, restored offsets and cleanup are asserted for the recovery cases. Four native regressions
+metrics, restored offsets and cleanup are asserted for the recovery cases. Five native regressions
 and all 24 release Criterion fixtures also pass.
 
 Complete-job measurements use Flink 2.2.1/JDK 17, release native code with mimalloc, parallelism 1,
