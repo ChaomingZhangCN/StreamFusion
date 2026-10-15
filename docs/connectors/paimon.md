@@ -912,10 +912,11 @@ Each of these declines at planning time with a reason visible in `NativePlanner.
   `BINARY`/`VARBINARY` target while `table.exec.sink.type-length-enforcer` is enabled. The stock
   sink path preserves Flink's configured fail/drop and trim/pad/error behavior.
   In both the 2.0 and released 1.0 adapters, the default `ERROR` mode stays columnar:
-  Arrow validity checks run before local merging and
-  bucket routing, preserve Flink's first offending row/column and error message, and reject null
-  values without changing primary-key or changelog semantics. Non-null batches pass without
-  materializing rows or copying their buffers.
+  the shared [columnar constraint enforcer](../operators/sink-constraints.md) runs before local
+  merging and bucket routing, preserves Flink's first offending row/column, error message and
+  valid-prefix behavior, and rejects null values without changing primary-key or changelog
+  admission. Non-null batches pass unchanged without materializing rows, taking a consumer share,
+  or copying their buffers. Other constraints and connector recovery/commit behavior are unchanged.
 - `TIMESTAMP` precision above 6 (Paimon writes INT96 there), `VARIANT`, vector, and geospatial
   types.
 - `parquet.*` keys the native writer cannot honour: bloom filters, page validation, custom

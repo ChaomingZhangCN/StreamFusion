@@ -6,6 +6,9 @@ operators](unsupported.md) for the operators with no native path at all. Togethe
 the precise answer to "why didn't my query accelerate?" — everything not called out as a gap here
 runs natively.
 
+[Sink constraints](sink-constraints.md) documents the shared columnar NOT NULL ERROR boundary and
+the connector-specific admission that remains necessary around it.
+
 ## The all-or-nothing island
 
 A query accelerates only if it forms **one fully-columnar island**: every operator but a rowwise
