@@ -207,6 +207,29 @@ still retain their normal fallback rules. SQL tests cover values, schemas, excep
 volatile argument evaluation, all-filtered batches, and an IFNULL projection/filter composed
 with native Top-1.
 
+## UUID
+
+The zero-argument built-in `UUID()` runs in native Calc using DataFusion's volatile UUID v4
+batch implementation. It returns one lowercase, hyphenated UUID per evaluated row, with Flink's
+declared `CHAR(36) NOT NULL` result type. Values are independent across rows, batches and call
+sites; independent engine executions are not expected to generate equal identifiers. Empty
+inputs and all-filtered batches produce no UUID rows. Conditional expressions retain their
+selection and NULL behavior.
+
+Admission checks the resolved builtin identity and its zero-argument CHAR(36) signature.
+A registered scalar function named UUID retains its own implementation and existing scalar-UDF
+routing, including fallback for unverified signatures.
+This supports the string-returning SQL function, not a new UUID logical data type or overload.
+
+Release full-job diagnostic on Apple M4 Pro, JDK 17/Flink 2.2.1: two million rows, parallelism 1,
+two warmups and five interleaved trials per engine, bounded rowwise integer source and blackhole
+CHAR(36) sink. Native Calc and both transposes are asserted. Median times are 0.737s stock
+Flink (0.730-0.742s), 0.726s previous native-enabled fallback (0.721-0.747s), and 0.334s native
+UUID (0.331-0.335s): 2.21x versus stock and 2.17x versus fallback. Startup is included;
+this is not an isolated sustained-throughput claim. Raw trials, environment and command are in
+[`uuid-2026-10-15.json`](../benchmarks/results/uuid-2026-10-15.json). The integer input does not
+use the scalar benchmark's text-width setting. Criterion separately covers batch sizes 0/16/1024/16384.
+
 ## RAND and RAND_INTEGER
 
 `RAND()`, `RAND(seed)`, `RAND_INTEGER(bound)` and `RAND_INTEGER(seed, bound)` run in Rust.

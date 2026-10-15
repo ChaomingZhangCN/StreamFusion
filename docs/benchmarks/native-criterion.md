@@ -1,5 +1,11 @@
 # Native Criterion suites
 
+`scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
+as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
+formatting and output allocation; fixture and schema setup remain outside timing. Full-job
+comparison uses `ScalarFunctionBenchmark#individualFunctions` with `scalar.functions=UUID`,
+which asserts native Calc and both row/Arrow transposes and retains the rowwise source and sink.
+
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise
 inside a native island. They complement release-mode Flink comparisons; they cannot establish an

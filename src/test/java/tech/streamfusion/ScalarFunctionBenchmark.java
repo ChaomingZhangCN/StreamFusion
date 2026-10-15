@@ -228,6 +228,7 @@ class ScalarFunctionBenchmark {
               "TRY_DECIMAL_NARROW", "tt_decimal", "TRY_CAST(n AS DECIMAL(20,2))", "DECIMAL(20,2)"),
           new Query("INT_TO_STRING", "integer", "CAST(n AS STRING)", "STRING"),
           new Query("RAND_LITERAL", "integer", "RAND(42)", "DOUBLE"),
+          new Query("UUID", "integer", "UUID()", "CHAR(36)"),
           new Query("RAND_DYNAMIC", "integer", "RAND(n)", "DOUBLE"),
           new Query("RAND_INTEGER_LITERAL", "integer", "RAND_INTEGER(42, 100)", "INT"),
           new Query("IFNULL_STRING", "text", "IFNULL(s, 'missing')", "STRING"),

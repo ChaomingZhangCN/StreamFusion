@@ -1207,6 +1207,20 @@ final class RexExpression {
     if (isTimestampIdentityCast(call)) {
       return emit(call.getOperands().get(0));
     }
+    if (call.getOperator()
+            == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.UUID
+        || call.getOperator()
+                instanceof org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction
+            && ((org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction)
+                    call.getOperator()).getDefinition()
+                == org.apache.flink.table.functions.BuiltInFunctionDefinitions.UUID) {
+      if (!call.getOperands().isEmpty()
+          || call.getType().getSqlTypeName() != SqlTypeName.CHAR
+          || call.getType().getPrecision() != 36) {
+        return reject("UUID requires the zero-argument CHAR(36) contract");
+      }
+      return emitBuiltinCall(call, 166);
+    }
     if (call.getOperator() == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND
         || call.getOperator()
             == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND_INTEGER) {
