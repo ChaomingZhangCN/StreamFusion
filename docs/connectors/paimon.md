@@ -1264,8 +1264,10 @@ injection. The revised local normal Maven core selection passed 394 tests, with 
 performance test skipped, including 45 recovery cases and unchanged incremental scanners.
 The unchanged global compaction-writer check also passed on both upstream Flink profiles.
 This is not a released fix or a claim that the complete upstream CI matrix has passed.
-StreamFusion continues to use its canonical released dependencies, and #318 remains open until
-a verified release can be adopted.
+StreamFusion continues to use its canonical released dependencies. Issue
+[#318](https://github.com/datafusion-contrib/StreamFusion/issues/318) is closed as not planned:
+this is an upstream recovery defect, and no StreamFusion-specific workaround will be added.
+A verified canonical release can prompt reassessment; this closure does not mean the defect is fixed.
 
 Released 1.0 code confirms that the normal Flink sink uses the same recovery commit filter:
 it recognizes a checkpoint identifier from the already published APPEND snapshot and can omit
@@ -1275,7 +1277,10 @@ Pure released-SDK probes of message rewriting found that APPEND-only commits omi
 changelogs and competing compactions can leave duplicate active rows. COMPACT-only commits
 passed the single-writer data/changelog/lost-ack cases but rejected a competing writer's stale
 file deletion. Recovery and concurrent-writer protocols still need implementation; neither
-message rewrite is used in StreamFusion.
+message rewrite is used in StreamFusion. Stock Flink lookup recovery also has safeguards
+introduced in [apache/paimon#3512](https://github.com/apache/paimon/pull/3512) and extended in
+[apache/paimon#5796](https://github.com/apache/paimon/pull/5796). Sharing the core protocol
+does not establish that every stock Flink configuration reproduces the failure.
 
 
 The same incomplete commit also has a deterministic full-compaction and lookup changelog reproducer,
@@ -1301,8 +1306,8 @@ fail the required final-changelog assertion (`batch=[20]`, `changelog=[]`, lates
 controls and both failures on JDK 11 and 17. These are failing opt-in diagnostics of the released dependency, not passing
 StreamFusion recovery coverage.
 
-[#318](https://github.com/datafusion-contrib/StreamFusion/issues/318) tracks this defect
-and the remaining CI investigation. In [run 38020828273](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38020828273/job/114121230011),
+[#318](https://github.com/datafusion-contrib/StreamFusion/issues/318) records the upstream
+defect and the decision against a StreamFusion-specific workaround. In [run 38020828273](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38020828273/job/114121230011),
 241 of 242 upstream cases passed; the unchanged full-compaction streaming test timed out
 after injected-failure recovery. The writer finished while its consumer kept waiting.
 That invocation did not retain the warehouse, so the standalone defect does not prove
@@ -1331,8 +1336,9 @@ scheduling or claiming that every concurrent native write schedule matches stock
 The timeout reflects missing committed changelog, not a slow consumer or the separate
 fetcher-retirement exception fixed in [#334](https://github.com/datafusion-contrib/StreamFusion/issues/334).
 The [captured evidence record](../benchmarks/results/paimon-lookup-split-commit-2026-10-12.json)
-links the original artifact and records these boundaries. This recovery defect remains
-open in #318; the original randomized test, SQL, assertions and deadline remain enabled.
+links the original artifact and records these boundaries. The upstream recovery defect
+remains unresolved; #318 is closed as not planned for StreamFusion. The original randomized
+test, SQL, assertions and deadline remain enabled.
 
 Run the deletion-vector opt-in diagnostic with JDK 17. **The recovery case is expected to fail on 1.0.0**
 (`expected: 20 but was: 10`); the control passes. It is separate from the regular test gate:
