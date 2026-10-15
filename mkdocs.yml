@@ -98,6 +98,7 @@ nav:
       - LIMIT: operators/limit.md
       - Event-time sort: operators/event-time-sort.md
       - Watermark assigner: operators/watermark-assigner.md
+      - Sink constraints: operators/sink-constraints.md
       - Unsupported operators: operators/unsupported.md
   - Backends:
       - backends/index.md
