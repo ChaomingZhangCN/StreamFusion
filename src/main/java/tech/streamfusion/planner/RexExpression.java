@@ -81,6 +81,8 @@ final class RexExpression {
   private static final int KIND_UDF = 17;
   // Runtime decimal rounding to text, retaining a JVM evaluator for exceptional scales.
   private static final int KIND_DECIMAL_ROUND_TEXT = 41;
+  // Proven numeric cast batches avoid an upcall; exceptional batches retain Flink's evaluator.
+  private static final int KIND_NUMERIC_CAST = 42;
   // A narrowing cast to an integer type: payload is the target integer type code (CAST_TINYINT..
   // CAST_BIGINT), one child. Built natively as a wrapping/saturating kernel matching Flink's
   // primitive
@@ -432,7 +434,7 @@ final class RexExpression {
   private boolean requiresCalcRowOrder(RexProgram program) {
     // Any JVM evaluator can throw, including independent deterministic user functions. Count
     // native failure sites too: a later-row failure must not overtake an earlier projection.
-    long[] failures = {kinds.stream().filter(kind -> kind == KIND_UDF || kind == KIND_DECIMAL_ROUND_TEXT).count()};
+    long[] failures = {kinds.stream().filter(kind -> isJvmKind(kind) && kind != KIND_ROW_UDF).count()};
     var visitor =
         new org.apache.calcite.rex.RexVisitorImpl<Void>(true) {
           @Override
@@ -458,6 +460,23 @@ final class RexExpression {
     return encoder;
   }
 
+  /**
+   * Original input columns for a complete JVM Calc; other expression trees retain native dispatch.
+   */
+  private static int[] rowCalcInputColumns(
+      int[] kinds, int[] payload, int[] childCounts, int[] projectionRoots, int conditionRoot) {
+    if (!isRowCalc(kinds)
+        || kinds.length < 2
+        || conditionRoot >= 0
+        || projectionRoots.length != 1
+        || projectionRoots[0] != 0
+        || childCounts[0] != kinds.length - 1) return null;
+    for (int i = 1; i < kinds.length; i++) {
+      if (kinds[i] != KIND_INPUT_REF || childCounts[i] != 0) return null;
+    }
+    return java.util.Arrays.copyOfRange(payload, 1, kinds.length);
+  }
+
   static boolean isRowCalc(int[] kinds) {
     return kinds.length > 0 && kinds[0] == KIND_ROW_UDF;
   }
@@ -479,6 +498,13 @@ final class RexExpression {
 
   private boolean emitCalc(Calc calc) {
     RexProgram program = calc.getProgram();
+    if (containsTemporalUdf(program)) {
+      if (!NativeConfig.temporalUdfEnabled()) {
+        return reject("temporal scalar UDFs await whole-job performance admission");
+      }
+      jvmExecutionReason = "temporal scalar UDFs require Flink's external/internal conversions";
+      return emitRowCalc(calc);
+    }
     if (NativeConfig.sharedStatefulUdfEnabled() && hasSharedStatefulUdf(program)) {
       jvmExecutionReason = "shared stateful scalar UDF requires Flink's row-major evaluation";
       return emitRowCalc(calc);
@@ -524,6 +550,30 @@ final class RexExpression {
     }
     outputNames = calc.getRowType().getFieldNames().toArray(new String[0]);
     return true;
+  }
+
+  private static boolean containsTemporalUdf(RexProgram program) {
+    return program.getCondition() != null
+            && containsTemporalUdf(program.expandLocalRef(program.getCondition()))
+        || program.getProjectList().stream()
+            .anyMatch(project -> containsTemporalUdf(program.expandLocalRef(project)));
+  }
+
+  private static boolean containsTemporalUdf(RexNode node) {
+    if (node instanceof org.apache.calcite.rex.RexFieldAccess) {
+      return containsTemporalUdf(((org.apache.calcite.rex.RexFieldAccess) node).getReferenceExpr());
+    }
+    if (!(node instanceof RexCall)) return false;
+    RexCall call = (RexCall) node;
+    return tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null
+            && (isTimestampType(call.getType())
+                || call.getOperands().stream().anyMatch(arg -> isTimestampType(arg.getType())))
+        || call.getOperands().stream().anyMatch(RexExpression::containsTemporalUdf);
+  }
+
+  private static boolean isTimestampType(RelDataType type) {
+    return type.getSqlTypeName() == SqlTypeName.TIMESTAMP
+        || type.getSqlTypeName() == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE;
   }
 
   private static boolean containsRuntimeCharset(RexProgram program) {
@@ -946,7 +996,9 @@ final class RexExpression {
   tech.streamfusion.operator.NativeUdf.Binding udfBinding() {
     return new tech.streamfusion.operator.NativeUdf.Binding(
         udfs.toArray(new tech.streamfusion.operator.NativeUdf.Descriptor[0]),
-        toIntArray(udfIdSlots));
+        toIntArray(udfIdSlots),
+        udfs.size() == 1 ? rowCalcInputColumns(kinds(), payload(), childCounts(),
+            projectionRoots(), conditionRoot()) : null);
   }
 
   /**
@@ -3218,7 +3270,11 @@ final class RexExpression {
                 function, eval, codes.stream().mapToInt(Integer::intValue).toArray(), returnCode));
     RexCall decimalRound = call == projectionRoot
         ? FlinkExpressionFunction.decimalRoundingTextCall(expression) : null;
-    add(decimalRound == null ? KIND_UDF : KIND_DECIMAL_ROUND_TEXT,
+    boolean numericCast = Boolean.TRUE.equals(legacyCastBehaviour)
+        && expression instanceof RexCall && expression.getKind() == SqlKind.CAST
+        && ((RexCall) expression).getOperands().get(0) instanceof RexInputRef
+        && isLegacyNumericCast(((RexCall) expression).getOperands().get(0).getType(), call.getType());
+    add(decimalRound != null ? KIND_DECIMAL_ROUND_TEXT : numericCast ? KIND_NUMERIC_CAST : KIND_UDF,
         longs.size(), Math.max(1, arguments.size()));
     longs.add((long) localIndex);
     longs.add((long) returnCode);
@@ -3239,7 +3295,8 @@ final class RexExpression {
   }
 
   private static boolean isJvmKind(int kind) {
-    return kind == KIND_UDF || kind == KIND_ROW_UDF || kind == KIND_DECIMAL_ROUND_TEXT;
+    return kind == KIND_UDF || kind == KIND_ROW_UDF || kind == KIND_DECIMAL_ROUND_TEXT
+        || kind == KIND_NUMERIC_CAST;
   }
 
   private RexNode hostExpressionArguments(
@@ -3289,17 +3346,25 @@ final class RexExpression {
               + resultType.getSqlTypeName()
               + ": host-exact cast requires the configured cast behavior");
     }
+    boolean floatingDecimal = resultType.getSqlTypeName() == SqlTypeName.DECIMAL
+        && (sourceType.getSqlTypeName() == SqlTypeName.FLOAT
+            || sourceType.getSqlTypeName() == SqlTypeName.REAL
+            || sourceType.getSqlTypeName() == SqlTypeName.DOUBLE);
+    boolean characterDouble = sourceType.getSqlTypeName() == SqlTypeName.CHAR
+        && resultType.getSqlTypeName() == SqlTypeName.DOUBLE;
     if (legacyCastBehaviour
-        && !((SqlTypeFamily.CHARACTER.contains(sourceType)
+        && !(floatingDecimal || characterDouble
+            || (SqlTypeFamily.CHARACTER.contains(sourceType)
                   && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
             || ((sourceType.getSqlTypeName() == SqlTypeName.DECIMAL
                     || sourceType.getSqlTypeName() == SqlTypeName.BOOLEAN)
                 && SqlTypeFamily.CHARACTER.contains(resultType)))) {
       return reject("unverified legacy host cast " + sourceType + " to " + resultType);
     }
-    if (legacyCastBehaviour && SqlTypeFamily.CHARACTER.contains(sourceType)
-        && resultType.getSqlTypeName() == SqlTypeName.DECIMAL) {
-      // SQL generation wraps failing legacy conversions; CastExecutor alone does not.
+    if (legacyCastBehaviour && (floatingDecimal || characterDouble
+        || SqlTypeFamily.CHARACTER.contains(sourceType)
+            && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)) {
+      // Generated casts retain legacy failure wrapping and borrow numeric Arrow inputs.
       return emitHostExpression(call, true);
     }
     int sourceCode = hostCastTypeCode(sourceType);
@@ -3326,6 +3391,15 @@ final class RexExpression {
     longs.add((long) localIndex);
     longs.add((long) targetCode);
     return emit(call.getOperands().get(0));
+  }
+
+  private static boolean isLegacyNumericCast(RelDataType source, RelDataType target) {
+    return target.getSqlTypeName() == SqlTypeName.DECIMAL
+            && (source.getSqlTypeName() == SqlTypeName.FLOAT
+                || source.getSqlTypeName() == SqlTypeName.REAL
+                || source.getSqlTypeName() == SqlTypeName.DOUBLE)
+        || source.getSqlTypeName() == SqlTypeName.CHAR
+            && target.getSqlTypeName() == SqlTypeName.DOUBLE;
   }
 
   /**
@@ -3655,12 +3729,13 @@ final class RexExpression {
       return rejectUdfMethod("multiple binary UDF calls may share mutable result buffers");
     }
     int returnCode = udfTypeCode(call.getType());
-    if (returnCode < 0) {
+    if (returnCode < 0 && !(rowFusion && isTimestampType(call.getType()))) {
       return rejectUdfMethod("UDF return type not native: " + call.getType().getSqlTypeName());
     }
     List<RexNode> args = call.getOperands();
     for (RexNode argument : args) {
-      if (udfTypeCode(argument.getType()) < 0) {
+      if (udfTypeCode(argument.getType()) < 0
+          && !(rowFusion && isTimestampType(argument.getType()))) {
         return rejectUdfMethod(
             "UDF argument type not native: " + argument.getType().getSqlTypeName());
       }
@@ -3671,7 +3746,11 @@ final class RexExpression {
           "UDF " + scalar.getClass().getName() + " has no single eval of arity " + args.size());
     }
     if ((resultType == SqlTypeName.DECIMAL && eval.getReturnType() != BigDecimal.class)
-        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)) {
+        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)
+        || (resultType == SqlTypeName.TIMESTAMP
+            && eval.getReturnType() != java.time.LocalDateTime.class)
+        || (resultType == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            && eval.getReturnType() != java.time.Instant.class)) {
       return rejectUdfMethod("UDF result uses an unsupported Java conversion class");
     }
     return eval;
@@ -4000,6 +4079,10 @@ final class RexExpression {
       case VARBINARY:
         argument = byte[].class;
         break;
+      case TIMESTAMP:
+        return parameter == java.time.LocalDateTime.class ? 2 : -1;
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+        return parameter == java.time.Instant.class ? 2 : -1;
       default:
         return -1;
     }

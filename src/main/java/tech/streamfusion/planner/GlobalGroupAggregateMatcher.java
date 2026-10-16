@@ -83,6 +83,10 @@ final class GlobalGroupAggregateMatcher {
         RelDataType count = width == 2 ? inputType.getFieldList().get(offset + 1).getType() : null;
         SqlTypeName partialType = partial.getSqlTypeName();
         offset += width;
+        if (kind == WindowAggregateMatcher.KIND_COUNT
+            && !LocalGroupAggregateMatcher.supportedDistinctValueType(value.getSqlTypeName())) {
+          return "global group aggregate: unsupported COUNT(DISTINCT) value type " + value;
+        }
         boolean countDistinct =
             kind == WindowAggregateMatcher.KIND_COUNT
                 && partialType == SqlTypeName.BIGINT
