@@ -890,15 +890,23 @@ FLOAT to DOUBLE before decimal conversion, rounds with the target scale, returns
 overflow, and raises NumberFormatException for NaN/infinity in both modes. Selection and empty
 filtered batches suppress conversions for rows that do not reach the projection. The conversion
 itself runs on the JVM inside the native Calc; it is not a Rust decimal conversion kernel.
-Other legacy floating/string pairs remain unverified and fall back. An unknown cast setting
-also falls back.
+The same opt-in enables CHAR to DOUBLE through a complete Flink-generated expression in legacy mode,
+including NULL on malformed
+text. Whitespace, padding, exponents, signed zero, NaN/infinity and over/underflow retain the running
+host's parser behavior. The complete mixed DECIMAL ROUND projection remains native, including its
+CHAR(8) sort-key conversion. Mixed projections use the existing whole-row JVM schedule when
+needed for Flink failure order; a runtime DECIMAL-only control verifies ROUND independently.
+VARCHAR-to-floating and CHAR-to-FLOAT legacy casts remain unverified
+and fall back. An unknown cast setting also falls back.
 
 The new numeric cast option defaults to false: standalone complete release jobs still lose to
 stock Flink after retaining both row/Arrow transposes and the JVM callback. It does not change
-`table.exec.legacy-cast-behaviour` or relax any correctness requirement. Without the opt-in the
-planner reports `legacy numeric JVM cast ... is opt-in` and retains whole-Calc fallback. Existing
-verified basic legacy pairs and default cast behavior are unaffected. See the release measurements
-for [floating DECIMAL](../benchmarks/basic-type-coverage.md#legacy-floating-decimal-casts-2026-10-16).
+`table.exec.legacy-cast-behaviour` or relax any correctness requirement. Newly admitted standalone
+shapes report `legacy numeric JVM cast ... is opt-in` and retain whole-Calc fallback without the
+option. Existing whole-Calc JVM routes, verified basic legacy pairs and default cast behavior
+are unaffected. See the release measurements
+for [floating DECIMAL](../benchmarks/basic-type-coverage.md#legacy-floating-decimal-casts-2026-10-16)
+and [CHAR to DOUBLE](../benchmarks/basic-type-coverage.md#legacy-char-to-double-casts-2026-10-16).
 
 Generated cast executors initialize with a valid value of the declared input type, including
 `CHAR`/`VARCHAR NOT NULL`. Startup does not evaluate an illegal NULL input; actual malformed

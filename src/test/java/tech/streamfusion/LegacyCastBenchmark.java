@@ -21,6 +21,15 @@ class LegacyCastBenchmark {
   }
 
   @Test
+  void legacyCharDoubleCasts() throws Exception {
+    var type = org.apache.flink.table.api.DataTypes.ROW(
+        org.apache.flink.table.api.DataTypes.FIELD("c", org.apache.flink.table.api.DataTypes.CHAR(8)));
+    BasicTypeBenchmark.run("CHAR8_DOUBLE", "SELECT CAST(c AS DOUBLE) FROM src", true, false,
+        "NativeCalc", type,
+        i -> org.apache.flink.types.Row.of(i % 7 == 0 ? null : (i % 1000) + ".125"));
+  }
+
+  @Test
   void legacyBasicCasts() throws Exception {
     for (String expression : new String[] {"CAST(s AS DECIMAL(10,2))", "CAST(b AS VARCHAR)",
         "CAST(s AS CHAR(3))", "CAST(c AS CHAR(3))", "CAST(d AS VARCHAR)"}) {

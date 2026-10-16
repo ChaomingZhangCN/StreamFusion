@@ -3293,13 +3293,15 @@ final class RexExpression {
         && (sourceType.getSqlTypeName() == SqlTypeName.FLOAT
             || sourceType.getSqlTypeName() == SqlTypeName.REAL
             || sourceType.getSqlTypeName() == SqlTypeName.DOUBLE);
-    if (legacyCastBehaviour && floatingDecimal
+    boolean characterDouble = sourceType.getSqlTypeName() == SqlTypeName.CHAR
+        && resultType.getSqlTypeName() == SqlTypeName.DOUBLE;
+    if (legacyCastBehaviour && (floatingDecimal || characterDouble)
         && !NativeConfig.legacyNumericCastsEnabled()) {
       return reject("legacy numeric JVM cast " + sourceType + " to " + resultType
           + " is opt-in: streamfusion.calc.legacyNumericCasts.enabled=true");
     }
     if (legacyCastBehaviour
-        && !(floatingDecimal
+        && !(floatingDecimal || characterDouble
             || (SqlTypeFamily.CHARACTER.contains(sourceType)
                   && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
             || ((sourceType.getSqlTypeName() == SqlTypeName.DECIMAL
@@ -3307,7 +3309,7 @@ final class RexExpression {
                 && SqlTypeFamily.CHARACTER.contains(resultType)))) {
       return reject("unverified legacy host cast " + sourceType + " to " + resultType);
     }
-    if (legacyCastBehaviour && (floatingDecimal
+    if (legacyCastBehaviour && (floatingDecimal || characterDouble
         || SqlTypeFamily.CHARACTER.contains(sourceType)
             && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)) {
       // Generated casts retain legacy failure wrapping and borrow numeric Arrow inputs.

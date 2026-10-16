@@ -89,6 +89,27 @@ The fixture explicitly enables the opt-in. `basic.legacyNumericCasts=false` and
 `basic.expectNative=false` verify the default fallback; the same harness with
 `basic.expectNative=false` also measures the unmodified baseline planner.
 
+## Legacy CHAR to DOUBLE casts (2026-10-16)
+
+The same opt-in also admits verified legacy CHAR-to-DOUBLE casts using the complete
+released Flink expression, including NULL on failed conversion. It does not extend
+VARCHAR or CHAR-to-FLOAT admission. The mixed eight-expression DECIMAL ROUND projection
+keeps its sort-key cast; an independent runtime DECIMAL control verifies ROUND without
+character conversions. JVM evaluation inside the native Calc is reported explicitly.
+
+At two million nullable CHAR(8) runtime rows, the standalone release path measured
+0.494686 seconds versus stock 0.411758. The previous planner's whole-Calc fallback
+measured 0.402268 seconds with its own stock control at 0.397853. This is a regression,
+so the default remains Flink and [#377](https://github.com/datafusion-contrib/StreamFusion/issues/377)
+tracks the remaining default-admission/performance decision. Both transposes and the
+JVM callback remain in the measurement. See the
+[raw trials](legacy-char-double-trials-2026-10-16.json).
+A final explicit-opt-in run measured 0.519314 versus stock 0.458194 seconds, again slower.
+
+Reproduce with the floating-cast command above, selecting
+`-Dtest=LegacyCastBenchmark#legacyCharDoubleCasts` instead. No performance equivalence
+is inferred from result parity or a native operator name.
+
 ## Shared aggregate diagnostics
 
 These diagnostics measure complete Flink jobs from a runtime Row source to a
