@@ -116,17 +116,29 @@ jobs:
           --output native/target/jvm-aggregate-diagnostics
           --profiler-agent "$RUNNER_TEMP/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so"
           --borrowed-string-exit
+      - name: Validate UTF-8 ownership and table-function recovery before measurements
+        run: >-
+          mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime
+          -Dnative.build.skip=true
+          '-Dtest=Utf8WriterReuseTest,FlinkTableFunctionSqlHarnessTest,StringExitOwnershipTest,TransposeOperatorsTest,ArrowWriterResetTest,IntArrayWriterOwnershipTest'
+          -Dsf.testForks=1
+          '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false'
+          "-Dsf.extraJvmArgs=-Djava.library.path=$GITHUB_WORKSPACE/native/target/release -Dstreamfusion.experimental.borrowedStringExit=true"
+          surefire:test@default-test
       - name: Measure table functions with symmetric preflight and per-job clusters
         env:
           SF_BENCHMARK: 'true'
         run: |
           sf_table_native="$GITHUB_WORKSPACE/native/target/release"
           sf_table_output="$GITHUB_WORKSPACE/native/target/jvm-aggregate-diagnostics"
-          for sf_table_case in basic wide grouped; do
+          for sf_table_case in basic wide grouped distinct wide-distinct; do
+            sf_table_text_cardinality=1
             case "$sf_table_case" in
               basic) sf_table_rows=2000000; sf_table_width=16; sf_table_shapes=split,numeric ;;
               wide) sf_table_rows=2000000; sf_table_width=256; sf_table_shapes=split ;;
               grouped) sf_table_rows=500000; sf_table_width=16; sf_table_shapes=group ;;
+              distinct) sf_table_rows=2000000; sf_table_width=16; sf_table_shapes=split; sf_table_text_cardinality=$sf_table_rows ;;
+              wide-distinct) sf_table_rows=2000000; sf_table_width=256; sf_table_shapes=split; sf_table_text_cardinality=$sf_table_rows ;;
             esac
             mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
               -Dnative.build.skip=true -Dtest=TableFunctionBenchmark -Dsf.testForks=1 \
@@ -135,9 +147,17 @@ jobs:
               "-Dsf.extraJvmArgs=-Djava.library.path=$sf_table_native -Dstreamfusion.experimental.borrowedStringExit=true -Xlog:gc*,safepoint:file=$sf_table_output/table-functions-v2-$sf_table_case-gc.log:time,uptime,level,tags" \
               "-Dtablefunc.cases=$sf_table_shapes" "-Dtablefunc.rows=$sf_table_rows" \
               "-Dtablefunc.width=$sf_table_width" -Dtablefunc.keys=65536 \
+              "-Dtablefunc.textCardinality=$sf_table_text_cardinality" \
               -Dtablefunc.warmup=2 -Dtablefunc.runs=5 \
               surefire:test@default-test > "$sf_table_output/table-functions-v2-$sf_table_case.log" 2>&1
           done
+      - name: Build then measure the native table-function revision before encoding reuse
+        run: >-
+          python3 bin/bench-jvm-previous.py --flink-line '${{ matrix.line }}'
+          --native-table-baseline 5cbd6ec2bfe9a40bba59a861abc2b30063b5bb56
+          --borrowed-string-exit
+          --worktree "$RUNNER_TEMP/streamfusion-previous-native-tables"
+          --output native/target/jvm-aggregate-diagnostics/previous-native-tables
       - name: Build then measure the actual previous fallback revision
         run: >-
           python3 bin/bench-jvm-previous.py --flink-line '${{ matrix.line }}'

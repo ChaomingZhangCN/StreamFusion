@@ -21,6 +21,9 @@ class TableFunctionBenchmark {
     int rows = Integer.getInteger("tablefunc.rows", 2_000_000);
     int keys = Integer.getInteger("tablefunc.keys", 16_384);
     int width = Integer.getInteger("tablefunc.width", 16);
+    int textCardinality = Integer.getInteger("tablefunc.textCardinality", 1);
+    assertTrue(textCardinality > 0);
+    System.out.printf("[table-function-config] text_cardinality=%d%n", textCardinality);
     int warmups = Integer.getInteger("tablefunc.warmup", 2);
     int runs = Integer.getInteger("tablefunc.runs", 5);
     boolean expectedNative =
@@ -98,7 +101,8 @@ class TableFunctionBenchmark {
             if (trial >= warmups) elapsed[engine][trial - warmups] = seconds;
             if (engine == 0 || !expectedNative)
               assertTrue(
-                  metrics.nativeOperators().isEmpty(), "fallback control executed native operators");
+                  metrics.nativeOperators().isEmpty(),
+                  "fallback control executed native operators");
             if (engine == 1 && expectedNative)
               RecoveryExecutionMetrics.assertConsumed(
                   metrics.nativeOperators(), "NativeTableFunction");
@@ -136,10 +140,16 @@ class TableFunctionBenchmark {
       table.createTemporarySystemFunction("numeric_rows", new NumericRows());
     } else {
       String payload = "é" + "x".repeat(Math.max(0, width - 1));
+      int textCardinality = Integer.getInteger("tablefunc.textCardinality", 1);
       var source =
           env.fromSequence(0, Math.max(0, rows - 1))
               .filter(i -> i < rows)
-              .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : payload + "," + payload))
+              .map(
+                  i -> {
+                    String value =
+                        textCardinality == 1 ? payload : payload + "_" + i % textCardinality;
+                    return Row.of((int) (i % keys), i % 8 == 7 ? null : value + "," + value);
+                  })
               .returns(Types.ROW_NAMED(new String[] {"k", "text_value"}, Types.INT, Types.STRING));
       table.createTemporaryView("src", source);
       table.createTemporarySystemFunction("test_split", new PortableSqlFixtures.Split());

@@ -269,3 +269,37 @@ medians are 4.793/4.863/4.415 s on 2.2 and 4.433/5.068/4.364 s on 1.18. Split, n
 cases improve, as recorded on the [operator page](../operators/unnest-correlate.md). The key
 projection change does not establish a table-function speedup; the wide case needs its own
 profiling rather than attribution from aggregate stacks.
+
+
+## Current encoding candidate and native table-function control
+
+The shared Arrow writer candidate reuses one bounded short-string encoding, motivated by separate
+wide table-function profiles rather than aggregate stacks. Its [profile evidence](results/jvm-table-repeated-encoding-profiles-2026-10-16.json)
+retains immutable `5cbd6ec2` production and the candidate with identical fixtures, source/library
+hashes, full stacks and all timing exclusions. Allocation changes do not establish throughput.
+
+The isolated workflow now adds row-distinct text at widths 16 and 256. `tablefunc.textCardinality`
+defaults to one, preserving all preceding queries/data. Setting it to the row count appends a
+row-specific suffix to each non-NULL payload; both engines use that same fixture. The ordinary
+width/cardinality workloads stay in the matrix, and neither Nexmark schemas nor queries change.
+
+For an actual previous **native** table-function runtime, the existing runner also accepts:
+
+```bash
+python3 bin/bench-jvm-previous.py --flink-line 2.2 \
+  --native-table-baseline 5cbd6ec2bfe9a40bba59a861abc2b30063b5bb56 \
+  --borrowed-string-exit --worktree /tmp/streamfusion-prior-native-tables \
+  --output native/target/prior-native-tables
+```
+
+This mode requires a full immutable commit SHA, copies only the current test fixtures, verifies
+production cleanliness, builds before measurement and checks native consumption. It retains six
+table cases, including both distinct-text widths, with each runtime's stock controls. Native
+payload reuse requires identical complete native inputs and records its checksum; differing inputs
+build the previous release. The original default remains the actual `b965b8bf` fallback control,
+with zero native operators required. Both controls run after candidate measurements in separate
+JVMs, and their own stock trials and every unfavorable range must remain visible.
+
+The native-control mode passes all six smoke cases on each Flink line, and the original fallback
+mode still passes all seven smoke shapes on 2.2. These 2k-row jobs verify the runner, not speed.
+Full isolated results for the encoding candidate remain pending; keep the PR draft.

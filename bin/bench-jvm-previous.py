@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the actual pre-JVM-function runtime with the current benchmark fixtures."""
+"""Measure an immutable previous runtime with the current benchmark fixtures."""
 import argparse
 import hashlib
 import importlib.util
@@ -31,7 +31,15 @@ def main():
     parser.add_argument("--worktree", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument(
+        "--native-table-baseline",
+        help="Measure only native table functions at this full commit SHA",
+    )
+    parser.add_argument("--borrowed-string-exit", action="store_true")
     args = parser.parse_args()
+    previous = args.native_table_baseline or PREVIOUS
+    if not re.fullmatch(r"[0-9a-f]{40}", previous):
+        parser.error("previous runtime must be an immutable full commit SHA")
     java = (
         str(Path(os.environ["JAVA_HOME"]) / "bin/java")
         if os.environ.get("JAVA_HOME")
@@ -50,20 +58,20 @@ def main():
             "worktree must be a new path; existing checkouts are never replaced"
         )
     if subprocess.run(
-        ["git", "cat-file", "-e", PREVIOUS], cwd=ROOT, capture_output=True
+        ["git", "cat-file", "-e", previous], cwd=ROOT, capture_output=True
     ).returncode:
         subprocess.run(
             [
                 "git",
                 "fetch",
                 "https://github.com/datafusion-contrib/StreamFusion.git",
-                PREVIOUS,
+                previous,
             ],
             cwd=ROOT,
             check=True,
         )
     subprocess.run(
-        ["git", "worktree", "add", "--detach", str(args.worktree), PREVIOUS],
+        ["git", "worktree", "add", "--detach", str(args.worktree), previous],
         cwd=ROOT,
         check=True,
     )
@@ -75,7 +83,7 @@ def main():
         ".cargo",
         ":(glob)rust-toolchain*",
     ]
-    same_native = not git("diff", PREVIOUS, "HEAD", "--", *inputs)
+    same_native = not git("diff", previous, "HEAD", "--", *inputs)
     native = args.worktree / "native/target/release"
     library_name = (
         "libstreamfusion.dylib"
@@ -95,7 +103,7 @@ def main():
     profile = "bench" + (",flink-1.18" if args.flink_line == "1.18" else "")
     base = ["mvn", "-B", "-ntp", "-P" + profile, "-pl", "streamfusion-runtime"]
     report = dict(
-        runtime_revision=PREVIOUS,
+        runtime_revision=previous,
         fixture_revision=git("rev-parse", "HEAD"),
         flink_line=args.flink_line,
         java=version,
@@ -111,7 +119,12 @@ def main():
             heap="2 GiB",
             parallelism=1,
             production_ipc=True,
-            previous_runtime="whole-query fallback, zero native operators",
+            previous_runtime=(
+                "native table functions"
+                if args.native_table_baseline
+                else "whole-query fallback, zero native operators"
+            ),
+            borrowed_string_exit=args.borrowed_string_exit,
         ),
         measurements=[],
         admitted=False,
@@ -165,7 +178,7 @@ def main():
         output=args.output,
         profile=profile,
         capacity=0,
-        borrowed_string_exit=False,
+        borrowed_string_exit=args.borrowed_string_exit,
         prefix_chars=16,
         rows=2000 if args.smoke else 2000000,
         warmup=1 if args.smoke else 2,
@@ -174,7 +187,7 @@ def main():
     report["configuration"].update(
         rows=settings.rows, warmup_pairs=settings.warmup, pairs=settings.runs
     )
-    for kind in ["int", "bigint", "string"]:
+    for kind in [] if args.native_table_baseline else ["int", "bigint", "string"]:
         for keys in [16] if args.smoke else [16, 65536, settings.rows]:
             label = f"{kind}-{keys}"
             command = aggregate.command(settings, label, kind, keys)
@@ -197,11 +210,17 @@ def main():
                 for item in summaries
             ]
             output.write_text(json.dumps(report, indent=2) + "\n")
-    for label, shape, rows, width in [
-        ("basic", "split,numeric", settings.rows, 16),
-        ("wide", "split", settings.rows, 256),
-        ("grouped", "group", min(settings.rows, 500000), 16),
-    ]:
+    table_cases = [
+        ("basic", "split,numeric", settings.rows, 16, 1),
+        ("wide", "split", settings.rows, 256, 1),
+        ("grouped", "group", min(settings.rows, 500000), 16, 1),
+    ]
+    if args.native_table_baseline:
+        table_cases += [
+            ("distinct", "split", settings.rows, 16, settings.rows),
+            ("wide-distinct", "split", settings.rows, 256, settings.rows),
+        ]
+    for label, shape, rows, width, text_cardinality in table_cases:
         run(
             "table-" + label,
             base
@@ -211,11 +230,13 @@ def main():
                 "-Dsf.testForks=1",
                 "-Dnative.resource.directory=" + str(native),
                 "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
-                f"-Dsf.extraJvmArgs=-Djava.library.path={native} -Xlog:gc*,safepoint:file={args.output}/table-{label}-gc.log:time,uptime,level,tags",
-                "-Dtablefunc.expectNative=false",
+                f"-Dsf.extraJvmArgs=-Djava.library.path={native} -Dstreamfusion.experimental.borrowedStringExit={str(args.borrowed_string_exit).lower()} -Xlog:gc*,safepoint:file={args.output}/table-{label}-gc.log:time,uptime,level,tags",
+                "-Dtablefunc.expectNative="
+                + str(bool(args.native_table_baseline)).lower(),
                 "-Dtablefunc.cases=" + shape,
                 f"-Dtablefunc.rows={rows}",
                 f"-Dtablefunc.width={width}",
+                f"-Dtablefunc.textCardinality={text_cardinality}",
                 "-Dtablefunc.keys=65536",
                 f"-Dtablefunc.warmup={settings.warmup}",
                 f"-Dtablefunc.runs={settings.runs}",
@@ -240,6 +261,7 @@ def main():
                     shape=name,
                     rows=rows,
                     width=width,
+                    text_cardinality=text_cardinality,
                     keys=65536,
                     stock_seconds=stock,
                     previous_seconds=previous,
@@ -247,7 +269,7 @@ def main():
             )
         output.write_text(json.dumps(report, indent=2) + "\n")
     print(
-        "Previous runtime complete; raw native_seconds fields mean fallback execution, not acceleration.",
+        "Previous runtime complete; raw native_seconds fields describe the recorded previous runtime.",
         flush=True,
     )
 

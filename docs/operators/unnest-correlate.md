@@ -126,6 +126,17 @@ run in separate JVMs; their own stock trials and all ranges are retained. The wi
 remains unresolved, especially on 1.18. The borrowed exit stays default off; the aggregate
 key-projection change is not a causal explanation for table-function timings.
 
+The next draft candidate reuses one short lazy Java String's UTF-8 encoding in the shared Arrow
+writer, with bounded retention and cold-workload bypass. It retains normal output ownership and
+Flink conversion. [Matched profile evidence](../benchmarks/results/jvm-table-repeated-encoding-profiles-2026-10-16.json)
+reduces sampled table-function allocations by 34%/32% on 1.18/2.2; all profile timings are excluded.
+The [encoding technique](../optimizations/string-copy-reduction.md#repeated-lazy-string-encodings)
+describes the bounds. Forty-one focused checks pass on each line, including table-function
+recovery, mutable rows, UTF-8/null handling, array cells and writer reset. Default portable/JSON
+regressions pass 73 on 2.2 and 71 with two existing skips on 1.18. Isolated whole-job stock and
+previous-native-runtime comparisons, including distinct text, remain required before this draft
+candidate ships. The earlier wide-output regression remains unresolved until those results exist.
+
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
 all RowKinds, lifecycle errors, repeated/zero-column projection, numeric consumers and a
