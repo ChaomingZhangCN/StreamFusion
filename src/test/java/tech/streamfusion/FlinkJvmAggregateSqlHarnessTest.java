@@ -77,6 +77,107 @@ class FlinkJvmAggregateSqlHarnessTest {
   }
 
   @ParameterizedTest
+  @CsvSource({"3,1", "3,3", "64,1", "64,3"})
+  void stringKeysKeepOwnedUnicodeNullAndEmptyKeys(int keys, int parallelism) throws Exception {
+    var rows = stringRows(keys);
+    try (var metrics = new RecoveryExecutionMetrics()) {
+      var comparison =
+          NativeFailureParity.run(
+              () -> {
+                var env = metrics.environment(new Configuration(), parallelism, 0);
+                var table = StreamTableEnvironment.create(env);
+                table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+                table.getConfig().set("streamfusion.transpose.batchRows", "5");
+                var input =
+                    tech.streamfusion.compat.FlinkTestSources.fromData(
+                        env,
+                        Types.ROW_NAMED(new String[] {"k", "v"}, Types.STRING, Types.LONG),
+                        rows.toArray(new Row[0]));
+                table.createTemporaryView(
+                    "string_input", table.fromChangelogStream(input, stringSchema()));
+                return registerDataViews(table);
+              },
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM string_input GROUP BY"
+                  + " k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
+      assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
+      RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
+      if (Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0) > 0)
+        assertTrue(
+            metrics.counterValue("jvmAccumulatorCacheHits")
+                    + metrics.counterValue("jvmAccumulatorCacheBypasses")
+                > 0);
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "hashmap,3",
+    "hashmap,64",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,3",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,64"
+  })
+  void stringKeysAndDataViewsRestoreAfterReuseAndBypass(String backend, int keys) throws Exception {
+    try (var recovery =
+        new PortableSqlRecovery(
+                backend,
+                stringRows(keys),
+                Types.ROW_NAMED(new String[] {"k", "v"}, Types.STRING, Types.LONG),
+                stringSchema(),
+                true,
+                16,
+                32)
+            .withExecutionMetrics()) {
+      var comparison =
+          NativeFailureParity.runRecovery(
+              () -> registerDataViews(recovery.uninterrupted()),
+              () -> registerDataViews(recovery.get()),
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM recovery_input GROUP"
+                  + " BY k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeJvmGroup");
+      SharedFlinkCluster.assertNativeMemoryReleased("jvm-string-aggregate-recovery");
+    }
+  }
+
+  private static Schema stringSchema() {
+    return Schema.newBuilder()
+        .column("k", DataTypes.STRING())
+        .column("v", DataTypes.BIGINT())
+        .build();
+  }
+
+  private static java.util.List<Row> stringRows(int keys) {
+    var rows = new ArrayList<Row>();
+    for (int cycle = 0; cycle < 2; cycle++) {
+      for (int phase = 0; phase < 7; phase++) {
+        for (int i = 0; i < keys; i++) {
+          String key = i == 0 ? null : i == 1 ? "" : "é🙂".repeat(128) + "\u0000" + i;
+          RowKind kind =
+              new RowKind[] {
+                    RowKind.INSERT,
+                    RowKind.INSERT,
+                    RowKind.UPDATE_BEFORE,
+                    RowKind.UPDATE_AFTER,
+                    RowKind.DELETE,
+                    RowKind.DELETE,
+                    RowKind.INSERT
+                  }
+                  [phase];
+          Long value =
+              phase == 1 || phase == 5
+                  ? null
+                  : phase == 3 || phase == 4 ? 20L : phase == 6 ? 30L : 10L;
+          rows.add(Row.ofKind(kind, key, value));
+        }
+      }
+    }
+    return rows;
+  }
+
+  @ParameterizedTest
   @CsvSource({
     "hashmap,false",
     "hashmap,true",

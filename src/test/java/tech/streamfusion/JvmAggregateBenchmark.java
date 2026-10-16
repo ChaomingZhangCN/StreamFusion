@@ -26,9 +26,7 @@ class JvmAggregateBenchmark {
     String keyType = System.getProperty("jvmagg.keyType", "int");
     int prefixChars = Integer.getInteger("jvmagg.keyPrefixChars", 16);
     String prefix = prefixChars <= 0 ? "" : "é" + "x".repeat(prefixChars - 1);
-    boolean expectedCache =
-        Boolean.parseBoolean(
-            System.getProperty("jvmagg.expectCache", keyType.equals("string") ? "false" : "true"));
+    boolean expectedCache = Boolean.parseBoolean(System.getProperty("jvmagg.expectCache", "true"));
     boolean expectedUdf = Boolean.parseBoolean(System.getProperty("jvmagg.expectNative", "false"));
     for (String shape : System.getProperty("jvmagg.cases", "udaf,builtin").split(",")) {
       boolean udf = shape.equals("udaf");

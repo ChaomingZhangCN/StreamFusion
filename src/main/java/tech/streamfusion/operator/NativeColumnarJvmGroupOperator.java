@@ -12,6 +12,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.keyselector.RowDataKeySelector;
 import org.apache.flink.table.runtime.operators.aggregate.GroupAggFunction;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Collector;
@@ -31,7 +32,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
   private final RowDataKeySelector keySelector;
   private final int batchRows;
   private final int cacheEntries;
-  private final int keyWidth;
+  private final LogicalTypeRoot keyType;
   private final int keyColumn;
   private transient JvmAccumulatorCache accumulatorCache;
   private transient KeyedProcessFunction<RowData, RowData, RowData>.Context context;
@@ -50,7 +51,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
       RowDataKeySelector keySelector,
       int batchRows,
       int cacheEntries,
-      int keyWidth,
+      LogicalTypeRoot keyType,
       int keyColumn) {
     this.inputType = inputType;
     this.outputType = outputType;
@@ -58,7 +59,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
     this.keySelector = keySelector;
     this.batchRows = batchRows;
     this.cacheEntries = cacheEntries;
-    this.keyWidth = keyWidth;
+    this.keyType = keyType;
     this.keyColumn = keyColumn;
   }
 
@@ -101,11 +102,11 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
           }
         };
     var runtime = getRuntimeContext();
-    if (cacheEntries > 0 && keyWidth != 0) {
+    if (cacheEntries > 0 && keyType != null) {
       accumulatorCache =
           new JvmAccumulatorCache(
               cacheEntries,
-              keyWidth == 32,
+              keyType,
               this::getCurrentKey,
               this::setCurrentKey,
               getMetricGroup().counter("jvmAccumulatorCacheHits"),

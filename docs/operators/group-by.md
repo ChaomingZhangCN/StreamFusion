@@ -512,12 +512,14 @@ Arrow-batch input/output operator. It preserves each emitted changelog row; inpu
 does not reduce user function invocations or intermediate results. The operator disable switch
 `streamfusion.operator.jvmGroupAggregate.enabled=false` retains whole-island fallback.
 
-The opt-in harness passes 31 checks on each released Flink line with JDK 17, at both
+The opt-in harness passes 39 checks on each released Flink line with JDK 17, at both
 65,536-entry and three-entry capacities. Coverage includes the original STRING-key append/CDC
 fixtures, numeric boundary/NULL keys at parallelism one and three, nonleading grouping-field
 selection confirmed in the optimized plan, all RowKinds and delete/reinsert, and mixed
 ListView/UDAF/COUNT aggregation. Twelve memory/native-RocksDB repeated-recovery scenarios per
-line assert two forced restores, consumed native work and released native memory. Lifecycle
+line assert two forced restores, consumed native work and released native memory. Eight further
+checks cover STRING-key NULL/empty/long Unicode ownership, all RowKinds, delete/reinsert,
+ListViews, parallelism one/three and repeated recovery with both backends. Lifecycle
 failures and excluded-mode fallback are checked; the released host's processing-time mini-batch
 control compares known final results and schema because intermediate batches may differ.
 A further two mixed-UDAF/ListView checkpoint-rescale scenarios per line and capacity pass
@@ -543,14 +545,18 @@ prototype. Two-phase merge/reset, OVER functions, nested scalar results and broa
 function types remain separate work in #237. This experiment does not claim those contracts.
 
 `streamfusion.experimental.jvmAccumulatorCacheEntries` defaults to zero. A positive value
-stages accumulators for a single INT or BIGINT grouping key in an entry-bounded heap cache.
+stages accumulators for a single INT, BIGINT or VARCHAR grouping key in an entry-bounded heap cache.
 NULL has a separate entry, and full-width primitive keys preserve minimum/maximum values.
 Updates flush to Flink managed state at capacity, before watermarks, completion and checkpoint
 snapshots. Snapshot boundaries invalidate borrowed accumulator views before subsequent
 mutation; restore starts with an empty cache. Flushing restores the operator's previous key
 context and ignores an empty cache on idle subtasks. Other key shapes use managed state directly.
-Cache hits also reuse their immutable, owned Flink BinaryRow key: the borrowed input's numeric
-field probes the cache before key construction. Misses use the released selector's owned copy.
+Cache hits also reuse their immutable, owned Flink BinaryRow key: the input grouping field
+probes a primitive or StringData map before key construction. STRING probes still materialize
+the released reader's StringData; they do not claim zero-copy input. Retained StringData keys
+refer only to owned BinaryRow storage, never to the closing Arrow batch. A STRING hit passes
+the selected entry to the state read without constructing a second string view. Misses use
+the released selector's owned copy.
 The key field comes from the optimized input projection, rather than the original source schema.
 If an additional key arrives after the cache fills without any hit, pending rows first flush
 to managed state and the cache is bypassed for the rest of that task attempt. Reads, writes
@@ -594,12 +600,45 @@ See the [probe technique](../optimizations/borrowed-key-probes.md#experimental-j
 
 [All diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
 retain the variability, GC observations and interference records. There is no default admission:
-Clean Flink1.18 release comparisons, broader key/accumulator contracts and representative
-preceding-fallback comparisons remain outstanding. An additional cold-key bypass run measured
+Broader key/accumulator contracts and representative preceding-fallback comparisons remain
+outstanding. The isolated results below now cover both Flink lines. An additional cold-key bypass run measured
 1.770 s native versus 1.769 s stock but overlapped another build, so it is diagnostic only.
 [Isolated release diagnostics](../benchmarks/jvm-aggregates.md) build and finish correctness
 checks before measuring typed key/cardinality cases and collecting Java/Rust profiles on
 separate GitHub runners. Stock Flink remains the default.
+
+### Isolated typed-key results (2026-10-16)
+
+The first isolated run completed all nine cases and four Java/Rust profiles on each Flink
+line. It measures the numeric-cache/cold-bypass implementation before the STRING-cache
+experiment. On the four-CPU GitHub hosts, medium numeric keys win on both lines; STRING
+low/medium keys regress, and distinct-key ranges are broad. All medians below are seconds
+for the same 2M-row complete-job boundary described above.
+
+| Key / cardinality | Stock 2.2 | Native 2.2 | Stock 1.18 | Native 1.18 |
+| --- | ---: | ---: | ---: | ---: |
+| INT / 16 | 1.028 | 0.889 | 1.015 | 0.890 |
+| INT / 65536 | 1.306 | 1.006 | 1.386 | 0.997 |
+| INT / 2000000 | 3.022 | 3.188 | 2.740 | 2.911 |
+| BIGINT / 16 | 0.980 | 0.910 | 0.980 | 0.834 |
+| BIGINT / 65536 | 1.371 | 1.004 | 1.386 | 1.000 |
+| BIGINT / 2000000 | 3.759 | 2.974 | 3.336 | 2.836 |
+| STRING / 16 | 1.238 | 1.421 | 1.248 | 1.299 |
+| STRING / 65536 | 1.693 | 1.970 | 1.746 | 1.932 |
+| STRING / 2000000 | 3.574 | 3.660 | 3.311 | 3.610 |
+
+[All trials, ranges, logs and compressed Java/Rust stacks](../benchmarks/results/jvm-aggregates-isolated-2026-10-16.json)
+are retained, including every regression. For example, the 2.2 INT-distinct stock range is
+2.731–4.081 s and native is 2.619–4.533 s; a median alone does not establish a stable effect.
+Medium STRING profiles attribute 1.87 GB (2.2) and 1.81 GB (1.18) of sampled allocations
+under JVM aggregate ingest to the released key selector. Inclusive totals overlap downstream
+copying; they are sampled bytes, not copied-byte counts. Rust CPU stacks are retained from
+the builtin-SUM control, while the UDAF itself executes released generated Java.
+
+These profiles motivated the experimental STRING owned-key cache described above. Its
+39-case semantic suite passes both lines at both capacities; the full 46-case rescale/recovery
+selection also passes at capacity three. Its throughput remains unproven pending the next
+isolated run. The feature and cache remain default off, the PR remains draft and #237 stays open.
 
 ## Still falls back
 

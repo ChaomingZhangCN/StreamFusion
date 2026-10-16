@@ -10,7 +10,7 @@ retains all local comparisons and profiles, including regressions and runs with 
 Shared-workspace builds repeatedly overlapped local trials. The JVM aggregate diagnostics
 workflow gives each released Flink line its own GitHub-hosted Ubuntu runner and JDK 17.
 Release compilation finishes first, followed by the focused correctness/recovery suite at
-65,536-entry and three-entry capacities, including checkpoint rescaling. Only then does `bin/bench-jvm-aggregates.py` run
+65,536-entry and three-entry capacities, including checkpoint rescaling and actual canonical-savepoint restores. Only then does `bin/bench-jvm-aggregates.py` run
 complete jobs; it never overlaps its build or correctness checks with measurements.
 
 The workflow runs on relevant pull-request changes, and can be dispatched once available on
@@ -19,6 +19,10 @@ execution and retained evidence; it is not a throughput threshold or admission d
 Running diagnostic jobs are preserved across later pushes; results identify their exact source
 commit. Newer runs queue rather than cancel an expensive build or measurement halfway through.
 Test/documentation-only changes can reuse evidence when the measured code and fixtures match.
+The Rust cache now saves compiled dependencies for canonical-repository branches,
+so repeated diagnostics can reuse release compilation; Cargo still validates changed inputs.
+The initial run had no Rust cache hit and saved none because PR saves were disabled. Cache
+restoration and compilation both finish before correctness and timed execution.
 
 Each query is `SELECT k, test_aggregate(v) FROM src GROUP BY k`, using the existing portable
 SUM UDAF. Typed runtime inputs cover INT, BIGINT and STRING grouping keys, at 16, 65,536 and
@@ -36,8 +40,9 @@ must contain the JVM aggregate and both transposes, with positive consumed-row m
 Cache counters distinguish a retained hot working set from a cold-fill bypass.
 
 The runner retains all trials, ranges, complete logs, GC/safepoint logs, commands, source
-commit, native-library checksum, JDK and host metadata. INT/BIGINT caches are measured with
-the diagnostic flag; STRING currently uses the uncached wrapper. A slower case remains
+commit, native-library checksum, JDK and host metadata. INT/BIGINT/STRING caches are measured
+with the diagnostic flag. The initial isolated baseline used uncached STRING keys; the subsequent
+STRING-cache experiment requires both hot-hit and cold-bypass counters. A slower case remains
 visible and does not become accelerated merely because the workflow passed.
 
 ## Profiling
@@ -68,3 +73,13 @@ The runner pins the release resource/library directory and rejects missing typed
 which prevents stale test classes from silently measuring a different fixture. Supply
 `--profiler-agent "$SF_ASYNC_PROFILER_DIR/lib/libasyncProfiler.so"` to collect profiles.
 Use an otherwise idle machine and retain observations when concurrent work occurs.
+
+
+## First isolated baseline
+
+[The completed 2026-10-16 matrix](results/jvm-aggregates-isolated-2026-10-16.json) retains all
+18 unprofiled cases and eight separate mixed CPU/allocation profiles from both released Flink
+lines. It predates the STRING cache experiment. Medium numeric keys improve, STRING low/medium
+keys regress, and distinct-key ranges remain broad. Profiles motivate STRING key reuse;
+they do not establish candidate speed or default admission. Compressed per-case logs and full
+CPU/allocation stacks are checked in before the workflow artifacts expire.

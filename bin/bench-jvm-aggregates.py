@@ -93,7 +93,7 @@ def command(args, label, key_type, keys, profile=False):
         "-Djvmagg.cases=" + ("udaf,builtin" if profile else "udaf"),
         f"-Djvmagg.keyType={key_type}",
         f"-Djvmagg.keyPrefixChars={args.prefix_chars}",
-        f"-Djvmagg.expectCache={'false' if key_type == 'string' else 'true'}",
+        "-Djvmagg.expectCache=true",
         f"-Djvmagg.rows={min(args.rows, 1000000) if profile else args.rows}",
         f"-Djvmagg.keys={keys}",
         f"-Djvmagg.warmup={args.warmup}",

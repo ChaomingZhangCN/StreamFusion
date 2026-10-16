@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.flink.api.common.functions.RuntimeContext;
@@ -13,12 +15,15 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.shaded.netty4.io.netty.util.collection.LongObjectHashMap;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.keyselector.RowDataKeySelector;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 
 /** Bounded accumulator views, flushed into managed state before checkpoint snapshots. */
 final class JvmAccumulatorCache {
   private final int capacity;
   private final boolean intKey;
+  private final boolean stringKey;
   private final Supplier<Object> currentKey;
   private final Counter hits;
   private final Counter bypasses;
@@ -27,13 +32,14 @@ final class JvmAccumulatorCache {
 
   JvmAccumulatorCache(
       int capacity,
-      boolean intKey,
+      LogicalTypeRoot keyType,
       Supplier<Object> currentKey,
       Consumer<Object> selectKey,
       Counter hits,
       Counter bypasses) {
     this.capacity = capacity;
-    this.intKey = intKey;
+    this.intKey = keyType == LogicalTypeRoot.INTEGER;
+    this.stringKey = keyType == LogicalTypeRoot.VARCHAR;
     this.currentKey = currentKey;
     this.hits = hits;
     this.bypasses = bypasses;
@@ -105,6 +111,8 @@ final class JvmAccumulatorCache {
   private final class CachedState implements ValueState<RowData> {
     private final ValueState<RowData> delegate;
     private final LongObjectHashMap<Entry> values = new LongObjectHashMap<>();
+    private final Map<StringData, Entry> stringValues = new HashMap<>();
+    private Entry probedEntry;
     private Entry nullEntry;
     private RowData lastKey;
     private Entry lastEntry;
@@ -120,7 +128,10 @@ final class JvmAccumulatorCache {
       Entry entry =
           input.isNullAt(field)
               ? nullEntry
-              : values.get(intKey ? input.getInt(field) : input.getLong(field));
+              : stringKey
+                  ? stringValues.get(input.getString(field))
+                  : values.get(intKey ? input.getInt(field) : input.getLong(field));
+      if (stringKey) probedEntry = entry;
       return entry == null ? null : entry.key;
     }
 
@@ -128,8 +139,12 @@ final class JvmAccumulatorCache {
       return intKey ? key.getInt(0) : key.getLong(0);
     }
 
+    private int size() {
+      return stringKey ? stringValues.size() : values.size();
+    }
+
     private boolean makeRoom() throws IOException {
-      if (values.size() + (nullEntry == null ? 0 : 1) >= capacity) {
+      if (size() + (nullEntry == null ? 0 : 1) >= capacity) {
         boolean unused = !hitSinceClear;
         flush();
         invalidate();
@@ -142,10 +157,10 @@ final class JvmAccumulatorCache {
     }
 
     private void flush() throws IOException {
-      if (values.isEmpty() && nullEntry == null) return;
+      if (size() == 0 && nullEntry == null) return;
       Object original = currentKey.get();
       try {
-        for (Entry entry : values.values()) flush(entry);
+        for (Entry entry : stringKey ? stringValues.values() : values.values()) flush(entry);
         if (nullEntry != null) flush(nullEntry);
       } finally {
         if (original != null) selectKey.accept(original);
@@ -161,6 +176,7 @@ final class JvmAccumulatorCache {
 
     private void put(RowData key, Entry entry) {
       if (key.isNullAt(0)) nullEntry = entry;
+      else if (stringKey) stringValues.put(key.getString(0), entry);
       else values.put(keyValue(key), entry);
     }
 
@@ -168,7 +184,12 @@ final class JvmAccumulatorCache {
     public RowData value() throws IOException {
       if (!enabled) return delegate.value();
       RowData key = (RowData) currentKey.get();
-      Entry entry = key.isNullAt(0) ? nullEntry : values.get(keyValue(key));
+      Entry entry =
+          probedEntry != null && probedEntry.key == key
+              ? probedEntry
+              : key.isNullAt(0)
+                  ? nullEntry
+                  : stringKey ? stringValues.get(key.getString(0)) : values.get(keyValue(key));
       if (entry == null) {
         if (!makeRoom()) return delegate.value();
         entry = new Entry(key, delegate.value());
@@ -208,14 +229,18 @@ final class JvmAccumulatorCache {
       if (!enabled) return;
       RowData key = (RowData) currentKey.get();
       if (key.isNullAt(0)) nullEntry = null;
+      else if (stringKey) stringValues.remove(key.getString(0));
       else values.remove(keyValue(key));
       lastKey = null;
       lastEntry = null;
-      if (values.isEmpty() && nullEntry == null) hitSinceClear = false;
+      probedEntry = null;
+      if (size() == 0 && nullEntry == null) hitSinceClear = false;
     }
 
     private void invalidate() {
       values.clear();
+      stringValues.clear();
+      probedEntry = null;
       hitSinceClear = false;
       nullEntry = null;
       lastKey = null;

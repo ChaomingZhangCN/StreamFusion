@@ -98,19 +98,7 @@ public final class NativeJvmGroupExecNode extends ExecNodeBase<ArrowBatch>
     var selector =
         KeySelectorUtil.getRowDataSelector(
             planner.getFlinkContext().getClassLoader(), grouping, InternalTypeInfo.of(inputType));
-    int keyWidth = 0;
-    if (grouping.length == 1) {
-      switch (inputType.getTypeAt(grouping[0]).getTypeRoot()) {
-        case INTEGER:
-          keyWidth = 32;
-          break;
-        case BIGINT:
-          keyWidth = 64;
-          break;
-        default:
-          break;
-      }
-    }
+    var keyType = grouping.length == 1 ? inputType.getTypeAt(grouping[0]).getTypeRoot() : null;
     var transform =
         ExecNodeUtil.createOneInputTransformation(
             input,
@@ -122,7 +110,7 @@ public final class NativeJvmGroupExecNode extends ExecNodeBase<ArrowBatch>
                 selector,
                 NativeConfig.transposeBatchRows(config),
                 Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0),
-                keyWidth,
+                keyType,
                 grouping.length == 1 ? grouping[0] : -1),
             ArrowBatchTypeInformation.INSTANCE,
             input.getParallelism(),

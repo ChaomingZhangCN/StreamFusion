@@ -103,8 +103,8 @@ registers in the joiner at all.
 ## Experimental JVM aggregate keys
 
 The default-off [JVM aggregate investigation](../operators/group-by.md#jvm-aggregate-investigation)
-extends the same probe-before-owning discipline to a bounded INT/BIGINT accumulator cache.
-The borrowed Arrow row's grouping field probes a primitive map. A hit reuses the immutable
+extends the same probe-before-owning discipline to bounded INT/BIGINT and STRING accumulator caches.
+The input row's grouping field probes a primitive or StringData map. A hit reuses the immutable
 Flink BinaryRow key already owned by the entry; a miss uses the released key selector, whose
 result is an owned copy. NULL has a separate entry. Optimized input-field indices are retained
 explicitly and shown in the plan. Flink managed state, DataViews and checkpoint ownership are
@@ -138,3 +138,15 @@ keys while retaining the cache when its working set fits. The initial cold-key b
 (1.770 s native / 1.769 s stock) observed external work and remains diagnostic; clean comparisons
 are pending. [Isolated diagnostics](../benchmarks/jvm-aggregates.md) retain build/test separation,
 all typed key/cardinality trials and mixed Java/Rust profiles without asserting admission.
+
+
+Isolated runs on both released Flink lines now confirm medium numeric gains and STRING
+regressions for the prior uncached STRING path. Medium STRING key-selector stacks sample
+1.87 GB on 2.2 and 1.81 GB on 1.18 over 5M native rows per profile. The subsequent STRING
+experiment probes using the released Arrow reader's StringData, reuses owned BinaryRow keys
+on hits, and retains StringData views only over those owned keys. The probe still allocates;
+no borrowed Arrow string survives batch close. Its entry selection also feeds the accumulator
+read, avoiding a second lookup/string view on hits. NULL and cold bypass retain the existing
+contracts. Semantic and recovery checks pass; candidate throughput has not yet been measured.
+[Isolated baseline trials and profiles](../benchmarks/results/jvm-aggregates-isolated-2026-10-16.json)
+retain unfavorable results and broad distinct-key ranges. Both experiments remain default off.
