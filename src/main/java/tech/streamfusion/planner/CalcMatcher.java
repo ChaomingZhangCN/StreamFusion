@@ -56,6 +56,15 @@ final class CalcMatcher {
   static RelNode substitute(Calc calc, PlanContext ctx) {
     calc = mergeProcessingTimeProjection(calc);
     RelNode input = calc.getInputs().get(0);
+    if (input instanceof StreamPhysicalNativeTableFunction
+        && calc.getProgram().getCondition() == null
+        && !Boolean.getBoolean("streamfusion.experimental.tableFunctionKeepProjection")) {
+      int[] projection = FilterCalcMatcher.projection(calc);
+      if (projection != null) {
+        return ((StreamPhysicalNativeTableFunction) input)
+            .withProjection(calc.getTraitSet(), calc.getRowType(), projection);
+      }
+    }
     RexExpression encoded = CalcMatcher.encode(calc);
     ctx.functionExecution("NativeCalc", encoded);
     // Nested projection pushdown: when the input is rowwise (about to be transposed) and the calc

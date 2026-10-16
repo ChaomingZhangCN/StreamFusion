@@ -399,6 +399,13 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
     // (the `$row_kind$` tag rides through), so — like Expand — it is exempt from the insert-only
     // guard.
     entries.add(
+        Substitution.of(StreamPhysicalCorrelate.class, "tableFunction", TableFunctionMatcher::substitute)
+            .shaped(TableFunctionMatcher::isUserTableFunction)
+            .matching(TableFunctionMatcher::matches)
+            .reason(TableFunctionMatcher::unsupportedReason)
+            .changelogSafe());
+
+    entries.add(
         Substitution.of(StreamPhysicalCorrelate.class, "unnest", UnnestMatcher::substitute)
             .matching(UnnestMatcher::matches)
             .reason(UnnestMatcher::unsupportedReason)

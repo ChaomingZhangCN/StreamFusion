@@ -1,0 +1,62 @@
+package tech.streamfusion.planner;
+
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
+import org.apache.flink.table.functions.TableFunction;
+import org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction;
+import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate;
+
+/** Admission for released Flink JVM table-function generation inside a columnar boundary. */
+final class TableFunctionMatcher {
+  private TableFunctionMatcher() {}
+
+  static boolean isUserTableFunction(StreamPhysicalCorrelate node) {
+    if (!(node.scan().getCall() instanceof RexCall)) return false;
+    var operator = ((RexCall) node.scan().getCall()).getOperator();
+    return operator instanceof BridgingSqlFunction
+        && ((BridgingSqlFunction) operator).getDefinition() instanceof TableFunction;
+  }
+
+  static boolean matches(StreamPhysicalCorrelate node) {
+    if (!Boolean.getBoolean("streamfusion.experimental.jvmTableFunctions")) return false;
+    JoinRelType join = UnnestMatcher.joinType(node);
+    return (join == JoinRelType.INNER || join == JoinRelType.LEFT)
+        && basicRow(node.getInput().getRowType())
+        && basicRow(node.getRowType())
+        && ((RexCall) node.scan().getCall())
+            .getOperands().stream().allMatch(arg -> basicType(arg.getType()));
+  }
+
+  private static boolean basicRow(RelDataType type) {
+    return type.getFieldList().stream().allMatch(field -> basicType(field.getType()));
+  }
+
+  private static boolean basicType(RelDataType type) {
+    switch (type.getSqlTypeName()) {
+      case VARCHAR:
+      case INTEGER:
+      case BIGINT:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static String unsupportedReason(StreamPhysicalCorrelate node) {
+    return "correlate: JVM table functions require verified basic columnar boundaries and"
+        + " performance admission";
+  }
+
+  static RelNode substitute(StreamPhysicalCorrelate node, PlanContext context) {
+    return new StreamPhysicalNativeTableFunction(
+        node.getCluster(),
+        node.getTraitSet(),
+        node.getInput(),
+        node.getRowType(),
+        (RexCall) node.scan().getCall(),
+        node.condition().isDefined() ? node.condition().get() : null,
+        UnnestMatcher.joinType(node) == JoinRelType.LEFT);
+  }
+}
