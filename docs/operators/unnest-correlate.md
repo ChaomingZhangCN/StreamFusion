@@ -54,6 +54,12 @@ aggregate/OVER functions, nested scalar results and broader table-function types
 sinks, stock Flink and the actual preceding revision; profiles include Java and symbolized Rust
 CPU stacks plus sampled Java allocations. Profiled durations are excluded from speed claims.
 
+The following v1 results used native-only pre-clock EXPLAIN and metrics clusters per trial
+pair. They remain historical diagnostics; corrected comparisons use EXPLAIN for both engines
+and a fresh cluster for every job. [Method correction](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
+records the change. Both Flink lines pass all four corrected table-function shapes in fixture
+smokes; full-size reruns remain pending. SQL/data/resources/transposes are unchanged.
+
 Released Flink 2.2.1/JDK 17 release jobs measured 2M-row splitting at **1.055 s native versus
 1.348 s stock and 1.393 s previous StreamFusion**, and 500k-row split-plus-JSON aggregation at
 **1.012 s versus 4.409 s stock and 4.324 s previous**. Each has two warmups and five alternating

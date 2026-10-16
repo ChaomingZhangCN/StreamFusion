@@ -77,9 +77,9 @@ class JvmAggregateBenchmark {
                             .build())
                     .build());
             String insert = "INSERT INTO sink " + sql;
+            var scan = engine == 1 ? NativePlanner.install(table) : null;
+            String plan = table.explainSql(insert);
             if (engine == 1) {
-              var scan = NativePlanner.install(table);
-              String plan = table.explainSql(insert);
               if (!udf || expectedUdf) {
                 assertTrue(
                     plan.contains(udf ? "NativeJvmGroup" : "NativeColumnarGroupAggregate")
@@ -87,6 +87,10 @@ class JvmAggregateBenchmark {
                         && plan.contains("ArrowToRowData"),
                     plan);
               } else assertEquals(0, scan.substitutions(), plan);
+            } else {
+              assertFalse(
+                  plan.contains("NativeJvmGroup") || plan.contains("NativeColumnarGroupAggregate"),
+                  plan);
             }
             long startMillis = System.currentTimeMillis();
             long start = System.nanoTime();

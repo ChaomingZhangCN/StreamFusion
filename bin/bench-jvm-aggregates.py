@@ -151,6 +151,8 @@ def main():
         "flink_line": args.flink_line,
         "platform": platform.platform(),
         "native_sha256": hashlib.sha256(library.read_bytes()).hexdigest(),
+        "native_source_fingerprint": os.environ.get("SF_NATIVE_SOURCE_FINGERPRINT"),
+        "native_payload_cache_hit": os.environ.get("SF_NATIVE_PAYLOAD_CACHE_HIT"),
         "cpu_count": os.cpu_count(),
         "processor": platform.processor(),
         "java": subprocess.run(
@@ -166,6 +168,8 @@ def main():
             "production_ipc": True,
             "both_transposes": True,
             "cluster_lifetime": "per job",
+            "preflight_explain": "both engines outside the clock",
+            "fixture_method": "symmetric-preflight-v2",
             "boundary": "complete executeSql(insert).await; cluster boot/config outside clock",
         },
         "measurements": [],

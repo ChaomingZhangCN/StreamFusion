@@ -4,7 +4,7 @@
   "workflow_run": "https://github.com/datafusion-contrib/StreamFusion/actions/runs/38850873034",
   "branch_head": "45d331deb39394f0ffab980535f4f02315a5708f",
   "actual_merge_checkout": "62ccea4c598725c317cc82d61c1a5f26da002e00",
-  "source_equivalence": "git diff between branch head and merge checkout is empty for src/main, native/src, Cargo manifests/lock, root pom, benchmark runner and query fixture",
+  "source_equivalence": "Verified empty diff between recorded branch head and merge checkout for src/main, the full native tree, root/core/runtime poms, runner and query fixture",
   "variant": "numeric owned-key/write-back cache with cold-key bypass; STRING uncached (before STRING cache experiment)",
   "admitted": false,
   "limitations": [
@@ -2697,5 +2697,6 @@
         "jvm-aggregate-flink118-string-medium-2026-10-16.log.gz"
       ]
     }
-  ]
+  ],
+  "preflight_limitation": "Historical v1 benchmark explains only native before timing. Stock/native admission must use corrected symmetric preflight. Profiled NativeJvmGroup stacks remain diagnostic; all profile timings excluded."
 }

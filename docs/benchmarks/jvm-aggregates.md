@@ -25,8 +25,14 @@ run. When distinct runtime revisions need comparisons, dispatch the earlier immu
 separately and verify its recorded SHA before pushing the next one. A branch dispatch and PR
 run use different ref groups and execute on separate diagnostic hosts. Cancel only the redundant
 pending copy after the separate run has been scheduled with the verified source.
-The Rust cache now saves compiled dependencies for canonical-repository branches,
-so repeated diagnostics can reuse release compilation; Cargo still validates changed inputs.
+The pinned released Rust cache action saves dependencies and workspace crates for canonical
+branches. A separate release-library cache is keyed by native sources, Cargo files/configuration,
+Rust toolchain, root build configuration, workflow, OS/architecture and Flink line. The input
+fingerprint is computed before restoring outputs. A verified library-cache hit skips Cargo;
+Java compilation still runs. Native-source/configuration changes miss that cache and rebuild.
+The payload is saved immediately after a successful release build, before correctness and
+measurements, so later Java-only runs can reuse it promptly. The report retains the native
+checksum, source fingerprint and cache-hit state.
 The initial run had no Rust cache hit and saved none because PR saves were disabled. Cache
 restoration and compilation both finish before correctness and timed execution.
 
@@ -108,3 +114,27 @@ The subsequent primitive STRING-hash index has [54-case validation](results/jvm-
 including full equality for hash collisions and entry-based capacity accounting. It targets
 the remaining sampled cache lookup cost. The borrowed-probe revision is retained in a separate
 isolated dispatch; the index needs its own Java/Rust profile and complete-job measurements.
+
+
+## Symmetric preflight correction
+
+Earlier aggregate and table-function fixtures explained only the native plan before starting
+the clock. Native and stock preflight were asymmetric. Both now explain the identical insert
+outside timing, then time complete `executeSql().await()` execution. Stock plans and metrics
+must have no native operators. Table-function metrics clusters now close after every job,
+matching aggregate ownership. SQL, data generators, resources, both transposes and row sinks
+are unchanged. The runner marks this method `symmetric-preflight-v2`.
+
+[Corrected local STRING trials](results/jvm-aggregate-symmetric-preflight-2026-10-16.json)
+retain all ranges: 16 keys stock/native .721/.637 s; 65,536 keys 1.361/1.261 s; 2M distinct
+2.048/2.213 s. The low/medium ranges overlap, while distinct keys still regress. Both released
+Flink lines pass all six 2,000-row aggregate/table-function fixture shapes; those are smokes,
+not speed evidence. The isolated workflow repeats all nine aggregate cases and profiles plus
+split/numeric, wide split and grouped table functions with corrected preflight. Prior v1
+results remain historical diagnostics and do not establish current admission.
+
+
+[The completed copying-cache matrix](results/jvm-aggregates-copying-isolated-2026-10-16.json)
+retains all 18 v1 cases, eight profiles and full compressed logs/stacks. Medium STRING medians
+are stock/native 1.792/1.911 s on 2.2 and 1.874/1.725 s on 1.18; ranges overlap and the preflight
+limitation applies. These results are retained as diagnostics and do not establish admission.

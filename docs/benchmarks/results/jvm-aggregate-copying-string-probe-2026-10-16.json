@@ -386,5 +386,6 @@
     "16 keys roughly ties stock; medium and distinct medians regress. No default admission.",
     "The local profile is on different hardware/JDK from the isolated baseline; it is not a matched causal comparison. Key selector sampling is small, but cache lookup and temporary string wrappers remain concrete targets.",
     "Profile timings excluded. Inclusive sampled counts overlap downstream copying and are not copied-byte or peak-memory measurements."
-  ]
+  ],
+  "preflight_limitation": "Historical v1 benchmark explains only native before timing. Stock/native admission must use corrected symmetric preflight. Profiled NativeJvmGroup stacks remain diagnostic; all profile timings excluded."
 }

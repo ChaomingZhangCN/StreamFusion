@@ -664,5 +664,6 @@
     "Profiles include stock/native UDAF and Rust builtin control, warmups, JIT and cluster setup. Profile timings excluded.",
     "Cache map lookup remains the dominant sampled leaf under native JVM aggregation; allocation reduction alone is not throughput admission.",
     "No uncontaminated whole-job borrowed-probe comparison yet; both released lines and prior fallback remain required."
-  ]
+  ],
+  "preflight_limitation": "Historical v1 benchmark explains only native before timing. Stock/native admission must use corrected symmetric preflight. Profiled NativeJvmGroup stacks remain diagnostic; all profile timings excluded."
 }

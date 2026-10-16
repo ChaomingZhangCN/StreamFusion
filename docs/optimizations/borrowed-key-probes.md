@@ -184,3 +184,12 @@ pass on both released Flink lines at both capacities. The corpus includes two di
 with the same released Flink hash, fitting and overflowing cache sizes, deletion/reinsertion,
 ListViews and repeated restore. Local follow-up profiling was deferred because external Java/
 Rust work was live, so no new allocation or timing claim is made for this index.
+
+
+Earlier v1 throughput comparisons above had asymmetric plan preflight. The [corrected method](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
+requires EXPLAIN for both engines before timing. Initial v2 STRING native/stock medians are
+.637/.721 s at 16 keys, 1.261/1.361 s at 65,536 keys and 2.213/2.048 s for distinct keys;
+ranges are retained, including overlaps and the cold-key regression. The primitive-index
+[process-scoped diagnostic profile](../benchmarks/results/jvm-aggregate-string-hash-index-profile-2026-10-16.json)
+records external work and no timing claims. It confirms the index executes; lookup and
+string comparison remain sampled hotspots. Default admission is still open.

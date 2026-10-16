@@ -503,6 +503,11 @@ including alongside value aggregates.
 
 ## JVM aggregate investigation
 
+Performance admission now requires symmetric stock/native preflight. Earlier v1 measurements
+below explained only native before timing and remain historical diagnostics. The corrected
+[method and first complete-job trials](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
+retain the distinct-key regression and require further comparisons.
+
 JVM aggregate functions still fall back by default under [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
 The diagnostic system property `streamfusion.experimental.jvmGroupAggregates=true` admits
 released Flink bridging aggregate functions in the synchronous single-phase plan when every
@@ -673,8 +678,10 @@ string equality within each collision chain. Both Flink lines pass all 54 combin
 both capacities, including a verified hash-collision pair, fitting three-key sets, overflow
 by a fourth distinct key, deletions/reinsertions and repeated memory/RocksDB restores.
 [Validation and source hashes](../benchmarks/results/jvm-aggregate-string-hash-index-validation-2026-10-16.json)
-record the matrix. Follow-up local profiling is deferred while an external build is live;
-the change has no throughput admission yet. The borrowed-probe predecessor has its own
+record the matrix. A separate process-scoped Java/Rust diagnostic profile records external work and excludes
+all timing claims. It confirms primitive-map lookup in place of map nodes; primitive lookup
+and string equality remain hot. [Stacks and limits](../benchmarks/results/jvm-aggregate-string-hash-index-profile-2026-10-16.json)
+are retained. The change has no throughput admission yet. The borrowed-probe predecessor has its own
 isolated run so later revisions preserve that comparison.
 
 ## Still falls back

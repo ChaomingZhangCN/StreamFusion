@@ -46,15 +46,30 @@ jobs:
           java-version: '17'
           cache: maven
       - uses: dtolnay/rust-toolchain@1.94.0
-      - uses: Swatinem/rust-cache@v2
+      - name: Fingerprint native release inputs before restoring build outputs
+        id: native-inputs
+        run: echo "fingerprint=${{ hashFiles('native/**', '.cargo/**', 'rust-toolchain*', 'pom.xml', '.github/workflows/jvm-aggregates.yml') }}" >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: native
           key: criterion-release
+          cache-workspace-crates: true
           save-if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      - uses: actions/cache/restore@v4
+        id: native-payload
+        with:
+          path: native/target/release/libstreamfusion.so
+          key: jvm-native-${{ runner.os }}-${{ runner.arch }}-${{ matrix.line }}-rust1.94.0-mimalloc-${{ steps.native-inputs.outputs.fingerprint }}
       - name: Build and install release modules before measurements
         run: >-
           mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime -am
-          -DskipTests install
+          -DskipTests -Dnative.build.skip=${{ steps.native-payload.outputs.cache-hit == 'true' }} install
+      - name: Save the release payload before correctness and measurements
+        if: steps.native-payload.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: native/target/release/libstreamfusion.so
+          key: jvm-native-${{ runner.os }}-${{ runner.arch }}-${{ matrix.line }}-rust1.94.0-mimalloc-${{ steps.native-inputs.outputs.fingerprint }}
       - name: Validate aggregate state and recovery before measurements
         run: |
           for capacity in 65536 3; do
@@ -74,10 +89,35 @@ jobs:
           tar -xzf "$RUNNER_TEMP/async-profiler.tar.gz" -C "$RUNNER_TEMP"
           sudo sysctl kernel.perf_event_paranoid=1
       - name: Measure complete jobs then profile Java and Rust
+        env:
+          SF_NATIVE_SOURCE_FINGERPRINT: ${{ steps.native-inputs.outputs.fingerprint }}
+          SF_NATIVE_PAYLOAD_CACHE_HIT: ${{ steps.native-payload.outputs.cache-hit }}
         run: >-
           python3 bin/bench-jvm-aggregates.py --flink-line '${{ matrix.line }}'
           --output native/target/jvm-aggregate-diagnostics
           --profiler-agent "$RUNNER_TEMP/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so"
+      - name: Measure table functions with symmetric preflight and per-job clusters
+        env:
+          SF_BENCHMARK: 'true'
+        run: |
+          sf_table_native="$GITHUB_WORKSPACE/native/target/release"
+          sf_table_output="$GITHUB_WORKSPACE/native/target/jvm-aggregate-diagnostics"
+          for sf_table_case in basic wide grouped; do
+            case "$sf_table_case" in
+              basic) sf_table_rows=2000000; sf_table_width=16; sf_table_shapes=split,numeric ;;
+              wide) sf_table_rows=2000000; sf_table_width=256; sf_table_shapes=split ;;
+              grouped) sf_table_rows=500000; sf_table_width=16; sf_table_shapes=group ;;
+            esac
+            mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
+              -Dnative.build.skip=true -Dtest=TableFunctionBenchmark -Dsf.testForks=1 \
+              "-Dnative.resource.directory=$sf_table_native" \
+              '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
+              "-Dsf.extraJvmArgs=-Djava.library.path=$sf_table_native -Xlog:gc*,safepoint:file=$sf_table_output/table-functions-v2-$sf_table_case-gc.log:time,uptime,level,tags" \
+              "-Dtablefunc.cases=$sf_table_shapes" "-Dtablefunc.rows=$sf_table_rows" \
+              "-Dtablefunc.width=$sf_table_width" -Dtablefunc.keys=65536 \
+              -Dtablefunc.warmup=2 -Dtablefunc.runs=5 \
+              surefire:test@default-test > "$sf_table_output/table-functions-v2-$sf_table_case.log" 2>&1
+          done
       - name: Retain every trial, GC log, profile and correctness report
         if: always()
         uses: actions/upload-artifact@v4
