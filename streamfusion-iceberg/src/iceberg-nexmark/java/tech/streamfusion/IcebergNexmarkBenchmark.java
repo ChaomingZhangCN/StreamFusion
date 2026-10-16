@@ -64,7 +64,7 @@ class IcebergNexmarkBenchmark {
           "write.target-file-size-bytes",
           "536870912",
           "write.distribution-mode",
-          "hash");
+          System.getenv().getOrDefault("SF_ICEBERG_DISTRIBUTION", "hash"));
   private final Map<Long, Long> bidCounts = new TreeMap<>();
   private Path artifacts;
   private Path warehouse;
@@ -99,11 +99,13 @@ class IcebergNexmarkBenchmark {
       metadata.put("partitions", 4);
       metadata.put("stripeEvents", STRIPE);
       metadata.put("watermarks", "Iceberg ordered file lower bounds via SOURCE_WATERMARK()");
+      metadata.put("watermarkDelayMillis", IcebergCorpusCompletion.WATERMARK_DELAY_MILLIS);
       metadata.put("warmups", WARMUPS);
       metadata.put("runs", RUNS);
       metadata.put("fileSettings", FILE_SETTINGS);
       metadata.put("snapshots", snapshots);
       metadata.put("java", System.getProperty("java.version"));
+      metadata.put("maxJavaHeapBytes", Runtime.getRuntime().maxMemory());
       metadata.put("os", System.getProperty("os.name") + " " + System.getProperty("os.arch"));
       metadata.put("cpuCount", Runtime.getRuntime().availableProcessors());
       Set<String> modes = selected("SF_ICEBERG_MODES", "memory-off,memory-on,disk-off,disk-on");
@@ -320,6 +322,8 @@ class IcebergNexmarkBenchmark {
             schema,
             PartitionSpec.builderFor(schema).bucket(bucket, 4).build(),
             settings);
+    if (FILE_SETTINGS.get("write.distribution-mode").equals("range")
+        && schema.identifierFieldIds().isEmpty()) output.replaceSortOrder().asc(bucket).commit();
     var config =
         Configuration.fromMap(
             Map.of(
@@ -371,6 +375,7 @@ class IcebergNexmarkBenchmark {
             + trial
             + " "
             + nativeMode);
+    var resources = new IcebergBenchmarkResources();
     long start = System.nanoTime();
     sql.createStatementSet().addInsertSql(query.insertSql).attachAsDataStream();
     var graph = env.getStreamGraph();
@@ -392,6 +397,7 @@ class IcebergNexmarkBenchmark {
     try {
       long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
       while ((!completion.complete() || !allTasksRunning(job)) && System.nanoTime() < deadline) {
+        resources.sample();
         backendObserved |= backendObserved(mode, nativeMode, trialPath);
         var status = job.getJobStatus().get(10, TimeUnit.SECONDS);
         if (status.isGloballyTerminalState()) {
@@ -407,8 +413,15 @@ class IcebergNexmarkBenchmark {
       if (query.label.equals("q12")) {
         long earliest = System.currentTimeMillis() + (mode.endsWith("on") ? 2500 : 0);
         long boundary = (earliest / 10000 + 1) * 10000 + 500;
-        while (System.currentTimeMillis() < boundary) Thread.sleep(10);
+        while (System.currentTimeMillis() < boundary) {
+          resources.sample();
+          Thread.sleep(10);
+        }
       }
+      job.triggerSavepoint(
+              trialPath.resolve("streaming-checkpoint").toUri().toString(),
+              SavepointFormatType.CANONICAL)
+          .get(120, TimeUnit.SECONDS);
       job.stopWithSavepoint(
               true,
               trialPath.resolve("savepoint").toUri().toString(),
@@ -423,6 +436,7 @@ class IcebergNexmarkBenchmark {
       }
     }
     double seconds = (System.nanoTime() - start) / 1e9;
+    var resourceObservation = resources.finish();
     output.refresh();
     var fingerprint = fingerprint(output, query.label);
     var occupied = new HashSet<Integer>();
@@ -455,6 +469,7 @@ class IcebergNexmarkBenchmark {
     observation.put("warmup", trial < 0);
     observation.put("engine", nativeMode ? "streamfusion" : "flink");
     observation.put("seconds", seconds);
+    observation.put("resources", resourceObservation);
     observation.put("rocksDBObserved", backendObserved);
     observation.put("fingerprint", fingerprint);
     observation.put("sourceCount", completion.sourceCount());

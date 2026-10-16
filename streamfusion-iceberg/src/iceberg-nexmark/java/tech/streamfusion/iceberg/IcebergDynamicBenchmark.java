@@ -86,7 +86,13 @@ class IcebergDynamicBenchmark {
             keyed ? Set.of(1) : Set.of());
     var spec = PartitionSpec.builderFor(schema).bucket("id", 4).build();
     var options =
-        Map.of("target-file-size-bytes", "536870912", "dynamic-sink.cache-max-size", "1000");
+        Map.of(
+            "target-file-size-bytes",
+            "536870912",
+            "dynamic-sink.cache-max-size",
+            "1000",
+            "dynamic-sink.immediate-table-update",
+            "true");
     try (var catalog = new HadoopCatalog(hadoop, warehouse)) {
       catalog.createNamespace(Namespace.of("bench"));
       for (String name : new String[] {"a", "b"})
@@ -124,6 +130,7 @@ class IcebergDynamicBenchmark {
                   4,
                   keyed,
                   keyed ? Set.of("id") : Set.of());
+      var resources = new tech.streamfusion.IcebergBenchmarkResources();
       long started = System.nanoTime();
       if (nativeMode)
         NativeIcebergDynamicSink.append(input, schema, router, loader, config, options, "dynamic");
@@ -165,10 +172,15 @@ class IcebergDynamicBenchmark {
       try {
         long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
         while ((SENT.get() < ROWS || !running(job)) && System.nanoTime() < deadline) {
+          resources.sample();
           if (job.getJobStatus().get().isGloballyTerminalState()) job.getJobExecutionResult().get();
           Thread.sleep(10);
         }
         assertTrue(SENT.get() >= ROWS && running(job));
+        job.triggerSavepoint(
+                directory.resolve("streaming-checkpoint").toUri().toString(),
+                SavepointFormatType.CANONICAL)
+            .get(120, TimeUnit.SECONDS);
         job.stopWithSavepoint(
                 true,
                 directory.resolve("savepoint").toUri().toString(),
@@ -183,6 +195,7 @@ class IcebergDynamicBenchmark {
         }
       }
       double seconds = (System.nanoTime() - started) / 1e9;
+      var resourceObservation = resources.finish();
       Set<Integer> seen = new HashSet<>();
       for (String name : new String[] {"a", "b"}) {
         var table = catalog.loadTable(TableIdentifier.of("bench", name));
@@ -217,6 +230,8 @@ class IcebergDynamicBenchmark {
                       seconds,
                       "committedRows",
                       seen.size(),
+                      "resources",
+                      resourceObservation,
                       "directory",
                       directory.toString()));
       Files.writeString(

@@ -2,6 +2,7 @@
 """Report only paired, validated measurements; retain every raw observation alongside them."""
 import collections
 import json
+import math
 from pathlib import Path
 import statistics
 import sys
@@ -37,6 +38,29 @@ for key, engines in sorted(groups.items(), key=lambda item: (int(item[0][0][1:])
         return f'{statistics.median(values):.3f} [{min(values):.3f}–{max(values):.3f}]'
     ratio = statistics.median(samples['flink']) / statistics.median(samples['streamfusion'])
     lines.append(f'| {key[0]} | {key[1]} | {key[2]} | {cell(samples["flink"])} | {cell(samples["streamfusion"])} | {ratio:.2f}× |')
+lines += ['', '## Exact-query aggregates', '',
+          'Geometric means use every exact-query cell in each mode; labelled expression variants '
+          'remain separate above. Throughput is nominal corpus events divided by median end-to-end '
+          'time, including startup, checkpoints and drain.', '',
+          '| State / mini-batch | Queries | Geomean ratio | Flink corpus events/s, range | StreamFusion corpus events/s, range |',
+          '|---|---:|---:|---:|---:|']
+for mode in sorted({key[1] for key in groups}):
+    ratios = []
+    throughput = {'flink': [], 'streamfusion': []}
+    for key, engines in groups.items():
+        if key[1] != mode or key[2] != 'exact':
+            continue
+        medians = {engine: statistics.median(row['seconds'] for row in engines[engine])
+                   for engine in throughput}
+        ratios.append(medians['flink'] / medians['streamfusion'])
+        for engine in throughput:
+            throughput[engine].append(method['events'] / medians[engine])
+    if ratios:
+        gm = math.exp(statistics.mean(math.log(ratio) for ratio in ratios))
+        def rate(engine):
+            values = throughput[engine]
+            return f'{min(values):,.0f}–{max(values):,.0f}'
+        lines.append(f'| {mode} | {len(ratios)} | {gm:.2f}× | {rate("flink")} | {rate("streamfusion")} |')
 if method['runs'] >= 2:
     lines += ['', '## Headline sampling convention', '',
               'Memory uses the first measured sample; disk uses the best of the first two. '

@@ -200,6 +200,8 @@ isolated release+mimalloc libraries and execute the separate streaming compariso
 This leaves the headline Kafka/blackhole benchmark sources and SQL corpus unchanged.
 `SF_ROWS`, `SF_PARALLELISM`, `SF_MATRIX_QUERIES`, `SF_WARMUP`, `SF_RUNS`,
 `SF_ICEBERG_MODES`, `SF_ICEBERG_VARIANTS` and `SF_ICEBERG_ARTIFACTS` select the run.
+`SF_ICEBERG_JAVA_HEAP` defaults to `4g` for both engines. `SF_ICEBERG_DISTRIBUTION`
+defaults to `hash`; `range` adds the same append sort order to both output tables.
 Defaults are 2M events, parallelism four, all 23 queries, one warmup and three measured
 pairs, all four state/mini-batch modes and the existing labelled expression variants.
 Small/subset runs validate the harness; they are not final throughput results.
@@ -209,7 +211,10 @@ lookup fixture and updating-result keys through a test-only corpus artifact. It 
 three normalized `person`/`auction`/`bid` tables outside timing, with four physical bucket
 partitions each, using the original deterministic events and field order. Logical SQL
 views retain the original TIMESTAMP(3) rowtimes over Iceberg's microsecond storage
-types. Both engines use `SOURCE_WATERMARK()` from Iceberg's ordered file lower bounds. Stripes contain 50,000 original events by default; each
+types. Both engines use `SOURCE_WATERMARK()` from Iceberg's ordered file lower bounds,
+with the headline's four-second delay applied once per split (plus the host's 1 ms
+inclusive-boundary adjustment). The benchmark wraps the released split extractor,
+leaving split ordering and emission in Java. Stripes contain 50,000 original events by default; each
 stripe closes its partition files. Both readers use 128 MiB split/open-file costs and
 Iceberg's timestamp-statistics ordered assigner. This avoids combining files into tasks
 that traverse event-time stripes out of order. Recomputing a periodic watermark from
@@ -232,7 +237,10 @@ The timer includes planning/submission, Java discovery, file IO, decode, query a
 JNI, data/delete encoding, checkpoints and final drain/commit. A benchmark-only delegating
 source observer waits for the seeded snapshot to be enumerated, no pending assignments,
 and acknowledgements that all assigned splits have been consumed. It then requests a
-normal draining savepoint and waits for job completion. Sources remain continuous and
+non-draining savepoint to settle the completed streaming writes, then a normal
+draining savepoint and waits for job completion. Both checkpoints remain timed; the
+explicit separation avoids merging a pending regular upsert flush with the terminal
+flush in the released dynamic aggregator. Sources remain continuous and
 use their normal checkpoint serializers. For q12, waiting for the last processing-time
 window is included; validation conserves every bidder's count instead of comparing
 inherently different wall-clock window timestamps.
@@ -243,15 +251,21 @@ comparison. Runtime source counters, native writer-factory witnesses, Rust data-
 footers and Java delete-file footers distinguish native work from fallback. Empty outputs
 are reported without inventing file witnesses. Artifacts retain all samples/warmups,
 paired validation, plans, stream graphs, table locations, hardware/build metadata and
-library hashes. `bin/report-iceberg.py <artifact-directory>` reports medians and ranges
+library hashes. Per-trial observations sample shared task reservations, Arrow allocations
+and Linux process RSS at 100 ms intervals during progress polling; these are sampled
+peaks, not exhaustive allocation maxima. RSS includes Java and opaque native retention;
+baseline RSS and effective maximum Java heap are recorded as well.
+`bin/report-iceberg.py <artifact-directory>` reports medians and ranges
 and rejects incomplete/unpaired measured repetitions or missing declared matrix cells.
+Exact-query aggregates report geometric mean ratios per mode and nominal corpus-event
+throughput; labelled expression variants remain separate.
 It also reports the headline sampling convention (first memory sample, best of the first
 two disk samples) alongside all repeated medians/ranges. A 10k-event smoke matrix passed
 120 stock/native pairs across all 23 queries, four modes and labelled variants; q8 also
 passed ten repeated disk/mini-batch pairs with file watermarks. These are correctness
 checks, not throughput results. Final 2M-event results remain pending.
 
-### Dynamic writer release diagnostic
+### Initial dynamic writer release diagnostic
 
 On 2026-10-16, an Intel i7-12650H Linux host (16 available logical CPUs, 9.7 GiB
 physical memory) ran 2M generated Arrow rows through the dynamic sink, with one
@@ -281,3 +295,29 @@ set `SF_ICEBERG_DYNAMIC_BENCHMARK=true` and `SF_ICEBERG_RELEASE_CONFIRMED=true`,
 stage the same release libraries as `bin/bench-iceberg.sh`. `SF_ROWS`, `SF_WARMUP`,
 `SF_RUNS` and `SF_ICEBERG_ARTIFACTS` select the run. The final Nexmark matrix remains
 pending; the connector stays an explicit opt-in.
+
+### Resource-accounted dynamic comparison
+
+A second 2M-row comparison uses a 4 GiB Java heap, immediate metadata updates, and a
+non-draining savepoint before terminal drain for both engines. Other settings and the
+input payload match the diagnostic above. One warmup and three alternating measured
+pairs compare the prior released Iceberg wrapper (`3c537a19`) with the accounted
+parquet-rs writer. Each implementation has its own stock Flink cohort.
+
+| Implementation / mode | Stock median [range], s | Native median [range], s | Median ratio |
+|---|---:|---:|---:|
+| Previous / append | 2.256 [2.100–2.636] | 2.314 [2.298–2.384] | 0.97× |
+| Accounted / append | 2.992 [2.943–3.927] | 3.169 [2.847–3.189] | 0.94× |
+| Previous / keyed | 3.406 [3.336–4.535] | 3.179 [2.902–4.156] | 1.07× |
+| Accounted / keyed | 3.150 [3.115–3.388] | 3.208 [2.880–3.391] | 0.98× |
+
+[All observations and method](../benchmarks/iceberg-dynamic-accounted-20261016.jsonl)
+retain the slower results and warmups. Other development workloads were observed on
+the shared host, so these are noisy diagnostics, not an isolated measurement of the
+accounting overhead. The current native path does not establish an append/keyed
+end-to-end speedup here and remains opt-in. Sampled native task reservations now include
+encoder retention (up to 71.9 MiB append / 25.2 MiB keyed); the previous encoder was
+unaccounted. Sampled process RSS includes retained JVM heap and grows across trials,
+so it cannot be attributed solely to a file encoder. The current Iceberg library
+SHA-256 is `1b31d28ff3683b2ae3ec2934dc28ffc43d16af48b6098a5be89b1f68dae676cf`;
+the core library is unchanged from the initial diagnostic.

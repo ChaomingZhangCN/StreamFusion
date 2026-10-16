@@ -19,6 +19,7 @@ import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 
 /** Observes host completion acknowledgements; it never marks a continuous source bounded. */
 final class IcebergCorpusCompletion {
+  static final long WATERMARK_DELAY_MILLIS = 4000;
   private static final Map<String, Progress> PROGRESS = new ConcurrentHashMap<>();
   private final int sources;
   private final int nativeSources;
@@ -58,6 +59,7 @@ final class IcebergCorpusCompletion {
       if (!type.equals("org.apache.iceberg.flink.source.IcebergSource")
           && !type.equals("tech.streamfusion.iceberg.IcebergArrowSource")) continue;
       if (type.equals("tech.streamfusion.iceberg.IcebergArrowSource")) nativeSources++;
+      delayWatermarks(source);
       String id = Integer.toString(count++);
       PROGRESS.put(id, new Progress());
       field.set(factory, new ObservedSource(source, id, Set.copyOf(snapshots)));
@@ -65,6 +67,37 @@ final class IcebergCorpusCompletion {
     if (count == 0)
       throw new IllegalStateException("No streaming Iceberg sources in benchmark graph");
     return new IcebergCorpusCompletion(count, nativeSources, nativeWriters);
+  }
+
+  private static void delayWatermarks(Source<?, ?, ?> source) throws Exception {
+    Object host = source;
+    if (source.getClass().getName().equals("tech.streamfusion.iceberg.IcebergArrowSource")) {
+      var delegate = source.getClass().getDeclaredField("delegate");
+      delegate.setAccessible(true);
+      host = delegate.get(source);
+    }
+    var emitterField = host.getClass().getDeclaredField("emitter");
+    emitterField.setAccessible(true);
+    Object emitter = emitterField.get(host);
+    if (!emitter
+        .getClass()
+        .getName()
+        .equals("org.apache.iceberg.flink.source.reader.WatermarkExtractorRecordEmitter"))
+      throw new IllegalStateException("Benchmark requires Iceberg's split watermark emitter");
+    var extractorField = emitter.getClass().getDeclaredField("timeExtractor");
+    extractorField.setAccessible(true);
+    var extractor =
+        (org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor)
+            extractorField.get(emitter);
+    extractorField.set(
+        emitter,
+        (org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor)
+            split -> {
+              long lowerBound = extractor.extractWatermark(split);
+              return lowerBound < Long.MIN_VALUE + WATERMARK_DELAY_MILLIS
+                  ? Long.MIN_VALUE
+                  : lowerBound - WATERMARK_DELAY_MILLIS;
+            });
   }
 
   int nativeSourceCount() {

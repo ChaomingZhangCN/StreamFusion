@@ -30,6 +30,7 @@ metadata = {
     'java': subprocess.run(['java', '-version'], text=True, capture_output=True).stderr.strip(),
     'rust': command('rustc', '--version'),
     'build': 'cargo build --release --features mimalloc -p streamfusion -p streamfusion-iceberg',
+    'javaHeap': __import__('os').environ.get('SF_ICEBERG_JAVA_HEAP', '4g'),
     'libraries': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (output / 'native').iterdir()},
 }
 if pathlib.Path('/proc/cpuinfo').exists():
@@ -40,6 +41,6 @@ export SF_ICEBERG_BENCHMARK=true SF_ICEBERG_RELEASE_CONFIRMED=true
 mvn -B -ntp -f "${REPO_ROOT}/pom.xml" -Piceberg,iceberg-nexmark,bench \
   -pl streamfusion-iceberg -am -Dtest=IcebergNexmarkBenchmark \
   -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.javadoc.skip=true -Dnative.build.skip=true \
-  "-Dnative.resource.directory=${staged}" "-Dsf.extraJvmArgs=-Djava.library.path='${staged}'" \
+  "-Dnative.resource.directory=${staged}" "-Dsf.extraJvmArgs=-Djava.library.path='${staged}' -Xmx${SF_ICEBERG_JAVA_HEAP:-4g}" \
   test 2>&1 | tee "${SF_ICEBERG_ARTIFACTS}/run.log"
 python3 "${REPO_ROOT}/bin/report-iceberg.py" "${SF_ICEBERG_ARTIFACTS}"
