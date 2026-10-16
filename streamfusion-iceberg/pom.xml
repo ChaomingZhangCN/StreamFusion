@@ -81,6 +81,13 @@
         </plugins>
     </build>
     <profiles>
+        <profile><id>iceberg-nexmark</id><dependencies>
+            <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-core${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><type>test-jar</type><scope>test</scope></dependency>
+        </dependencies><build><plugins>
+            <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><executions>
+                <execution><id>iceberg-nexmark-sources</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals><configuration><sources><source>${project.basedir}/src/iceberg-nexmark/java</source></sources></configuration></execution>
+            </executions></plugin>
+        </plugins></build></profile>
         <profile>
             <id>iceberg-upstream</id>
             <dependencies>

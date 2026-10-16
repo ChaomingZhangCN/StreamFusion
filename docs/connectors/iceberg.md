@@ -138,3 +138,53 @@ Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
 The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark
 comparison are tracked in [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
 All work concerns streaming jobs; batch overwrite and maintenance are outside scope.
+
+## Separate Iceberg Nexmark comparison
+
+`JAVA_HOME`/`PATH` must select JDK 17. Run `bin/bench-iceberg.sh` to build and stage
+isolated release+mimalloc libraries and execute the separate streaming comparison.
+This leaves the headline Kafka/blackhole benchmark sources and SQL corpus unchanged.
+`SF_ROWS`, `SF_PARALLELISM`, `SF_MATRIX_QUERIES`, `SF_WARMUP`, `SF_RUNS`,
+`SF_ICEBERG_MODES`, `SF_ICEBERG_VARIANTS` and `SF_ICEBERG_ARTIFACTS` select the run.
+Defaults are 2M events, parallelism four, all 23 queries, one warmup and three measured
+pairs, all four state/mini-batch modes and the existing labelled expression variants.
+Small/subset runs validate the harness; they are not final throughput results.
+
+The harness directly reuses the existing event generator, query definitions, UDF,
+lookup fixture and updating-result keys through a test-only corpus artifact. It seeds
+three normalized `person`/`auction`/`bid` tables outside timing, with four physical bucket
+partitions each, using the original deterministic events and field order. Logical SQL
+views retain the original TIMESTAMP(3) rowtimes and four-second watermarks over Iceberg's
+microsecond storage types. Stripes contain 50,000 original events by default; each
+stripe closes its partition files. Both readers use 128 MiB split/open-file costs and
+Iceberg's timestamp-statistics ordered assigner. This avoids combining files into tasks
+that traverse event-time stripes out of order. The normal SQL watermark operator still
+uses the original four-second delay.
+
+Every trial writes a fresh four-bucket output table. Updating outputs declare the actual
+result identifier fields and enable Iceberg upserts; Java writes all deletes. The bucket
+source is an identifier field for keyed outputs. A low-cardinality query may occupy fewer
+than four buckets; artifacts report the actual count. Both engines receive the same
+Zstd level 3, 128 MiB row-group, 1 MiB page, 2 MiB dictionary, 512 MiB file target, hash
+distribution and one-second checkpoints. State modes are Flink heap versus native memory,
+and Flink RocksDB versus native RocksDB; mini-batching is off/on with two seconds and
+50,000 rows. The benchmark records RocksDB engagement, with an explicit q4 assertion.
+Arrow IPC shuffle remains enabled through the normal `bench` profile.
+
+The timer includes planning/submission, Java discovery, file IO, decode, query and exchange,
+JNI, data/delete encoding, checkpoints and final drain/commit. A benchmark-only delegating
+source observer waits for the seeded snapshot to be enumerated, no pending assignments,
+and acknowledgements that all assigned splits have been consumed. It then requests a
+normal draining savepoint and waits for job completion. Sources remain continuous and
+use their normal checkpoint serializers. For q12, waiting for the last processing-time
+window is included; validation conserves every bidder's count instead of comparing
+inherently different wall-clock window timestamps.
+
+Outside timing, stock Iceberg reads the committed output and computes a multiset
+fingerprint of declared table columns. Delete-position metadata is excluded from payload
+comparison. Runtime source counters, native writer-factory witnesses, Rust data-file
+footers and Java delete-file footers distinguish native work from fallback. Empty outputs
+are reported without inventing file witnesses. Artifacts retain all samples/warmups,
+paired validation, plans, stream graphs, table locations, hardware/build metadata and
+library hashes. `bin/report-iceberg.py <artifact-directory>` reports medians and ranges
+and rejects incomplete/unpaired measured repetitions. Final 2M-event results remain pending.
