@@ -460,6 +460,23 @@ final class RexExpression {
     return encoder;
   }
 
+  /**
+   * Original input columns for a complete JVM Calc; other expression trees retain native dispatch.
+   */
+  private static int[] rowCalcInputColumns(
+      int[] kinds, int[] payload, int[] childCounts, int[] projectionRoots, int conditionRoot) {
+    if (!isRowCalc(kinds)
+        || kinds.length < 2
+        || conditionRoot >= 0
+        || projectionRoots.length != 1
+        || projectionRoots[0] != 0
+        || childCounts[0] != kinds.length - 1) return null;
+    for (int i = 1; i < kinds.length; i++) {
+      if (kinds[i] != KIND_INPUT_REF || childCounts[i] != 0) return null;
+    }
+    return java.util.Arrays.copyOfRange(payload, 1, kinds.length);
+  }
+
   static boolean isRowCalc(int[] kinds) {
     return kinds.length > 0 && kinds[0] == KIND_ROW_UDF;
   }
@@ -481,6 +498,13 @@ final class RexExpression {
 
   private boolean emitCalc(Calc calc) {
     RexProgram program = calc.getProgram();
+    if (containsTemporalUdf(program)) {
+      if (!NativeConfig.temporalUdfEnabled()) {
+        return reject("temporal scalar UDFs await whole-job performance admission");
+      }
+      jvmExecutionReason = "temporal scalar UDFs require Flink's external/internal conversions";
+      return emitRowCalc(calc);
+    }
     if (NativeConfig.sharedStatefulUdfEnabled() && hasSharedStatefulUdf(program)) {
       jvmExecutionReason = "shared stateful scalar UDF requires Flink's row-major evaluation";
       return emitRowCalc(calc);
@@ -526,6 +550,30 @@ final class RexExpression {
     }
     outputNames = calc.getRowType().getFieldNames().toArray(new String[0]);
     return true;
+  }
+
+  private static boolean containsTemporalUdf(RexProgram program) {
+    return program.getCondition() != null
+            && containsTemporalUdf(program.expandLocalRef(program.getCondition()))
+        || program.getProjectList().stream()
+            .anyMatch(project -> containsTemporalUdf(program.expandLocalRef(project)));
+  }
+
+  private static boolean containsTemporalUdf(RexNode node) {
+    if (node instanceof org.apache.calcite.rex.RexFieldAccess) {
+      return containsTemporalUdf(((org.apache.calcite.rex.RexFieldAccess) node).getReferenceExpr());
+    }
+    if (!(node instanceof RexCall)) return false;
+    RexCall call = (RexCall) node;
+    return tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null
+            && (isTimestampType(call.getType())
+                || call.getOperands().stream().anyMatch(arg -> isTimestampType(arg.getType())))
+        || call.getOperands().stream().anyMatch(RexExpression::containsTemporalUdf);
+  }
+
+  private static boolean isTimestampType(RelDataType type) {
+    return type.getSqlTypeName() == SqlTypeName.TIMESTAMP
+        || type.getSqlTypeName() == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE;
   }
 
   private static boolean containsRuntimeCharset(RexProgram program) {
@@ -948,7 +996,9 @@ final class RexExpression {
   tech.streamfusion.operator.NativeUdf.Binding udfBinding() {
     return new tech.streamfusion.operator.NativeUdf.Binding(
         udfs.toArray(new tech.streamfusion.operator.NativeUdf.Descriptor[0]),
-        toIntArray(udfIdSlots));
+        toIntArray(udfIdSlots),
+        udfs.size() == 1 ? rowCalcInputColumns(kinds(), payload(), childCounts(),
+            projectionRoots(), conditionRoot()) : null);
   }
 
   /**
@@ -3679,12 +3729,13 @@ final class RexExpression {
       return rejectUdfMethod("multiple binary UDF calls may share mutable result buffers");
     }
     int returnCode = udfTypeCode(call.getType());
-    if (returnCode < 0) {
+    if (returnCode < 0 && !(rowFusion && isTimestampType(call.getType()))) {
       return rejectUdfMethod("UDF return type not native: " + call.getType().getSqlTypeName());
     }
     List<RexNode> args = call.getOperands();
     for (RexNode argument : args) {
-      if (udfTypeCode(argument.getType()) < 0) {
+      if (udfTypeCode(argument.getType()) < 0
+          && !(rowFusion && isTimestampType(argument.getType()))) {
         return rejectUdfMethod(
             "UDF argument type not native: " + argument.getType().getSqlTypeName());
       }
@@ -3695,7 +3746,11 @@ final class RexExpression {
           "UDF " + scalar.getClass().getName() + " has no single eval of arity " + args.size());
     }
     if ((resultType == SqlTypeName.DECIMAL && eval.getReturnType() != BigDecimal.class)
-        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)) {
+        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)
+        || (resultType == SqlTypeName.TIMESTAMP
+            && eval.getReturnType() != java.time.LocalDateTime.class)
+        || (resultType == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            && eval.getReturnType() != java.time.Instant.class)) {
       return rejectUdfMethod("UDF result uses an unsupported Java conversion class");
     }
     return eval;
@@ -4024,6 +4079,10 @@ final class RexExpression {
       case VARBINARY:
         argument = byte[].class;
         break;
+      case TIMESTAMP:
+        return parameter == java.time.LocalDateTime.class ? 2 : -1;
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+        return parameter == java.time.Instant.class ? 2 : -1;
       default:
         return -1;
     }
