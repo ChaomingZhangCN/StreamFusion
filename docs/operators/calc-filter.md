@@ -547,7 +547,8 @@ writes, inline Calc evaluation inside that loop and bulk timestamp component val
 performance admission. A direct typed-output kernel likewise passed correctness checks but
 still lost to stock, including a variant that writes timestamp components directly. None is retained. See the
 [rejected experiments](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/364-temporal-row-output-shortcuts.md).
-Performance admission remains tracked in [#364](https://github.com/datafusion-contrib/StreamFusion/issues/364),
+Implementation coverage shipped in [#368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
+performance and default admission remain tracked in [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389),
 including further measured conversion work and complete-job measurements inside surrounding
 native operators before any broader admission.
 

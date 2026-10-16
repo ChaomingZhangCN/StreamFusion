@@ -349,3 +349,20 @@ The subsequent consecutive-miss reset has 82 passing checks and separate Java/Ru
 its queued whole-job matrix was canceled when the optimization goal was stopped.
 No unmeasured speed claim is made for that reset. Remaining scope stays in
 [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
+
+
+## Integrated correctness checks
+
+The required Java CI jobs first run the ordinary suite with default settings. On JDK17,
+both released Flink lines then run the aggregate, temporal, nested scalar/BINARY, SQL/JSON
+MAP/MULTISET and transpose/string ownership selection with the experimental flags enabled
+together. Resource and loader paths pin the same freshly built debug native library. This
+checks integration against current production Rust instead of relying on historical release
+payloads. It is a correctness step; its durations do not establish performance. The ordinary
+JDK11 jobs continue checking released compatibility and bytecode.
+
+[The local integrated selection](results/jvm-boundary-integration-2026-10-16.json) passes
+173 checks on Flink2.2 and170 with3 existing compatibility skips on1.18, plus a final
+17-case2.2 collection-source API recheck. These use the pinned prior nested-candidate
+release payload; required CI rebuilds current production native code before its own
+opt-in selection. No local test duration is treated as throughput evidence.
