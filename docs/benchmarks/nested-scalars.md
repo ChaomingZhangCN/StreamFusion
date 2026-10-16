@@ -71,4 +71,12 @@ owned results across batch flushes and task recreation. See the
 [recovery evidence](results/nested-scalar-recovery-2026-10-16.json). Run with the same pinned
 native resource/loader paths and `streamfusion.experimental.nestedScalarUdfs=true` as the
 benchmark, selecting `-Dtest=FlinkNestedScalarRecoveryTest`. These correctness checks do not
-establish throughput or separate-process deployment compatibility.
+establish throughput.
+
+`FlinkNestedScalarRemoteDeploymentTest` separately submits from the planner JVM to a child
+TaskManager JVM over REST. Both JVMs enable the experimental flag. Four checks across the
+two released lines verify 5,003 stock/native results at parallelism one and three, record
+worker PIDs and native consumed-row counts, and require clean native resources before child
+exit. The [cross-JVM evidence](results/nested-scalar-remote-2026-10-16.json) retains these
+observations. It covers one-host remote submission; process-failure recovery and inconsistent
+planner/task flags are outside this fixture.

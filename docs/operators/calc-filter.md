@@ -65,8 +65,9 @@ the physical struct schema. See the [transport decision](https://github.com/data
 
 The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
 identify conversion work; their timings include observed external activity and are excluded from
-performance claims. Correctness, distributed configuration, and unprofiled stock/previous-runtime
-comparisons remain required before enabling this gate by default. #237 stays open.
+performance claims. Unprofiled stock/previous-runtime comparisons remain required before enabling
+this gate by default. The correctness and cross-JVM checks below do not establish acceleration.
+#237 stays open.
 
 [Release validation evidence](../benchmarks/results/nested-scalar-coverage-2026-10-16.json)
 retains 71 opt-in checks on Flink 2.2.1 and 68 passes with three compatibility skips on 1.18.1.
@@ -80,8 +81,17 @@ and three enable object reuse and fail twice, only after source checkpoints at o
 12 and 32 complete. Recovered native identity and mutable-transform callbacks match the
 uninterrupted stock result multiset and resolved schema, including nested RowKinds, NULLs
 and long Unicode values. Native consumed-row counters and exact source restore offsets
-are asserted. This verifies task recovery with a consistently configured JVM flag;
-separate planner/task JVM configuration and whole-job performance admission remain pending.
+are asserted. This verifies task recovery with a consistently configured JVM flag.
+
+Four [separate-JVM deployment checks](../benchmarks/results/nested-scalar-remote-2026-10-16.json)
+also pass across both released lines at parallelism one and three. The SQL planner submits
+stock/native jobs over REST to a child JVM containing a TaskManager. That JVM records all
+5,003 native input rows, with a PID distinct from the planner's; complete results and schemas
+match stock, including nested kinds and mutable callback outputs across batches. Both JVMs
+explicitly enable the flag. Child shutdown verifies native-handle, Arrow-allocation and task
+reservation cleanup. This checks callback registration and metadata across JVMs on one host;
+it does not combine remote process termination with checkpoint recovery or validate differing
+planner/task flags. Whole-job performance admission remains pending.
 
 Reproduce the complete-job benchmark from a clean released build (add `-Pflink-1.18` for that
 compatibility line). Every shape uses two warmup pairs and five measured pairs by default;
