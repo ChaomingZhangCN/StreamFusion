@@ -64,5 +64,8 @@ cluster to release completed aggregate state; cluster boot is outside timing, wh
 job submission, source/sink and state costs remain inside. Previous-code controls use actual
 revision `b965b8bf`; separate JVMs show control drift. See the
 [raw trials and profiles](../benchmarks/results/jvm-table-functions-2026-10-15.json).
-Flink 1.18 throughput and wider payloads remain unverified; these results establish neither
-all-function acceleration nor completion of #237.
+The same released Flink 1.18.1 configuration measured split at 1.077 s native versus 1.352 s
+stock and grouped output at 1.047 s versus 4.440 s. Each has five measured pairs; a separate
+previous-revision control on that line is still pending. Wider payloads and additional numeric
+shapes remain unverified; these results establish neither all-function acceleration nor completion
+of #237.
