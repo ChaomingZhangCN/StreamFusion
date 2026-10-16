@@ -33,3 +33,20 @@ per-key occurrence order. These new accumulator kinds use the raw keyed snapshot
 on RocksDB rather than treating a value multiset as an ordered table. A direct persistent
 representation needs explicit order keys before it can replace that fallback. Local/global
 partial schemas remain gated until their merge semantics are implemented.
+
+LISTAGG follows the same per-key arrival-order decision. Arroyo's incremental aggregate
+uses DataFusion accumulators; its batch fallback recomputes an unordered input multiset,
+which cannot preserve Flink's ordered concatenation or first-duplicate retraction.
+Append-only LISTAGG owns one prefix; retractable LISTAGG owns the ordered live strings
+and pending unmatched retractions. Both use a versioned binary accumulator snapshot through
+the existing keyed store, with O(1) capacity accounting. Secondary separator columns reuse
+the aggregate argument metadata without changing the JNI signature. Numeric plans retain
+their historical empty secondary-column encoding and TTL emission mode.
+
+JSON_ARRAYAGG likewise retains an ordered sequence of already serialized JSON values,
+removing the first equal occurrence rather than recomputing from an unordered multiset.
+JSON_OBJECTAGG owns a per-key field map and sorts Java UTF-16 keys at materialization.
+Both store versioned accumulator snapshots. Flink 1.18 NULL-key serialization failures
+are deferred until materialization; structured errors cross JNI only after the imported
+Arrow batch has been dropped. The cold legacy failure delegates to the released Flink
+aggregate, preserving its wrapped exception without reconstructing JDK-specific messages.

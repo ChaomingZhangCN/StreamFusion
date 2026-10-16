@@ -119,6 +119,134 @@ checkpoint prefixes. Recovery metrics require consumed work in each intended
 native aggregate stage. See [release measurements](../benchmarks/basic-type-coverage.md)
 for the performance boundary and the decimal division optimization it required.
 
+Released Flink 1.18.1 suppresses unchanged mini-batch aggregate results even with
+positive state TTL, in both single-phase and global merge plans. Flink 2.2.1 emits
+those unchanged updates with TTL enabled. The native operator selects this behavior
+from the Flink compatibility line for heap, raw restore and typed RocksDB state;
+secondary input metadata does not determine the emission mode.
+
+### LISTAGG
+
+Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, with an
+omitted comma separator or a verified non-null character literal. Empty, quoted and
+multi-byte separators are supported. NULL values are skipped; empty strings and
+duplicates contribute in arrival order. A retraction removes the first matching
+occurrence. FILTER, numeric aggregate composition and single-phase mini-batching
+retain Flink's result types and changelog behavior.
+
+Append input retains an owned concatenated prefix. Retracting input retains ordered
+owned occurrences and pending unmatched retractions, matching released Flink. Versioned
+binary accumulator snapshots preserve this state across memory/native RocksDB restores.
+Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
+profiles each force two restores and verify native consumption and released memory.
+Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
+JSON array/object coverage is described below.
+
+Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
+mimalloc, 1,024-row transposes, ONE_PHASE without mini-batching, two warmups and five
+alternating stock/native trials. Complete jobs retain the row source, both transposes,
+JNI, state and row blackhole sink. Values are NULL every seventh input.
+
+| Workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 2M rows, 65,536 keys, 16-byte strings, append | 2.414 s | 2.420 s | 1.322 s | 1.83× |
+| Same, insert/insert/delete input | 3.801 s | 3.660 s | 1.336 s | 2.84× |
+| 1M rows, 32,768 keys, 128-byte strings, append | 2.103 s | 2.038 s | 1.840 s | 1.14× |
+
+The previous revision is actual main `f88dc237`, using identical harness/configuration
+and asserting zero native substitutions. Its separately paired stock controls are
+2.435/3.587/2.028 s; the 4–6% drift in the latter controls limits fine comparisons.
+Native ranges are 1.257–1.361/1.324–1.355/1.785–1.977 s; corresponding stock ranges
+are 2.347–2.483/3.690–4.109/1.959–2.206 s. These bounded cardinalities do not establish
+performance for arbitrarily large per-key strings.
+
+Mixed Java/Rust CPU and allocation profiles were captured with async-profiler 4.0,
+`cpu-clock`, 2 ms sampling, DWARF native stacks and 1 MB allocation sampling.
+Rust state updates, allocation and result materialization dominate the native task;
+Java conversion and JNI remain visible. No speculative micro-optimization is included.
+All raw trials, Criterion estimates, source/library hashes and compressed profile stacks
+are retained in [the measurement artifact](../benchmarks/results/listagg-2026-10-15.json).
+Reproduce complete jobs with `SF_BENCHMARK=true mvn test -Pbench
+-Dtest=StringAggregateBenchmark
+-Dsf.benchmarkJvmArgs="-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false"`; workload properties are
+`stringagg.rows`, `stringagg.keys`, `stringagg.width` and `stringagg.updating`.
+
+### JSON_ARRAYAGG and JSON_OBJECTAGG
+
+Single-phase JSON array/object aggregation accepts append and retracting input whose
+arguments are serialized character values. Flink's planner inserts JSON_STRING for
+value arguments; its existing native expression whitelist still applies. Arrays retain
+arrival order and duplicates, and remove the first matching serialized value on
+retraction. Both NULL ON NULL and ABSENT ON NULL are supported, with the released
+default for each function. Objects remove by key regardless of the retracted value,
+permit reinsertion after removal, and sort output keys by Java UTF-16 order.
+Duplicate keys fail before ABSENT ON NULL can omit a NULL value.
+
+The result retains VARCHAR(2000) NOT NULL. Owned per-key strings checkpoint through
+the existing binary state representation; ordered arrays are not stored as unordered
+multisets. Positive state TTL, DISTINCT, explicit ordering and local/global JSON
+aggregation remain fallback. Both released parsers reject JSON aggregate FILTER syntax.
+Flink 1.18 decimal JSON_STRING expressions use the existing generated evaluator
+inside Calc because that line strips decimal scale; the grouped accumulator still runs
+natively. The 2.2 expression retains scale.
+
+NULL object keys preserve release-specific error timing: Flink 2.2 rejects them on
+accumulation, before NULL omission. Flink 1.18 retains the key until serialization,
+except an omitted NULL value; the cold failure delegates to the released host to retain
+its exception and cause. Group output materialization is fallible so this error occurs
+after all accumulators have processed the input. JNI reports structured JSON errors
+after releasing the imported Arrow batch, preserving the Comet ownership pattern.
+
+All 19 JSON SQL tests pass on each of released Flink 2.2.1 and 1.18.1/JDK 17. They
+compare exact ordered RowKinds, schemas, escaping, NULLs, duplicates, retractions,
+malformed UTF-16 boundaries and mini-batch error precedence. Eight recovery profiles
+exercise two successive restores across memory/native RocksDB and both input changelog
+modes. Three release native state tests and all 48 string/JSON Criterion fixtures pass.
+
+Complete-job release results on Flink 2.2.1/JDK 17, p=1, 2 GiB heap,
+production IPC, mimalloc, 1,024-row transposes and both row boundaries:
+
+| Workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| Array, 2M rows / 65,536 keys / 16 bytes | 8.939 s | 8.757 s | 1.891 s | 4.73× |
+| Object, same size and width | 26.992 s | — | 4.046 s | 6.67× |
+| Object, 500k rows / 16,384 keys / 16 bytes | 6.290 s | 6.173 s | 1.033 s | 6.09× |
+| Array, same smaller size, retracting | 1.431 s | 1.365 s | 0.500 s | 2.86× |
+| Object, same smaller size, retracting | 2.782 s | 2.747 s | 0.614 s | 4.53× |
+| Array, same smaller size, 128-byte strings | 3.442 s | 3.362 s | 1.252 s | 2.75× |
+| Object, same smaller size, BIGINT values | 6.309 s | 6.206 s | 0.955 s | 6.61× |
+
+Large cases use two warmups/five alternating pairs; smaller controls use one warmup/three
+pairs and preserve roughly 30 rows per key. Previous behavior is actual main `f88dc237`,
+with the identical harness/data/resources and zero native substitutions asserted. The
+large object case has no separate previous-revision run; the smaller object control does.
+Paired stock controls differ by at most 4%. All native/stock trial ranges are disjoint;
+startup remains in the measurements, with no time subtracted. These cardinalities do not
+establish performance for arbitrarily large per-key strings.
+
+Mixed Java/Rust CPU profiles use released async-profiler 4.0, `cpu-clock`, 2 ms sampling
+and DWARF native stacks. They show stock JSON tree traversal/serialization and state-map
+access; native costs are state update, string allocation/copying and object-key sorting.
+Java transposes remain visible. Across one warmup/three pairs, task-thread Java allocation
+sample weights are 67.3 GB stock versus 14.7 GB native for arrays (8M rows per engine),
+and 28.3 GB versus 5.0 GB for objects (2M rows per engine). These are sampled Java heap
+allocation traffic, not peak memory or Rust allocations. Profiled timings are excluded
+from speed claims.
+
+All 56 production fixtures pass with untimed Rust allocation counters and Arrow output
+buffer reports; 32 JSON update fixtures and eight string/JSON snapshot/restore fixtures
+also retain release Criterion timing estimates. Probes
+record allocation requests/full requested bytes separately from output buffer lengths,
+without equating either with copied bytes. All complete-job trials, hashes, CPU/Java
+allocation stacks, native allocation probes and Criterion estimates are retained in
+[the result artifact](../benchmarks/results/json-aggregates-2026-10-15.json).
+
+Reproduce complete jobs with the LISTAGG command above and
+`-Dstringagg.function=JSON_ARRAYAGG` or `JSON_OBJECTAGG`. Set `stringagg.value=bigint`
+for numeric object values, `stringagg.updating=true` for retracting input, and
+`stringagg.warmup`/`stringagg.runs` for the recorded trial counts. The smaller controls use
+`stringagg.rows=500000` and `stringagg.keys=16384`; the wide case sets `stringagg.width=128`.
+
 ### Floating aggregate validation
 
 `FlinkFloatingGroupAggregateSqlHarnessTest` compares released Flink values, result schemas,
@@ -381,6 +509,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
+- LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
@@ -393,6 +522,25 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
   or with more than one argument.
 - DISTINCT or retracting FIRST_VALUE/LAST_VALUE with positive state TTL.
 - An unsupported grouping-key or value column type.
+
+The released-host string aggregate baseline passes 18 checks on each of Flink 2.2.1 and
+1.18.1/JDK 17. LISTAGG accepts an omitted separator (comma) or a non-null character literal;
+dynamic and NULL separators fail SQL validation. Supported literals include empty, multi-byte
+and quoted separators. Append and retract inputs preserve arrival order and duplicates, skip
+NULL values, and honor FILTER. Retraction removes the first matching duplicate.
+
+Plain GROUP BY JSON array/object aggregates accept the tested retracting input on both releases;
+there is no blanket JSON changelog exclusion for these forms. Tests preserve array order and
+duplicates, NULL/ABSENT clauses, escaping, and duplicate-object-key errors before NULL omission.
+Object keys sort by Java UTF-16 order, including supplementary Unicode keys. JSON aggregate
+FILTER syntax is rejected by both released parsers. Flink 2.2 preserves decimal scale in JSON
+arrays (`[1.00,2.00]`); Flink 1.18 returns `[1,2]`. A NULL object key fails at accumulation on
+2.2, even with ABSENT ON NULL and a NULL value. On 1.18 the non-null-value case fails at
+serialization, while ABSENT ON NULL with a NULL value returns `{}`. A singleton malformed
+Java UTF-16 string remains visible before aggregation but normalizes at the tested global
+and keyed aggregate boundaries, with either object-reuse setting and either changelog mode.
+Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
+input in streaming mode emits no aggregate row. Native string/JSON coverage is described above.
 
 **Local group aggregate (two-phase local half) only:**
 

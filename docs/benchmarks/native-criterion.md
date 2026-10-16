@@ -2291,3 +2291,34 @@ NULL contributions and repeated accumulate/retract/retract/accumulate deltas. It
 negative record counts remain live until exactly zero, then times update
 and changelog materialization. Input construction and aggregator creation stay outside the
 measurement; this isolates the native boundary and does not replace Flink end-to-end validation.
+
+## String group aggregates
+
+`string_group_aggregates` calls production LISTAGG update and changelog materialization
+for 16/1,024 rows, one/64 keys, 8/128-byte values, NULLs and append/retract input.
+Operator creation, Arrow fixture construction, retract seeding and destruction stay outside
+timing (`iter_batched_ref`, large-input batching). Each case also compares the next update
+after a production snapshot/restore with uninterrupted execution. All 16 release fixtures
+pass; ten-sample timing estimates are retained with the
+[complete-job measurements](results/listagg-2026-10-15.json). Run
+`python3 bin/bench-native.py --bench string_group_aggregates --smoke` for fixture validation.
+
+The same suite now includes 32 JSON array/object cases over both batch sizes, key
+cardinalities and widths, with append and retract input. Each calls production update
+and materialization and verifies the next retraction after snapshot/restore. Serialized
+value and unique object-key fixtures, operator setup and retract seeding are outside timing.
+
+Untimed probes in this suite count Rust allocation requests and requested bytes for the
+same production update, then report shared/new Arrow output buffer lengths. These are
+allocation traffic and buffer sharing observations, not copied bytes, peak memory or
+native C/C++ allocations. Timing runs keep the counting probe disabled. The allocator
+wrapper follows the repository's existing production-operator benchmark support.
+
+Eight `string_aggregate_checkpoint` cases time production snapshot serialization and
+restoration for append/retract LISTAGG and both JSON families. Profiles pair 16 rows /
+one key / 8-byte strings with 1,024 rows / 64 keys / 128-byte strings, retaining NULLs.
+They independently compare the next update on restored state. Input/state setup and
+snapshot/restored-state destruction stay outside timing. Checkpoints return byte vectors
+and state rather than Arrow arrays, so their Arrow output-buffer reports are empty.
+All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are retained
+in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).

@@ -173,3 +173,7 @@ harness = false
 [[bench]]
 name = "non_time_row_number"
 harness = false
+
+[[bench]]
+name = "string_group_aggregates"
+harness = false
