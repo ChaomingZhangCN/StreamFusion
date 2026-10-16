@@ -106,5 +106,57 @@ fn routing(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, iceberg, routing);
+fn reading(c: &mut Criterion) {
+    let schema = Schema::builder()
+        .with_fields([
+            NestedField::required(17, "id", Type::Primitive(PrimitiveType::Long)).into(),
+            NestedField::optional(38, "value", Type::Primitive(PrimitiveType::String)).into(),
+        ])
+        .build()
+        .unwrap();
+    let mut group = c.benchmark_group("iceberg/task-read");
+    for rows in [16usize, 1024, 16384] {
+        for width in [8, 264, 4096] {
+            let text = "x".repeat(width);
+            let input = RecordBatch::try_from_iter(vec![
+                (
+                    "id",
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                ),
+                (
+                    "value",
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|i| (i % 7 != 0).then_some(text.as_str())),
+                    )) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            let bytes = encode(&schema, &input, &(0..rows as u32).collect::<Vec<_>>());
+            let fixture = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes);
+            for project in [false, true] {
+                let ids: &[i32] = if project { &[38] } else { &[17, 38] };
+                for batch_rows in [16, 1024] {
+                    let label =
+                        format!("read/{rows}/bytes={width}/project={project}/batch={batch_rows}");
+                    let (batches, allocations) = measure(|| fixture.read(ids, batch_rows, 0));
+                    assert_eq!(
+                        batches.iter().map(RecordBatch::num_rows).sum::<usize>(),
+                        rows
+                    );
+                    let arrays = batches
+                        .iter()
+                        .flat_map(|b| b.columns().iter().cloned())
+                        .collect::<Vec<_>>();
+                    report(&label, &[], &arrays, allocations);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| std::hint::black_box(fixture.read(ids, batch_rows, 0)))
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+criterion_group!(benches, iceberg, routing, reading);
 criterion_main!(benches);

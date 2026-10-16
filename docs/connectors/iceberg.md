@@ -60,6 +60,23 @@ Criterion's `iceberg_io` suite separately exercises 18 release encoding fixtures
 and 27 batch-routing fixtures across one, four, and 128 destinations;
 it does not establish an end-to-end speedup.
 
+The internal source task-reader foundation now translates Java-planned Parquet
+file tasks explicitly into the released iceberg-rust reader. Host-backed positional
+I/O preserves Java FileIO and authenticates each data/delete read. JNI workers attach
+to the JVM for callbacks; seek/read pairs are synchronized and streams close with the
+task. Field-ID projection, nullable strings, Parquet equality/position deletes
+(including projected-away keys), zero-column row counts, sequential task ordinals,
+and logical-row resume with changed batch sizes have direct readback tests. Queued
+batch recycling and iterator cancellation reclaim prefetched Arrow roots; injected
+host read errors propagate and native handles are reclaimed.
+
+This foundation does **not yet admit SQL sources**. Residual predicates, partition
+constants, name mapping, evolving task-feature admission/fallback, full streaming
+recovery, watermark/configuration parity, reader memory accounting, and upstream
+source SQL coverage remain required before source admission expands. Native deletion
+vectors remain unavailable in published crate 0.10.1. This follows Comet's explicit
+Iceberg task handoff and StreamFusion's Paimon host-FileIO/C Data bridge.
+
 The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark
 comparison are tracked in [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
 All work concerns streaming jobs; batch overwrite and maintenance are outside scope.

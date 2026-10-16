@@ -22,7 +22,12 @@ suite and must be included in the Iceberg end-to-end comparison. A further 27
 production routing fixtures cross the same sizes and widths with one/four/128
 destinations. Routing retains contiguous Arrow slices and gathers sparse selections;
 allocation diagnostics report buffer sharing. Destination selection in Java and
-network transport remain outside that isolated kernel.
+network transport remain outside that isolated kernel. Another 36 fixtures exercise
+the production released Iceberg task reader at the same sizes/widths, full versus
+single-column projection, and batch sizes 16/1024. Parquet fixture encoding and
+memory-file setup happen before timing; reader construction, footer/decode,
+projection, Arrow output collection and teardown are measured. JNI/FileIO callbacks,
+delete indexes, Flink discovery and checkpoints remain end-to-end costs.
 
 ## Running and comparing
 

@@ -8,6 +8,8 @@ use streamfusion_bridge::{
 };
 
 streamfusion_bridge::link_allocator!();
+mod input;
+mod reader;
 mod routing;
 mod storage;
 mod writer;
@@ -183,5 +185,66 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_closeRoute(
 ) {
     jni_guard(env, |_| {
         drop(unsafe { from_handle::<routing::Routing>(handle) });
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_createReader(
+    env: JNIEnv,
+    _: JClass,
+    task_json: JString,
+    files: JObject,
+    batch_rows: i32,
+    skip: jlong,
+) -> jlong {
+    jni_guard(env, |env| {
+        assert!(
+            batch_rows > 0 && skip >= 0,
+            "Iceberg reader batch size/offset"
+        );
+        let json: String = env
+            .get_string(&task_json)
+            .expect("Iceberg task metadata")
+            .into();
+        let task: reader::ScanTask = serde_json::from_str(&json).expect("Iceberg scan task");
+        let io = input::InputStorage::file_io(env, files);
+        into_handle(
+            reader::Reader::new(io, task, batch_rows as usize, skip as u64)
+                .expect("Iceberg task reader"),
+        )
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_nextRead(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    array: jlong,
+    schema: jlong,
+) -> jni::sys::jboolean {
+    jni_guard(env, |_| {
+        let decoder = unsafe { &mut *(handle as *mut reader::Reader) };
+        match reader::runtime()
+            .block_on(decoder.next())
+            .expect("Iceberg Parquet task read")
+        {
+            Some(batch) => {
+                streamfusion_bridge::export_record_batch(batch, array, schema);
+                1
+            }
+            None => 0,
+        }
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_closeReader(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+) {
+    jni_guard(env, |_| {
+        drop(unsafe { from_handle::<reader::Reader>(handle) });
     })
 }

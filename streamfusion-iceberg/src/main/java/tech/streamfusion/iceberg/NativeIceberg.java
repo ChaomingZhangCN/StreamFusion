@@ -43,4 +43,10 @@ final class NativeIceberg {
   static native int nextRoute(long handle, long array, long schema);
 
   static native void closeRoute(long handle);
+
+  static native long createReader(String task, Object files, int batchRows, long skip);
+
+  static native boolean nextRead(long handle, long array, long schema);
+
+  static native void closeReader(long handle);
 }

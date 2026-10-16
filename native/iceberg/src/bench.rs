@@ -43,3 +43,46 @@ pub fn route(input: &RecordBatch, destinations: &[i32]) -> Vec<RecordBatch> {
         .map(|(_, batch)| batch)
         .collect()
 }
+
+pub struct ReadFixture {
+    io: FileIO,
+    schema: Schema,
+    size: u64,
+}
+
+impl ReadFixture {
+    pub fn new(schema: &Schema, bytes: Bytes) -> Self {
+        let io = FileIO::new_with_memory();
+        let size = bytes.len() as u64;
+        crate::reader::runtime()
+            .block_on(io.new_output("read.parquet").unwrap().write(bytes))
+            .unwrap();
+        Self {
+            io,
+            schema: schema.clone(),
+            size,
+        }
+    }
+
+    pub fn read(&self, project_ids: &[i32], batch_rows: usize, skip: u64) -> Vec<RecordBatch> {
+        crate::reader::runtime().block_on(async {
+            let task = crate::reader::ScanTask {
+                schema: self.schema.clone(),
+                path: "read.parquet".into(),
+                file_size: self.size,
+                start: 0,
+                length: self.size,
+                project_ids: project_ids.to_vec(),
+                deletes: vec![],
+                case_sensitive: true,
+            };
+            let mut reader =
+                crate::reader::Reader::new(self.io.clone(), task, batch_rows, skip).unwrap();
+            let mut batches = vec![];
+            while let Some(batch) = reader.next().await.unwrap() {
+                batches.push(batch);
+            }
+            batches
+        })
+    }
+}
