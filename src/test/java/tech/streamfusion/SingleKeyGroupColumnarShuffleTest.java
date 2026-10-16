@@ -71,6 +71,8 @@ class SingleKeyGroupColumnarShuffleTest {
                   edge -> {
                     var target = graph.getStreamNode(edge.getTargetId());
                     assertEquals(1, target.getParallelism());
+                    assertTrue(
+                        ((ColumnarKeyGroupPartitioner) edge.getPartitioner()).requiresSingleton());
                     assertEquals(
                         1, ((ColumnarKeyGroupPartitioner) edge.getPartitioner()).maxParallelism());
                   })

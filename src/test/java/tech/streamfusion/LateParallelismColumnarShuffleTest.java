@@ -141,6 +141,9 @@ class LateParallelismColumnarShuffleTest {
                       .forEach(
                           edge -> {
                             if (edge.getPartitioner() instanceof ColumnarKeyGroupPartitioner) {
+                              assertFalse(
+                                  ((ColumnarKeyGroupPartitioner) edge.getPartitioner())
+                                      .requiresSingleton());
                               pending.add(node.getId());
                             }
                           }));
