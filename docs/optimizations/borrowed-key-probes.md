@@ -130,3 +130,11 @@ versus stock 1.767 s, and the candidate's distinct-key repeat observed an extern
 The feature and cache stay default off while that regression and remaining contracts are
 resolved. [Full trials and mixed Java/Rust profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
 retain unfavorable and contaminated measurements as well as the wins.
+
+
+When a bounded numeric cache fills without reuse and another key arrives, staged state flushes
+before subsequent accesses delegate directly to Flink. This avoids repeatedly staging distinct
+keys while retaining the cache when its working set fits. The initial cold-key bypass comparison
+(1.770 s native / 1.769 s stock) observed external work and remains diagnostic; clean comparisons
+are pending. [Isolated diagnostics](../benchmarks/jvm-aggregates.md) retain build/test separation,
+all typed key/cardinality trials and mixed Java/Rust profiles without asserting admission.

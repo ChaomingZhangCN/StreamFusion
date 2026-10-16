@@ -332,14 +332,14 @@
   ],
   "correctness": {
     "flink_2_2_1": {
-      "focused_passed_at_capacity_65536": 25,
-      "focused_passed_at_capacity_3": 25,
+      "focused_passed_at_capacity_65536": 31,
+      "focused_passed_at_capacity_3": 31,
       "failed": 0,
       "skipped": 0
     },
     "flink_1_18_1": {
-      "focused_passed_at_capacity_65536": 25,
-      "focused_passed_at_capacity_3": 25,
+      "focused_passed_at_capacity_65536": 31,
+      "focused_passed_at_capacity_3": 31,
       "failed": 0,
       "skipped": 0
     },
@@ -350,7 +350,9 @@
       "mixed managed ListView/UDAF/COUNT append and CDC at parallelism 3",
       "eight memory/native-RocksDB append/retract recovery scenarios per line, with two forced restores, consumed native rows and memory release",
       "open/evaluation/close failure cause parity",
-      "TTL, mini-batch, operator-disable, DISTINCT and FILTER fallback; processing-time mini-batch control checks known materialized results/schema rather than intermediate timing"
+      "TTL, mini-batch, operator-disable, DISTINCT and FILTER fallback; processing-time mini-batch control checks known materialized results/schema rather than intermediate timing",
+      "cold prefix followed by old-key reuse/retraction with mixed ListView/UDAF/COUNT, positive bypass counters at small capacity",
+      "four additional memory/native-RocksDB cold-prefix recovery scenarios per line at each capacity, each forcing two restores and checking native work/memory release"
     ],
     "default_mode_before_dataview_extension": {
       "portable_passed_per_line": 38,
@@ -362,7 +364,7 @@
       ],
       "note": "The default-off gate preserves original UDAF fallback routes and explanations. Opt-in success counts come from the separate focused runs above."
     },
-    "execution_note": "Final key-reuse coverage combines the 24-check suites and one independently executed nonleading-key regression at each capacity and Flink line. Mini-batch fallback correction was rerun on 1.18 and both capacity-three suites."
+    "execution_note": "31-case suites pass on both released Flink lines at both capacities. The nonleading-key case permits a recorded bypass when its working set exceeds the small capacity; normal-capacity coverage retains key reuse. Typed STRING/BIGINT benchmark fixtures also execute with positive native consumption and stock-control exclusion; their 2,000-row smoke timings are not performance claims."
   },
   "monitored_release": [
     {
@@ -2014,6 +2016,544 @@
       ],
       "gc_pause_ms_all_trials": 5346.261999999999,
       "full_gc_pauses_all_trials": 0
+    },
+    {
+      "label": "b4-cold-cache",
+      "flink": "2.2.1",
+      "source": "b4c119e99aaedfaa84e2471115956a3b4c9d5639",
+      "date": "2026-10-16",
+      "rows": 2000000,
+      "keys": 2000000,
+      "resource_lifetime": "per-job metrics cluster",
+      "stock_seconds": [
+        1.993058963,
+        1.895568563,
+        1.74080368,
+        1.796307095,
+        1.911892542
+      ],
+      "native_seconds": [
+        2.328212588,
+        2.264326062,
+        2.175489173,
+        2.091606641,
+        2.170994998
+      ],
+      "stock_median_s": 1.895568563,
+      "native_median_s": 2.175489173,
+      "stock_range_s": [
+        1.74080368,
+        1.993058963
+      ],
+      "native_range_s": [
+        2.091606641,
+        2.328212588
+      ],
+      "external_activity_records": 34,
+      "external_cpu_s": 16.06,
+      "performance_claim_eligible": false,
+      "admitted": false,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123116998,
+          "seconds": 4.01567,
+          "conservative_external_activity_records": 9
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123121318,
+          "seconds": 3.002908,
+          "conservative_external_activity_records": 8
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123124489,
+          "seconds": 2.513762,
+          "conservative_external_activity_records": 7
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123127092,
+          "seconds": 2.069557,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123129258,
+          "seconds": 1.993059,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123131405,
+          "seconds": 2.328213,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123133850,
+          "seconds": 2.264326,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123136210,
+          "seconds": 1.895569,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123138188,
+          "seconds": 1.740804,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123140032,
+          "seconds": 2.175489,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123142308,
+          "seconds": 2.091607,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123144461,
+          "seconds": 1.796307,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123146341,
+          "seconds": 1.911893,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123148348,
+          "seconds": 2.170995,
+          "conservative_external_activity_records": 0
+        }
+      ],
+      "cache_metrics": [],
+      "limitation": "Other repository build/test activity overlapped this run. Retain as diagnostic only; no speed admission."
+    },
+    {
+      "label": "adaptive-cold-22",
+      "flink": "2.2.1",
+      "source": "cold-fill bypass candidate in this artifact commit",
+      "date": "2026-10-16",
+      "rows": 2000000,
+      "keys": 2000000,
+      "resource_lifetime": "per-job metrics cluster",
+      "stock_seconds": [
+        1.769052881,
+        1.82977789,
+        1.657628775,
+        1.696422048,
+        1.782523665
+      ],
+      "native_seconds": [
+        1.770289482,
+        1.808359927,
+        1.771691681,
+        1.658886848,
+        1.64489481
+      ],
+      "stock_median_s": 1.769052881,
+      "native_median_s": 1.770289482,
+      "stock_range_s": [
+        1.657628775,
+        1.82977789
+      ],
+      "native_range_s": [
+        1.64489481,
+        1.808359927
+      ],
+      "external_activity_records": 60,
+      "external_cpu_s": 42.06,
+      "performance_claim_eligible": false,
+      "admitted": false,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123626542,
+          "seconds": 4.284198,
+          "conservative_external_activity_records": 10
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123631215,
+          "seconds": 2.736176,
+          "conservative_external_activity_records": 7
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123634085,
+          "seconds": 1.9396,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123636118,
+          "seconds": 1.82536,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123638008,
+          "seconds": 1.769053,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123639884,
+          "seconds": 1.770289,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123641859,
+          "seconds": 1.80836,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123643758,
+          "seconds": 1.829778,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123645658,
+          "seconds": 1.657629,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123647517,
+          "seconds": 1.771692,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123649392,
+          "seconds": 1.658887,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123651169,
+          "seconds": 1.696422,
+          "conservative_external_activity_records": 5
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123652935,
+          "seconds": 1.782524,
+          "conservative_external_activity_records": 6
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123654813,
+          "seconds": 1.644895,
+          "conservative_external_activity_records": 5
+        }
+      ],
+      "cache_metrics": [
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        },
+        {
+          "hits": 0,
+          "bypasses": 1
+        }
+      ],
+      "limitation": "Other repository build/test activity overlapped this run. Retain as diagnostic only; no speed admission."
+    },
+    {
+      "label": "adaptive-v2-hot-118",
+      "flink": "1.18.1",
+      "source": "cold-fill bypass candidate in this artifact commit",
+      "date": "2026-10-16",
+      "rows": 2000000,
+      "keys": 65536,
+      "resource_lifetime": "per-job metrics cluster",
+      "stock_seconds": [
+        1.055748518,
+        0.990927617,
+        1.022128572,
+        1.103962466,
+        1.214269368
+      ],
+      "native_seconds": [
+        0.698811325,
+        0.69479411,
+        0.57932014,
+        0.497447408,
+        0.498971404
+      ],
+      "stock_median_s": 1.055748518,
+      "native_median_s": 0.57932014,
+      "stock_range_s": [
+        0.990927617,
+        1.214269368
+      ],
+      "native_range_s": [
+        0.497447408,
+        0.698811325
+      ],
+      "external_activity_records": 5,
+      "external_cpu_s": 8.15,
+      "performance_claim_eligible": false,
+      "admitted": false,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123822004,
+          "seconds": 2.937519,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "start_ms": 1792123825203,
+          "seconds": 1.194554,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123826566,
+          "seconds": 0.842339,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "start_ms": 1792123827525,
+          "seconds": 1.166958,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123828815,
+          "seconds": 1.055749,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "start_ms": 1792123830005,
+          "seconds": 0.698811,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123830853,
+          "seconds": 0.694794,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "start_ms": 1792123831663,
+          "seconds": 0.990928,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123832755,
+          "seconds": 1.022129,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "start_ms": 1792123833896,
+          "seconds": 0.57932,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123834599,
+          "seconds": 0.497447,
+          "conservative_external_activity_records": 0
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "start_ms": 1792123835151,
+          "seconds": 1.103962,
+          "conservative_external_activity_records": 1
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123836337,
+          "seconds": 1.214269,
+          "conservative_external_activity_records": 4
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "start_ms": 1792123837661,
+          "seconds": 0.498971,
+          "conservative_external_activity_records": 3
+        }
+      ],
+      "cache_metrics": [
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        },
+        {
+          "hits": 1934464,
+          "bypasses": 0
+        }
+      ],
+      "limitation": "Other repository build/test activity overlapped this run. Retain as diagnostic only; no speed admission."
     }
-  ]
+  ],
+  "isolated_diagnostics": {
+    "workflow": ".github/workflows/jvm-aggregates.yml",
+    "runner": "bin/bench-jvm-aggregates.py",
+    "state": "prepared; results pending",
+    "flink": [
+      "2.2.1",
+      "1.18.1"
+    ],
+    "keys": [
+      "INT",
+      "BIGINT",
+      "STRING"
+    ],
+    "cardinalities": [
+      16,
+      65536,
+      2000000
+    ],
+    "build_correctness_measurement": "sequential on one hosted runner per Flink line",
+    "profiles": "separate INT/STRING medium/distinct runs with mixed Java/Rust CPU and sampled Java allocations; timings excluded"
+  }
 }

@@ -512,11 +512,11 @@ Arrow-batch input/output operator. It preserves each emitted changelog row; inpu
 does not reduce user function invocations or intermediate results. The operator disable switch
 `streamfusion.operator.jvmGroupAggregate.enabled=false` retains whole-island fallback.
 
-The opt-in harness passes 25 checks on each released Flink line with JDK 17, at both
+The opt-in harness passes 31 checks on each released Flink line with JDK 17, at both
 65,536-entry and three-entry capacities. Coverage includes the original STRING-key append/CDC
 fixtures, numeric boundary/NULL keys at parallelism one and three, nonleading grouping-field
 selection confirmed in the optimized plan, all RowKinds and delete/reinsert, and mixed
-ListView/UDAF/COUNT aggregation. Eight memory/native-RocksDB repeated-recovery scenarios per
+ListView/UDAF/COUNT aggregation. Twelve memory/native-RocksDB repeated-recovery scenarios per
 line assert two forced restores, consumed native work and released native memory. Lifecycle
 failures and excluded-mode fallback are checked; the released host's processing-time mini-batch
 control compares known final results and schema because intermediate batches may differ.
@@ -537,6 +537,11 @@ context and ignores an empty cache on idle subtasks. Other key shapes use manage
 Cache hits also reuse their immutable, owned Flink BinaryRow key: the borrowed input's numeric
 field probes the cache before key construction. Misses use the released selector's owned copy.
 The key field comes from the optimized input projection, rather than the original source schema.
+If an additional key arrives after the cache fills without any hit, pending rows first flush
+to managed state and the cache is bypassed for the rest of that task attempt. Reads, writes
+and clears then delegate directly; a restored attempt starts with an empty cache and evaluates
+reuse again. A working set that fits the capacity stays cached. Cold-prefix tests revisit and
+retract old groups after the switch, including ListView state and repeated recovery.
 The bound counts entries, not accumulator bytes, and is not a task memory budget.
 
 The investigation has mixed Java/symbolized Rust CPU and sampled Java allocation profiles.
@@ -574,8 +579,12 @@ See the [probe technique](../optimizations/borrowed-key-probes.md#experimental-j
 
 [All diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
 retain the variability, GC observations and interference records. There is no default admission:
-Flink1.18 release comparisons, broader key/accumulator contracts and representative
-preceding-fallback comparisons remain outstanding. Stock Flink remains the default.
+Clean Flink1.18 release comparisons, broader key/accumulator contracts and representative
+preceding-fallback comparisons remain outstanding. An additional cold-key bypass run measured
+1.770 s native versus 1.769 s stock but overlapped another build, so it is diagnostic only.
+[Isolated release diagnostics](../benchmarks/jvm-aggregates.md) build and finish correctness
+checks before measuring typed key/cardinality cases and collecting Java/Rust profiles on
+separate GitHub runners. Stock Flink remains the default.
 
 ## Still falls back
 

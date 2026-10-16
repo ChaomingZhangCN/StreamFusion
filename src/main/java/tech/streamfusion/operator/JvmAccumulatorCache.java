@@ -21,6 +21,7 @@ final class JvmAccumulatorCache {
   private final boolean intKey;
   private final Supplier<Object> currentKey;
   private final Counter hits;
+  private final Counter bypasses;
   private final Consumer<Object> selectKey;
   private final List<CachedState> states = new ArrayList<>();
 
@@ -29,11 +30,13 @@ final class JvmAccumulatorCache {
       boolean intKey,
       Supplier<Object> currentKey,
       Consumer<Object> selectKey,
-      Counter hits) {
+      Counter hits,
+      Counter bypasses) {
     this.capacity = capacity;
     this.intKey = intKey;
     this.currentKey = currentKey;
     this.hits = hits;
+    this.bypasses = bypasses;
     this.selectKey = selectKey;
   }
 
@@ -105,12 +108,15 @@ final class JvmAccumulatorCache {
     private Entry nullEntry;
     private RowData lastKey;
     private Entry lastEntry;
+    private boolean enabled = true;
+    private boolean hitSinceClear;
 
     private CachedState(ValueState<RowData> delegate) {
       this.delegate = delegate;
     }
 
     private RowData keyFor(RowData input, int field) {
+      if (!enabled) return null;
       Entry entry =
           input.isNullAt(field)
               ? nullEntry
@@ -122,11 +128,17 @@ final class JvmAccumulatorCache {
       return intKey ? key.getInt(0) : key.getLong(0);
     }
 
-    private void makeRoom() throws IOException {
+    private boolean makeRoom() throws IOException {
       if (values.size() + (nullEntry == null ? 0 : 1) >= capacity) {
+        boolean unused = !hitSinceClear;
         flush();
         invalidate();
+        if (unused) {
+          enabled = false;
+          bypasses.inc();
+        }
       }
+      return enabled;
     }
 
     private void flush() throws IOException {
@@ -154,13 +166,17 @@ final class JvmAccumulatorCache {
 
     @Override
     public RowData value() throws IOException {
+      if (!enabled) return delegate.value();
       RowData key = (RowData) currentKey.get();
       Entry entry = key.isNullAt(0) ? nullEntry : values.get(keyValue(key));
       if (entry == null) {
-        makeRoom();
+        if (!makeRoom()) return delegate.value();
         entry = new Entry(key, delegate.value());
         put(key, entry);
-      } else hits.inc();
+      } else {
+        hitSinceClear = true;
+        hits.inc();
+      }
       lastKey = key;
       lastEntry = entry;
       return entry.value;
@@ -168,10 +184,17 @@ final class JvmAccumulatorCache {
 
     @Override
     public void update(RowData value) throws IOException {
+      if (!enabled) {
+        delegate.update(value);
+        return;
+      }
       RowData key = (RowData) currentKey.get();
       if (key == lastKey && lastEntry != null) lastEntry.value = value;
       else {
-        makeRoom();
+        if (!makeRoom()) {
+          delegate.update(value);
+          return;
+        }
         lastKey = key;
         lastEntry = new Entry(key, value);
         put(key, lastEntry);
@@ -182,15 +205,18 @@ final class JvmAccumulatorCache {
     @Override
     public void clear() {
       delegate.clear();
+      if (!enabled) return;
       RowData key = (RowData) currentKey.get();
       if (key.isNullAt(0)) nullEntry = null;
       else values.remove(keyValue(key));
       lastKey = null;
       lastEntry = null;
+      if (values.isEmpty() && nullEntry == null) hitSinceClear = false;
     }
 
     private void invalidate() {
       values.clear();
+      hitSinceClear = false;
       nullEntry = null;
       lastKey = null;
       lastEntry = null;

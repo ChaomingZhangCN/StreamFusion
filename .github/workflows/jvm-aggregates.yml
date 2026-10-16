@@ -1,0 +1,86 @@
+name: JVM aggregate release diagnostics
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/jvm-aggregates.yml'
+      - 'bin/bench-jvm-aggregates.py'
+      - 'src/main/java/tech/streamfusion/operator/*Jvm*'
+      - 'src/main/java/tech/streamfusion/planner/*Jvm*'
+      - 'src/main/java-flink*/tech/streamfusion/compat/JvmAggregateCompat.java'
+      - 'src/test/java/tech/streamfusion/*JvmAggregate*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jvm-aggregate-benchmark-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  release-diagnostics:
+    name: JVM aggregate diagnostics (Flink ${{ matrix.line }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - line: '2.2'
+            profile: bench
+          - line: '1.18'
+            profile: bench,flink-1.18
+    env:
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Free disk space
+        run: python3 bin/ci-free-disk.py
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: criterion-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build and install release modules before measurements
+        run: >-
+          mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime -am
+          -DskipTests install
+      - name: Validate aggregate state and recovery before measurements
+        run: |
+          for capacity in 65536 3; do
+            mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
+              -Dnative.build.skip=true -Dtest=FlinkJvmAggregateSqlHarnessTest \
+              -Dsf.testForks=1 \
+              '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
+              "-Dsf.extraJvmArgs=-Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=$capacity" \
+              surefire:test@default-test
+          done
+      - name: Install pinned released profiler
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/async-profiler/async-profiler/releases/download/v4.0/async-profiler-4.0-linux-x64.tar.gz \
+            --output "$RUNNER_TEMP/async-profiler.tar.gz"
+          echo "ba32bd69cc2906f6251cd5aa8ae72c3abc12267ba858d38733f7751cc4d3e05b  $RUNNER_TEMP/async-profiler.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/async-profiler.tar.gz" -C "$RUNNER_TEMP"
+          sudo sysctl kernel.perf_event_paranoid=1
+      - name: Measure complete jobs then profile Java and Rust
+        run: >-
+          python3 bin/bench-jvm-aggregates.py --flink-line '${{ matrix.line }}'
+          --output native/target/jvm-aggregate-diagnostics
+          --profiler-agent "$RUNNER_TEMP/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so"
+      - name: Retain every trial, GC log, profile and correctness report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-aggregate-diagnostics-${{ matrix.line }}-${{ github.sha }}
+          path: |
+            native/target/jvm-aggregate-diagnostics/
+            streamfusion-runtime/target/surefire-reports/
+          retention-days: 14

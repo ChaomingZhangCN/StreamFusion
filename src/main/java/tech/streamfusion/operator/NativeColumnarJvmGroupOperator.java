@@ -108,7 +108,8 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
               keyWidth == 32,
               this::getCurrentKey,
               this::setCurrentKey,
-              getMetricGroup().counter("jvmAccumulatorCacheHits"));
+              getMetricGroup().counter("jvmAccumulatorCacheHits"),
+              getMetricGroup().counter("jvmAccumulatorCacheBypasses"));
       JvmAggregateCompat.open(function, accumulatorCache.wrap(runtime));
     } else JvmAggregateCompat.open(function, runtime);
     coalescer = BatchCoalescer.create(getProcessingTimeService(), this::ingest);

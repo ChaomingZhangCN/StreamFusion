@@ -23,6 +23,12 @@ class JvmAggregateBenchmark {
     int keys = Integer.getInteger("jvmagg.keys", 65_536);
     int warmups = Integer.getInteger("jvmagg.warmup", 2);
     int runs = Integer.getInteger("jvmagg.runs", 5);
+    String keyType = System.getProperty("jvmagg.keyType", "int");
+    int prefixChars = Integer.getInteger("jvmagg.keyPrefixChars", 16);
+    String prefix = prefixChars <= 0 ? "" : "é" + "x".repeat(prefixChars - 1);
+    boolean expectedCache =
+        Boolean.parseBoolean(
+            System.getProperty("jvmagg.expectCache", keyType.equals("string") ? "false" : "true"));
     boolean expectedUdf = Boolean.parseBoolean(System.getProperty("jvmagg.expectNative", "false"));
     for (String shape : System.getProperty("jvmagg.cases", "udaf,builtin").split(",")) {
       boolean udf = shape.equals("udaf");
@@ -36,11 +42,31 @@ class JvmAggregateBenchmark {
             env.setParallelism(1);
             var table = StreamTableEnvironment.create(env);
             table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-            var source =
-                env.fromSequence(0, Math.max(0, rows - 1))
-                    .filter(i -> i < rows)
-                    .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : i))
-                    .returns(Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG));
+            var sequence = env.fromSequence(0, Math.max(0, rows - 1)).filter(i -> i < rows);
+            org.apache.flink.streaming.api.datastream.DataStream<Row> source;
+            switch (keyType) {
+              case "string":
+                source =
+                    sequence
+                        .map(i -> Row.of(prefix + Long.toString(i % keys), i % 8 == 7 ? null : i))
+                        .returns(
+                            Types.ROW_NAMED(new String[] {"k", "v"}, Types.STRING, Types.LONG));
+                break;
+              case "bigint":
+                source =
+                    sequence
+                        .map(i -> Row.of(i % keys, i % 8 == 7 ? null : i))
+                        .returns(Types.ROW_NAMED(new String[] {"k", "v"}, Types.LONG, Types.LONG));
+                break;
+              case "int":
+                source =
+                    sequence
+                        .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : i))
+                        .returns(Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG));
+                break;
+              default:
+                throw new IllegalArgumentException("Unsupported key type: " + keyType);
+            }
             table.createTemporaryView("src", source);
             table.createTemporarySystemFunction("test_aggregate", new PortableSqlFixtures.Sum());
             table.createTemporaryTable(
@@ -70,9 +96,10 @@ class JvmAggregateBenchmark {
             double seconds = (System.nanoTime() - start) / 1e9;
             System.out.printf(
                 Locale.ROOT,
-                "[jvm-aggregate-trial] shape=%s engine=%s trial=%d warmup=%s rows=%d keys=%d"
-                    + " start_ms=%d seconds=%.6f%n",
+                "[jvm-aggregate-trial] shape=%s key_type=%s engine=%s trial=%d warmup=%s rows=%d"
+                    + " keys=%d start_ms=%d seconds=%.6f%n",
                 shape,
+                keyType,
                 engine == 0 ? "Flink" : "StreamFusion",
                 trial,
                 trial < warmups,
@@ -84,13 +111,25 @@ class JvmAggregateBenchmark {
             if (engine == 1
                 && udf
                 && expectedUdf
+                && expectedCache
                 && Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0)
                     > 0) {
               long hits = metrics.counterValue("jvmAccumulatorCacheHits");
-              if (keys < rows) assertTrue(hits > 0, "accumulator cache did not execute");
-              else assertEquals(0, hits, "distinct keys unexpectedly hit the cache");
-              System.out.println("[jvm-aggregate-cache] hits=" + hits);
+              long bypasses = metrics.counterValue("jvmAccumulatorCacheBypasses");
+              int capacity =
+                  Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0);
+              if (keys > capacity && rows > capacity) {
+                assertTrue(bypasses > 0, "cold cache did not switch to managed state");
+              } else {
+                assertEquals(0, bypasses, "bounded working set unexpectedly bypassed the cache");
+                if (keys < rows) assertTrue(hits > 0, "accumulator cache did not execute");
+              }
+              if (keys >= rows) assertEquals(0, hits, "distinct keys unexpectedly hit the cache");
+              System.out.println("[jvm-aggregate-cache] hits=" + hits + " bypasses=" + bypasses);
             }
+            if (engine == 0)
+              assertTrue(
+                  metrics.nativeOperators().isEmpty(), "stock control executed native operators");
             if (engine == 1 && (!udf || expectedUdf))
               RecoveryExecutionMetrics.assertConsumed(
                   metrics.nativeOperators(),
@@ -100,9 +139,11 @@ class JvmAggregateBenchmark {
       }
       System.out.printf(
           Locale.ROOT,
-          "[jvm-aggregate] shape=%s rows=%d keys=%d stock=%.6f sf=%.6f stock_trials=%s"
-              + " sf_trials=%s%n",
+          "[jvm-aggregate] shape=%s key_type=%s key_prefix_chars=%d rows=%d keys=%d stock=%.6f"
+              + " sf=%.6f stock_trials=%s sf_trials=%s%n",
           shape,
+          keyType,
+          prefixChars,
           rows,
           keys,
           median(elapsed[0]),

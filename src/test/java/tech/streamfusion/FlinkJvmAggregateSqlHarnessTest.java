@@ -134,7 +134,10 @@ class FlinkJvmAggregateSqlHarnessTest {
       assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
       RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
       if (Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0) > 0)
-        assertTrue(metrics.counterValue("jvmAccumulatorCacheHits") > 0);
+        assertTrue(
+            metrics.counterValue("jvmAccumulatorCacheHits")
+                    + metrics.counterValue("jvmAccumulatorCacheBypasses")
+                > 0);
     }
   }
 
@@ -262,6 +265,89 @@ class FlinkJvmAggregateSqlHarnessTest {
     register(table);
     table.createTemporarySystemFunction("view_aggregate", new ViewAggregate());
     return table;
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void coldCacheCanStopBeforeOldKeysReturnAndRetract(boolean updating) throws Exception {
+    var rows = coldRows(updating);
+    try (var metrics = new RecoveryExecutionMetrics()) {
+      var comparison =
+          NativeFailureParity.run(
+              () -> {
+                var env = metrics.environment(new Configuration(), 3, 0);
+                var table = StreamTableEnvironment.create(env);
+                table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+                var input =
+                    tech.streamfusion.compat.FlinkTestSources.fromData(
+                        env,
+                        Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG),
+                        rows.toArray(new Row[0]));
+                table.createTemporaryView(
+                    "cold_input", table.fromChangelogStream(input, numericSchema(false)));
+                return registerDataViews(table);
+              },
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM cold_input GROUP BY"
+                  + " k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
+      RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
+      int capacity = Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0);
+      if (capacity > 0 && capacity <= 3)
+        assertTrue(metrics.counterValue("jvmAccumulatorCacheBypasses") > 0);
+      else if (capacity >= 32) assertEquals(0, metrics.counterValue("jvmAccumulatorCacheBypasses"));
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "hashmap,false",
+    "hashmap,true",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,false",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,true"
+  })
+  void stoppedCacheRestoresManagedAccumulatorsAndDataViews(String backend, boolean updating)
+      throws Exception {
+    try (var recovery =
+        new PortableSqlRecovery(
+                backend,
+                coldRows(updating),
+                Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG),
+                numericSchema(false),
+                updating,
+                16,
+                64)
+            .withExecutionMetrics()) {
+      var comparison =
+          NativeFailureParity.runRecovery(
+              () -> registerDataViews(recovery.uninterrupted()),
+              () -> registerDataViews(recovery.get()),
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM recovery_input GROUP"
+                  + " BY k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeJvmGroup");
+      int capacity = Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0);
+      if (capacity > 0 && capacity < 32)
+        assertTrue(recovery.counterValue("jvmAccumulatorCacheBypasses") > 0);
+      else if (capacity >= 32)
+        assertEquals(0, recovery.counterValue("jvmAccumulatorCacheBypasses"));
+      SharedFlinkCluster.assertNativeMemoryReleased("jvm-aggregate-bypass-recovery");
+    }
+  }
+
+  private static ArrayList<Row> coldRows(boolean updating) {
+    var rows = new ArrayList<Row>();
+    for (int i = 0; i < 32; i++) rows.add(Row.of(i == 0 ? null : i, (long) i));
+    for (int i = 32; i < 96; i++)
+      rows.add(Row.of(i % 8 == 0 ? null : i % 8, i % 7 == 0 ? null : (long) i));
+    if (updating) {
+      for (int i = 0; i < 16; i++)
+        rows.add(Row.ofKind(RowKind.DELETE, i == 0 ? null : i, (long) i));
+      rows.add(Row.ofKind(RowKind.UPDATE_BEFORE, null, 32L));
+      rows.add(Row.ofKind(RowKind.UPDATE_AFTER, null, 999L));
+    }
+    return rows;
   }
 
   @Test
