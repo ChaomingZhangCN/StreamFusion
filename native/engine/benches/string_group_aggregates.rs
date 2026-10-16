@@ -161,5 +161,76 @@ fn json_groups(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, string_groups, json_groups);
+fn string_checkpoints(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_aggregate_checkpoint");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
+    for kind in [24, 25, 26, 29] {
+        for (rows, keys, width) in [(16, 1, 8), (1024, 64, 128)] {
+            let make_input = |prefix: &str| {
+                let input = batch(rows, keys, width, false);
+                if kind < 26 {
+                    return input;
+                }
+                let mut columns = input.columns().to_vec();
+                let values = columns[1].as_any().downcast_ref::<StringArray>().unwrap();
+                columns[1] = Arc::new(StringArray::from_iter(
+                    values.iter().map(|v| v.map(|v| format!("\"{v}\""))),
+                ));
+                columns[2] = Arc::new(StringArray::from_iter_values(
+                    (0..rows).map(|i| format!("{prefix}{i}")),
+                ));
+                RecordBatch::try_new(input.schema(), columns).unwrap()
+            };
+            let input = make_input("seed");
+            let next = make_input("next");
+            let create = || {
+                if kind < 26 {
+                    GroupBy::listagg(kind == 25)
+                } else {
+                    GroupBy::json_aggregate(kind)
+                }
+            };
+            let restore = |snapshot: &[Vec<u8>]| {
+                if kind < 26 {
+                    GroupBy::restore_listagg(kind == 25, snapshot)
+                } else {
+                    GroupBy::restore_json_aggregate(kind, snapshot)
+                }
+            };
+            let mut original = create();
+            original.update(&input);
+            let snapshot = original.snapshot();
+            let mut expected = restore(&snapshot);
+            let mut restored = restore(&snapshot);
+            assert_eq!(expected.update(&next), restored.update(&next));
+            let ((snapshot, _), allocations) = measure(|| {
+                let snapshot = original.snapshot();
+                let restored = restore(&snapshot);
+                (snapshot, restored)
+            });
+            assert!(snapshot.iter().map(Vec::len).sum::<usize>() > 0);
+            let label = format!(
+                "string_aggregate_checkpoint/rows={rows}/keys={keys}/width={width}/kind={kind}"
+            );
+            // Checkpoints return byte vectors and state, not Arrow output buffers.
+            report(&label, &[], &[], allocations);
+            group.bench_function(label, |b| {
+                b.iter_batched_ref(
+                    || (),
+                    |_| {
+                        let snapshot = original.snapshot();
+                        let restored = restore(&snapshot);
+                        black_box((snapshot, restored))
+                    },
+                    BatchSize::LargeInput,
+                )
+            });
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, string_groups, json_groups, string_checkpoints);
 criterion_main!(benches);

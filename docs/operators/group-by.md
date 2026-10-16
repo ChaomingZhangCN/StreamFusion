@@ -140,7 +140,7 @@ binary accumulator snapshots preserve this state across memory/native RocksDB re
 Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
 profiles each force two restores and verify native consumption and released memory.
 Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
-JSON array/object performance admission remains tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
+JSON array/object coverage is described below.
 
 Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
 mimalloc, 1,024-row transposes, ONE_PHASE without mini-batching, two warmups and five
@@ -203,24 +203,49 @@ malformed UTF-16 boundaries and mini-batch error precedence. Eight recovery prof
 exercise two successive restores across memory/native RocksDB and both input changelog
 modes. Three release native state tests and all 48 string/JSON Criterion fixtures pass.
 
-Initial complete-job release results on Flink 2.2.1/JDK 17, p=1, 2 GiB heap,
+Complete-job release results on Flink 2.2.1/JDK 17, p=1, 2 GiB heap,
 production IPC, mimalloc, 1,024-row transposes and both row boundaries:
 
-| Workload | Stock median | Native median | Speedup |
-|---|---:|---:|---:|
-| JSON_ARRAYAGG, 2M rows / 65,536 keys / 16-byte strings | 8.939 s | 1.891 s | 4.73× |
-| JSON_OBJECTAGG, same size and width | 26.992 s | 4.046 s | 6.67× |
+| Workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| Array, 2M rows / 65,536 keys / 16 bytes | 8.939 s | 8.757 s | 1.891 s | 4.73× |
+| Object, same size and width | 26.992 s | — | 4.046 s | 6.67× |
+| Object, 500k rows / 16,384 keys / 16 bytes | 6.290 s | 6.173 s | 1.033 s | 6.09× |
+| Array, same smaller size, retracting | 1.431 s | 1.365 s | 0.500 s | 2.86× |
+| Object, same smaller size, retracting | 2.782 s | 2.747 s | 0.614 s | 4.53× |
+| Array, same smaller size, 128-byte strings | 3.442 s | 3.362 s | 1.252 s | 2.75× |
+| Object, same smaller size, BIGINT values | 6.309 s | 6.206 s | 0.955 s | 6.61× |
 
-These large cases use two warmups and five alternating pairs. Native ranges are
-1.857–1.960 and 3.946–4.167 s; stock ranges are 8.540–9.588 and 26.841–27.798 s.
-The actual previous StreamFusion array median is 8.757 s, with a separately paired
-8.863 s stock control. The object comparison at 500k rows / 16,384 keys is
-1.033 s native versus 6.290 s stock and 6.173 s previous StreamFusion. Smaller
-controls use one warmup/three alternating pairs and preserve roughly 30 rows per key.
-Full retracting, wide-string, numeric, CPU and allocation validation is still running;
-this implementation remains draft until admission is complete. Completed raw trials,
-configuration and source/library hashes are retained in
+Large cases use two warmups/five alternating pairs; smaller controls use one warmup/three
+pairs and preserve roughly 30 rows per key. Previous behavior is actual main `f88dc237`,
+with the identical harness/data/resources and zero native substitutions asserted. The
+large object case has no separate previous-revision run; the smaller object control does.
+Paired stock controls differ by at most 4%. All native/stock trial ranges are disjoint;
+startup remains in the measurements, with no time subtracted. These cardinalities do not
+establish performance for arbitrarily large per-key strings.
+
+Mixed Java/Rust CPU profiles use released async-profiler 4.0, `cpu-clock`, 2 ms sampling
+and DWARF native stacks. They show stock JSON tree traversal/serialization and state-map
+access; native costs are state update, string allocation/copying and object-key sorting.
+Java transposes remain visible. Across one warmup/three pairs, task-thread Java allocation
+sample weights are 67.3 GB stock versus 14.7 GB native for arrays (8M rows per engine),
+and 28.3 GB versus 5.0 GB for objects (2M rows per engine). These are sampled Java heap
+allocation traffic, not peak memory or Rust allocations. Profiled timings are excluded
+from speed claims.
+
+All 56 production fixtures pass with untimed Rust allocation counters and Arrow output
+buffer reports; 32 JSON update fixtures and eight string/JSON snapshot/restore fixtures
+also retain release Criterion timing estimates. Probes
+record allocation requests/full requested bytes separately from output buffer lengths,
+without equating either with copied bytes. All complete-job trials, hashes, CPU/Java
+allocation stacks, native allocation probes and Criterion estimates are retained in
 [the result artifact](../benchmarks/results/json-aggregates-2026-10-15.json).
+
+Reproduce complete jobs with the LISTAGG command above and
+`-Dstringagg.function=JSON_ARRAYAGG` or `JSON_OBJECTAGG`. Set `stringagg.value=bigint`
+for numeric object values, `stringagg.updating=true` for retracting input, and
+`stringagg.warmup`/`stringagg.runs` for the recorded trial counts. The smaller controls use
+`stringagg.rows=500000` and `stringagg.keys=16384`; the wide case sets `stringagg.width=128`.
 
 ### Floating aggregate validation
 
@@ -485,7 +510,6 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 **Single-phase / either two-phase half in common:**
 
 - LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
-  JSON performance admission remains tracked in [#232](https://github.com/datafusion-contrib/StreamFusion/issues/232).
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
@@ -516,7 +540,7 @@ serialization, while ABSENT ON NULL with a NULL value returns `{}`. A singleton 
 Java UTF-16 string remains visible before aggregation but normalizes at the tested global
 and keyed aggregate boundaries, with either object-reuse setting and either changelog mode.
 Their resolved result is VARCHAR(2000) NOT NULL; LISTAGG retains nullable STRING. Empty bounded
-input in streaming mode emits no aggregate row. These are host contracts; native LISTAGG coverage is described above. JSON implementation scope and pending performance admission are described above.
+input in streaming mode emits no aggregate row. Native string/JSON coverage is described above.
 
 **Local group aggregate (two-phase local half) only:**
 

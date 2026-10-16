@@ -2313,3 +2313,12 @@ same production update, then report shared/new Arrow output buffer lengths. Thes
 allocation traffic and buffer sharing observations, not copied bytes, peak memory or
 native C/C++ allocations. Timing runs keep the counting probe disabled. The allocator
 wrapper follows the repository's existing production-operator benchmark support.
+
+Eight `string_aggregate_checkpoint` cases time production snapshot serialization and
+restoration for append/retract LISTAGG and both JSON families. Profiles pair 16 rows /
+one key / 8-byte strings with 1,024 rows / 64 keys / 128-byte strings, retaining NULLs.
+They independently compare the next update on restored state. Input/state setup and
+snapshot/restored-state destruction stay outside timing. Checkpoints return byte vectors
+and state rather than Arrow arrays, so their Arrow output-buffer reports are empty.
+All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are retained
+in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).

@@ -1,6 +1,6 @@
 package tech.streamfusion.compat;
 
-/** Preserves the host's generated SINGLE_VALUE failure type across Flink lines. */
+/** Preserves released SINGLE_VALUE and JSON aggregate failure contracts across Flink lines. */
 public final class TableErrors {
   private TableErrors() {}
 
