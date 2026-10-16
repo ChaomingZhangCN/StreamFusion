@@ -3,9 +3,9 @@
 **Status:** native, with gaps.
 
 `Correlate` is Flink's plan node for lateral cross-application — most commonly `UNNEST`, which
-explodes a collection-typed column into rows. By default, only the verified UNNEST shapes below
-run natively; other shapes retain fallback (see [Unsupported operators](unsupported.md)). A
-default-off JVM table-function prototype is described separately below.
+explodes a collection-typed column into rows. Verified UNNEST shapes and basic synchronous JVM
+table functions run inside columnar islands. Other shapes retain fallback (see
+[Unsupported operators](unsupported.md)).
 
 ## What's native
 
@@ -23,8 +23,8 @@ no rows for INNER UNNEST and one padded row for LEFT UNNEST.
 
 ## What's not
 
-- **Lateral table functions** retain fallback by default. The experimental boundary below is
-  still under performance admission.
+- **JVM table functions outside the verified STRING/INT/BIGINT boundary**, specialized functions,
+  Python/async functions and legacy SQL wrappers retain fallback.
 - **`UNNEST` with a pushed condition the expression engine can't encode**, or **any condition over
   a LEFT `UNNEST`**, falls back.
 
@@ -32,14 +32,12 @@ Either of these falls the operator back, dragging the whole query with it per th
 [all-or-nothing island rule](index.md#the-all-or-nothing-island). See
 [Unsupported operators](unsupported.md) for the full accounting of these cases.
 
-## Experimental JVM table functions
+## JVM table functions
 
-[#237](https://github.com/datafusion-contrib/StreamFusion/issues/237) has an unmerged,
-default-off columnar prototype, enabled with the JVM property
-`streamfusion.experimental.jvmTableFunctions=true`. It admits synchronous JVM `TableFunction`
-definitions carried by Flink's bridging SQL function, INNER/LEFT application, and top-level
-STRING, INT and BIGINT input/output columns. Other types, Python/async functions,
-and legacy SQL wrappers retain fallback. The ordinary `streamfusion.operator.tableFunction.enabled`
+Synchronous JVM `TableFunction` definitions carried by Flink's bridging SQL function support
+INNER/LEFT application with top-level STRING, INT and BIGINT input, output and argument types.
+These verified forms are admitted by default. Other types, specialized functions, Python/async
+functions and legacy SQL wrappers retain fallback. The ordinary `streamfusion.operator.tableFunction.enabled`
 switch can disable this operator.
 
 The operator consumes and produces `ArrowBatch`. It borrows input row views only during the
@@ -51,8 +49,8 @@ native operators retain their existing boundaries. A pure column projection is f
 output writer, including repeated or empty projections, so discarded correlate columns never
 enter an intermediate Arrow batch.
 
-This prototype remains under verification. It does not complete #237's aggregate, OVER or nested
-scalar work. Performance evidence includes release jobs with row sources, both transposes, row
+This does not complete [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237): JVM
+aggregate/OVER functions, nested scalar results and broader table-function types remain open. Performance evidence includes release jobs with row sources, both transposes, row
 sinks, stock Flink and the actual preceding revision; profiles include Java and symbolized Rust
 CPU stacks plus sampled Java allocations. Profiled durations are excluded from speed claims.
 
@@ -65,7 +63,28 @@ job submission, source/sink and state costs remain inside. Previous-code control
 revision `b965b8bf`; separate JVMs show control drift. See the
 [raw trials and profiles](../benchmarks/results/jvm-table-functions-2026-10-15.json).
 The same released Flink 1.18.1 configuration measured split at 1.077 s native versus 1.352 s
-stock and grouped output at 1.047 s versus 4.440 s. Each has five measured pairs; a separate
-previous-revision control on that line is still pending. Wider payloads and additional numeric
-shapes remain unverified; these results establish neither all-function acceleration nor completion
-of #237.
+stock and 1.400 s previous, and grouped output at 1.047 s versus 4.440 s stock and 4.263 s previous.
+The grouped gain includes existing native JSON aggregation. Every candidate range is below its
+paired stock range; separate-JVM controls still limit attribution between implementations.
+
+Further 2M-row release cases retain the same resources, warmups, five pairs and actual preceding
+revision, including both transposes:
+
+| Flink / case | Stock median (range), s | Native median (range), s | Previous median, s |
+| --- | ---: | ---: | ---: |
+| 2.2.1 / 128-character split tokens | 2.149 (2.147–2.219) | 1.905 (1.889–1.966) | 2.177 |
+| 1.18.1 / 128-character split tokens | 2.116 (2.089–2.154) | 1.918 (1.876–1.943) | 2.122 |
+| 2.2.1 / INT/BIGINT arguments and results | 0.767 (0.747–0.796) | 0.525 (0.512–0.600) | 0.796 |
+| 1.18.1 / INT/BIGINT arguments and results | 0.794 (0.749–0.813) | 0.530 (0.520–0.642) | 0.749 |
+
+The numeric source emits an INT key and nullable BIGINT value; each non-NULL invocation emits
+two rows with BIGINT/INT results. The width parameter is unused there. These are representative
+function boundaries, not a guarantee that every user function runs faster.
+
+Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
+version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
+all RowKinds, lifecycle errors, repeated/zero-column projection, numeric consumers and a
+parallelism-three pipeline with keyed aggregates before and after the function. Four recovery
+scenarios per line cover memory/native RocksDB and append/retracting input, each with two forced
+restores and consumed-row/memory-release assertions. Unsupported nested output and an explicitly disabled table-function operator retain complete-query
+fallback with zero native substitutions. Broader types and other JVM function kinds remain tracked in #237.

@@ -1,7 +1,7 @@
 {
   "date": "2026-10-15",
   "issue": 237,
-  "status": "Unmerged default-off prototype. Other JVM function gaps remain open.",
+  "status": "Unmerged implementation with default admission for verified JVM VARCHAR/INT/BIGINT table functions. Aggregate/OVER/nested scalar work under #237 remains open.",
   "configuration": {
     "flink": "2.2.1",
     "jdk": "17",
@@ -320,7 +320,7 @@
   },
   "profile_configuration": "Initial unfused prototype, 500k source rows per case, two warmups/three pairs, software cpu-clock2ms, DWARF native stacks, threads and Java alloc1m. Both split and grouped-JSON cases completed with positive native-consumption checks. Profiled timings excluded from acceleration claims.",
   "profile_findings": "Redundant NativeCalc projection/JNI boundary and writes of discarded correlate columns are visible on producer stacks. Rust group update, JSON serialization, allocations/copies and state-output work appear on grouped native stacks. Inclusive frames overlap; native allocation calls do not provide allocation-byte totals. Raw Java allocation profiles do not measure Rust allocated bytes or peak heap.",
-  "decision": "Fuse only pure column projection into the immediate table-function output writer. Retain Flink generated evaluation, LEFT padding, predicates, collector order and immediate copying of mutable output rows. Full function coverage/performance admission remains under validation.",
+  "decision": "Admit verified basic synchronous JVM table functions by default after stock/actual-previous release comparisons on both Flink lines, including wide STRING and numeric types. Preserve explicit fallback for other/specialized signatures. JVM aggregate/OVER and nested scalar support remain open under #237.",
   "comparisons": {
     "split_native_vs_stock": 1.2777717007700646,
     "split_native_vs_previous": 1.320281538590717,
@@ -331,7 +331,7 @@
     "Stock medians drift between separate JVMs; do not attribute the entire unfused/pruned difference to one change.",
     "The unfused control uses the same compiled producer with an identity projected view; it is a layout control, not the preceding released implementation.",
     "The grouped win includes existing native JSON aggregation; standalone and grouped boundaries are reported separately.",
-    "Wider values, additional numeric shapes and other JVM function kinds are not established by this artifact."
+    "Other types, specialized functions and other JVM function kinds remain outside admission; benchmarks do not establish all-function acceleration."
   ],
   "initial_retained_metrics_diagnostics": {
     "status": "Superseded fixture; retained as diagnostic only, excluded from current speed claims. All finished trial lines retained, including the interrupted previous-group run.",
@@ -445,9 +445,19 @@
       "1.18.1"
     ],
     "jdk": 17,
-    "focused_table_function_checks": 12,
+    "focused_table_function_checks": 15,
     "portable_audit_checks": 38,
-    "status": "49 selected checks passed together per release, plus one additional nested-output fallback check per release.",
+    "unnest_regression_checks": 14,
+    "results": {
+      "2.2.1": {
+        "passed": 67,
+        "skipped": 0
+      },
+      "1.18.1": {
+        "passed": 64,
+        "skipped": 3
+      }
+    },
     "coverage": [
       "INNER/LEFT, NULL/empty inputs and pushed predicate",
       "repeated and zero-column projections",
@@ -457,8 +467,12 @@
       "open/evaluation/close failure parity",
       "memory/native RocksDB with append/retracting input, two forced checkpoint restores per scenario",
       "positive native table-function and downstream aggregate consumption plus released native memory",
-      "nested ARRAY-returning function remains fallback"
-    ]
+      "nested ARRAY-returning function remains fallback",
+      "INT/BIGINT arguments/results and grouped consumers",
+      "parallelism3 with keyed aggregates before and after fanout; final changelog parity",
+      "operator-specific disable switch retains complete-query fallback with zero native substitutions"
+    ],
+    "status": "66 selected checks ran jointly per release (three existing1.18 UNNEST skips), then the additional disable-switch test passed separately on each release. Default admission tested without the former experimental property."
   },
   "flink118_release": {
     "flink": "1.18.1",
@@ -555,6 +569,513 @@
         "status": "Completed with consumed-native-row checks; same per-pair cleanup/configuration as2.2."
       }
     },
-    "limitation": "No actual preceding-revision1.18 comparison yet; do not reuse2.2 previous controls."
+    "limitation": "Actual previous-revision1.18 controls are retained in expanded_validation; grouped context includes existing native JSON acceleration."
+  },
+  "expanded_validation": {
+    "series": {
+      "22-wide": {
+        "stock_trials_seconds": [
+          2.219365938,
+          2.174867232,
+          2.148942695,
+          2.146578566,
+          2.149338962
+        ],
+        "streamfusion_trials_seconds": [
+          1.965666233,
+          1.92560285,
+          1.904164907,
+          1.888908539,
+          1.905083379
+        ],
+        "stock_median_seconds": 2.149338962,
+        "streamfusion_median_seconds": 1.905083379,
+        "stock_range_seconds": [
+          2.146578566,
+          2.219365938
+        ],
+        "streamfusion_range_seconds": [
+          1.888908539,
+          1.965666233
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=split engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=3.695799",
+          "[table-function-trial] shape=split engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=2.167151",
+          "[table-function-trial] shape=split engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.014833",
+          "[table-function-trial] shape=split engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.201295",
+          "[table-function-trial] shape=split engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.219366",
+          "[table-function-trial] shape=split engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=1.965666",
+          "[table-function-trial] shape=split engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=1.925603",
+          "[table-function-trial] shape=split engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.174867",
+          "[table-function-trial] shape=split engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.148943",
+          "[table-function-trial] shape=split engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=1.904165",
+          "[table-function-trial] shape=split engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=1.888909",
+          "[table-function-trial] shape=split engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.146579",
+          "[table-function-trial] shape=split engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.149339",
+          "[table-function-trial] shape=split engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=1.905083",
+          "[table-function] shape=split rows=2000000 keys=65536 width=128 stock=2.149339 native=1.905083 stock_trials=[2.219365938, 2.174867232, 2.148942695, 2.146578566, 2.149338962] native_trials=[1.965666233, 1.92560285, 1.904164907, 1.888908539, 1.905083379]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "22-wide-previous": {
+        "stock_trials_seconds": [
+          2.198599961,
+          2.165852742,
+          2.224159822,
+          2.178699607,
+          2.20614297
+        ],
+        "streamfusion_trials_seconds": [
+          2.215789567,
+          2.177435094,
+          2.171153309,
+          2.166145135,
+          2.196445972
+        ],
+        "stock_median_seconds": 2.198599961,
+        "streamfusion_median_seconds": 2.177435094,
+        "stock_range_seconds": [
+          2.165852742,
+          2.224159822
+        ],
+        "streamfusion_range_seconds": [
+          2.166145135,
+          2.215789567
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=split engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=3.621078",
+          "[table-function-trial] shape=split engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=2.277080",
+          "[table-function-trial] shape=split engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.266475",
+          "[table-function-trial] shape=split engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.179884",
+          "[table-function-trial] shape=split engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.198600",
+          "[table-function-trial] shape=split engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.215790",
+          "[table-function-trial] shape=split engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.177435",
+          "[table-function-trial] shape=split engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.165853",
+          "[table-function-trial] shape=split engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.224160",
+          "[table-function-trial] shape=split engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.171153",
+          "[table-function-trial] shape=split engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.166145",
+          "[table-function-trial] shape=split engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.178700",
+          "[table-function-trial] shape=split engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.206143",
+          "[table-function-trial] shape=split engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.196446",
+          "[table-function] shape=split rows=2000000 keys=65536 width=128 stock=2.198600 native=2.177435 stock_trials=[2.198599961, 2.165852742, 2.224159822, 2.178699607, 2.20614297] native_trials=[2.215789567, 2.177435094, 2.171153309, 2.166145135, 2.196445972]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-wide": {
+        "stock_trials_seconds": [
+          2.115981546,
+          2.093424084,
+          2.122533054,
+          2.088934951,
+          2.153794991
+        ],
+        "streamfusion_trials_seconds": [
+          1.942627989,
+          1.921371169,
+          1.918374183,
+          1.913021568,
+          1.876475889
+        ],
+        "stock_median_seconds": 2.115981546,
+        "streamfusion_median_seconds": 1.918374183,
+        "stock_range_seconds": [
+          2.088934951,
+          2.153794991
+        ],
+        "streamfusion_range_seconds": [
+          1.876475889,
+          1.942627989
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=split engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=3.465775",
+          "[table-function-trial] shape=split engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=2.308901",
+          "[table-function-trial] shape=split engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.012688",
+          "[table-function-trial] shape=split engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.108169",
+          "[table-function-trial] shape=split engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.115982",
+          "[table-function-trial] shape=split engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=1.942628",
+          "[table-function-trial] shape=split engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=1.921371",
+          "[table-function-trial] shape=split engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.093424",
+          "[table-function-trial] shape=split engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.122533",
+          "[table-function-trial] shape=split engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=1.918374",
+          "[table-function-trial] shape=split engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=1.913022",
+          "[table-function-trial] shape=split engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.088935",
+          "[table-function-trial] shape=split engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.153795",
+          "[table-function-trial] shape=split engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=1.876476",
+          "[table-function] shape=split rows=2000000 keys=65536 width=128 stock=2.115982 native=1.918374 stock_trials=[2.115981546, 2.093424084, 2.122533054, 2.088934951, 2.153794991] native_trials=[1.942627989, 1.921371169, 1.918374183, 1.913021568, 1.876475889]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-wide-previous": {
+        "stock_trials_seconds": [
+          2.129648026,
+          2.138665039,
+          2.1482366,
+          2.130889818,
+          2.12628231
+        ],
+        "streamfusion_trials_seconds": [
+          2.121867886,
+          2.187249704,
+          2.161311229,
+          2.08771622,
+          2.090155932
+        ],
+        "stock_median_seconds": 2.130889818,
+        "streamfusion_median_seconds": 2.121867886,
+        "stock_range_seconds": [
+          2.12628231,
+          2.1482366
+        ],
+        "streamfusion_range_seconds": [
+          2.08771622,
+          2.187249704
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=split engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=3.530558",
+          "[table-function-trial] shape=split engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=128 seconds=2.211484",
+          "[table-function-trial] shape=split engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.359389",
+          "[table-function-trial] shape=split engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=128 seconds=2.135379",
+          "[table-function-trial] shape=split engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.129648",
+          "[table-function-trial] shape=split engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=128 seconds=2.121868",
+          "[table-function-trial] shape=split engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.187250",
+          "[table-function-trial] shape=split engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=128 seconds=2.138665",
+          "[table-function-trial] shape=split engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.148237",
+          "[table-function-trial] shape=split engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=128 seconds=2.161311",
+          "[table-function-trial] shape=split engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.087716",
+          "[table-function-trial] shape=split engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=128 seconds=2.130890",
+          "[table-function-trial] shape=split engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.126282",
+          "[table-function-trial] shape=split engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=128 seconds=2.090156",
+          "[table-function] shape=split rows=2000000 keys=65536 width=128 stock=2.130890 native=2.121868 stock_trials=[2.129648026, 2.138665039, 2.1482366, 2.130889818, 2.12628231] native_trials=[2.121867886, 2.187249704, 2.161311229, 2.08771622, 2.090155932]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "22-numeric": {
+        "stock_trials_seconds": [
+          0.767345535,
+          0.795664963,
+          0.779311816,
+          0.747242131,
+          0.758910637
+        ],
+        "streamfusion_trials_seconds": [
+          0.59976818,
+          0.585634731,
+          0.525223872,
+          0.511568658,
+          0.516701701
+        ],
+        "stock_median_seconds": 0.767345535,
+        "streamfusion_median_seconds": 0.525223872,
+        "stock_range_seconds": [
+          0.747242131,
+          0.795664963
+        ],
+        "streamfusion_range_seconds": [
+          0.511568658,
+          0.59976818
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=numeric engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=2.184444",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=0.797217",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.694630",
+          "[table-function-trial] shape=numeric engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.773695",
+          "[table-function-trial] shape=numeric engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.767346",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.599768",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.585635",
+          "[table-function-trial] shape=numeric engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.795665",
+          "[table-function-trial] shape=numeric engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.779312",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.525224",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.511569",
+          "[table-function-trial] shape=numeric engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.747242",
+          "[table-function-trial] shape=numeric engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.758911",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.516702",
+          "[table-function] shape=numeric rows=2000000 keys=65536 width=16 stock=0.767346 native=0.525224 stock_trials=[0.767345535, 0.795664963, 0.779311816, 0.747242131, 0.758910637] native_trials=[0.59976818, 0.585634731, 0.525223872, 0.511568658, 0.516701701]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "22-numeric-previous": {
+        "stock_trials_seconds": [
+          0.747052649,
+          0.753311043,
+          0.779304996,
+          0.780088886,
+          0.76376524
+        ],
+        "streamfusion_trials_seconds": [
+          0.811644124,
+          0.796490426,
+          0.713352562,
+          1.034565041,
+          0.720246025
+        ],
+        "stock_median_seconds": 0.76376524,
+        "streamfusion_median_seconds": 0.796490426,
+        "stock_range_seconds": [
+          0.747052649,
+          0.780088886
+        ],
+        "streamfusion_range_seconds": [
+          0.713352562,
+          1.034565041
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=numeric engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=2.221876",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=0.887133",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.842588",
+          "[table-function-trial] shape=numeric engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.755201",
+          "[table-function-trial] shape=numeric engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.747053",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.811644",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.796490",
+          "[table-function-trial] shape=numeric engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.753311",
+          "[table-function-trial] shape=numeric engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.779305",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.713353",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=1.034565",
+          "[table-function-trial] shape=numeric engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.780089",
+          "[table-function-trial] shape=numeric engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.763765",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.720246",
+          "[table-function] shape=numeric rows=2000000 keys=65536 width=16 stock=0.763765 native=0.796490 stock_trials=[0.747052649, 0.753311043, 0.779304996, 0.780088886, 0.76376524] native_trials=[0.811644124, 0.796490426, 0.713352562, 1.034565041, 0.720246025]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-numeric": {
+        "stock_trials_seconds": [
+          0.749218145,
+          0.772906987,
+          0.794016825,
+          0.812700162,
+          0.806907614
+        ],
+        "streamfusion_trials_seconds": [
+          0.64164863,
+          0.530224847,
+          0.519708536,
+          0.530251012,
+          0.524078297
+        ],
+        "stock_median_seconds": 0.794016825,
+        "streamfusion_median_seconds": 0.530224847,
+        "stock_range_seconds": [
+          0.749218145,
+          0.812700162
+        ],
+        "streamfusion_range_seconds": [
+          0.519708536,
+          0.64164863
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=numeric engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=2.076267",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=0.847911",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.704547",
+          "[table-function-trial] shape=numeric engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.761276",
+          "[table-function-trial] shape=numeric engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.749218",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.641649",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.530225",
+          "[table-function-trial] shape=numeric engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.772907",
+          "[table-function-trial] shape=numeric engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.794017",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.519709",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.530251",
+          "[table-function-trial] shape=numeric engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.812700",
+          "[table-function-trial] shape=numeric engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.806908",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.524078",
+          "[table-function] shape=numeric rows=2000000 keys=65536 width=16 stock=0.794017 native=0.530225 stock_trials=[0.749218145, 0.772906987, 0.794016825, 0.812700162, 0.806907614] native_trials=[0.64164863, 0.530224847, 0.519708536, 0.530251012, 0.524078297]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-numeric-previous": {
+        "stock_trials_seconds": [
+          0.757657234,
+          0.75577711,
+          0.762312397,
+          0.729923369,
+          0.750479477
+        ],
+        "streamfusion_trials_seconds": [
+          0.788391151,
+          0.762943733,
+          0.729950141,
+          0.748849016,
+          0.72634395
+        ],
+        "stock_median_seconds": 0.75577711,
+        "streamfusion_median_seconds": 0.748849016,
+        "stock_range_seconds": [
+          0.729923369,
+          0.762312397
+        ],
+        "streamfusion_range_seconds": [
+          0.72634395,
+          0.788391151
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=numeric engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=2.151482",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=0.857041",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.887116",
+          "[table-function-trial] shape=numeric engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=0.757808",
+          "[table-function-trial] shape=numeric engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.757657",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=0.788391",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.762944",
+          "[table-function-trial] shape=numeric engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=0.755777",
+          "[table-function-trial] shape=numeric engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.762312",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=0.729950",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.748849",
+          "[table-function-trial] shape=numeric engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=0.729923",
+          "[table-function-trial] shape=numeric engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.750479",
+          "[table-function-trial] shape=numeric engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=0.726344",
+          "[table-function] shape=numeric rows=2000000 keys=65536 width=16 stock=0.755777 native=0.748849 stock_trials=[0.757657234, 0.75577711, 0.762312397, 0.729923369, 0.750479477] native_trials=[0.788391151, 0.762943733, 0.729950141, 0.748849016, 0.72634395]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-split-previous": {
+        "stock_trials_seconds": [
+          1.435529993,
+          1.348398692,
+          1.392348328,
+          1.374892065,
+          1.4156198
+        ],
+        "streamfusion_trials_seconds": [
+          1.474654524,
+          1.378830177,
+          1.424859082,
+          1.352132411,
+          1.399589024
+        ],
+        "stock_median_seconds": 1.392348328,
+        "streamfusion_median_seconds": 1.399589024,
+        "stock_range_seconds": [
+          1.348398692,
+          1.435529993
+        ],
+        "streamfusion_range_seconds": [
+          1.352132411,
+          1.474654524
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=split engine=Flink trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=2.817801",
+          "[table-function-trial] shape=split engine=StreamFusion trial=0 warmup=true rows=2000000 keys=65536 width=16 seconds=1.443282",
+          "[table-function-trial] shape=split engine=StreamFusion trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=1.590891",
+          "[table-function-trial] shape=split engine=Flink trial=1 warmup=true rows=2000000 keys=65536 width=16 seconds=1.396877",
+          "[table-function-trial] shape=split engine=Flink trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=1.435530",
+          "[table-function-trial] shape=split engine=StreamFusion trial=2 warmup=false rows=2000000 keys=65536 width=16 seconds=1.474655",
+          "[table-function-trial] shape=split engine=StreamFusion trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=1.378830",
+          "[table-function-trial] shape=split engine=Flink trial=3 warmup=false rows=2000000 keys=65536 width=16 seconds=1.348399",
+          "[table-function-trial] shape=split engine=Flink trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=1.392348",
+          "[table-function-trial] shape=split engine=StreamFusion trial=4 warmup=false rows=2000000 keys=65536 width=16 seconds=1.424859",
+          "[table-function-trial] shape=split engine=StreamFusion trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=1.352132",
+          "[table-function-trial] shape=split engine=Flink trial=5 warmup=false rows=2000000 keys=65536 width=16 seconds=1.374892",
+          "[table-function-trial] shape=split engine=Flink trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=1.415620",
+          "[table-function-trial] shape=split engine=StreamFusion trial=6 warmup=false rows=2000000 keys=65536 width=16 seconds=1.399589",
+          "[table-function] shape=split rows=2000000 keys=65536 width=16 stock=1.392348 native=1.399589 stock_trials=[1.435529993, 1.348398692, 1.392348328, 1.374892065, 1.4156198] native_trials=[1.474654524, 1.378830177, 1.424859082, 1.352132411, 1.399589024]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      },
+      "118-group-previous": {
+        "stock_trials_seconds": [
+          4.277507684,
+          4.320652843,
+          4.252823644,
+          4.258758171,
+          4.476729095
+        ],
+        "streamfusion_trials_seconds": [
+          4.262938429,
+          4.551330357,
+          4.559330007,
+          4.261864701,
+          4.210828287
+        ],
+        "stock_median_seconds": 4.277507684,
+        "streamfusion_median_seconds": 4.262938429,
+        "stock_range_seconds": [
+          4.252823644,
+          4.476729095
+        ],
+        "streamfusion_range_seconds": [
+          4.210828287,
+          4.559330007
+        ],
+        "raw_trial_lines": [
+          "[table-function-trial] shape=group engine=Flink trial=0 warmup=true rows=500000 keys=16384 width=16 seconds=6.372404",
+          "[table-function-trial] shape=group engine=StreamFusion trial=0 warmup=true rows=500000 keys=16384 width=16 seconds=4.819440",
+          "[table-function-trial] shape=group engine=StreamFusion trial=1 warmup=true rows=500000 keys=16384 width=16 seconds=4.423188",
+          "[table-function-trial] shape=group engine=Flink trial=1 warmup=true rows=500000 keys=16384 width=16 seconds=4.339941",
+          "[table-function-trial] shape=group engine=Flink trial=2 warmup=false rows=500000 keys=16384 width=16 seconds=4.277508",
+          "[table-function-trial] shape=group engine=StreamFusion trial=2 warmup=false rows=500000 keys=16384 width=16 seconds=4.262938",
+          "[table-function-trial] shape=group engine=StreamFusion trial=3 warmup=false rows=500000 keys=16384 width=16 seconds=4.551330",
+          "[table-function-trial] shape=group engine=Flink trial=3 warmup=false rows=500000 keys=16384 width=16 seconds=4.320653",
+          "[table-function-trial] shape=group engine=Flink trial=4 warmup=false rows=500000 keys=16384 width=16 seconds=4.252824",
+          "[table-function-trial] shape=group engine=StreamFusion trial=4 warmup=false rows=500000 keys=16384 width=16 seconds=4.559330",
+          "[table-function-trial] shape=group engine=StreamFusion trial=5 warmup=false rows=500000 keys=16384 width=16 seconds=4.261865",
+          "[table-function-trial] shape=group engine=Flink trial=5 warmup=false rows=500000 keys=16384 width=16 seconds=4.258758",
+          "[table-function-trial] shape=group engine=Flink trial=6 warmup=false rows=500000 keys=16384 width=16 seconds=4.476729",
+          "[table-function-trial] shape=group engine=StreamFusion trial=6 warmup=false rows=500000 keys=16384 width=16 seconds=4.210828",
+          "[table-function] shape=group rows=500000 keys=16384 width=16 stock=4.277508 native=4.262938 stock_trials=[4.277507684, 4.320652843, 4.252823644, 4.258758171, 4.476729095] native_trials=[4.262938429, 4.551330357, 4.559330007, 4.261864701, 4.210828287]"
+        ],
+        "status": "Completed with native-consumption assertions for candidates or zero-substitution assertions on actual preceding code."
+      }
+    },
+    "configuration": "Same released JDK17/release+mimalloc/per-pair-cleanup timing boundary, p1,2GiB,1024row transposes,IPC,two warmups/five alternating pairs. Wide and numeric cases use2Mrows/65536keys. Previous group1.18 uses500k/16384keys.",
+    "wide": "128 characters per token, including \u00e9. Same two-token split and every-eighth NULL text.",
+    "numeric": "INT key and BIGINT value inputs; two emitted ROW<n BIGINT,pos INT> values per non-NULL input, every eighth value NULL. Numeric source has no STRING payload; width property printed by shared logger is unused.",
+    "numeric_query": "SELECT s.k,t.n,t.pos FROM src s,LATERAL TABLE(numeric_rows(s.k,s.n)) AS t(n,pos)",
+    "previous_revisions": {
+      "2.2": "b965b8bf0c97450f6971f20db0fe6abc6bbac8ae",
+      "1.18": "b965b8bf0c97450f6971f20db0fe6abc6bbac8ae"
+    },
+    "decision": "All candidate ranges lie below paired stock ranges and below actual preceding-revision ranges. Admit verified VARCHAR/INT/BIGINT table functions by default; unsupported/specialized signatures retain fallback. Separate-JVM controls drift; report whole-job improvements without isolated-cost attribution."
+  },
+  "admitted_path_profiles": {
+    "configuration": "Default-admitted production path, Flink2.2.1/JDK17, 500krows/16384keys, numeric and 128-character grouped split cases. Two warmups/three pairs per case, fresh cluster per pair, release+mimalloc/2GiB/IPC/both transposes. cpu-clock2ms/DWARF native stacks/Javaalloc1m. Profiled durations excluded from acceleration claims.",
+    "profiles": {
+      "cpu": {
+        "artifact": "jvm-table-functions-admitted-cpu-2026-10-15.collapsed.gz",
+        "sha256": "0eb2a2e55d43cc21ba2ec2a26c523cf788714924857ff20458cd4c414448469f",
+        "thread_group_weights": {
+          "native_aggregate": 6295,
+          "stock_producer": 4170,
+          "native_producer": 2745,
+          "stock_aggregate": 17044
+        },
+        "symbolized_rust_inclusive_weight": 4169,
+        "weight_unit": "CPU samples"
+      },
+      "alloc": {
+        "artifact": "jvm-table-functions-admitted-alloc-2026-10-15.collapsed.gz",
+        "sha256": "3a8588f12eaa6f8be86c268862c98910a4bef43db9d3d571926968c4dbf3c91e",
+        "thread_group_weights": {
+          "stock_producer": 19726860288,
+          "native_producer": 12995002368,
+          "native_aggregate": 32101105664,
+          "stock_aggregate": 71598866432
+        },
+        "symbolized_rust_inclusive_weight": 0,
+        "weight_unit": "sampled Java allocation bytes"
+      }
+    },
+    "raw_profiled_trial_lines": [
+      "[table-function-trial] shape=numeric engine=Flink trial=0 warmup=true rows=500000 keys=16384 width=128 seconds=1.814847",
+      "[table-function-trial] shape=numeric engine=StreamFusion trial=0 warmup=true rows=500000 keys=16384 width=128 seconds=0.522413",
+      "[table-function-trial] shape=numeric engine=StreamFusion trial=1 warmup=true rows=500000 keys=16384 width=128 seconds=0.388726",
+      "[table-function-trial] shape=numeric engine=Flink trial=1 warmup=true rows=500000 keys=16384 width=128 seconds=0.316069",
+      "[table-function-trial] shape=numeric engine=Flink trial=2 warmup=false rows=500000 keys=16384 width=128 seconds=0.329767",
+      "[table-function-trial] shape=numeric engine=StreamFusion trial=2 warmup=false rows=500000 keys=16384 width=128 seconds=0.310206",
+      "[table-function-trial] shape=numeric engine=StreamFusion trial=3 warmup=false rows=500000 keys=16384 width=128 seconds=0.255043",
+      "[table-function-trial] shape=numeric engine=Flink trial=3 warmup=false rows=500000 keys=16384 width=128 seconds=0.276188",
+      "[table-function-trial] shape=numeric engine=Flink trial=4 warmup=false rows=500000 keys=16384 width=128 seconds=0.290168",
+      "[table-function-trial] shape=numeric engine=StreamFusion trial=4 warmup=false rows=500000 keys=16384 width=128 seconds=0.256127",
+      "[table-function] shape=numeric rows=500000 keys=16384 width=128 stock=0.290168 native=0.256127 stock_trials=[0.329767296, 0.276187596, 0.290168078] native_trials=[0.310206321, 0.255042929, 0.25612673]",
+      "[table-function-trial] shape=group engine=Flink trial=0 warmup=true rows=500000 keys=16384 width=128 seconds=7.975503",
+      "[table-function-trial] shape=group engine=StreamFusion trial=0 warmup=true rows=500000 keys=16384 width=128 seconds=3.645540",
+      "[table-function-trial] shape=group engine=StreamFusion trial=1 warmup=true rows=500000 keys=16384 width=128 seconds=3.253311",
+      "[table-function-trial] shape=group engine=Flink trial=1 warmup=true rows=500000 keys=16384 width=128 seconds=7.571973",
+      "[table-function-trial] shape=group engine=Flink trial=2 warmup=false rows=500000 keys=16384 width=128 seconds=7.580753",
+      "[table-function-trial] shape=group engine=StreamFusion trial=2 warmup=false rows=500000 keys=16384 width=128 seconds=3.395803",
+      "[table-function-trial] shape=group engine=StreamFusion trial=3 warmup=false rows=500000 keys=16384 width=128 seconds=3.423328",
+      "[table-function-trial] shape=group engine=Flink trial=3 warmup=false rows=500000 keys=16384 width=128 seconds=7.409579",
+      "[table-function-trial] shape=group engine=Flink trial=4 warmup=false rows=500000 keys=16384 width=128 seconds=7.207962",
+      "[table-function-trial] shape=group engine=StreamFusion trial=4 warmup=false rows=500000 keys=16384 width=128 seconds=3.304634",
+      "[table-function] shape=group rows=500000 keys=16384 width=128 stock=7.409579 native=3.395803 stock_trials=[7.580753204, 7.409578964, 7.207962233] native_trials=[3.39580346, 3.423327908, 3.304634066]"
+    ],
+    "interpretation": "Numeric producer has no separate projection/JNI operator. The grouped producer still computes JSON_STRING before unchanged native grouping, so a NativeCalc remains for that expression. Symbolized Rust group update/JSON output/allocation paths remain in the mixed profile. Java allocation weights are neither Rust allocation totals nor peak heap."
   }
 }

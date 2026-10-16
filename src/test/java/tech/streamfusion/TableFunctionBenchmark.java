@@ -26,17 +26,37 @@ class TableFunctionBenchmark {
     boolean expectedNative =
         Boolean.parseBoolean(System.getProperty("tablefunc.expectNative", "true"));
     for (String shape : System.getProperty("tablefunc.cases", "split,group").split(",")) {
-      String lateral = " FROM src s, LATERAL TABLE(test_split(s.text_value)) AS t(v, pos)";
-      String sql =
-          shape.equals("split")
-              ? "SELECT s.k, t.v, t.pos" + lateral
-              : "SELECT s.k, t.pos, JSON_ARRAYAGG(t.v)" + lateral + " GROUP BY s.k, t.pos";
+      String sql;
+      switch (shape) {
+        case "split":
+          sql =
+              "SELECT s.k, t.v, t.pos FROM src s, LATERAL TABLE(test_split(s.text_value)) AS t(v,"
+                  + " pos)";
+          break;
+        case "group":
+          sql =
+              "SELECT s.k, t.pos, JSON_ARRAYAGG(t.v) FROM src s, "
+                  + "LATERAL TABLE(test_split(s.text_value)) AS t(v, pos) GROUP BY s.k, t.pos";
+          break;
+        case "numeric":
+          sql =
+              "SELECT s.k, t.n, t.pos FROM src s, LATERAL TABLE(numeric_rows(s.k, s.n)) AS t(n,"
+                  + " pos)";
+          break;
+        case "numeric-group":
+          sql =
+              "SELECT s.k, SUM(t.n), COUNT(*) FROM src s, "
+                  + "LATERAL TABLE(numeric_rows(s.k, s.n)) AS t(n, pos) GROUP BY s.k";
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown tablefunc.cases: " + shape);
+      }
       double[][] elapsed = new double[2][runs];
       for (int trial = 0; trial < warmups + runs; trial++) {
         try (var metrics = new RecoveryExecutionMetrics()) {
           for (int order = 0; order < 2; order++) {
             int engine = (trial + order) & 1;
-            var table = environment(metrics, rows, keys, width);
+            var table = environment(metrics, rows, keys, width, shape.startsWith("numeric"));
             table.createTemporaryTable(
                 "sink",
                 TableDescriptor.forConnector("blackhole")
@@ -96,20 +116,44 @@ class TableFunctionBenchmark {
   }
 
   private static StreamTableEnvironment environment(
-      RecoveryExecutionMetrics metrics, int rows, int keys, int width) {
+      RecoveryExecutionMetrics metrics, int rows, int keys, int width, boolean numeric) {
     var env = metrics.environment(new org.apache.flink.configuration.Configuration(), 1, 0);
     env.setParallelism(1);
     var table = StreamTableEnvironment.create(env);
     table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-    String payload = "é" + "x".repeat(Math.max(0, width - 1));
-    var source =
-        env.fromSequence(0, Math.max(0, rows - 1))
-            .filter(i -> i < rows)
-            .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : payload + "," + payload))
-            .returns(Types.ROW_NAMED(new String[] {"k", "text_value"}, Types.INT, Types.STRING));
-    table.createTemporaryView("src", source);
-    table.createTemporarySystemFunction("test_split", new PortableSqlFixtures.Split());
+    if (numeric) {
+      var source =
+          env.fromSequence(0, Math.max(0, rows - 1))
+              .filter(i -> i < rows)
+              .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : i))
+              .returns(Types.ROW_NAMED(new String[] {"k", "n"}, Types.INT, Types.LONG));
+      table.createTemporaryView("src", source);
+      table.createTemporarySystemFunction("numeric_rows", new NumericRows());
+    } else {
+      String payload = "é" + "x".repeat(Math.max(0, width - 1));
+      var source =
+          env.fromSequence(0, Math.max(0, rows - 1))
+              .filter(i -> i < rows)
+              .map(i -> Row.of((int) (i % keys), i % 8 == 7 ? null : payload + "," + payload))
+              .returns(Types.ROW_NAMED(new String[] {"k", "text_value"}, Types.INT, Types.STRING));
+      table.createTemporaryView("src", source);
+      table.createTemporarySystemFunction("test_split", new PortableSqlFixtures.Split());
+    }
     return table;
+  }
+
+  @org.apache.flink.table.annotation.FunctionHint(
+      input = {
+        @org.apache.flink.table.annotation.DataTypeHint("INT"),
+        @org.apache.flink.table.annotation.DataTypeHint("BIGINT")
+      },
+      output = @org.apache.flink.table.annotation.DataTypeHint("ROW<n BIGINT, pos INT>"))
+  public static class NumericRows extends org.apache.flink.table.functions.TableFunction<Row> {
+    public void eval(Integer key, Long value) {
+      if (key == null || value == null) return;
+      collect(Row.of(value + key, 0));
+      collect(Row.of(value + key + 1, 1));
+    }
   }
 
   private static double median(double[] values) {

@@ -348,7 +348,7 @@ complete the BINARY performance gate. The scoped rejection is recorded in
 
 ## JVM table-function output projection
 
-The experimental [JVM table-function operator](../operators/unnest-correlate.md#experimental-jvm-table-functions)
+The [JVM table-function operator](../operators/unnest-correlate.md#jvm-table-functions)
 also applies pure column projections before writing Arrow output. Correlate evaluates against its
 full released-Flink input/output schema, while a reusable projected view selects only the columns
 needed by its consumer. This preserves predicate coordinates, function invocation order, repeated
@@ -365,4 +365,5 @@ stock controls rather than attributing the entire difference to one instruction.
 owns and closes its metrics cluster; a retained-metrics fixture caused the actual preceding revision
 to exhaust its heap and is retained only as a diagnostic. The
 [raw artifact](../benchmarks/results/jvm-table-functions-2026-10-15.json) records both fixtures.
-The table-function prototype remains default off while broader performance validation continues.
+Verified basic JVM table functions are admitted by default after wider STRING and numeric release
+comparisons also beat stock and actual preceding code on both released Flink lines.

@@ -20,7 +20,9 @@ final class TableFunctionMatcher {
   }
 
   static boolean matches(StreamPhysicalCorrelate node) {
-    if (!Boolean.getBoolean("streamfusion.experimental.jvmTableFunctions")) return false;
+    var function =
+        ((BridgingSqlFunction) ((RexCall) node.scan().getCall()).getOperator()).getDefinition();
+    if (function instanceof org.apache.flink.table.functions.SpecializedFunction) return false;
     JoinRelType join = UnnestMatcher.joinType(node);
     return (join == JoinRelType.INNER || join == JoinRelType.LEFT)
         && basicRow(node.getInput().getRowType())
@@ -45,8 +47,8 @@ final class TableFunctionMatcher {
   }
 
   static String unsupportedReason(StreamPhysicalCorrelate node) {
-    return "correlate: JVM table functions require verified basic columnar boundaries and"
-        + " performance admission";
+    return "correlate: only non-specialized JVM table functions with INNER/LEFT and"
+        + " VARCHAR/INT/BIGINT input, output and argument types are verified";
   }
 
   static RelNode substitute(StreamPhysicalCorrelate node, PlanContext context) {

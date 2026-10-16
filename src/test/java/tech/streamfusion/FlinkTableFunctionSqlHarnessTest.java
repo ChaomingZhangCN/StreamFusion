@@ -16,8 +16,6 @@ import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -27,23 +25,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class FlinkTableFunctionSqlHarnessTest {
-  private static String previousExperimentalSetting;
-
-  @BeforeAll
-  static void enablePrototype() {
-    previousExperimentalSetting = System.getProperty("streamfusion.experimental.jvmTableFunctions");
-    System.setProperty("streamfusion.experimental.jvmTableFunctions", "true");
-  }
-
-  @AfterAll
-  static void restoreSetting() {
-    if (previousExperimentalSetting == null)
-      System.clearProperty("streamfusion.experimental.jvmTableFunctions");
-    else
-      System.setProperty(
-          "streamfusion.experimental.jvmTableFunctions", previousExperimentalSetting);
-  }
-
   @Test
   void innerAndLeftKeepNullEmptyAndPushedPredicateSemantics() {
     for (String join :
@@ -209,10 +190,63 @@ class FlinkTableFunctionSqlHarnessTest {
     }
   }
 
+  @Test
+  void numericArgumentsResultsAndGroupedConsumersRetainTheirTypes() {
+    for (String projection : new String[] {"s.id, t.n, t.pos", "SUM(t.n), COUNT(*)"}) {
+      var comparison =
+          NativeFailureParity.run(
+              () -> {
+                var table = environment(false, true, 64, "");
+                table.createTemporarySystemFunction(
+                    "numeric_rows", new TableFunctionBenchmark.NumericRows());
+                return table;
+              },
+              "SELECT "
+                  + projection
+                  + " FROM src s, "
+                  + "LATERAL TABLE(numeric_rows(CAST(MOD(s.id, 7) AS INT), s.id)) AS t(n, pos)");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
+    }
+  }
+
+  @Test
+  void parallelFanoutBetweenKeyedAggregatesRetainsFinalChangelog() throws Exception {
+    NativeParity.assertChangelogParity(
+        () -> {
+          var table = environment(false, true, 128, "", 3);
+          table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+          table.createTemporarySystemFunction(
+              "numeric_rows", new TableFunctionBenchmark.NumericRows());
+          return table;
+        },
+        "SELECT t.pos, SUM(t.n), COUNT(*) FROM "
+            + "(SELECT CAST(MOD(id, 7) AS INT) AS k, SUM(id) AS n FROM src "
+            + "GROUP BY CAST(MOD(id, 7) AS INT)) s, "
+            + "LATERAL TABLE(numeric_rows(s.k, s.n)) AS t(n, pos) GROUP BY t.pos");
+  }
+
+  @Test
+  void operatorSwitchKeepsTheWholeFunctionQueryOnFlink() throws Exception {
+    NativeParity.assertFallbackReasonContains(
+        () -> {
+          var table = environment(false, false, 16, "");
+          table.getConfig().set("streamfusion.operator.tableFunction.enabled", "false");
+          return table;
+        },
+        "SELECT s.id, t.v, t.pos FROM src s, LATERAL TABLE(expand_rows(s.id)) AS t(v, pos)",
+        "tableFunction: disabled by config");
+  }
+
   private static TableEnvironment environment(
       boolean updating, boolean objectReuse, int count, String fail) {
+    return environment(updating, objectReuse, count, fail, 1);
+  }
+
+  private static TableEnvironment environment(
+      boolean updating, boolean objectReuse, int count, String fail, int parallelism) {
     var env = StreamExecutionEnvironment.getExecutionEnvironment();
-    env.setParallelism(1);
+    env.setParallelism(parallelism);
     if (objectReuse) env.getConfig().enableObjectReuse();
     var table = StreamTableEnvironment.create(env);
     var rows = new Row[count];

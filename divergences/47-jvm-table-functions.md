@@ -5,7 +5,7 @@ native UDF ABI, and its physical planner lowers collection expansion to DataFusi
 Its native functions cannot execute a Flink JVM `TableFunction`, whose collector may emit a
 variable number of rows and whose conversion, lifecycle and outer-join semantics belong to Flink.
 
-The experimental [table-function boundary](../docs/operators/unnest-correlate.md#experimental-jvm-table-functions)
+The [table-function boundary](../docs/operators/unnest-correlate.md#jvm-table-functions)
 therefore invokes Flink's released correlate generator inside a Java operator with Arrow batch
 input/output. This follows Comet's JVM batch boundary and task-scoped function ownership
 (`CometUdfBridge.java`, `native/spark-expr/src/jvm_udf/mod.rs`), while retaining Flink's variable
@@ -16,7 +16,7 @@ rows and closed input batches.
 
 The generated correlate evaluator is private to the columnar operator. It is stateless from
 Flink's checkpoint perspective; source offsets and downstream operators retain their existing
-checkpoint contracts. The prototype verifies repeated recovery with grouped state rather than
+checkpoint contracts. The implementation verifies repeated recovery with grouped state rather than
 introducing an independent function-state codec. Stateful JVM aggregate functions require a
 separate design and remain tracked in [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
 
