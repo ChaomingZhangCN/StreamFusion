@@ -79,13 +79,16 @@ class SingletonColumnarWindowShuffleTest {
               + "'fields.id.end'='"
               + (ROWS - 1)
               + "')");
-      StreamTestSinks.discard(
+      var windows =
           table.toChangelogStream(
-                  table.sqlQuery(
-                      "SELECT window_start, window_end, SUM(goods_sales) FROM TABLE("
-                          + "CUMULATE(TABLE gen, DESCRIPTOR(rt), INTERVAL '10' SECOND, "
-                          + "INTERVAL '60' SECOND)) GROUP BY window_start, window_end"))
+              table.sqlQuery(
+                  "SELECT window_start, window_end, SUM(goods_sales) FROM TABLE("
+                      + "CUMULATE(TABLE gen, DESCRIPTOR(rt), INTERVAL '10' SECOND, "
+                      + "INTERVAL '60' SECOND)) GROUP BY window_start, window_end"));
+      StreamTestSinks.discard(
+          windows
               .map(new CollectResult())
+              .returns(windows.getType())
               .name("collect-windows")
               .setParallelism(2));
       StreamGraph graph = env.getStreamGraph();
