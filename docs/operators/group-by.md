@@ -681,7 +681,9 @@ map lookup. The first unprofiled repeat observed 34.53 external CPU seconds, so 
 1.515/1.432 s native/stock medians are diagnostic only; remaining cases were deferred.
 [Complete stacks and diagnostic trials](../benchmarks/results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
 retain that limitation. This allocation reduction does not establish whole-job admission.
-The feature and cache remain default off, the PR remains draft and #237 stays open.
+The feature and cache remain default off; #237 stays open for the remaining contracts.
+The maintainer accepted shipping this implementation on October 16 with the measured
+performance limitations retained and further optimization deferred.
 
 The next cache experiment removes `HashMap` node lookup, the remaining hotspot in the clean
 borrowed-probe CPU profile. It indexes STRING hashes in the primitive map and verifies full
@@ -707,7 +709,7 @@ mandatory output copies. Matched profiles reduce inclusive aggregate allocation 
 validation passes 73 combined cases on each Flink line; the small-capacity JSON/JVM selection
 passes 108 on 2.2 and 106 with two compatibility skips on 1.18. All trials, profiles and test
 logs are [retained](../benchmarks/results/jvm-aggregate-borrowed-string-exit-2026-10-16.json).
-The aggregate prototype and cache remain default off and draft.
+The aggregate implementation and cache remain default off.
 
 The subsequent [owned-key projection investigation](../optimizations/borrowed-key-probes.md#borrow-before-projecting-an-owned-jvm-key)
 avoids a temporary STRING copy on misses and after bypass, while callback inputs remain owned.

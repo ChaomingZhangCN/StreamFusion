@@ -1,7 +1,8 @@
 # JVM aggregate release diagnostics
 
-This is a default-off investigation for [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237),
-not admitted acceleration. [GROUP BY](../operators/group-by.md#jvm-aggregate-investigation)
+This is a default-off implementation for [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237),
+accepted by the maintainer on October 16 as correctness-tested groundwork despite the
+reported performance regressions. It is not default admission or a claim of acceleration. [GROUP BY](../operators/group-by.md#jvm-aggregate-investigation)
 describes coverage and remaining contracts. The [results artifact](results/jvm-aggregates-investigation-2026-10-15.json)
 retains all local comparisons and profiles, including regressions and runs with external activity.
 
@@ -162,7 +163,7 @@ targets the profiled temporary string copy while retaining mandatory output owne
 It defaults off; pass `--borrowed-string-exit` to the runner after building the candidate.
 The workflow measures that flag explicitly and records it in configuration. Its matched local
 profiles show lower sampled allocations, while local distinct-key throughput still regresses.
-The new candidate requires its own isolated matrix and remains draft.
+The historical candidate required its own isolated matrix; the completed results follow below.
 
 [The completed borrowed-exit matrix](results/jvm-aggregates-string-exit-isolated-2026-10-16.json)
 now retains all 18 aggregate cases, eight table-function cases and eight mixed profiles from
@@ -262,7 +263,7 @@ causal comparisons and a lower candidate median does not establish universal adm
 The 1.18 medium STRING and distinct BIGINT medians still regress versus both controls. On
 2.2 distinct STRING, the candidate beats its current stock control but remains slightly slower
 than the actual previous-runtime median. All unfavorable results and overlapping ranges stay
-visible. Aggregates, accumulator caching and the borrowed exit remain default off and draft.
+visible. Aggregates, accumulator caching and the borrowed exit remain default off.
 
 The table-function control also retains its wide-output regression: stock/candidate/previous
 medians are 4.793/4.863/4.415 s on 2.2 and 4.433/5.068/4.364 s on 1.18. Split, numeric and grouped
@@ -326,7 +327,7 @@ measurements.
 
 Repeated wide text beats stock by 1.70×/1.67×. The 2.2 wide-distinct case remains slower, and
 1.18 aggregate regressions remain: low/medium STRING medians are 1.288/1.411 and 1.898/2.142 s
-stock/native; distinct INT is 3.111/3.236 and distinct BIGINT 3.160/3.434 s. Retain the broader draft
+stock/native; distinct INT is 3.111/3.236 and distinct BIGINT 3.160/3.434 s. Retain these broader limitations
 and default-off gates. The measured merge includes three singleton-shuffle Java changes absent
 from the original native control; all native/build inputs match.
 
@@ -335,3 +336,16 @@ The next writer policy resets its bounded miss counter on a successful reuse. Se
 show lower allocation and 41 focused passes per released line. All profile durations are excluded.
 The workflow now compares against actual `846cbb7c` before this reset rule, with the same six table
 cases and stock controls. Whole-job results for that change remain pending.
+
+
+## Maintainer acceptance
+
+On October 16 the maintainer authorized shipping the correctness-tested implementation
+and deferring further performance improvements. The JVM aggregate, accumulator cache and
+borrowed STRING exit remain opt-in. This acceptance does not change their supported type,
+state, lifecycle or ownership contracts, and does not claim stock-Flink throughput parity.
+The completed repeated-encoding matrix above remains the latest whole-job evidence.
+The subsequent consecutive-miss reset has 82 passing checks and separate Java/Rust profiles;
+its queued whole-job matrix was canceled when the optimization goal was stopped.
+No unmeasured speed claim is made for that reset. Remaining scope stays in
+[#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).

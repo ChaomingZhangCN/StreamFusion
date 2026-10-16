@@ -126,7 +126,7 @@ run in separate JVMs; their own stock trials and all ranges are retained. The wi
 remains unresolved, especially on 1.18. The borrowed exit stays default off; the aggregate
 key-projection change is not a causal explanation for table-function timings.
 
-The next draft candidate reuses one short lazy Java String's UTF-8 encoding in the shared Arrow
+The writer reuses one short lazy Java String's UTF-8 encoding in the shared Arrow
 writer, with bounded retention and cold-workload bypass. It retains normal output ownership and
 Flink conversion. [Matched profile evidence](../benchmarks/results/jvm-table-repeated-encoding-profiles-2026-10-16.json)
 reduces sampled table-function allocations by 34%/32% on 1.18/2.2; all profile timings are excluded.
@@ -147,7 +147,9 @@ The new writer policy keeps its single encoding useful when changing rows produc
 results, resetting its miss counter on a hit. [Mixed profiles](../benchmarks/results/jvm-encoding-adaptive-profiles-2026-10-16.json)
 reduce sampled cold-text encoding allocation by about half and inclusive table-function allocation
 by 14%/18% on 1.18/2.2. Forty-one focused checks pass on each line. Every profile duration is excluded;
-whole-job stock and actual previous-runtime comparisons for this rule remain pending. Keep draft.
+whole-job stock and actual previous-runtime comparisons for this rule remain unmeasured.
+The maintainer accepted shipping the correctness-tested implementation on October 16
+with further performance work deferred; no speed claim is made for this reset rule.
 
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
