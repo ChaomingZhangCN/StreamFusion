@@ -8,6 +8,11 @@ back](#still-falls-back).
 Flink picks between the two plan shapes itself, based on `table.exec.mini-batch.enabled`; this page
 covers both, since a query only accelerates when whichever shape Flink chose is fully native.
 
+When the selected aggregate uses a mini-batch trigger, translation uses the released host's
+size validation. Unset/default `-1`, zero and negative `table.exec.mini-batch.size` values
+fail during planning with the same exception and message as Flink, for single-phase and
+local/global plans. Mini-batch-disabled aggregation does not validate an unused size.
+
 ## Single-phase
 
 Flink's internal `SUM0` admits nullable TINYINT, SMALLINT, INT, BIGINT and DECIMAL,

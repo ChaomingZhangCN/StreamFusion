@@ -60,7 +60,7 @@ public class NativeChangelogNormalizeExecNode extends ExecNodeBase<ArrowBatch>
     int maxParallelism =
         FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), input.getParallelism());
     boolean miniBatch = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_ENABLED);
-    long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+    long miniBatchSize = miniBatch ? tech.streamfusion.compat.FlinkCompat.miniBatchSize(config) : -1;
     // Flink supports no STATE_TTL hint on ChangelogNormalize, so the job-wide retention is the
     // whole story.
     long stateTtlMillis = config.getStateRetentionTime();
