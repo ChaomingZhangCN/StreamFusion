@@ -54,33 +54,38 @@ public final class NativeIcebergSink {
         configuration,
         options,
         uidPrefix,
-        (stock, context) ->
-            new FileWriterFactory<>() {
-              @Override
-              public DataWriter<RowData> newDataWriter(
-                  EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-                return new DataWriter<>(
-                    new NativeIcebergAppender(
-                        context, file.encryptingOutputFile(), schema, settings, metrics),
-                    FileFormat.PARQUET,
-                    file.encryptingOutputFile().location(),
-                    spec,
-                    partition,
-                    file.keyMetadata());
-              }
+        dataWriterDecorator(schema, settings, metrics));
+  }
 
-              @Override
-              public EqualityDeleteWriter<RowData> newEqualityDeleteWriter(
-                  EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-                return stock.newEqualityDeleteWriter(file, spec, partition);
-              }
+  static IcebergTaskWriterFactory.Decorator dataWriterDecorator(
+      String schema, IcebergParquetSettings settings, MetricsConfig metrics) {
+    return (stock, context) ->
+        new FileWriterFactory<>() {
+          @Override
+          public DataWriter<RowData> newDataWriter(
+              EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+            return new DataWriter<>(
+                new NativeIcebergAppender(
+                    context, file.encryptingOutputFile(), schema, settings, metrics),
+                FileFormat.PARQUET,
+                file.encryptingOutputFile().location(),
+                spec,
+                partition,
+                file.keyMetadata());
+          }
 
-              @Override
-              public PositionDeleteWriter<RowData> newPositionDeleteWriter(
-                  EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-                return stock.newPositionDeleteWriter(file, spec, partition);
-              }
-            });
+          @Override
+          public EqualityDeleteWriter<RowData> newEqualityDeleteWriter(
+              EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+            return stock.newEqualityDeleteWriter(file, spec, partition);
+          }
+
+          @Override
+          public PositionDeleteWriter<RowData> newPositionDeleteWriter(
+              EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+            return stock.newPositionDeleteWriter(file, spec, partition);
+          }
+        };
   }
 
   public static void validate(
@@ -101,7 +106,21 @@ public final class NativeIcebergSink {
     }
     if (conf.dataFileFormat() != FileFormat.PARQUET)
       throw new IllegalArgumentException("Iceberg native data files require Parquet");
-    for (var field : table.schema().columns()) {
+    validateSchema(table.schema());
+    IcebergParquetSettings.translate(SinkUtil.writeProperties(FileFormat.PARQUET, conf, table));
+    if (table.io() instanceof org.apache.iceberg.hadoop.HadoopFileIO) {
+      var hadoop = ((org.apache.iceberg.hadoop.HadoopFileIO) table.io()).conf();
+      for (var entry : hadoop) {
+        if (entry.getKey().startsWith("parquet.") || entry.getKey().startsWith("write.parquet.")) {
+          throw new IllegalArgumentException(
+              "Unverified Hadoop Parquet override: " + entry.getKey());
+        }
+      }
+    }
+  }
+
+  static void validateSchema(org.apache.iceberg.Schema schema) {
+    for (var field : schema.columns()) {
       switch (field.type().typeId()) {
         case INTEGER:
         case LONG:
@@ -117,16 +136,6 @@ public final class NativeIcebergSink {
           break;
         default:
           throw new IllegalArgumentException("Unverified native Iceberg type: " + field.type());
-      }
-    }
-    IcebergParquetSettings.translate(SinkUtil.writeProperties(FileFormat.PARQUET, conf, table));
-    if (table.io() instanceof org.apache.iceberg.hadoop.HadoopFileIO) {
-      var hadoop = ((org.apache.iceberg.hadoop.HadoopFileIO) table.io()).conf();
-      for (var entry : hadoop) {
-        if (entry.getKey().startsWith("parquet.") || entry.getKey().startsWith("write.parquet.")) {
-          throw new IllegalArgumentException(
-              "Unverified Hadoop Parquet override: " + entry.getKey());
-        }
       }
     }
   }

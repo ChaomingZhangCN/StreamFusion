@@ -23,7 +23,8 @@ class NativeIcebergSourceRecoveryTest {
       new java.util.concurrent.ConcurrentHashMap<>();
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"none", "range"})
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {"none", "range", "dynamic", "dynamic-unaligned"})
   void midFileSavepointRestoresWithNewParallelismAndCommitsEveryRowOnce(String distribution)
       throws Exception {
     EMITTED.set(0);
@@ -36,8 +37,15 @@ class NativeIcebergSourceRecoveryTest {
             .create(
                 input.schema(),
                 org.apache.iceberg.PartitionSpec.unpartitioned(),
-                Map.of("format-version", "2", "write.distribution-mode", distribution),
-                temp.resolve("output").toUri().toString());
+                Map.of(
+                    "format-version",
+                    "2",
+                    "write.distribution-mode",
+                    distribution.startsWith("dynamic") ? "hash" : distribution),
+                temp.resolve(
+                        distribution.startsWith("dynamic") ? "warehouse/test/output" : "output")
+                    .toUri()
+                    .toString());
     if (distribution.equals("range")) output.replaceSortOrder().asc("id").commit();
     var first =
         environment(input, output, 2, null, true, distribution)
@@ -147,6 +155,7 @@ class NativeIcebergSourceRecoveryTest {
     env.setParallelism(parallelism);
     env.setMaxParallelism(16);
     env.enableCheckpointing(60_000);
+    if (distribution.endsWith("unaligned")) env.getCheckpointConfig().enableUnalignedCheckpoints();
     var stream =
         NativeIcebergSource.read(
                 env,
@@ -167,13 +176,38 @@ class NativeIcebergSourceRecoveryTest {
             .returns(ArrowBatchTypeInformation.INSTANCE)
             .name("delay")
             .uid("delay");
-    NativeIcebergSink.append(
-        stream,
-        output,
-        TableLoader.fromHadoopTable(output.location()),
-        config,
-        Map.of("distribution-mode", distribution),
-        "iceberg-output");
+    if (distribution.startsWith("dynamic")) {
+      var warehouse =
+          new org.apache.hadoop.fs.Path(output.location()).getParent().getParent().toString();
+      var spec = output.spec();
+      NativeIcebergDynamicSink.append(
+          stream,
+          output.schema(),
+          row ->
+              new NativeIcebergDynamicSink.Destination(
+                  "test.output",
+                  "main",
+                  spec,
+                  row.getInt(0) % 2 == 0 ? null : org.apache.iceberg.DistributionMode.HASH,
+                  Integer.MAX_VALUE,
+                  false,
+                  java.util.Set.of()),
+          org.apache.iceberg.flink.CatalogLoader.hadoop(
+              "recovery",
+              new org.apache.hadoop.conf.Configuration(),
+              Map.of("warehouse", warehouse)),
+          config,
+          Map.of(),
+          "iceberg-output");
+    } else {
+      NativeIcebergSink.append(
+          stream,
+          output,
+          TableLoader.fromHadoopTable(output.location()),
+          config,
+          Map.of("distribution-mode", distribution),
+          "iceberg-output");
+    }
     return env;
   }
 

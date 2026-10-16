@@ -22,3 +22,11 @@ and host IO callbacks. These remain inside the separate Iceberg Nexmark timing. 
 version-gated topology adapter changes payload factories/types before serialization;
 unknown connector layouts retain the normal planning fallback. Wider resource accounting
 and remaining sink checkpoints are tracked in [#373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
+
+The dynamic sink uses the same boundary: wrap its declared `Map` factory cache while
+delegating storage/eviction to the original LRU cache. Decorate newly created factories
+before the host initializes them, so there is no provisional file creation or writer
+reimplementation. The generator/updater still decide metadata and routing over borrowed
+views; target-homogeneous selections cross both forward and keyed paths as Arrow batches.
+A fixed payload layout avoids the host's materialized-row schema conversion becoming a
+transport boundary. Unknown layouts require a separate columnar conversion checkpoint.

@@ -59,6 +59,21 @@ def range_control_cases(directory):
     return result
 
 
+def dynamic_control_cases(directory):
+    result = {}
+    for name in ("TestDynamicIcebergSink", "TestDynamicWriter", "TestDynamicRecordProcessor",
+                 "TestDynamicTableUpdateOperator", "TestDynamicWriteResultAggregator", "TestDynamicCommitter",
+                 "TestDynamicCommittableSerializer", "TestDynamicWriteResultSerializer", "TestHashKeyGenerator", "TestLRUCache"):
+        root = ET.parse(Path(directory) / f"TEST-org.apache.iceberg.flink.sink.dynamic.{name}.xml").getroot()
+        if any(case.find("failure") is not None or case.find("error") is not None or case.find("skipped") is not None
+               for case in root.findall("testcase")):
+            raise ValueError(f"Failed/skipped dynamic control case: {name}")
+        result[name] = Counter(case.attrib["name"] for case in root.findall("testcase"))
+    if sum(sum(cases.values()) for cases in result.values()) != 97:
+        raise ValueError("Expected 97 published dynamic control cases")
+    return result
+
+
 def main(stock, native):
     if cases(stock) != cases(native):
         raise ValueError("Stock/native upstream invocation inventories differ")
@@ -66,8 +81,10 @@ def main(stock, native):
         raise ValueError("Stock/native upstream source SQL invocation inventories differ")
     if range_control_cases(stock) != range_control_cases(native):
         raise ValueError("Stock/native range control inventories differ")
+    if dynamic_control_cases(stock) != dynamic_control_cases(native):
+        raise ValueError("Stock/native dynamic control inventories differ")
     reports = Path(native)
-    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 14), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 2), ("NativeIcebergRangeSinkTest", 6), ("NativeIcebergSourceTest", 1), ("NativeIcebergSourceSqlTest", 2), ("NativeIcebergSourceRecoveryTest", 2), ("NativeIcebergTaskFallbackTest", 3), ("NativeIcebergEvolutionTest", 2)):
+    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 14), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 2), ("NativeIcebergRangeSinkTest", 6), ("NativeIcebergSourceTest", 1), ("NativeIcebergSourceSqlTest", 2), ("NativeIcebergSourceRecoveryTest", 4), ("NativeIcebergDynamicSinkTest", 8), ("NativeIcebergCapturedRecoveryTest", 4), ("NativeIcebergTaskFallbackTest", 3), ("NativeIcebergEvolutionTest", 2)):
         root = ET.parse(reports / f"TEST-tech.streamfusion.iceberg.{name}.xml").getroot()
         if any(case.find("failure") is not None or case.find("error") is not None
                for case in root.findall("testcase")):
@@ -76,7 +93,7 @@ def main(stock, native):
                   and case.find("error") is None and case.find("skipped") is None]
         if len(passed) < count:
             raise ValueError(f"Missing native hook/readback witnesses: {name}")
-    print("Iceberg: identical 14 upstream streaming SQL and 30 range control cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
+    print("Iceberg: identical 14 upstream streaming SQL and 127 range/dynamic control cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
 
 
 if __name__ == "__main__":

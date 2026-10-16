@@ -18,9 +18,9 @@ normal upsert option. SQL primary keys must match the table identifier fields;
 upsert materialization retains the stock sink. Java retains equality/position
 delete encoding, partition validation, and key bookkeeping. For keyed tables,
 `range` keeps Iceberg's normal hash fallback. Nested
-structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, dynamic
-destinations, Sink V2, and unknown writer-affecting options retain the
-stock sink.
+structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, arbitrary dynamic
+payload generators, normal Sink V2, and unknown writer-affecting options retain the
+stock SQL sink. The experimental dynamic DataStream API is described below.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
 Flink 2.2 runtime and requires Java 17 or later. Build it with `-Piceberg`.
@@ -46,6 +46,32 @@ custom exchange keeps unaligned channel capture disabled. No file-local sorting 
 added. Map/sketch tests cover nullable sort keys in formats 1/2/3, traffic after learned
 assignments, SQL entry points, and restoration of learned statistics at parallelism 2→3.
 `nativeRangeStatisticsUpdates` exposes applied host assignments.
+
+The experimental `NativeIcebergDynamicSink.append` API accepts Arrow input, one fixed
+scalar payload schema and a routing-only callback. The callback returns destination,
+branch, spec, distribution, parallelism and key settings; it cannot replace the payload.
+The original dynamic processor/updater perform catalog operations, table/branch creation
+and Java routing. Both forward and shuffled paths carry target metadata plus Arrow IPC
+batches. The normal Sink V2 writers, pre-commit union/aggregator and committer remain.
+A wrapper around the original LRU cache decorates each new task-writer factory before
+initialization or file creation, changing only data-file encoding. Java writes all deletes.
+`nativeDynamicFactories`/`stockDynamicFactories` report target-factory admission.
+
+Resolved target layouts must match the input field names, order, types and nullability;
+ID reassignment is allowed. Reordering, widening or filling payload columns requires a
+future columnar adapter, so such direct-API contracts are rejected before data-file
+writing. Arbitrary Java payload generators and the dynamic SQL connector stay stock.
+Unsupported target encoding settings retain the original entire target factory, before
+any file opens; there is no mid-file encoder switch. Deferred Java keyed updates retain
+incoming equality-field IDs, so those IDs must already match the target table. This is
+a released host constraint, unchanged by the adapter. Tests cover auto-created tables,
+forward/shuffle interleaving, cache size one, immediate/deferred updates, partitioned
+v2/v3 upserts and branches, mixed native/stock target policies, plus continuous
+source/dynamic-sink 2→3 savepoint restore with aligned and unaligned checkpoint
+configurations. Separate normal-sink tests prove captured Arrow channel state before
+2→3 and 3→2 append/keyed restore and exact committed readback. Published Java dynamic
+sink/processor/writer/cache/serializer/aggregation/committer tests retain all 97 cases
+in both configurations; these validate delegated host controls alongside native witnesses.
 
 The Rust encoder writes through a bounded reusable JNI byte buffer into the
 Java-selected Iceberg output stream. Java owns filesystem configuration and stream
@@ -206,3 +232,34 @@ two disk samples) alongside all repeated medians/ranges. A 10k-event smoke matri
 120 stock/native pairs across all 23 queries, four modes and labelled variants; q8 also
 passed ten repeated disk/mini-batch pairs with file watermarks. These are correctness
 checks, not throughput results. Final 2M-event results remain pending.
+
+### Dynamic writer release diagnostic
+
+On 2026-10-16, an Intel i7-12650H Linux host (16 available logical CPUs, 9.7 GiB
+physical memory) ran 2M generated Arrow rows through the dynamic sink, with one
+warmup and three measured pairs in alternating engine order. Both engines start
+with the same 8,192-row Arrow batches: required integer ID and nullable Unicode
+payload. The stock generator immediately visits Arrow row views and uses the normal
+Java payload serializer/encoder; the native adapter retains batches. One producer,
+parallelism four, one TaskManager/eight slots, 8 GiB maximum Java heap, 48 GiB logical
+task-off-heap budget, Zstd 3, four buckets per target and one-second checkpoints
+apply to both engines. The host metadata cache is 1,000; size-one eviction is covered
+by correctness fixtures. Timing includes generation, host routing, transport, JNI,
+Java deletes, data encoding and the final draining savepoint/commit. Stock Iceberg
+validates every committed ID/payload outside timing; native file footers and released
+handles/Arrow reservations are checked. Upserts repeat 100k keys over 2M input rows.
+
+| Dynamic mode | Stock median [range], s | Native median [range], s | Median ratio |
+|---|---:|---:|---:|
+| Mixed forward/hash append | 2.791 [2.787–2.975] | 2.556 [2.352–3.425] | 1.09× |
+| Partitioned upsert | 3.568 [3.557–3.573] | 2.973 [2.965–3.090] | 1.20× |
+
+[All samples and warmups](../benchmarks/iceberg-dynamic-20261016.jsonl) retain the
+append variability. This diagnostic uses JDK 17 and release Rust with `mimalloc`.
+The core library SHA-256 is `7a218e3b3242b5ebaa18a22848be89b556eb29426b6037b625bbce3b650e3ed5`;
+the Iceberg library is `73d14da4d49e056b89e92e0b31678b47c1254d38677a275a62fa6936a63168df`.
+To repeat, use profile `iceberg,iceberg-nexmark,bench`, test `IcebergDynamicBenchmark`,
+set `SF_ICEBERG_DYNAMIC_BENCHMARK=true` and `SF_ICEBERG_RELEASE_CONFIRMED=true`, and
+stage the same release libraries as `bin/bench-iceberg.sh`. `SF_ROWS`, `SF_WARMUP`,
+`SF_RUNS` and `SF_ICEBERG_ARTIFACTS` select the run. The final Nexmark matrix remains
+pending; the connector stays an explicit opt-in.
