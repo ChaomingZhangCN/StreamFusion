@@ -164,12 +164,15 @@ The harness directly reuses the existing event generator, query definitions, UDF
 lookup fixture and updating-result keys through a test-only corpus artifact. It seeds
 three normalized `person`/`auction`/`bid` tables outside timing, with four physical bucket
 partitions each, using the original deterministic events and field order. Logical SQL
-views retain the original TIMESTAMP(3) rowtimes and four-second watermarks over Iceberg's
-microsecond storage types. Stripes contain 50,000 original events by default; each
+views retain the original TIMESTAMP(3) rowtimes over Iceberg's microsecond storage
+types. Both engines use `SOURCE_WATERMARK()` from Iceberg's ordered file lower bounds. Stripes contain 50,000 original events by default; each
 stripe closes its partition files. Both readers use 128 MiB split/open-file costs and
 Iceberg's timestamp-statistics ordered assigner. This avoids combining files into tasks
-that traverse event-time stripes out of order. The normal SQL watermark operator still
-uses the original four-second delay.
+that traverse event-time stripes out of order. Recomputing a periodic watermark from
+decoded rows can advance past unfinished files and produced intermittent late-window
+loss in both engines; the file watermark preserves the source's conservative progress
+contract. This is an Iceberg-source setting shared by both engines; the original
+query corpus and headline harness stay unchanged.
 
 Every trial writes a fresh four-bucket output table. Updating outputs declare the actual
 result identifier fields and enable Iceberg upserts; Java writes all deletes. The bucket
@@ -197,4 +200,9 @@ footers and Java delete-file footers distinguish native work from fallback. Empt
 are reported without inventing file witnesses. Artifacts retain all samples/warmups,
 paired validation, plans, stream graphs, table locations, hardware/build metadata and
 library hashes. `bin/report-iceberg.py <artifact-directory>` reports medians and ranges
-and rejects incomplete/unpaired measured repetitions. Final 2M-event results remain pending.
+and rejects incomplete/unpaired measured repetitions or missing declared matrix cells.
+It also reports the headline sampling convention (first memory sample, best of the first
+two disk samples) alongside all repeated medians/ranges. A 10k-event smoke matrix passed
+120 stock/native pairs across all 23 queries, four modes and labelled variants; q8 also
+passed ten repeated disk/mini-batch pairs with file watermarks. These are correctness
+checks, not throughput results. Final 2M-event results remain pending.

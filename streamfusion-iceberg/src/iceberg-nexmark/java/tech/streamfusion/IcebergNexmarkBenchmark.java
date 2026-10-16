@@ -98,6 +98,7 @@ class IcebergNexmarkBenchmark {
       metadata.put("parallelism", PARALLELISM);
       metadata.put("partitions", 4);
       metadata.put("stripeEvents", STRIPE);
+      metadata.put("watermarks", "Iceberg ordered file lower bounds via SOURCE_WATERMARK()");
       metadata.put("warmups", WARMUPS);
       metadata.put("runs", RUNS);
       metadata.put("fileSettings", FILE_SETTINGS);
@@ -105,9 +106,6 @@ class IcebergNexmarkBenchmark {
       metadata.put("java", System.getProperty("java.version"));
       metadata.put("os", System.getProperty("os.name") + " " + System.getProperty("os.arch"));
       metadata.put("cpuCount", Runtime.getRuntime().availableProcessors());
-      Files.writeString(
-          artifacts.resolve("method.json"),
-          JSON.writerWithDefaultPrettyPrinter().writeValueAsString(metadata));
       Set<String> modes = selected("SF_ICEBERG_MODES", "memory-off,memory-on,disk-off,disk-on");
       Set<String> queries =
           selected(
@@ -115,6 +113,20 @@ class IcebergNexmarkBenchmark {
               String.join(
                   ",",
                   Arrays.stream(NexmarkMatrixBenchmark.ALL_QUERIES).map(q -> q.label).toList()));
+      var expected = new ArrayList<List<String>>();
+      for (var query : NexmarkMatrixBenchmark.ALL_QUERIES) {
+        if (!queries.contains(query.label)) continue;
+        for (String mode : modes) {
+          expected.add(List.of(query.label, mode, "exact"));
+          if (query.nativeVariantProps != null
+              && !"false".equals(System.getenv("SF_ICEBERG_VARIANTS")))
+            expected.add(List.of(query.label, mode, query.nativeVariantLabel));
+        }
+      }
+      metadata.put("expectedCells", expected);
+      Files.writeString(
+          artifacts.resolve("method.json"),
+          JSON.writerWithDefaultPrettyPrinter().writeValueAsString(metadata));
       for (var query : NexmarkMatrixBenchmark.ALL_QUERIES) {
         if (!queries.contains(query.label)) continue;
         var variants = new LinkedHashMap<String, Map<String, String>>();
@@ -496,7 +508,7 @@ class IcebergNexmarkBenchmark {
           TypeConversions.fromLogicalToDataType(type.getTypeAt(field)));
     schema
         .columnByExpression("_sf_rowtime", "CAST(`dateTime` AS TIMESTAMP(3))")
-        .watermark("_sf_rowtime", "_sf_rowtime - INTERVAL '4' SECOND");
+        .watermark("_sf_rowtime", "SOURCE_WATERMARK()");
     sql.createTemporaryTable(
         "input_" + kind,
         descriptor(
