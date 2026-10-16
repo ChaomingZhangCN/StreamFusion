@@ -1567,12 +1567,15 @@ iteration happens inside that callback. Rejected rows and changelog tags share a
 before Arrow validates nonnullable result fields.
 
 Referenced inputs and projected outputs can carry character, binary, boolean, numeric/decimal,
-date/time, interval, supported timestamp types, and recursively nested ARRAY/ROW values with
-those leaves. Nested arguments use Flink internal views over the imported Arrow batch; generated
+date/time, interval, supported timestamp types, and recursively nested ARRAY/ROW/MAP/MULTISET
+values with those leaves. The broader MAP/MULTISET boundary requires non-null keys/elements,
+matching the Arrow map key representation, with the existing character MAP exception below. Nullable map values, outer containers and nested array/row values
+remain supported. Nested arguments use Flink internal views over the imported Arrow batch; generated
 results are copied into owned Arrow output vectors before that batch closes. The callback still
 crosses JNI once per batch, including multi-column results and filtering.
-MAPs with character keys and character values are also admitted, including inside ARRAY/ROW.
-Other MAP and MULTISET boundary types remain explicit fallback.
+The existing character-key/character-value MAP boundary remains admitted. Other MAP
+keys and MULTISET elements must be declared non-null; nullable forms retain fallback,
+including inside ARRAY/ROW. Nested fixed BINARY leaves retain their existing restriction.
 Constructing containers internally is allowed when the resulting boundary types are
 admitted. Unsupported host code generation
 and UDF signatures retain explicit fallback. Flink 2.2.1 rejects dynamic JSON_EXISTS paths;
@@ -2258,3 +2261,9 @@ Eleven DOUBLE TRUNCATE runtime checks and nine Boolean/string ARRAY_DISTINCT che
 both released lines. These are historical correctness results. Binary ELT and STRING ARRAY_DISTINCT remain
 on stock execution pending performance admission; fixed binary casts, Boolean ARRAY_DISTINCT,
 and the bounded DOUBLE TRUNCATE helper remain admitted.
+
+
+The maintainer accepted shipping the verified broader SQL/JSON MAP/MULTISET boundary
+on October 16 while deferring performance improvements. Historical MAP whole-job results
+remain slower than stock Flink; see the [recorded measurements](../benchmarks/scalar-functions.md#map-sqljson-batch-boundaries-2026-09-19).
+This acceptance does not widen nullable-key, fixed-BINARY or non-Calc admission.

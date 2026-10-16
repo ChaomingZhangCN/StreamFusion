@@ -703,7 +703,17 @@ final class RexExpression {
       case MAP:
         nested =
             SqlTypeFamily.CHARACTER.contains(type.getKeyType())
-                && SqlTypeFamily.CHARACTER.contains(type.getValueType());
+                && SqlTypeFamily.CHARACTER.contains(type.getValueType())
+                || !type.getKeyType().isNullable()
+                    && type.getKeyType().getSqlTypeName() != SqlTypeName.BINARY
+                    && type.getValueType().getSqlTypeName() != SqlTypeName.BINARY
+                    && rowCalcTypeCode(type.getKeyType()) >= 0
+                    && rowCalcTypeCode(type.getValueType()) >= 0;
+        break;
+      case MULTISET:
+        nested = !type.getComponentType().isNullable()
+            && type.getComponentType().getSqlTypeName() != SqlTypeName.BINARY
+            && rowCalcTypeCode(type.getComponentType()) >= 0;
         break;
       case ROW:
         nested =
