@@ -39,6 +39,13 @@ boundary includes production state lookup, accumulation, result construction and
 aggregation, flush. Arrow fixtures and operator setup/destruction are outside the timed
 `iter_batched_ref` routine. Schema and nonempty-output checks run before timing.
 
+Its `typed_distinct` group covers DATE, internal millisecond TIME and component TIMESTAMP
+alongside numeric/string membership. The 4,096-row nullable fixtures use 16 grouping keys and
+distinct cardinalities 4/256. Local measurements include accumulation and typed membership-view
+flush; single-phase measurements include state updates and result construction. Arrow input and
+operator construction stay outside timing. These isolate native costs; `TemporalDistinctBenchmark`
+measures complete two-phase Flink jobs, including both transposes and production IPC shuffle.
+
 ## Running and comparing
 
 The `non_time_row_number` target includes eight production-kernel fixtures

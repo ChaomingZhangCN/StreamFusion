@@ -383,12 +383,20 @@ set travels as a trailing view column — its distinct `(value, count)` entries 
 structs, the Arrow form of Flink's serialized `MapView` partial — and the global folds the entries
 into its per-key distinct state with multiplicities, so a value repeating across bundles counts
 once. Scope: `COUNT(DISTINCT)` over bigint/int/smallint/tinyint/float/double/string/decimal,
-BOOLEAN and TIMESTAMP_LTZ; `SUM(DISTINCT)` over bigint/int/smallint/tinyint and DECIMAL
+BOOLEAN, DATE, TIME, TIMESTAMP and TIMESTAMP_LTZ; `SUM(DISTINCT)` over bigint/int/smallint/tinyint and DECIMAL
 with precision up to 38.
 Decimal sum partials must be DECIMAL(38, input-scale), while the distinct view preserves each
 input value's original precision and scale. Boolean and timestamp views retain their Arrow
 value types, including fractional timestamp nanoseconds. The merge folds in set-iteration
 order, so order-sensitive float/double sums stay on the host.
+DATE membership uses epoch days; TIME views carry internal milliseconds even if Flink resolves
+a lower declared precision. Both timestamp families use the existing millisecond/nanosecond
+component representation, retaining precision 0/3/6/9 and wide/pre-epoch values without a session-zone
+conversion. Runtime SQL checks cover shared/filtered views, NULL-only groups, empty global input,
+and repeated checkpoint recovery with memory and native RocksDB state.
+The [release job measurements](../benchmarks/basic-type-coverage.md#temporal-two-phase-distinct-2026-10-16)
+retain both transposes and IPC shuffle: 1.32-1.54x stock at 2M rows/64 keys and 1.07-1.15x
+at 10M rows/1,024 keys. Persistent recovery is verified for correctness; no RocksDB speedup is claimed.
 
 Insert-only `AVG(DISTINCT)` also rides the split for integers and DECIMAL precision up to 38.
 The local keeps two distinct states: a widened sum partial and a BIGINT count partial, while
@@ -549,7 +557,7 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
   bigint/int/smallint/tinyint/float/double/decimal.
 - A `COUNT(DISTINCT)` value type outside bigint/int/smallint/tinyint/float/double/string/decimal/
-  BOOLEAN/TIMESTAMP_LTZ, or a `SUM(DISTINCT)` value outside bigint/int/smallint/tinyint/DECIMAL;
+  BOOLEAN/DATE/TIME/TIMESTAMP/TIMESTAMP_LTZ, or a `SUM(DISTINCT)` value outside bigint/int/smallint/tinyint/DECIMAL;
   DECIMAL sum partials with a different scale/precision other than 38;
   `AVG(DISTINCT)` outside integers/DECIMAL or with incorrectly widened partials;
   `MIN`/`MAX` with a retained physical `DISTINCT` flag (Flink normally removes it).

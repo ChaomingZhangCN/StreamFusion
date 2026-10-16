@@ -333,6 +333,9 @@ final class LocalGroupAggregateMatcher {
       case VARCHAR:
       case DECIMAL:
       case BOOLEAN:
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         return true;
       default:
@@ -585,6 +588,16 @@ final class LocalGroupAggregateMatcher {
   }
 
   static String unsupportedReason(StreamPhysicalLocalGroupAggregate agg) {
+    for (int i = 0; i < agg.aggCalls().size(); i++) {
+      var call = agg.aggCalls().apply(i);
+      if (call.isDistinct() && call.getArgList().size() == 1
+          && call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.COUNT) {
+        var value = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
+        if (!supportedDistinctValueType(value.getSqlTypeName())) {
+          return "local group aggregate: unsupported COUNT(DISTINCT) value type " + value;
+        }
+      }
+    }
     return "local group aggregate: needs SUM/MIN/MAX/COUNT over integer/float/double/decimal values with"
         + " no widening of the partial, MIN/MAX over string/date/time/boolean/timestamp, AVG"
         + " over any AvgAggFunction numeric, or insert-only SINGLE_VALUE over string/float/double, and"

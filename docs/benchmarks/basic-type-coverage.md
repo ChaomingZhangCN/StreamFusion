@@ -1,5 +1,54 @@
 # Basic type coverage measurements
 
+## Temporal two-phase DISTINCT (2026-10-16)
+
+`TemporalDistinctBenchmark` measures `GROUP BY k, COUNT(DISTINCT v)` over DATE,
+millisecond TIME and TIMESTAMP(9). Runtime row input repeats 128 distinct values per key,
+with NULL every seventh row. DATE values straddle the epoch; TIME retains milliseconds
+under a declared precision of zero; timestamps distinguish adjacent nanoseconds before
+the epoch. Both edges remain rowwise, with production Arrow IPC shuffle, local/global
+native operators and positive consumed-row metrics required.
+
+The release build uses the system allocator, released Flink 2.2.1/JDK 17, parallelism one,
+an 8 GiB JVM heap and an Apple M4 Pro with 24 GiB RAM (macOS 26.5). The shared fixture gives
+both engines a 48 GiB off-heap accounting budget, which does not reserve that memory.
+Two warmups precede five alternating measured trials per engine. Submission, conversion,
+JNI, state, output and job completion are timed; MiniCluster creation is outside timing.
+
+| Rows / keys | Type | Stock seconds | Native seconds | Stock/native |
+| --- | --- | ---: | ---: | ---: |
+| 2,000,000 / 64 | DATE | 0.876800 | 0.663156 | 1.32x |
+| 2,000,000 / 64 | TIME | 0.834877 | 0.634687 | 1.32x |
+| 2,000,000 / 64 | TIMESTAMP(9) | 0.864683 | 0.562558 | 1.54x |
+| 10,000,000 / 1,024 | DATE | 5.210472 | 4.538462 | 1.15x |
+| 10,000,000 / 1,024 | TIME | 5.048048 | 4.703607 | 1.07x |
+| 10,000,000 / 1,024 | TIMESTAMP(9) | 5.352014 | 4.662786 | 1.15x |
+
+Unmodified main `b170a474` was measured with the identical harness and release native
+payload, asserting zero native substitutions. Its native-enabled fallback medians at
+2M rows are 0.852630/0.820695/0.836963 seconds, and at 10M rows
+4.947030/4.827481/5.177494 seconds (DATE/TIME/TIMESTAMP). Each run has its own interleaved
+stock controls; cross-run absolute times are not normalized speedups. All measured samples,
+including variability and baseline controls, are in the
+[raw trials](temporal-distinct-trials-2026-10-16.json).
+Small-job numbers include substantial fixed overhead; the 10M-row results show narrower
+gains, especially for TIME. These memory-backend measurements do not claim a RocksDB speedup.
+
+```sh
+SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
+  -Dtest=TemporalDistinctBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  '-Dnative.cargo.args=build --release' \
+  -Dbasic.rows=10000000 -Dbasic.keys=1024 -Ddistinct.cardinality=128 \
+  -Dbasic.warmup=2 -Dbasic.runs=5
+```
+
+Set `distinct.types=DATE,TIME,TIMESTAMP` to select types, or `basic.expectNative=false`
+when replaying the same harness against the baseline planner. The native Criterion
+`operators/typed_distinct` fixtures separately check typed membership views at distinct
+cardinalities 4/256; they do not substitute for this complete-job comparison.
+
+## Shared aggregate diagnostics
+
 These diagnostics measure complete Flink jobs from a runtime Row source to a
 blackhole sink, including both RowData/Arrow transposes, JNI, native state and
 final output conversion. They are separate from Nexmark. The source emits NULL
