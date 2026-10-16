@@ -10,12 +10,15 @@ retains all local comparisons and profiles, including regressions and runs with 
 Shared-workspace builds repeatedly overlapped local trials. The JVM aggregate diagnostics
 workflow gives each released Flink line its own GitHub-hosted Ubuntu runner and JDK 17.
 Release compilation finishes first, followed by the focused correctness/recovery suite at
-65,536-entry and three-entry capacities. Only then does `bin/bench-jvm-aggregates.py` run
+65,536-entry and three-entry capacities, including checkpoint rescaling. Only then does `bin/bench-jvm-aggregates.py` run
 complete jobs; it never overlaps its build or correctness checks with measurements.
 
 The workflow runs on relevant pull-request changes, and can be dispatched once available on
 the default branch. It changes no Nexmark fixtures. Its successful completion proves fixture
 execution and retained evidence; it is not a throughput threshold or admission decision.
+Running diagnostic jobs are preserved across later pushes; results identify their exact source
+commit. Newer runs queue rather than cancel an expensive build or measurement halfway through.
+Test/documentation-only changes can reuse evidence when the measured code and fixtures match.
 
 Each query is `SELECT k, test_aggregate(v) FROM src GROUP BY k`, using the existing portable
 SUM UDAF. Typed runtime inputs cover INT, BIGINT and STRING grouping keys, at 16, 65,536 and

@@ -364,7 +364,36 @@
       ],
       "note": "The default-off gate preserves original UDAF fallback routes and explanations. Opt-in success counts come from the separate focused runs above."
     },
-    "execution_note": "31-case suites pass on both released Flink lines at both capacities. The nonleading-key case permits a recorded bypass when its working set exceeds the small capacity; normal-capacity coverage retains key reuse. Typed STRING/BIGINT benchmark fixtures also execute with positive native consumption and stock-control exclusion; their 2,000-row smoke timings are not performance claims."
+    "execution_note": "31-case suites pass on both released Flink lines at both capacities. The nonleading-key case permits a recorded bypass when its working set exceeds the small capacity; normal-capacity coverage retains key reuse. Typed STRING/BIGINT benchmark fixtures also execute with positive native consumption and stock-control exclusion; their 2,000-row smoke timings are not performance claims.",
+    "rescale": {
+      "artifact": "jvm-aggregate-rescale-2026-10-16.json",
+      "scenarios": 8,
+      "flink": [
+        "2.2.1",
+        "1.18.1"
+      ],
+      "cache_entries": [
+        65536,
+        3
+      ],
+      "backends": [
+        "hashmap",
+        "native RocksDB"
+      ],
+      "parallelisms": [
+        1,
+        3,
+        2
+      ],
+      "max_parallelism": 128,
+      "source_offsets": [
+        256,
+        512,
+        768
+      ],
+      "passed": true,
+      "scope": "externalized checkpoints; savepoint compatibility and merge/reset remain unproven"
+    }
   },
   "monitored_release": [
     {
@@ -2538,7 +2567,7 @@
   "isolated_diagnostics": {
     "workflow": ".github/workflows/jvm-aggregates.yml",
     "runner": "bin/bench-jvm-aggregates.py",
-    "state": "prepared; results pending",
+    "state": "both hosted jobs building release modules; no timing results yet",
     "flink": [
       "2.2.1",
       "1.18.1"
@@ -2554,6 +2583,8 @@
       2000000
     ],
     "build_correctness_measurement": "sequential on one hosted runner per Flink line",
-    "profiles": "separate INT/STRING medium/distinct runs with mixed Java/Rust CPU and sampled Java allocations; timings excluded"
+    "profiles": "separate INT/STRING medium/distinct runs with mixed Java/Rust CPU and sampled Java allocations; timings excluded",
+    "live_run": "https://github.com/datafusion-contrib/StreamFusion/actions/runs/38850873034",
+    "source_commit": "45d331deb39394f0ffab980535f4f02315a5708f"
   }
 }

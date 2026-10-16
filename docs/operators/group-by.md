@@ -520,7 +520,13 @@ ListView/UDAF/COUNT aggregation. Twelve memory/native-RocksDB repeated-recovery 
 line assert two forced restores, consumed native work and released native memory. Lifecycle
 failures and excluded-mode fallback are checked; the released host's processing-time mini-batch
 control compares known final results and schema because intermediate batches may differ.
-Broader arbitrary accumulator types, merge/reset and savepoint rescaling remain pending.
+A further two mixed-UDAF/ListView checkpoint-rescale scenarios per line and capacity pass
+through parallelisms 1 → 3 → 2 with 128 key groups. They verify restored source offsets,
+stable operator identities, consumed native work, checkpoint ownership ranges and final
+materialized values against uninterrupted stock Flink. Existing builtin rescale controls
+also pass. These are externalized-checkpoint restores; broader accumulator types, merge/reset
+and savepoint compatibility remain pending. [Rescale evidence](../benchmarks/results/jvm-aggregate-rescale-2026-10-16.json)
+retains all stages, key-group ranges, source offsets, native work and cleanup observations.
 
 Mini-batching, positive idle retention or state-TTL hints, asynchronous state, specialized
 functions, DISTINCT, approximate aggregates, FILTER and ordered calls are excluded from this

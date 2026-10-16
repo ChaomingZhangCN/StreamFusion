@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: jvm-aggregate-benchmark-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   release-diagnostics:
@@ -56,7 +56,7 @@ jobs:
         run: |
           for capacity in 65536 3; do
             mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
-              -Dnative.build.skip=true -Dtest=FlinkJvmAggregateSqlHarnessTest \
+              -Dnative.build.skip=true '-Dtest=FlinkJvmAggregateSqlHarnessTest,StatefulSqlRescaleTest' \
               -Dsf.testForks=1 \
               '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
               "-Dsf.extraJvmArgs=-Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=$capacity" \
