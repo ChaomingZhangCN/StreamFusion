@@ -15,6 +15,12 @@ import tech.streamfusion.planner.NativePlanner;
 /** Complete row-source/blackhole jobs; bridge and state costs stay inside the measured boundary. */
 final class BasicTypeBenchmark {
   static void run(String name, String sql, boolean legacy, boolean twoPhase, String operator) throws Exception {
+    run(name, sql, legacy, twoPhase, operator, null, null);
+  }
+
+  static void run(String name, String sql, boolean legacy, boolean twoPhase, String operator,
+      org.apache.flink.table.types.DataType inputType,
+      org.apache.flink.api.common.functions.MapFunction<Long, Row> inputRows) throws Exception {
     if (!"false".equals(System.getProperty("streamfusion.exchange.zeroCopyLocal"))) {
       throw new IllegalStateException("Use -Pbench to retain production Arrow IPC shuffle costs");
     }
@@ -44,16 +50,17 @@ final class BasicTypeBenchmark {
           table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
           table.getConfig().set("table.exec.mini-batch.size", "1024");
           int keys = Integer.getInteger("basic.keys", 64);
-          var type = DataTypes.ROW(DataTypes.FIELD("k", DataTypes.INT()), DataTypes.FIELD("v", DataTypes.BIGINT()),
+          var type = inputType != null ? inputType : DataTypes.ROW(DataTypes.FIELD("k", DataTypes.INT()), DataTypes.FIELD("v", DataTypes.BIGINT()),
               DataTypes.FIELD("d", DataTypes.DECIMAL(7, 2)), DataTypes.FIELD("s", DataTypes.STRING()),
               DataTypes.FIELD("b", DataTypes.BOOLEAN()), DataTypes.FIELD("c", DataTypes.CHAR(2)));
-          var source = env.fromSequence(0, rows - 1).map(i -> {
+          org.apache.flink.api.common.functions.MapFunction<Long, Row> mapper = inputRows != null ? inputRows : i -> {
             boolean missing = i % 7 == 0;
             return Row.of((int) (i % keys), missing ? null : i % 1000,
                 missing ? null : BigDecimal.valueOf(i % 99999, 2),
                 missing ? null : (i % 991) + ".25", missing ? null : i % 2 == 0,
                 missing ? null : "ab");
-          }).returns(ExternalTypeInfo.<Row>of(type));
+          };
+          var source = env.fromSequence(0, rows - 1).map(mapper).returns(ExternalTypeInfo.<Row>of(type));
           table.createTemporaryView("src", table.fromDataStream(source, Schema.newBuilder().fromRowDataType(type).build()));
           var scan = engine == 1 ? NativePlanner.install(table) : null;
           var query = table.sqlQuery(sql);
@@ -78,7 +85,10 @@ final class BasicTypeBenchmark {
           if (trial >= warmup) times[engine][trial - warmup] = elapsed;
         }
       }
-      if (expectNative) RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), operator);
+      if (expectNative) {
+        RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), operator);
+        if (twoPhase) RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeColumnarLocalGroupAggregate");
+      }
     }
     System.out.printf(Locale.ROOT,
         "[basic-type] case=%s rows=%d keys=%d native_expected=%s backend=%s Flink=%.6fs StreamFusion=%.6fs stock_trials=%s sf_trials=%s%n",

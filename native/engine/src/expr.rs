@@ -275,7 +275,7 @@ pub(crate) fn build_expr(
         }
         // A JVM UDF node: `arg` indexes the long pool at [udf id, return-type code]; the children are the
         // argument expressions. Builds a JvmUdf scalar function that upcalls the JVM per batch.
-        17 | 38 | 41 => {
+        17 | 38 | 41 | 42 => {
             let id = longs[arg] as i32;
             let row_result = kinds[node] == 38;
             let return_type = if row_result {
@@ -305,6 +305,7 @@ pub(crate) fn build_expr(
             if kinds[node] == 41 {
                 function.decimal_round_text = Some(longs[arg + 2] != 0);
             }
+            function.numeric_cast = kinds[node] == 42;
             datafusion::logical_expr::ScalarUDF::new_from_impl(function).call(children)
         }
         // Preserve the legacy literal encoding used by native timestamp arithmetic. The generated
@@ -2070,6 +2071,7 @@ pub(crate) struct JvmUdf {
     signature: datafusion::logical_expr::Signature,
     row_result: bool,
     decimal_round_text: Option<bool>,
+    numeric_cast: bool,
 }
 
 impl JvmUdf {
@@ -2079,6 +2081,7 @@ impl JvmUdf {
             return_type,
             row_result,
             decimal_round_text: None,
+            numeric_cast: false,
             signature: datafusion::logical_expr::Signature::variadic_any(if row_result {
                 datafusion::logical_expr::Volatility::Volatile
             } else {
@@ -2116,6 +2119,13 @@ impl datafusion::logical_expr::ScalarUDFImpl for JvmUdf {
         if let Some(truncate) = self.decimal_round_text {
             if let Some(output) =
                 crate::flink_functions::decimal_round_text::evaluate(&arrays, truncate)
+            {
+                return Ok(ColumnarValue::Array(output));
+            }
+        }
+        if self.numeric_cast {
+            if let Some(output) =
+                crate::flink_functions::numeric_cast::evaluate(&arrays, &self.return_type)
             {
                 return Ok(ColumnarValue::Array(output));
             }

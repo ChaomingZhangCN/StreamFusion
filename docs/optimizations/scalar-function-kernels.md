@@ -130,6 +130,33 @@ Fuses timestamp unit conversion, Flink's truncating day calculation, and integer
 
 [Complete-job Flink/native results](../benchmarks/scalar-functions.md#quarter).
 
+## Legacy numeric casts
+
+Direct legacy FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE casts have a conservative native
+batch shortcut before the released Flink-generated expression. This removes the scalar
+upcall and its Arrow export/import for proven batches while retaining the ordinary Calc
+JNI entry and both perimeter transposes. No additional configuration controls this path.
+
+For decimal output, the host widens FLOAT to DOUBLE and converts a round-tripping decimal
+rendering of that value. Rather than choosing one JDK's renderer, the native kernel bounds
+all possible renderings between adjacent binary values. Multiplication by exact powers
+10^0 through 10^18 with outward rounding bounds the scaled result. If both bounds round
+to the same HALF_UP integer of magnitude below 2^52, that result is exact; the declared
+precision check then preserves NULL on overflow. Otherwise the entire batch uses Flink.
+NaN/infinity failures and high scales therefore retain the running host's behavior.
+
+Character conversion admits ordinary ASCII decimal text through correctly-rounded binary64
+parsing. Hexadecimal forms, suffixes, special values, malformed text and Unicode keep the
+released expression. Composed inputs are never replaced with direct reads, and multiple
+fallible expressions retain row-major evaluation. The kernel caches no input values.
+
+On Apple M4 Pro/Flink 2.2.1/JDK 17 with the release library, two warmups and five alternating
+complete jobs, the two-million-row FLOAT, DOUBLE and CHAR cases run 1.39x, 1.12x and 1.17x
+stock Flink. Ten-million-row cases with two million distinct inputs run 1.38x, 1.22x and
+1.23x. The earlier generated-only implementation lost to stock. All trials, baseline controls,
+resources and boundaries are in the [numeric cast measurements](../benchmarks/basic-type-coverage.md#legacy-floating-decimal-casts-2026-10-16).
+These samples establish gains for the tested inputs, not for JVM-fallback-heavy batches.
+
 ## Integer/string casts
 
 CAST and TRY_CAST between character strings and signed integers now build Arrow arrays directly.

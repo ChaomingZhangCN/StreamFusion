@@ -69,10 +69,14 @@ class SplitByKeyGroupOperatorTest {
     try (var harness =
         new OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch>(
             new SplitByKeyGroupOperator(new int[0], new int[0], 128, recoverable))) {
-      ColumnarShuffleTestOutput.configure(harness, 2, 128, recoverable);
+      var output =
+          ColumnarShuffleTestOutput.output(
+              32, 128, ColumnarKeyGroupPartitioner.singleton(128, recoverable));
+      ColumnarShuffleTestOutput.configure(
+          harness, List.of(output), List.of(output), List.of(ColumnarShuffleTestOutput.writer(32, 128)));
       harness.setup(new ArrowBatchSerializer());
       var error = assertThrows(IllegalStateException.class, harness::open);
-      assertTrue(error.getMessage().contains("SINGLETON"));
+      assertTrue(error.getMessage().contains("exactly one downstream channel, deployed 32"));
     }
   }
 

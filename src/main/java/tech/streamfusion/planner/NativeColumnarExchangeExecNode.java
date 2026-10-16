@@ -76,8 +76,8 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
     // its actual network output at runtime after resource planning. Inheriting the producer count
     // can also put a parallelism-one aggregate in front of a parallel sink, whose rescale edge
     // separates an UPDATE_BEFORE from its earlier INSERT/UPDATE_AFTER.
-    int numChannels =
-        keyColumns.length == 0 ? 1 : Math.max(1, planner.getExecEnv().getParallelism());
+    boolean singleton = keyColumns.length == 0;
+    int numChannels = singleton ? 1 : Math.max(1, planner.getExecEnv().getParallelism());
     // Match the consumer's state namespace: sorts/keyless joins use one group, global
     // aggregates use the configured count. Both still have exactly one destination.
     int maxParallelism =
@@ -100,7 +100,9 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
     PartitionTransformation<ArrowBatch> partition =
         new PartitionTransformation<>(
             split,
-            new ColumnarKeyGroupPartitioner(maxParallelism, recoverable),
+            singleton
+                ? ColumnarKeyGroupPartitioner.singleton(maxParallelism, recoverable)
+                : new ColumnarKeyGroupPartitioner(maxParallelism, recoverable),
             StreamExchangeMode.PIPELINED);
     partition.setParallelism(numChannels);
     partition.setMaxParallelism(maxParallelism);
