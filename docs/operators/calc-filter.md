@@ -79,8 +79,9 @@ oversized payloads through 4,097 bytes, all nested kinds, mutable ROW/array outp
 fields, scalar consumers, grouping, exact released BinaryRow bytes/hashes and nullable arrays.
 Default selections pass 23 cases with two skips on 2.2 and 18 with seven skips on 1.18.
 Thirty selected native Criterion smokes exercise sliced nullable nested binary handoffs and
-key hashing. These are correctness checks. Nested BINARY recovery and representative stock/
-actual-previous-runtime speed comparisons remain pending. The maintainer accepted shipping
+key hashing. These are correctness checks. The original nested BINARY selection did not establish recovery or performance. The
+follow-up below adds recovery/deployment fixtures; representative stock/actual-previous-runtime
+speed comparisons remain deferred. The maintainer accepted shipping
 this correctness-tested, default-off extension on October 16 with performance work deferred;
 these pending contracts are not claimed as verified.
 
@@ -2268,3 +2269,32 @@ The maintainer accepted shipping the verified broader SQL/JSON MAP/MULTISET boun
 on October 16 while deferring performance improvements. Historical MAP whole-job results
 remain slower than stock Flink; see the [recorded measurements](../benchmarks/scalar-functions.md#map-sqljson-batch-boundaries-2026-09-19).
 This acceptance does not widen nullable-key, fixed-BINARY or non-Calc admission.
+
+
+### Experimental binary ELT and raw payload boundaries
+
+`-Dstreamfusion.experimental.binaryElt=true` in both planner and task JVMs admits
+verified INTEGER-indexed binary `ELT` arguments/results. It defaults off. Safe selections
+use the existing native binary kernel with a length-delimited result. Expressions requiring
+released Flink evaluation keep the generated path, including conditional/failing operands.
+The unverified BIGINT-index overload remains on Flink. No Rust production kernel changes.
+
+The flag uses Arrow Binary for SQL BINARY(n), because released Flink can carry raw bytes
+whose length differs from the declaration. SQL types remain BINARY(n). Existing fixed-width
+Arrow results remain readable through this transport. NULL/bounds semantics, selected raw
+bytes, literal selection, grouping, object reuse and batch boundaries are covered by
+`FlinkVariableBinaryEltSqlHarnessTest` and the existing binary SQL selections. The default
+mode retains its existing stock fallback. The maintainer accepted shipping the tested path
+on October16 with performance work deferred; historical slower standalone measurements
+above remain visible and do not establish speed for this transport.
+
+Nested BINARY checkpoint and separate-JVM checks extend the parent fixtures with raw lengths
+0–4097, NULL rows/fields/array elements, all nested RowKinds and mutable callback outputs.
+They use memory/nativeRocksDB at parallelism1/3 with repeated completed-checkpoint failures,
+and separate planner/worker JVMs with5003 runtime rows. Current validation results are
+recorded with this extension; performance is a separate deferred contract.
+
+The Flink2.2 extension passes33 focused binary SQL checks and12 recovery/remote checks,
+including4 new binary recovery and2 new binary remote cases alongside the parent cases.
+Flink1.18 validation is still pending. These correctness checks use a pinned existing release
+payload; required CI rebuilds current native code. Their durations are not throughput evidence.
