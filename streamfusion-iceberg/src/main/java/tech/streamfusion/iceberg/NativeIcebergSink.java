@@ -80,6 +80,13 @@ public final class NativeIcebergSink {
       throw new IllegalArgumentException("Native Iceberg encryption is not verified");
     }
     var conf = new FlinkWriteConf(table, options, configuration);
+    if ((!table.schema().identifierFieldIds().isEmpty() || conf.upsertMode())
+        && org.apache.iceberg.TableUtil.formatVersion(table) != 2) {
+      throw new IllegalArgumentException("Native keyed writes currently require format-v2");
+    }
+    if (conf.upsertMode() && table.schema().identifierFieldIds().isEmpty()) {
+      throw new IllegalArgumentException("Native upsert writes require table identifier fields");
+    }
     if (conf.dataFileFormat() != FileFormat.PARQUET)
       throw new IllegalArgumentException("Iceberg native data files require Parquet");
     for (var field : table.schema().columns()) {

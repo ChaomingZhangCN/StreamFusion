@@ -178,6 +178,24 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
   }
 
   @Override
+  public void abort() throws IOException {
+    if (closed) return;
+    closed = true;
+    count = 0;
+    metrics = new Metrics(0);
+    splitOffsets = List.of();
+    try {
+      if (handle != 0) {
+        long current = handle;
+        handle = 0;
+        NativeIceberg.closeWriter(current);
+      }
+    } finally {
+      closeOutput();
+    }
+  }
+
+  @Override
   public Metrics metrics() {
     if (metrics == null)
       throw new IllegalStateException("Iceberg file metrics unavailable before close");

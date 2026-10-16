@@ -35,7 +35,7 @@ def main(stock, native):
     if cases(stock) != cases(native):
         raise ValueError("Stock/native upstream invocation inventories differ")
     reports = Path(native)
-    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 6), ("NativeIcebergSqlTest", 1)):
+    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 7), ("NativeIcebergSqlTest", 4), ("NativeIcebergKeyedTest", 8)):
         root = ET.parse(reports / f"TEST-tech.streamfusion.iceberg.{name}.xml").getroot()
         if any(case.find("failure") is not None or case.find("error") is not None
                for case in root.findall("testcase")):
@@ -44,7 +44,7 @@ def main(stock, native):
                   and case.find("error") is None and case.find("skipped") is None]
         if len(passed) < count:
             raise ValueError(f"Missing native hook/readback witnesses: {name}")
-    print("Iceberg: identical 12 upstream streaming cases; native hook, SQL file-encoder, and readback witnesses passed")
+    print("Iceberg: identical 12 upstream streaming cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
 
 
 if __name__ == "__main__":

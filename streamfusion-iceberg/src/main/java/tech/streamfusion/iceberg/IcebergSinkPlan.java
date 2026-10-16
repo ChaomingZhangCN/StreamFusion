@@ -50,9 +50,6 @@ public final class IcebergSinkPlan {
       throw new IllegalArgumentException("non-null drop policy has not been admitted");
     }
     ResolvedSchema requested = (ResolvedSchema) get(sink, "resolvedSchema");
-    if (requested != null && requested.getPrimaryKey().isPresent()) {
-      throw new IllegalArgumentException("identifier-field sinks have not been admitted");
-    }
     TableLoader loader = (TableLoader) get(sink, "tableLoader");
     Map<String, String> options = Map.copyOf((Map<String, String>) get(sink, "writeProps"));
     Table table;
@@ -64,10 +61,16 @@ public final class IcebergSinkPlan {
     }
     var conf = new FlinkWriteConf(table, options, configuration);
     if ((conf.distributionMode() != DistributionMode.NONE
-            && conf.distributionMode() != DistributionMode.HASH)
-        || conf.upsertMode()
-        || !table.schema().identifierFieldIds().isEmpty()) {
-      throw new IllegalArgumentException("only append-only none/hash distribution is admitted");
+        && conf.distributionMode() != DistributionMode.HASH
+        && !(conf.distributionMode() == DistributionMode.RANGE
+            && !table.schema().identifierFieldIds().isEmpty()))) {
+      throw new IllegalArgumentException("only none/hash streaming distribution is admitted");
+    }
+    if (requested != null
+        && requested.getPrimaryKey().isPresent()
+        && !new java.util.HashSet<>(requested.getPrimaryKey().get().getColumns())
+            .equals(table.schema().identifierFieldNames())) {
+      throw new IllegalArgumentException("SQL/table identifier-field mismatch is not admitted");
     }
     RowType expected = FlinkSchemaUtil.convert(table.schema());
     if (produced.getFieldCount() != expected.getFieldCount()) {

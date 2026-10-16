@@ -25,10 +25,8 @@ final class IcebergSinkMatcher {
       context.decline(Substitution.disabledReason("icebergSink"));
       return null;
     }
-    if (sink.upsertMaterialize()
-        || !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) sink.getInput())) {
-      context.decline(
-          "Iceberg append acceleration requires insert-only input without upsert materialization");
+    if (sink.upsertMaterialize()) {
+      context.decline("Iceberg native sinks do not support an upsert materializer");
       return null;
     }
     try {
@@ -36,6 +34,11 @@ final class IcebergSinkMatcher {
           IcebergSinkPlan.capture(
               (IcebergTableSink) sink.tableSink(),
               FlinkTypeFactory.toLogicalRowType(sink.getInput().getRowType()));
+      if (plan.table.schema().identifierFieldIds().isEmpty()
+          && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) sink.getInput())) {
+        context.decline("Updating Iceberg input requires table identifier fields");
+        return null;
+      }
       return new StreamPhysicalNativeIcebergSink(
           sink.getCluster(), sink.getTraitSet(), sink.getInput(), sink.getRowType(), plan);
     } catch (IllegalArgumentException | LinkageError e) {

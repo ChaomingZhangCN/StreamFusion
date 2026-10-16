@@ -27,12 +27,22 @@ final class IcebergTaskWriterFactory implements TaskWriterFactory<ArrowBatch> {
   private final RowDataTaskWriterFactory stock;
   private final RowType rowType;
   private final Decorator decorator;
+  private final boolean keyed;
   private transient ArrowWriteContext context;
 
   IcebergTaskWriterFactory(RowDataTaskWriterFactory stock, RowType rowType, Decorator decorator) {
     this.stock = stock;
     this.rowType = rowType;
     this.decorator = decorator;
+    try {
+      var keys =
+          (java.util.Collection<?>)
+              IcebergSinkAdapter.field(RowDataTaskWriterFactory.class, "equalityFieldIds")
+                  .get(stock);
+      this.keyed = keys != null && !keys.isEmpty();
+    } catch (IllegalAccessException e) {
+      throw new IllegalStateException("Cannot inspect the released Iceberg equality fields", e);
+    }
   }
 
   @Override
@@ -63,10 +73,11 @@ final class IcebergTaskWriterFactory implements TaskWriterFactory<ArrowBatch> {
                   root.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
           if (kinds != null) {
             for (int i = 0; i < root.getRowCount(); i++) {
-              if (kinds.isNull(i) || kinds.get(i) != RowKind.INSERT.toByteValue()) {
+              if (kinds.isNull(i) || (!keyed && kinds.get(i) != RowKind.INSERT.toByteValue())) {
                 throw new IllegalArgumentException(
                     "Append-only Iceberg adapter received an updating row");
               }
+              RowKind.fromByteValue(kinds.get(i));
             }
           }
           var reader = ArrowConversion.createArrowReader(root, rowType);
@@ -74,11 +85,14 @@ final class IcebergTaskWriterFactory implements TaskWriterFactory<ArrowBatch> {
           try {
             for (int i = 0; i < root.getRowCount(); i++) {
               RowData row = reader.read(i);
-              row.setRowKind(RowKind.INSERT);
+              row.setRowKind(kinds == null ? RowKind.INSERT : RowKind.fromByteValue(kinds.get(i)));
               context.position(i, row);
               delegate.write(row);
             }
             context.drain();
+          } catch (IOException | RuntimeException | Error failure) {
+            context.fail(failure);
+            throw failure;
           } finally {
             context.clear();
           }

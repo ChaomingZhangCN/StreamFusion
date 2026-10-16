@@ -10,6 +10,8 @@ import org.apache.flink.table.data.RowData;
 final class ArrowWriteContext {
   interface PendingWrite {
     void drain() throws IOException;
+
+    default void abort() throws IOException {}
   }
 
   private final Set<PendingWrite> pending = new LinkedHashSet<>();
@@ -52,5 +54,15 @@ final class ArrowWriteContext {
     pending.clear();
     root = null;
     row = null;
+  }
+
+  void fail(Throwable failure) {
+    for (PendingWrite write : pending) {
+      try {
+        write.abort();
+      } catch (Throwable cleanup) {
+        failure.addSuppressed(cleanup);
+      }
+    }
   }
 }

@@ -4,15 +4,20 @@
 
 SQL sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
-The admitted path is the normal legacy sink, INSERT-only input, unencrypted
+The admitted path is the normal legacy sink, unencrypted
 format-v1/v2 Parquet, distribution `none`/`hash`, and verified integer, long, string,
 boolean, binary, and date columns. Java fanout handles partitioned append; a
 four-bucket test verifies interleaved Arrow selections and independent rolling.
 Java's original partition/key selector assigns destinations through borrowed Arrow
 views. Rust splits the batches, then the existing columnar key-group exchange
 transports them; no row payload crosses that shuffle. Unaligned checkpoints retain
-actual key-group labels for channel-state rescaling. Other types, keyed/updating
-inputs, dynamic destinations, Sink V2, range exchange, format-v3, and unknown
+actual key-group labels for channel-state rescaling. Format-v2 tables with
+identifier fields also admit INSERT/UPDATE_BEFORE/UPDATE_AFTER/DELETE and the
+normal upsert option. SQL primary keys must match the table identifier fields;
+upsert materialization retains the stock sink. Java retains equality/position
+delete encoding, partition validation, and key bookkeeping. For keyed tables,
+`range` keeps Iceberg's normal hash fallback. Append range distribution, other
+types, dynamic destinations, Sink V2, format-v3, and unknown
 writer-affecting options retain the stock sink.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
@@ -45,7 +50,11 @@ overrides fall back until verified. Metadata metrics modes remain Java-owned.
 Validation includes stock Iceberg file readback across those codecs/page versions,
 nullable primitive values, field IDs, split offsets and final sizes, sparse
 partition selections, within-batch rolling, empty writer cleanup, native handle
-reclamation, and a SQL native-file witness. `bin/flink-suite.sh iceberg` requires
+reclamation, and SQL append/update native-file witnesses. Keyed tests verify
+committed stock readback across multiple checkpoints and injected restarts, with
+aligned and unaligned checkpoints enabled. Interrupted batch processing discards
+pending selections and closes native resources before borrowed Arrow views expire.
+Dedicated captured-channel-state rescaling coverage remains pending for this sink. `bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. Native
 Criterion's `iceberg_io` suite separately exercises 18 release encoding fixtures
 and 27 batch-routing fixtures across one, four, and 128 destinations;
