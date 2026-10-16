@@ -31,11 +31,27 @@ def cases(directory):
     return executed, skipped
 
 
+def source_cases(directory):
+    name = "org.apache.iceberg.flink.source.TestIcebergSourceSql"
+    root = ET.parse(Path(directory) / f"TEST-{name}.xml").getroot()
+    executed, skipped = set(), set()
+    for case in root.findall("testcase"):
+        method = case.attrib["name"]
+        if case.find("failure") is not None or case.find("error") is not None:
+            raise ValueError(f"Failed upstream source case: {method}")
+        (skipped if case.find("skipped") is not None else executed).add(method)
+    if executed != {"testWatermarkValidConfig", "testWatermarkInvalidConfig"} or len(skipped) != 5:
+        raise ValueError(f"Unexpected streaming source SQL inventory: {executed}/{skipped}")
+    return executed, skipped
+
+
 def main(stock, native):
     if cases(stock) != cases(native):
         raise ValueError("Stock/native upstream invocation inventories differ")
+    if source_cases(stock) != source_cases(native):
+        raise ValueError("Stock/native upstream source SQL invocation inventories differ")
     reports = Path(native)
-    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 7), ("NativeIcebergSqlTest", 4), ("NativeIcebergKeyedTest", 8), ("NativeIcebergReaderTest", 7), ("NativeIcebergTypeTest", 2)):
+    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 9), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 7), ("NativeIcebergTypeTest", 3)):
         root = ET.parse(reports / f"TEST-tech.streamfusion.iceberg.{name}.xml").getroot()
         if any(case.find("failure") is not None or case.find("error") is not None
                for case in root.findall("testcase")):
@@ -44,7 +60,7 @@ def main(stock, native):
                   and case.find("error") is None and case.find("skipped") is None]
         if len(passed) < count:
             raise ValueError(f"Missing native hook/readback witnesses: {name}")
-    print("Iceberg: identical 12 upstream streaming cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
+    print("Iceberg: identical 14 upstream streaming sink/source SQL cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
 
 
 if __name__ == "__main__":

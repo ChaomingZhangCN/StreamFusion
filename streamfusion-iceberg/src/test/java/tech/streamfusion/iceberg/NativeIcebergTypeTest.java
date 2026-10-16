@@ -35,7 +35,7 @@ class NativeIcebergTypeTest {
   @TempDir Path temp;
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2})
+  @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2, 3})
   void scalarValuesKeepPrecisionAcrossNativeDataFilesAndStockReadback(int formatVersion)
       throws Exception {
     var schema =

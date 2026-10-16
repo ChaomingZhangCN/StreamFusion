@@ -5,21 +5,21 @@
 SQL sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
 The admitted path is the normal legacy sink, unencrypted
-format-v1/v2 Parquet, distribution `none`/`hash`, and verified integer, long, string,
+format-v1/v2/v3 Parquet, distribution `none`/`hash`, and verified integer, long, string,
 boolean, binary, date, float, double, decimal, time, and microsecond timestamp
 columns (with and without a time zone). Java fanout handles partitioned append; a
 four-bucket test verifies interleaved Arrow selections and independent rolling.
 Java's original partition/key selector assigns destinations through borrowed Arrow
 views. Rust splits the batches, then the existing columnar key-group exchange
 transports them; no row payload crosses that shuffle. Unaligned checkpoints retain
-actual key-group labels for channel-state rescaling. Format-v2 tables with
+actual key-group labels for channel-state rescaling. Format-v2/v3 tables with
 identifier fields also admit INSERT/UPDATE_BEFORE/UPDATE_AFTER/DELETE and the
 normal upsert option. SQL primary keys must match the table identifier fields;
 upsert materialization retains the stock sink. Java retains equality/position
 delete encoding, partition validation, and key bookkeeping. For keyed tables,
 `range` keeps Iceberg's normal hash fallback. Append range distribution, nested
 structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, dynamic
-destinations, Sink V2, format-v3, and unknown writer-affecting options retain the
+destinations, Sink V2, and unknown writer-affecting options retain the
 stock sink.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
@@ -41,6 +41,13 @@ The Rust encoder writes through a bounded reusable JNI byte buffer into the
 Java-selected Iceberg output stream. Java owns filesystem configuration and stream
 close. Footer metrics use Java's metrics policy, supplemented by native NaN counts;
 Java constructs the final data files and commits. Delete encoders remain Java-owned.
+For format-v3 sinks, Java also assigns inherited row IDs, records snapshot lineage,
+and writes Puffin deletion vectors; the native boundary still covers data files only.
+Tests verify snapshot/file row IDs, vector blob references/offsets/lengths, and stock
+readback after updates and restarts. Live format upgrades, variant/geometry/geography,
+and nanosecond schemas retain their existing exclusions. Native v3 source admission
+remains stock because crate 0.10.1 does not read deletion vectors.
+
 Timestamp conversion reuses the common Arrow component representation and checked
 unit conversion: negative epochs floor correctly and the full supported calendar
 range is preserved. Parquet time units and decimals convert column-wise. Native
@@ -62,10 +69,14 @@ reclamation, and SQL append/update native-file witnesses. Keyed tests verify
 committed stock readback across multiple checkpoints and injected restarts, with
 aligned and unaligned checkpoints enabled. Interrupted batch processing discards
 pending selections and closes native resources before borrowed Arrow views expire.
-Dedicated captured-channel-state rescaling coverage remains pending for this sink. `bin/flink-suite.sh iceberg` requires
+The adapter preserves Flink's keyed context with a representative integer assigned
+to each batch's exact key group. Removing that context reproduced stale committed
+state in one of ten unaligned fault runs; retaining it passed the stress run and
+combined suite. Dedicated captured-channel-state rescaling coverage remains pending
+for this sink. `bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. Native
-Criterion's `iceberg_io` suite separately exercises 18 release encoding fixtures
-and 27 batch-routing fixtures across one, four, and 128 destinations;
+Criterion's `iceberg_io` suite separately exercises 87 release fixtures across
+encoding, routing, task reads, and scalar adaptation;
 it does not establish an end-to-end speedup.
 
 The internal source task-reader foundation now translates Java-planned Parquet

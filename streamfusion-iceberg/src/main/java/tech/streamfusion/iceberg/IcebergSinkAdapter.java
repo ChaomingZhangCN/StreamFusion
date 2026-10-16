@@ -149,9 +149,8 @@ final class IcebergSinkAdapter {
     } catch (IllegalAccessException e) {
       throw new IllegalStateException("Cannot adapt the released Iceberg batch exchange", e);
     }
-    // The writer has no Flink keyed state; its Iceberg key/delete bookkeeping remains in Java.
-    writer.setStateKeySelector(null);
-    writer.setStateKeyType(null);
+    writer.setStateKeySelector(new tech.streamfusion.operator.ArrowBatchSubtaskKeySelector(max));
+    writer.setStateKeyType(org.apache.flink.api.common.typeinfo.Types.INT);
     writer.setMaxParallelism(max);
   }
 

@@ -86,6 +86,8 @@
             <dependencies>
                 <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-flink-2.2</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
                 <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-api</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
+                <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-data</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
+                <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-core</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
                 <dependency><groupId>org.apache.flink</groupId><artifactId>flink-metrics-dropwizard</artifactId><version>${flink.version}</version><scope>test</scope></dependency>
             </dependencies>
             <build><plugins><plugin>
@@ -93,7 +95,7 @@
                 <configuration>
                     <dependenciesToScan><dependency>org.apache.iceberg:iceberg-flink-2.2:test-jar:tests</dependency></dependenciesToScan>
                     <includes>
-                        <include>**/TestFlinkTableSinkExtended.class</include>
+                        <include>**/TestFlinkTableSinkExtended.class</include><include>**/TestIcebergSourceSql.class</include>
                         <include>**/*Iceberg*Test.java</include>
                     </includes>
                     <systemPropertyVariables>

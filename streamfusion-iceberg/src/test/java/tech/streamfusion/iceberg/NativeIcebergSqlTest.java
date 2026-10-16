@@ -17,8 +17,8 @@ class NativeIcebergSqlTest {
   @TempDir Path temp;
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-  void updatingSqlKeepsJavaDeleteEncoding(boolean upsert) throws Exception {
+  @org.junit.jupiter.params.provider.CsvSource({"false,2", "true,2", "false,3", "true,3"})
+  void updatingSqlKeepsJavaDeleteEncoding(boolean upsert, int formatVersion) throws Exception {
     String previous = System.getProperty("streamfusion.experimental.iceberg.enabled");
     System.setProperty("streamfusion.experimental.iceberg.enabled", "true");
     try {
@@ -36,7 +36,9 @@ class NativeIcebergSqlTest {
       sql.executeSql("CREATE DATABASE ice.db");
       sql.executeSql(
           "CREATE TABLE ice.db.t (id INT NOT NULL, n BIGINT, PRIMARY KEY (id) NOT ENFORCED) "
-              + "PARTITIONED BY (id) WITH ('format-version'='2', 'write.distribution-mode'='hash', "
+              + "PARTITIONED BY (id) WITH ('format-version'='"
+              + formatVersion
+              + "', 'write.distribution-mode'='hash', "
               + "'write.upsert.enabled'='"
               + upsert
               + "')");
@@ -64,9 +66,9 @@ class NativeIcebergSqlTest {
   }
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"none", "hash"})
-  void sqlRetainsTheHostCommitterAndUsesTheNativeDataAppender(String distribution)
-      throws Exception {
+  @org.junit.jupiter.params.provider.CsvSource({"none,1", "none,2", "none,3", "hash,2", "hash,3"})
+  void sqlRetainsTheHostCommitterAndUsesTheNativeDataAppender(
+      String distribution, int formatVersion) throws Exception {
     String previous = System.getProperty("streamfusion.experimental.iceberg.enabled");
     System.setProperty("streamfusion.experimental.iceberg.enabled", "true");
     try {
@@ -85,7 +87,9 @@ class NativeIcebergSqlTest {
       sql.executeSql(
           "CREATE TABLE ice.db.t (id INT, payload STRING) "
               + (distribution.equals("hash") ? "PARTITIONED BY (payload) " : "")
-              + "WITH ('write.distribution-mode'='"
+              + "WITH ('format-version'='"
+              + formatVersion
+              + "', 'write.distribution-mode'='"
               + distribution
               + "')");
       sql.executeSql("INSERT INTO ice.db.t VALUES (1, 'first'), (2, CAST(NULL AS STRING))").await();

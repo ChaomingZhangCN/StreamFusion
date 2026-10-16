@@ -36,21 +36,44 @@ import tech.streamfusion.operator.NativeAllocator;
 import tech.streamfusion.operator.RowDataArrowConverter;
 
 class NativeIcebergKeyedTest {
-  @TempDir Path temp;
+  @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS)
+  Path temp;
+
   private static final AtomicBoolean FAILED = new AtomicBoolean();
   private static final AtomicBoolean RESTORED = new AtomicBoolean();
+  private static final java.util.Queue<String> EVENTS =
+      new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+  @org.junit.jupiter.api.RepeatedTest(10)
+  void unalignedRecoveryKeepsUpdatesUnderRepeatedCheckpointRaces() throws Exception {
+    hostDeletesAndRecoveryPreserveNativeDataPositions(true, true, "hash", true, 2);
+  }
 
   @ParameterizedTest
   @CsvSource({
-    "false,false,none,false", "true,false,none,false",
-    "false,true,hash,false", "true,true,hash,false",
-    "false,true,hash,true", "true,true,hash,true",
-    "false,false,range,false", "true,false,range,false"
+    "false,false,none,false,2",
+    "true,false,none,false,2",
+    "false,true,hash,false,2",
+    "true,true,hash,false,2",
+    "false,true,hash,true,2",
+    "true,true,hash,true,2",
+    "false,false,range,false,2",
+    "true,false,range,false,2",
+    "false,false,none,false,3",
+    "true,false,none,false,3",
+    "false,true,hash,false,3",
+    "true,true,hash,false,3",
+    "false,true,hash,true,3",
+    "true,true,hash,true,3",
+    "false,false,range,false,3",
+    "true,false,range,false,3"
   })
   void hostDeletesAndRecoveryPreserveNativeDataPositions(
-      boolean upsert, boolean fail, String distribution, boolean unaligned) throws Exception {
+      boolean upsert, boolean fail, String distribution, boolean unaligned, int formatVersion)
+      throws Exception {
     FAILED.set(false);
     RESTORED.set(false);
+    EVENTS.clear();
     String location = temp.resolve("keyed").toUri().toString();
     var schema =
         new Schema(
@@ -63,7 +86,7 @@ class NativeIcebergKeyedTest {
             .create(
                 schema,
                 PartitionSpec.builderFor(schema).bucket("id", 4).build(),
-                Map.of(TableProperties.FORMAT_VERSION, "2"),
+                Map.of(TableProperties.FORMAT_VERSION, Integer.toString(formatVersion)),
                 location);
     var configuration =
         Configuration.fromMap(
@@ -113,13 +136,38 @@ class NativeIcebergKeyedTest {
         assertNull(actual.put((Integer) row.getField("id"), (Integer) row.getField("value")));
       }
     }
-    assertEquals(Map.of(1, 11, 3, 30, 5, 50), actual);
+    assertEquals(
+        Map.of(1, 11, 3, 30, 5, 50),
+        actual,
+        () ->
+            "Source events="
+                + EVENTS
+                + "; table="
+                + location
+                + "; snapshots="
+                + java.util.stream.StreamSupport.stream(table.snapshots().spliterator(), false)
+                    .map(snapshot -> snapshot.snapshotId() + ":" + snapshot.summary())
+                    .toList());
     assertTrue(
         java.util.stream.StreamSupport.stream(table.snapshots().spliterator(), false).count() >= 2);
     var deleteKinds = java.util.EnumSet.noneOf(org.apache.iceberg.FileContent.class);
     for (var snapshot : table.snapshots()) {
+      if (formatVersion == 3) {
+        assertNotNull(snapshot.firstRowId());
+        assertNotNull(snapshot.addedRows());
+      }
       for (var delete : snapshot.addedDeleteFiles(table.io())) {
         deleteKinds.add(delete.content());
+        if (delete.format() == org.apache.iceberg.FileFormat.PUFFIN) {
+          assertEquals(3, formatVersion);
+          assertEquals(org.apache.iceberg.FileContent.POSITION_DELETES, delete.content());
+          assertNotNull(delete.referencedDataFile());
+          assertTrue(delete.contentOffset() >= 0);
+          assertTrue(delete.contentSizeInBytes() > 0);
+          continue;
+        }
+        if (formatVersion == 3)
+          assertEquals(org.apache.iceberg.FileContent.EQUALITY_DELETES, delete.content());
         try (var parquet =
             org.apache.iceberg.shaded.org.apache.parquet.hadoop.ParquetFileReader.open(
                 org.apache.iceberg.shaded.org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(
@@ -134,6 +182,11 @@ class NativeIcebergKeyedTest {
             org.apache.iceberg.FileContent.EQUALITY_DELETES,
             org.apache.iceberg.FileContent.POSITION_DELETES),
         deleteKinds);
+    if (formatVersion == 3) {
+      try (var tasks = table.newScan().planFiles()) {
+        for (var task : tasks) assertNotNull(task.file().firstRowId());
+      }
+    }
     assertEquals(fail, FAILED.get());
     assertEquals(fail, RESTORED.get());
     assertEquals("", NativeIceberg.liveNativeHandles());
@@ -190,12 +243,15 @@ class NativeIcebergKeyedTest {
         Thread.sleep(5);
       }
       if (!running) return;
-      synchronized (context.getCheckpointLock()) {
-        context.collect(batch(1));
-        if (fail && FAILED.compareAndSet(false, true)) {
-          throw new IllegalStateException("injected failure after an uncommitted update batch");
+      if (next < 2) {
+        synchronized (context.getCheckpointLock()) {
+          EVENTS.add("emit updates");
+          context.collect(batch(1));
+          if (fail && FAILED.compareAndSet(false, true)) {
+            throw new IllegalStateException("injected failure after an uncommitted update batch");
+          }
+          next = 2;
         }
-        next = 2;
       }
       while (running && completed < 2) {
         if (System.nanoTime() > deadline) throw new IllegalStateException("checkpoint timed out");
@@ -212,6 +268,7 @@ class NativeIcebergKeyedTest {
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
       state.update(List.of(next));
       snapshots.put(context.getCheckpointId(), next);
+      EVENTS.add("snapshot " + context.getCheckpointId() + "=" + next);
     }
 
     @Override
@@ -225,11 +282,13 @@ class NativeIcebergKeyedTest {
         for (int phase : state.get()) next = phase;
         completed = next;
         RESTORED.set(true);
+        EVENTS.add("restore " + next);
       }
     }
 
     @Override
     public void notifyCheckpointComplete(long checkpointId) {
+      EVENTS.add("complete " + checkpointId + "=" + snapshots.getOrDefault(checkpointId, 0));
       completed = Math.max(completed, snapshots.getOrDefault(checkpointId, 0));
       snapshots.keySet().removeIf(id -> id <= checkpointId);
     }
