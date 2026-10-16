@@ -20,6 +20,11 @@ execution and retained evidence; it is not a throughput threshold or admission d
 Running diagnostic jobs are preserved across later pushes; results identify their exact source
 commit. Newer runs queue rather than cancel an expensive build or measurement halfway through.
 Test/documentation-only changes can reuse evidence when the measured code and fixtures match.
+GitHub concurrency groups retain at most one pending run; later pushes can replace that pending
+run. When distinct runtime revisions need comparisons, dispatch the earlier immutable revision
+separately and verify its recorded SHA before pushing the next one. A branch dispatch and PR
+run use different ref groups and execute on separate diagnostic hosts. Cancel only the redundant
+pending copy after the separate run has been scheduled with the verified source.
 The Rust cache now saves compiled dependencies for canonical-repository branches,
 so repeated diagnostics can reuse release compilation; Cargo still validates changed inputs.
 The initial run had no Rust cache hit and saved none because PR saves were disabled. Cache
@@ -97,3 +102,9 @@ retains a matched local CPU/allocation profile and the contaminated unprofiled r
 allocation decreases, but map lookup remains hot and whole-job admission is still unproven.
 The monitor stopped the matrix after observing external Java/Rust work; low/distinct cases
 were not rerun on that shared host.
+
+
+The subsequent primitive STRING-hash index has [54-case validation](results/jvm-aggregate-string-hash-index-validation-2026-10-16.json),
+including full equality for hash collisions and entry-based capacity accounting. It targets
+the remaining sampled cache lookup cost. The borrowed-probe revision is retained in a separate
+isolated dispatch; the index needs its own Java/Rust profile and complete-job measurements.

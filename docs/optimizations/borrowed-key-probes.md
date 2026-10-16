@@ -104,7 +104,7 @@ registers in the joiner at all.
 
 The default-off [JVM aggregate investigation](../operators/group-by.md#jvm-aggregate-investigation)
 extends the same probe-before-owning discipline to bounded INT/BIGINT and STRING accumulator caches.
-The input row's grouping field probes a primitive or StringData map. A hit reuses the immutable
+The input row's grouping field probes a primitive numeric map or a STRING hash index. A hit reuses the immutable
 Flink BinaryRow key already owned by the entry; a miss uses the released key selector, whose
 result is an owned copy. NULL has a separate entry. Optimized input-field indices are retained
 explicitly and shown in the plan. Flink managed state, DataViews and checkpoint ownership are
@@ -171,3 +171,16 @@ show inclusive JVM aggregate allocation samples fall 4.999 → 4.031 GB and cach
 Rust builtin-SUM CPU stacks. Map lookup remains the main sampled Java cost in the aggregate
 loop. The subsequent whole-job repeat overlapped external work and is diagnostic only; no
 throughput gain or default admission follows from these allocation estimates.
+
+
+The current STRING index uses the primitive map for Flink string hashes, with full binary-string
+equality resolving every collision. An entry chain retains independently owned key views;
+removal and checkpoint flushing visit every member. Capacity counts distinct entries rather
+than occupied hashes, including the separate NULL entry. This targets the remaining `HashMap`
+lookup hotspot in the clean borrowed-probe profile; its throughput remains unproven.
+
+[All four 54-case validation runs](../benchmarks/results/jvm-aggregate-string-hash-index-validation-2026-10-16.json)
+pass on both released Flink lines at both capacities. The corpus includes two distinct strings
+with the same released Flink hash, fitting and overflowing cache sizes, deletion/reinsertion,
+ListViews and repeated restore. Local follow-up profiling was deferred because external Java/
+Rust work was live, so no new allocation or timing claim is made for this index.

@@ -77,9 +77,18 @@ class FlinkJvmAggregateSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"3,1", "3,3", "64,1", "64,3"})
-  void stringKeysKeepOwnedUnicodeNullAndEmptyKeys(int keys, int parallelism) throws Exception {
-    var rows = stringRows(keys);
+  @CsvSource({
+    "3,1,false",
+    "3,3,false",
+    "64,1,false",
+    "64,3,false",
+    "3,1,true",
+    "3,3,true",
+    "4,1,true"
+  })
+  void stringKeysKeepOwnedUnicodeNullAndEmptyKeys(int keys, int parallelism, boolean collisions)
+      throws Exception {
+    var rows = stringRows(keys, collisions);
     try (var metrics = new RecoveryExecutionMetrics()) {
       var comparison =
           NativeFailureParity.run(
@@ -103,26 +112,35 @@ class FlinkJvmAggregateSqlHarnessTest {
       assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
       assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
       RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
-      if (Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0) > 0)
-        assertTrue(
-            metrics.counterValue("jvmAccumulatorCacheHits")
-                    + metrics.counterValue("jvmAccumulatorCacheBypasses")
-                > 0);
+      int capacity = Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0);
+      if (capacity > 0) {
+        long hits = metrics.counterValue("jvmAccumulatorCacheHits");
+        long bypasses = metrics.counterValue("jvmAccumulatorCacheBypasses");
+        if (keys <= capacity) {
+          assertEquals(0, bypasses, "fitting string keys unexpectedly bypassed");
+          assertTrue(hits > 0, "string cache did not execute");
+        } else if (parallelism == 1) {
+          assertTrue(bypasses > 0, "capacity must count distinct keys, including hash collisions");
+        } else assertTrue(hits + bypasses > 0);
+      }
     }
   }
 
   @ParameterizedTest
   @CsvSource({
-    "hashmap,3",
-    "hashmap,64",
-    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,3",
-    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,64"
+    "hashmap,3,false",
+    "hashmap,64,false",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,3,false",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,64,false",
+    "hashmap,3,true",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,3,true"
   })
-  void stringKeysAndDataViewsRestoreAfterReuseAndBypass(String backend, int keys) throws Exception {
+  void stringKeysAndDataViewsRestoreAfterReuseAndBypass(
+      String backend, int keys, boolean collisions) throws Exception {
     try (var recovery =
         new PortableSqlRecovery(
                 backend,
-                stringRows(keys),
+                stringRows(keys, collisions),
                 Types.ROW_NAMED(new String[] {"k", "v"}, Types.STRING, Types.LONG),
                 stringSchema(),
                 true,
@@ -149,12 +167,24 @@ class FlinkJvmAggregateSqlHarnessTest {
         .build();
   }
 
-  private static java.util.List<Row> stringRows(int keys) {
+  private static java.util.List<Row> stringRows(int keys, boolean collisions) {
+    String first = "collision-10875";
+    String second = "collision-18154";
+    assertEquals(
+        org.apache.flink.table.data.binary.BinaryStringData.fromString(first).hashCode(),
+        org.apache.flink.table.data.binary.BinaryStringData.fromString(second).hashCode());
+    String[] collisionKeys = {null, first, second, "overflow"};
     var rows = new ArrayList<Row>();
     for (int cycle = 0; cycle < 2; cycle++) {
       for (int phase = 0; phase < 7; phase++) {
         for (int i = 0; i < keys; i++) {
-          String key = i == 0 ? null : i == 1 ? "" : "é🙂".repeat(128) + "\u0000" + i;
+          String key;
+          if (collisions) key = collisionKeys[i];
+          else if (i == 0) key = null;
+          else if (i == 1) key = "";
+          else if (i == 3) key = first;
+          else if (i == 4) key = second;
+          else key = "é🙂".repeat(128) + "\u0000" + i;
           RowKind kind =
               new RowKind[] {
                     RowKind.INSERT,

@@ -512,14 +512,16 @@ Arrow-batch input/output operator. It preserves each emitted changelog row; inpu
 does not reduce user function invocations or intermediate results. The operator disable switch
 `streamfusion.operator.jvmGroupAggregate.enabled=false` retains whole-island fallback.
 
-The opt-in harness passes 39 checks on each released Flink line with JDK 17, at both
+The opt-in harness passes 44 checks on each released Flink line with JDK 17, at both
 65,536-entry and three-entry capacities. Coverage includes the original STRING-key append/CDC
 fixtures, numeric boundary/NULL keys at parallelism one and three, nonleading grouping-field
 selection confirmed in the optimized plan, all RowKinds and delete/reinsert, and mixed
 ListView/UDAF/COUNT aggregation. Twelve memory/native-RocksDB repeated-recovery scenarios per
-line assert two forced restores, consumed native work and released native memory. Eight further
+line assert two forced restores, consumed native work and released native memory. Thirteen further
 checks cover STRING-key NULL/empty/long Unicode ownership, all RowKinds, delete/reinsert,
-ListViews, parallelism one/three and repeated recovery with both backends. Lifecycle
+ListViews, parallelism one/three and repeated recovery with both backends. The STRING cases
+also use distinct keys with the same released Flink hash, including deletion, reinsertion,
+recovery and cache overflow. Lifecycle
 failures and excluded-mode fallback are checked; the released host's processing-time mini-batch
 control compares known final results and schema because intermediate batches may differ.
 A further two mixed-UDAF/ListView checkpoint-rescale scenarios per line and capacity pass
@@ -552,7 +554,7 @@ snapshots. Snapshot boundaries invalidate borrowed accumulator views before subs
 mutation; restore starts with an empty cache. Flushing restores the operator's previous key
 context and ignores an empty cache on idle subtasks. Other key shapes use managed state directly.
 Cache hits also reuse their immutable, owned Flink BinaryRow key: the input grouping field
-probes a primitive or StringData map before key construction. STRING probes borrow a mutable
+probes a primitive numeric map or STRING hash index before key construction. STRING probes borrow a mutable
 Flink binary-string view over the current Arrow buffer for lookup only; the view is local to
 one ingest call and never enters the map. Buffers too large for a Java NIO view retain the
 released copying reader. Retained StringData keys refer only to owned BinaryRow
@@ -565,7 +567,10 @@ to managed state and the cache is bypassed for the rest of that task attempt. Re
 and clears then delegate directly; a restored attempt starts with an empty cache and evaluates
 reuse again. A working set that fits the capacity stays cached. Cold-prefix tests revisit and
 retract old groups after the switch, including ListView state and repeated recovery.
-The bound counts entries, not accumulator bytes, and is not a task memory budget.
+STRING hashes index the existing primitive map, with full binary-string equality along each
+collision chain. Cache capacity counts every distinct key, not hash buckets; flushing and
+removal visit all colliding entries. The bound counts entries, not accumulator bytes, and is
+not a task memory budget.
 
 The investigation has mixed Java/symbolized Rust CPU and sampled Java allocation profiles.
 An initial BinaryRow-keyed write-through cache was rejected: its key comparisons outweighed
@@ -661,6 +666,16 @@ map lookup. The first unprofiled repeat observed 34.53 external CPU seconds, so 
 [Complete stacks and diagnostic trials](../benchmarks/results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
 retain that limitation. This allocation reduction does not establish whole-job admission.
 The feature and cache remain default off, the PR remains draft and #237 stays open.
+
+The next cache experiment removes `HashMap` node lookup, the remaining hotspot in the clean
+borrowed-probe CPU profile. It indexes STRING hashes in the primitive map and verifies full
+string equality within each collision chain. Both Flink lines pass all 54 combined checks at
+both capacities, including a verified hash-collision pair, fitting three-key sets, overflow
+by a fourth distinct key, deletions/reinsertions and repeated memory/RocksDB restores.
+[Validation and source hashes](../benchmarks/results/jvm-aggregate-string-hash-index-validation-2026-10-16.json)
+record the matrix. Follow-up local profiling is deferred while an external build is live;
+the change has no throughput admission yet. The borrowed-probe predecessor has its own
+isolated run so later revisions preserve that comparison.
 
 ## Still falls back
 

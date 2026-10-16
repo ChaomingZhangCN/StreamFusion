@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.arrow.vector.FieldVector;
@@ -143,6 +141,8 @@ final class JvmAccumulatorCache {
     private final RowData key;
     private RowData value;
     private boolean dirty;
+    private StringData text;
+    private Entry next;
 
     private Entry(RowData key, RowData value) {
       this.key = key;
@@ -153,7 +153,7 @@ final class JvmAccumulatorCache {
   private final class CachedState implements ValueState<RowData> {
     private final ValueState<RowData> delegate;
     private final LongObjectHashMap<Entry> values = new LongObjectHashMap<>();
-    private final Map<StringData, Entry> stringValues = new HashMap<>();
+    private int stringCount;
     private Entry probedEntry;
     private Entry nullEntry;
     private RowData lastKey;
@@ -171,10 +171,31 @@ final class JvmAccumulatorCache {
           input.isNullAt(field)
               ? nullEntry
               : stringKey
-                  ? stringValues.get(probe == null ? input.getString(field) : probe.value(row))
+                  ? stringEntry(probe == null ? input.getString(field) : probe.value(row))
                   : values.get(intKey ? input.getInt(field) : input.getLong(field));
       if (stringKey) probedEntry = entry;
       return entry == null ? null : entry.key;
+    }
+
+    private Entry stringEntry(StringData text) {
+      for (Entry entry = values.get(text.hashCode()); entry != null; entry = entry.next)
+        if (entry.text.equals(text)) return entry;
+      return null;
+    }
+
+    private void removeString(StringData text) {
+      long hash = text.hashCode();
+      Entry previous = null;
+      for (Entry entry = values.get(hash); entry != null; entry = entry.next) {
+        if (entry.text.equals(text)) {
+          if (previous != null) previous.next = entry.next;
+          else if (entry.next == null) values.remove(hash);
+          else values.put(hash, entry.next);
+          stringCount--;
+          return;
+        }
+        previous = entry;
+      }
     }
 
     private long keyValue(RowData key) {
@@ -182,7 +203,7 @@ final class JvmAccumulatorCache {
     }
 
     private int size() {
-      return stringKey ? stringValues.size() : values.size();
+      return stringKey ? stringCount : values.size();
     }
 
     private boolean makeRoom() throws IOException {
@@ -202,7 +223,12 @@ final class JvmAccumulatorCache {
       if (size() == 0 && nullEntry == null) return;
       Object original = currentKey.get();
       try {
-        for (Entry entry : stringKey ? stringValues.values() : values.values()) flush(entry);
+        for (Entry entry : values.values()) {
+          if (stringKey) {
+            for (Entry collision = entry; collision != null; collision = collision.next)
+              flush(collision);
+          } else flush(entry);
+        }
         if (nullEntry != null) flush(nullEntry);
       } finally {
         if (original != null) selectKey.accept(original);
@@ -218,8 +244,13 @@ final class JvmAccumulatorCache {
 
     private void put(RowData key, Entry entry) {
       if (key.isNullAt(0)) nullEntry = entry;
-      else if (stringKey) stringValues.put(key.getString(0), entry);
-      else values.put(keyValue(key), entry);
+      else if (stringKey) {
+        entry.text = key.getString(0);
+        removeString(entry.text);
+        entry.next = values.put(entry.text.hashCode(), entry);
+        stringCount++;
+      } else values.put(keyValue(key), entry);
+      probedEntry = null;
     }
 
     @Override
@@ -231,7 +262,7 @@ final class JvmAccumulatorCache {
               ? probedEntry
               : key.isNullAt(0)
                   ? nullEntry
-                  : stringKey ? stringValues.get(key.getString(0)) : values.get(keyValue(key));
+                  : stringKey ? stringEntry(key.getString(0)) : values.get(keyValue(key));
       if (entry == null) {
         if (!makeRoom()) return delegate.value();
         entry = new Entry(key, delegate.value());
@@ -271,7 +302,7 @@ final class JvmAccumulatorCache {
       if (!enabled) return;
       RowData key = (RowData) currentKey.get();
       if (key.isNullAt(0)) nullEntry = null;
-      else if (stringKey) stringValues.remove(key.getString(0));
+      else if (stringKey) removeString(key.getString(0));
       else values.remove(keyValue(key));
       lastKey = null;
       lastEntry = null;
@@ -281,7 +312,7 @@ final class JvmAccumulatorCache {
 
     private void invalidate() {
       values.clear();
-      stringValues.clear();
+      stringCount = 0;
       probedEntry = null;
       hitSinceClear = false;
       nullEntry = null;
