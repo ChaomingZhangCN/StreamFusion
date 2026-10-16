@@ -20,6 +20,35 @@ near-memcpy speed for ASCII. A 2026-07-12 profile had this char loop at ~9% of q
 **Measured:** with the batched BinaryRow keys above, the string-heavy stateless q22 gained +25%
 native throughput (1.23x → 1.53x) on the 2M-event generator rung.
 
+## Repeated lazy-string encodings
+
+The candidate in draft #374 keeps the previous short immutable Java String and its owned UTF-8
+encoding inside each VarChar writer. Equal consecutive values reuse those bytes before Arrow's
+ordinary `setSafe` copies them into the output buffer. It retains no mutable StringData or Arrow
+view and does not reuse output cells. Values above 1,024 UTF-16 code units use ordinary encoding;
+after eight misses the writer releases its cached value and bypasses lookup for its lifetime.
+This bounds retained heap and limits lookup work on distinct text. Binary-backed StringData keeps
+its existing direct segment-copy path. NULLs, surrogate conversion and original UTF-16 sidecars
+retain the existing representation.
+
+[Matched profiles](../benchmarks/results/jvm-table-repeated-encoding-profiles-2026-10-16.json)
+use the identical current fixture with immutable previous production runtime `5cbd6ec2` and the
+candidate on each released Flink line. With 500k rows, width 256, two warmups, three pairs, 2 GiB,
+production IPC and both transposes, inclusive table-function Java allocation samples decrease
+10.794→7.162 GB on 1.18 and 10.633→7.231 GB on 2.2 (34%/32%). Full Java/Rust stacks and every raw
+trial remain retained. The split-only path has almost no sampled Rust execution; separate numeric
+aggregate controls contain substantial symbolized Rust work. Java encoding is the measured target.
+
+These are allocation estimates, not copied bytes or native allocation volume. Inclusive stacks
+overlap. External work was observed, so **all profile timings are excluded**. Whole-job performance
+admission remains pending the isolated workflow's stock and actual previous-native-runtime
+comparisons, including row-distinct text at widths 16/256. The feature remains in draft.
+
+A JDK-decoder substitution passed parity but increased allocation samples on both lines and was
+removed. Its [full rejection evidence](../benchmarks/results/jvm-table-rejected-decoder-2026-10-16.json)
+includes the original source, released-converter oracles, mixed Java/Rust profiles and limitations.
+This encoding cache retains Flink's decoder.
+
 ## Lookup join: collect straight into the Arrow builders
 
 The sync lookup join stopped defensively copying every looked-up row (`RowDataSerializer.copy`,
