@@ -1,0 +1,764 @@
+{
+  "date": "2026-10-16",
+  "base_pr_commit": "5f90daa77af2de950e6e0228e5247a5d56b84ab2",
+  "implementation": "Conservative native numeric cast batch kernels with released Flink evaluation for all other batches; no additional configuration",
+  "environment": {
+    "cpu": "Apple M4 Pro",
+    "ram_gib": 24,
+    "os": "macOS 26.5",
+    "flink": "2.2.1",
+    "jdk": 17,
+    "rust_profile": "release",
+    "allocator": "system",
+    "parallelism": 1,
+    "heap_gib": 8,
+    "off_heap_accounting_budget_gib": 48,
+    "off_heap_note": "Accounting budget shared by both engines, not resident memory or a reservation"
+  },
+  "boundary": "Complete bounded runtime Row source to rowwise blackhole, retaining both transposes and JNI, execution metrics and job completion; the optimized batches eliminate the scalar JVM upcall",
+  "method": {
+    "warmup_jobs_per_engine": 2,
+    "measured_jobs_per_engine": 5,
+    "order": "alternating each trial",
+    "null_every": 7
+  },
+  "baselines": [
+    "legacy-floating-decimal-trials-2026-10-16.json",
+    "legacy-char-double-trials-2026-10-16.json"
+  ],
+  "limits": "Same-run stock ratios are primary. Previous implementation and previous-planner fallback samples are separate runs with their own stock controls. No speedup is claimed for batches requiring the JVM evaluator, other machines or persistent backends.",
+  "runs": [
+    {
+      "profile": "default-cardinality",
+      "rows": 2000000,
+      "char_length": 8,
+      "cases": [
+        {
+          "case": "CHAR8_DOUBLE",
+          "input_cardinality": 1000,
+          "stock_seconds": [
+            0.445727708,
+            0.449807167,
+            0.455735416,
+            0.449092,
+            0.448196542
+          ],
+          "native_seconds": [
+            0.399833208,
+            0.381994875,
+            0.384126958,
+            0.384287417,
+            0.386687083
+          ],
+          "stock_median_seconds": 0.449092,
+          "native_median_seconds": 0.384287417,
+          "stock_over_native": 1.1686357141378896
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "input_cardinality": 9999,
+          "stock_seconds": [
+            0.44808125,
+            0.455370583,
+            0.44738425,
+            0.4479035,
+            0.447707583
+          ],
+          "native_seconds": [
+            0.33226875,
+            0.323221375,
+            0.317984334,
+            0.322259167,
+            0.322527875
+          ],
+          "stock_median_seconds": 0.4479035,
+          "native_median_seconds": 0.322527875,
+          "stock_over_native": 1.3887280285463697
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "input_cardinality": 9999,
+          "stock_seconds": [
+            0.363937917,
+            0.367160875,
+            0.375214667,
+            0.366509458,
+            0.367302458
+          ],
+          "native_seconds": [
+            0.322208958,
+            0.328775959,
+            0.326870167,
+            0.321768875,
+            0.327252541
+          ],
+          "stock_median_seconds": 0.367160875,
+          "native_median_seconds": 0.326870167,
+          "stock_over_native": 1.1232621146487192
+        }
+      ],
+      "all_trials_including_warmup": [
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.859429
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.60015
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.396848
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.51793
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.445728
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.399833
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.381995
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.449807
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.455735
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.384127
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.384287
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.449092
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.448197
+        },
+        {
+          "case": "CHAR8_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.386687
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.527354
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.465991
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.330538
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.441191
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.448081
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.332269
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.323221
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.455371
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.447384
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.317984
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.322259
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.447904
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.447708
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.322528
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.407148
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.367195
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.330823
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.368087
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.363938
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.322209
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.328776
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.367161
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.375215
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.32687
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.321769
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.366509
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.367302
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.327253
+        }
+      ]
+    },
+    {
+      "profile": "high-cardinality",
+      "rows": 10000000,
+      "char_length": 16,
+      "cases": [
+        {
+          "case": "CHAR16_DOUBLE",
+          "input_cardinality": 2000000,
+          "stock_seconds": [
+            1.92358275,
+            1.918966125,
+            1.974244459,
+            1.91207425,
+            1.910777459
+          ],
+          "native_seconds": [
+            1.523131541,
+            1.556556208,
+            1.558501375,
+            1.549952917,
+            1.564619833
+          ],
+          "stock_median_seconds": 1.918966125,
+          "native_median_seconds": 1.556556208,
+          "stock_over_native": 1.2328280309682207
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "input_cardinality": 2000000,
+          "stock_seconds": [
+            1.815735625,
+            1.86667425,
+            1.858967708,
+            1.865322417,
+            1.848407833
+          ],
+          "native_seconds": [
+            1.355137292,
+            1.348887542,
+            1.335060125,
+            1.359264125,
+            1.347528458
+          ],
+          "stock_median_seconds": 1.858967708,
+          "native_median_seconds": 1.348887542,
+          "stock_over_native": 1.3781487708335585
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "input_cardinality": 2000000,
+          "stock_seconds": [
+            1.655245416,
+            1.636341375,
+            1.638466833,
+            1.656260708,
+            1.64533025
+          ],
+          "native_seconds": [
+            1.341284334,
+            1.361562334,
+            1.348349458,
+            1.36171975,
+            1.34876225
+          ],
+          "stock_median_seconds": 1.64533025,
+          "native_median_seconds": 1.34876225,
+          "stock_over_native": 1.2198815988510947
+        }
+      ],
+      "all_trials_including_warmup": [
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.494127
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.828202
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.538285
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.006575
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.923583
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.523132
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.556556
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.918966
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.974244
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.558501
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.549953
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.912074
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.910777
+        },
+        {
+          "case": "CHAR16_DOUBLE",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.56462
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.885638
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.448604
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.353543
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.801637
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.815736
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.355137
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.348888
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.866674
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.858968
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.33506
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.359264
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.865322
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.848408
+        },
+        {
+          "case": "CAST(f AS DECIMAL(10,1))",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.347528
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.675626
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.387071
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.379808
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.63721
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.655245
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.341284
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.361562
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.636341
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.638467
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.348349
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.36172
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.656261
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.64533
+        },
+        {
+          "case": "CAST(x AS DECIMAL(15,4))",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.348762
+        }
+      ]
+    }
+  ]
+}

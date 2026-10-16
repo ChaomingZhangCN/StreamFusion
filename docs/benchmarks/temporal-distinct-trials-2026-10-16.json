@@ -1,0 +1,311 @@
+{
+  "date": "2026-10-16",
+  "baseline_commit": "b170a474d5658330ed7e92e9b8bcc54117c8d287",
+  "machine": "Apple M4 Pro, 24 GiB RAM, macOS 26.5",
+  "jdk": "17",
+  "flink": "2.2.1 (released)",
+  "native_profile": "release, default features, system allocator",
+  "heap": "8 GiB",
+  "parallelism": 1,
+  "warmup": 2,
+  "measured_runs": 5,
+  "null_every": 7,
+  "mini_batch_rows": 1024,
+  "mini_batch_latency": "1 h",
+  "shuffle": "Arrow IPC (bench profile)",
+  "measured_boundary": "Complete row-source/blackhole job; submission, conversion, JNI, native state, output and completion included. MiniCluster creation excluded.",
+  "ordering": "Alternating engine order per trial",
+  "baseline": "Unmodified baseline planner; native-enabled runs assert zero substitutions; identical benchmark source and release native payload",
+  "records": [
+    {
+      "stage": "candidate",
+      "case": "DATE",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.8768,
+      "streamfusion_median_seconds": 0.663156,
+      "stock_trials_seconds": [
+        0.876800083,
+        0.865583875,
+        0.886316083,
+        0.863155333,
+        0.877182792
+      ],
+      "streamfusion_trials_seconds": [
+        0.666915625,
+        0.656370417,
+        0.652375625,
+        0.663156125,
+        0.663778042
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "TIME",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.834877,
+      "streamfusion_median_seconds": 0.634687,
+      "stock_trials_seconds": [
+        0.840720583,
+        0.834876542,
+        0.838882458,
+        0.831350292,
+        0.829892625
+      ],
+      "streamfusion_trials_seconds": [
+        0.634687,
+        0.636630834,
+        0.637320375,
+        0.632469166,
+        0.629786875
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "TIMESTAMP",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.864683,
+      "streamfusion_median_seconds": 0.562558,
+      "stock_trials_seconds": [
+        0.8646825,
+        0.860690375,
+        0.870420667,
+        0.882156,
+        0.861540583
+      ],
+      "streamfusion_trials_seconds": [
+        0.571131584,
+        0.568212792,
+        0.549607125,
+        0.562558333,
+        0.552326791
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "DATE",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.852418,
+      "streamfusion_median_seconds": 0.85263,
+      "stock_trials_seconds": [
+        0.852418042,
+        0.832578125,
+        0.855247,
+        0.854077709,
+        0.8475295
+      ],
+      "streamfusion_trials_seconds": [
+        0.854534875,
+        0.915377708,
+        0.846308333,
+        0.85263025,
+        0.841151917
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "TIME",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.81186,
+      "streamfusion_median_seconds": 0.820695,
+      "stock_trials_seconds": [
+        0.811860166,
+        0.819140875,
+        0.816198542,
+        0.810536209,
+        0.805817042
+      ],
+      "streamfusion_trials_seconds": [
+        0.825878667,
+        0.814851042,
+        0.820695042,
+        0.815810125,
+        0.822191
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "TIMESTAMP",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.841637,
+      "streamfusion_median_seconds": 0.836963,
+      "stock_trials_seconds": [
+        0.845017292,
+        0.834250875,
+        0.841636833,
+        0.830540666,
+        0.847084166
+      ],
+      "streamfusion_trials_seconds": [
+        0.836963292,
+        0.839857666,
+        0.837951375,
+        0.83528525,
+        0.830623208
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "DATE",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 5.094825,
+      "streamfusion_median_seconds": 4.94703,
+      "stock_trials_seconds": [
+        4.985191958,
+        5.117363084,
+        5.094825042,
+        5.134990459,
+        4.987907125
+      ],
+      "streamfusion_trials_seconds": [
+        5.02796025,
+        5.106438209,
+        4.947029875,
+        4.892609375,
+        4.847775667
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "TIME",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 4.820135,
+      "streamfusion_median_seconds": 4.827481,
+      "stock_trials_seconds": [
+        4.734330834,
+        4.826679834,
+        4.820134542,
+        4.754572208,
+        4.859736167
+      ],
+      "streamfusion_trials_seconds": [
+        4.827480708,
+        4.746962375,
+        4.844914166,
+        4.862912958,
+        4.818470709
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "TIMESTAMP",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 5.205166,
+      "streamfusion_median_seconds": 5.177494,
+      "stock_trials_seconds": [
+        5.452920584,
+        5.187801583,
+        5.119135166,
+        5.268225333,
+        5.205166167
+      ],
+      "streamfusion_trials_seconds": [
+        5.164558875,
+        5.149689333,
+        5.187509208,
+        5.183531208,
+        5.177494042
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "DATE",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 5.210472,
+      "streamfusion_median_seconds": 4.538462,
+      "stock_trials_seconds": [
+        5.107576583,
+        5.172233916,
+        5.234810791,
+        5.27304375,
+        5.210471791
+      ],
+      "streamfusion_trials_seconds": [
+        4.576645375,
+        4.502973209,
+        4.538461958,
+        4.523483333,
+        4.6737235
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "TIME",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 5.048048,
+      "streamfusion_median_seconds": 4.703607,
+      "stock_trials_seconds": [
+        5.065398417,
+        5.048048208,
+        5.07721275,
+        4.970245875,
+        5.017218875
+      ],
+      "streamfusion_trials_seconds": [
+        4.703607458,
+        4.71572925,
+        4.717513709,
+        4.686792917,
+        4.699994292
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "TIMESTAMP",
+      "rows": 10000000,
+      "keys": 1024,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 5.352014,
+      "streamfusion_median_seconds": 4.662786,
+      "stock_trials_seconds": [
+        5.31292825,
+        5.420316958,
+        5.316642,
+        5.361935084,
+        5.352014166
+      ],
+      "streamfusion_trials_seconds": [
+        4.698785584,
+        4.662785542,
+        4.697299375,
+        4.555657875,
+        4.599236917
+      ]
+    }
+  ],
+  "distinct_cardinality": 128,
+  "off_heap_accounting_budget": "48 GiB in the shared fixture for both engines; not a reservation or measured resident usage"
+}
