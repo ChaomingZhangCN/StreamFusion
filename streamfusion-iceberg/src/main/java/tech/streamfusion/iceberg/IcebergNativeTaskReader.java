@@ -17,7 +17,7 @@ import org.apache.iceberg.io.FileIO;
 import tech.streamfusion.operator.NativeAllocator;
 
 /** One Java-planned file task, decoded directly to Arrow by the released Iceberg reader. */
-final class IcebergNativeTaskReader implements AutoCloseable {
+final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
   private final IcebergTaskFiles files;
   private long handle;
   private final IcebergReadCancellation cancellation;
@@ -137,7 +137,7 @@ final class IcebergNativeTaskReader implements AutoCloseable {
     }
   }
 
-  VectorSchemaRoot next() {
+  public VectorSchemaRoot next() {
     if (handle == 0) throw new IllegalStateException("Iceberg native task reader is closed");
     try (var array = ArrowArray.allocateNew(NativeAllocator.SHARED);
         var schema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {

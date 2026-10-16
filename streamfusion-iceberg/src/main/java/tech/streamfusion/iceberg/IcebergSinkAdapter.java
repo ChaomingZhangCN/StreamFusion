@@ -43,6 +43,18 @@ final class IcebergSinkAdapter {
       ReadableConfig configuration,
       Map<String, String> options,
       IcebergTaskWriterFactory.Decorator decorator) {
+    return append(input, table, loader, configuration, options, null, decorator);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  static DataStreamSink<Void> append(
+      DataStream<ArrowBatch> input,
+      Table table,
+      TableLoader loader,
+      ReadableConfig configuration,
+      Map<String, String> options,
+      String uidPrefix,
+      IcebergTaskWriterFactory.Decorator decorator) {
     if (!compatible()) {
       throw new IllegalArgumentException("Iceberg writer adapter requires released Iceberg 1.12.0");
     }
@@ -59,13 +71,14 @@ final class IcebergSinkAdapter {
     DataStream<RowData> hostInput =
         new DataStream<>(
             input.getExecutionEnvironment(), (Transformation) input.getTransformation());
-    DataStreamSink<Void> sink =
+    var builder =
         FlinkSink.forRowData(hostInput)
             .table(table)
             .tableLoader(loader)
             .flinkConf(configuration)
-            .setAll(options)
-            .append();
+            .setAll(options);
+    if (uidPrefix != null) builder.uidPrefix(uidPrefix);
+    DataStreamSink<Void> sink = builder.append();
     int replaced = 0;
     for (Transformation<?> transformation : predecessors(sink.getTransformation())) {
       if (!(transformation instanceof OneInputTransformation)) continue;

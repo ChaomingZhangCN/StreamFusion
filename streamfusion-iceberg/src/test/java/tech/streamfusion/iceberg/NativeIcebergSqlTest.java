@@ -162,7 +162,7 @@ class NativeIcebergSqlTest {
     }
   }
 
-  private static void assertNativeDataFiles(org.apache.iceberg.Table table, String fallbacks)
+  static void assertNativeDataFiles(org.apache.iceberg.Table table, String fallbacks)
       throws Exception {
     int files = 0;
     try (var tasks = table.newScan().planFiles()) {

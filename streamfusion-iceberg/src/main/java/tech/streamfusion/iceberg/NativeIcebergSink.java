@@ -30,6 +30,17 @@ public final class NativeIcebergSink {
       org.apache.iceberg.flink.TableLoader loader,
       ReadableConfig configuration,
       Map<String, String> options) {
+    return append(input, table, loader, configuration, options, null);
+  }
+
+  /** Supplies stable host operator UIDs for savepoint restoration across rescaling. */
+  public static DataStreamSink<Void> append(
+      DataStream<ArrowBatch> input,
+      Table table,
+      org.apache.iceberg.flink.TableLoader loader,
+      ReadableConfig configuration,
+      Map<String, String> options,
+      String uidPrefix) {
     validate(table, configuration, options);
     var conf = new FlinkWriteConf(table, options, configuration);
     String schema = SchemaParser.toJson(table.schema());
@@ -42,6 +53,7 @@ public final class NativeIcebergSink {
         loader,
         configuration,
         options,
+        uidPrefix,
         (stock, context) ->
             new FileWriterFactory<>() {
               @Override

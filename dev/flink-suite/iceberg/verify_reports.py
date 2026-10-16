@@ -51,7 +51,7 @@ def main(stock, native):
     if source_cases(stock) != source_cases(native):
         raise ValueError("Stock/native upstream source SQL invocation inventories differ")
     reports = Path(native)
-    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 11), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 1)):
+    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 11), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 1), ("NativeIcebergSourceTest", 1), ("NativeIcebergSourceSqlTest", 2), ("NativeIcebergSourceRecoveryTest", 1), ("NativeIcebergTaskFallbackTest", 3), ("NativeIcebergEvolutionTest", 2)):
         root = ET.parse(reports / f"TEST-tech.streamfusion.iceberg.{name}.xml").getroot()
         if any(case.find("failure") is not None or case.find("error") is not None
                for case in root.findall("testcase")):

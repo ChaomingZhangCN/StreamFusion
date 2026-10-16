@@ -1,8 +1,8 @@
 # Apache Iceberg
 
-**Status: partial, experimental streaming sink; sources use stock Iceberg.**
+**Status: partial, experimental streaming source and sink.**
 
-SQL sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
+SQL source/sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
 The admitted path is the normal legacy sink, unencrypted
 format-v1/v2/v3 Parquet, distribution `none`/`hash`, and verified integer, long, string,
@@ -101,13 +101,40 @@ Partial-file tasks translate physical Parquet row-group midpoints to the release
 reader's cumulative offset model; exact-boundary tests preserve Java ownership with
 no omitted or duplicated rows.
 
-This foundation does **not yet admit SQL sources**. Evolving task-feature
-admission/fallback, full streaming
-recovery, watermark/configuration parity, reader memory accounting, and upstream
-source SQL coverage remain required before source admission expands. Native deletion
-vectors remain unavailable in published crate 0.10.1. This follows Comet's explicit
-Iceberg task handoff and StreamFusion's Paimon host-FileIO/C Data bridge.
+The experimental SQL source now retains the released FLIP-27 streaming source,
+including snapshot discovery, assigners, watermarks, split serializers and coordinator
+state. It emits Arrow batches with logical row offsets and counts rows in source IO
+metrics. SQL admission covers plaintext v1/v2 tables, verified top-level scalar types,
+projection (including zero columns), case sensitivity, source filters, partition constants,
+and name mappings. Host split watermarks retain the original emitter and ordered assigner.
+Matching scan contracts can share one source through the normal planner reuse pass.
 
+Each file task has an explicit dispatch contract: admitted plaintext Parquet data/delete
+files decode in Rust; non-Parquet/encrypted tasks, TIME equality-delete keys and tasks
+without complete exact source filters use the released Java task reader and transpose
+its output to Arrow. Source counters `nativeParquetTasks` and `stockFallbackTasks` make
+that distinction visible. Mixed Parquet/Avro/ORC tasks preserve file ordinals and restored
+logical offsets with changed batch sizes. This fallback is not native read coverage.
+
+Bounded reads, limits, metadata tables, nested schemas, non-null initial defaults,
+TIME/binary predicates, unsupported source abilities and format-v3 tables keep the stock
+SQL source. Published crate 0.10.1 cannot read deletion vectors. Java-owned streaming
+snapshot policy remains unchanged; this does not add CDC semantics to append scans.
+
+Continuous SQL tests verify initial discovery, later appends, filters/projection, final
+draining savepoints and committed stock readback on both engines. A partially emitted
+source task restores from a savepoint at parallelism 2→3 without duplicate committed
+rows. Field IDs survive rename, integer promotion and nullable-column additions,
+including historical delete files. Source and sink DataStream APIs accept normal explicit
+UIDs (the sink overload takes a host UID prefix); rescaling must also preserve compatible
+host chaining/max-parallelism boundaries. The legacy committer factory always chains,
+so a 1→N topology change needs the same care as stock Iceberg.
+
+Fine-grained accounting for internal decoder/encoder retention and wider recovery
+coverage remain pending. Shared Arrow allocations use the normal task off-heap budget;
+queued batches and native handles have explicit cleanup. Acceleration remains opt-in
+until the release end-to-end comparison establishes performance. The source follows
+Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
 The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark
 comparison are tracked in [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
 All work concerns streaming jobs; batch overwrite and maintenance are outside scope.

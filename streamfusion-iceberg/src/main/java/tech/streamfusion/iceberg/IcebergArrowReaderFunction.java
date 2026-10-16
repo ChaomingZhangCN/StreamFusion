@@ -25,10 +25,27 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
   private final List<org.apache.iceberg.expressions.Expression> filters;
   private final boolean caseSensitive;
   private final String nameMapping;
+  private final org.apache.iceberg.flink.source.reader.RowDataReaderFunction stock;
   private transient IcebergReadCancellation cancellation;
+  private transient org.apache.flink.metrics.Counter nativeTasks;
+  private transient org.apache.flink.metrics.Counter stockTasks;
+
+  void registerMetrics(org.apache.flink.metrics.MetricGroup group) {
+    nativeTasks = group.counter("nativeParquetTasks");
+    stockTasks = group.counter("stockFallbackTasks");
+  }
 
   IcebergArrowReaderFunction(Schema schema, List<Integer> projection, FileIO io, int batchRows) {
-    this(schema, projection, io, batchRows, List.of(), true, null);
+    this(
+        schema,
+        projection,
+        io,
+        batchRows,
+        List.of(),
+        true,
+        null,
+        org.apache.iceberg.encryption.PlaintextEncryptionManager.instance(),
+        new org.apache.flink.configuration.Configuration());
   }
 
   IcebergArrowReaderFunction(
@@ -38,7 +55,19 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
       int batchRows,
       List<org.apache.iceberg.expressions.Expression> filters,
       boolean caseSensitive,
-      String nameMapping) {
+      String nameMapping,
+      org.apache.iceberg.encryption.EncryptionManager encryption,
+      org.apache.flink.configuration.ReadableConfig configuration) {
+    this.stock =
+        new org.apache.iceberg.flink.source.reader.RowDataReaderFunction(
+            configuration,
+            schema,
+            new Schema(projection.stream().map(schema::findField).toList()),
+            nameMapping,
+            caseSensitive,
+            io,
+            encryption,
+            filters);
     this.filters = List.copyOf(filters);
     this.caseSensitive = caseSensitive;
     this.nameMapping = nameMapping;
@@ -57,6 +86,26 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
     cancellation().close();
   }
 
+  private boolean nativeTask(FileScanTask task) {
+    if (task.isDataTask()
+        || task.file().format() != org.apache.iceberg.FileFormat.PARQUET
+        || task.file().keyMetadata() != null) return false;
+    if (task.residual().op() != org.apache.iceberg.expressions.Expression.Operation.TRUE
+        && filters.isEmpty()) return false;
+    for (var delete : task.deletes()) {
+      if (delete.format() != org.apache.iceberg.FileFormat.PARQUET || delete.keyMetadata() != null)
+        return false;
+      if (delete.equalityFieldIds() != null) {
+        for (int id : delete.equalityFieldIds()) {
+          var field = schema.findField(id);
+          if (field == null || field.type().typeId() == org.apache.iceberg.types.Type.TypeID.TIME)
+            return false;
+        }
+      }
+    }
+    return true;
+  }
+
   @Override
   public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<ArrowBatch>>> apply(
       IcebergSourceSplit split) {
@@ -67,7 +116,7 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
     return new CloseableIterator<>() {
       private int fileOffset = split.fileOffset();
       private long rowOffset = split.recordOffset();
-      private IcebergNativeTaskReader reader;
+      private IcebergTaskBatchReader reader;
       private VectorSchemaRoot pending;
       private boolean closed;
 
@@ -78,18 +127,31 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
         try {
           while (fileOffset < tasks.size()) {
             if (reader == null) {
-              reader =
-                  new IcebergNativeTaskReader(
-                      tasks.get(fileOffset),
-                      schema,
-                      projection,
-                      io,
-                      batchRows,
-                      rowOffset,
-                      filters,
-                      caseSensitive,
-                      nameMapping,
-                      cancellation());
+              var task = tasks.get(fileOffset);
+              if (nativeTask(task)) {
+                if (nativeTasks != null) nativeTasks.inc();
+                reader =
+                    new IcebergNativeTaskReader(
+                        task,
+                        schema,
+                        projection,
+                        io,
+                        batchRows,
+                        rowOffset,
+                        filters,
+                        caseSensitive,
+                        nameMapping,
+                        cancellation());
+              } else {
+                if (stockTasks != null) stockTasks.inc();
+                reader =
+                    new IcebergStockTaskReader(
+                        task,
+                        new Schema(projection.stream().map(schema::findField).toList()),
+                        stock,
+                        batchRows,
+                        rowOffset);
+              }
             }
             pending = reader.next();
             if (pending != null) return true;

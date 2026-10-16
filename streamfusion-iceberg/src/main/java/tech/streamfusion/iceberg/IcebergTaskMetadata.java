@@ -40,6 +40,13 @@ final class IcebergTaskMetadata {
       throw new IllegalArgumentException(
           "Native task residuals require the complete source filters");
     }
+    var translated = predicate(mapper, schema, filters, caseSensitive);
+    if (translated != null) metadata.set("predicate", translated);
+    return metadata;
+  }
+
+  static JsonNode predicate(
+      ObjectMapper mapper, Schema schema, List<Expression> filters, boolean caseSensitive) {
     Expression predicate = Expressions.alwaysTrue();
     for (var filter : filters) predicate = Expressions.and(predicate, filter);
     var bound = Binder.bind(schema.asStruct(), Expressions.rewriteNot(predicate), caseSensitive);
@@ -47,9 +54,9 @@ final class IcebergTaskMetadata {
       var translated = ExpressionVisitors.visit(bound, new Visitor(mapper));
       if (translated == null)
         throw new IllegalArgumentException("Unverified native Iceberg expression");
-      metadata.set("predicate", translated);
+      return translated;
     }
-    return metadata;
+    return null;
   }
 
   private static final class Visitor extends ExpressionVisitors.ExpressionVisitor<JsonNode> {
