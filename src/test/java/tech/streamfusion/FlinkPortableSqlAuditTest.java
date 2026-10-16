@@ -100,8 +100,8 @@ class FlinkPortableSqlAuditTest {
                 + " t(v, pos)",
             "test_input",
             "test_split",
-            EXPLICIT_FALLBACK,
-            "correlate:",
+            NATIVE_PARITY,
+            "",
             List.of(
                 row(1, "red", 0),
                 row(1, "blue", 1),

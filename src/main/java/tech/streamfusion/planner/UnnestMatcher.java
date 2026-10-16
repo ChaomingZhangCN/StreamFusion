@@ -136,7 +136,7 @@ final class UnnestMatcher {
   }
 
   /** The join type, read reflectively (the base rel keeps it in a private field). */
-  private static JoinRelType joinType(StreamPhysicalCorrelate correlate) {
+  static JoinRelType joinType(StreamPhysicalCorrelate correlate) {
     try {
       Field field = StreamPhysicalCorrelateBase.class.getDeclaredField("joinType");
       field.setAccessible(true);
