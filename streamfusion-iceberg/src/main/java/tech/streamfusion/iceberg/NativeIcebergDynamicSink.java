@@ -65,10 +65,25 @@ public final class NativeIcebergDynamicSink {
     NativeIcebergSink.validateSchema(inputSchema);
     if (new org.apache.iceberg.flink.FlinkWriteConf(options, config).overwriteMode())
       throw new IllegalArgumentException("Dynamic streaming overwrite is not admitted");
+    var immediateOption =
+        org.apache.iceberg.flink.sink.dynamic.FlinkDynamicSinkOptions.IMMEDIATE_TABLE_UPDATE;
+    boolean immediate =
+        Boolean.parseBoolean(
+            options.getOrDefault(
+                immediateOption.key(), Boolean.toString(config.get(immediateOption))));
+    if (!immediate && !inputSchema.identifierFieldIds().isEmpty())
+      throw new IllegalArgumentException(
+          "Keyed dynamic Arrow writes require immediate table updates");
     DynamicRecordGenerator<RowData> generator =
         (row, out) -> {
           var kind = row.getRowKind();
           var destination = router.route(row);
+          if (!immediate
+              && (destination.upsert()
+                  || (destination.equalityFields() != null
+                      && !destination.equalityFields().isEmpty())))
+            throw new IllegalArgumentException(
+                "Keyed dynamic Arrow writes require immediate table updates");
           if (row.getRowKind() != kind)
             throw new IllegalArgumentException("Dynamic router changed the borrowed row kind");
           var record =

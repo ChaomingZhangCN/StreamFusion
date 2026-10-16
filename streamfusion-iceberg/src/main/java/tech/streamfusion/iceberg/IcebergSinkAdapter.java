@@ -78,6 +78,9 @@ final class IcebergSinkAdapter {
             .setAll(options);
     if (uidPrefix != null) builder.uidPrefix(uidPrefix);
     DataStreamSink<Void> sink = builder.append();
+    if (input.getExecutionEnvironment().getCheckpointConfig().isUnalignedCheckpointsEnabled()) {
+      alignCommitInput(sink.getTransformation());
+    }
     int replaced = 0;
     for (Transformation<?> transformation : predecessors(sink.getTransformation())) {
       if (!(transformation instanceof OneInputTransformation)) continue;
@@ -110,6 +113,32 @@ final class IcebergSinkAdapter {
       throw new IllegalStateException("Expected one normal Iceberg writer, found " + replaced);
     }
     return sink;
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static void alignCommitInput(Transformation<?> sink) {
+    int changed = 0;
+    for (var transformation : predecessors(sink)) {
+      if (!(transformation instanceof OneInputTransformation committer)
+          || !committer
+              .getOperatorFactory()
+              .getClass()
+              .getName()
+              .equals("org.apache.iceberg.flink.sink.IcebergFilesCommitterFactory")) continue;
+      var partitioner = new org.apache.flink.streaming.runtime.partitioner.GlobalPartitioner<>();
+      partitioner.disableUnalignedCheckpoints();
+      try {
+        field(OneInputTransformation.class, "input")
+            .set(
+                committer,
+                new PartitionTransformation(
+                    (Transformation) committer.getInputs().get(0), partitioner));
+      } catch (IllegalAccessException failure) {
+        throw new IllegalStateException("Cannot align released Iceberg commit results", failure);
+      }
+      changed++;
+    }
+    if (changed != 1) throw new IllegalStateException("Expected one released Iceberg committer");
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

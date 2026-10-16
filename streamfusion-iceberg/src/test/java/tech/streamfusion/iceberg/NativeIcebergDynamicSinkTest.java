@@ -81,30 +81,40 @@ class NativeIcebergDynamicSinkTest {
                     return new ArrowBatch(VectorSchemaRoot.of(id));
                   })
               .returns(ArrowBatchTypeInformation.INSTANCE);
-      NativeIcebergDynamicSink.append(
-          input,
-          schema,
-          row -> {
-            boolean forward = row.getInt(0) % 2 == 0;
-            return new NativeIcebergDynamicSink.Destination(
-                forward ? "test.forward" : "test.shuffled",
-                keyed && !forward ? "audit" : "main",
-                spec,
-                forward ? null : DistributionMode.HASH,
-                2,
-                keyed,
-                keyed ? Set.of("id") : Set.of());
-          },
-          CatalogLoader.hadoop("test", hadoop, Map.of("warehouse", warehouse)),
-          config,
-          Map.of(
-              "dynamic-sink.immediate-table-update",
-              Boolean.toString(immediate),
-              "dynamic-sink.cache-max-size",
-              "1",
-              "target-file-size-bytes",
-              "1"),
-          "native-dynamic");
+      org.junit.jupiter.api.function.Executable append =
+          () ->
+              NativeIcebergDynamicSink.append(
+                  input,
+                  schema,
+                  row -> {
+                    boolean forward = row.getInt(0) % 2 == 0;
+                    return new NativeIcebergDynamicSink.Destination(
+                        forward ? "test.forward" : "test.shuffled",
+                        keyed && !forward ? "audit" : "main",
+                        spec,
+                        forward ? null : DistributionMode.HASH,
+                        2,
+                        keyed,
+                        keyed ? Set.of("id") : Set.of());
+                  },
+                  CatalogLoader.hadoop("test", hadoop, Map.of("warehouse", warehouse)),
+                  config,
+                  Map.of(
+                      "dynamic-sink.immediate-table-update",
+                      Boolean.toString(immediate),
+                      "dynamic-sink.cache-max-size",
+                      "1",
+                      "target-file-size-bytes",
+                      "1"),
+                  "native-dynamic");
+      if (keyed && !immediate) {
+        assertTrue(
+            assertThrows(IllegalArgumentException.class, append)
+                .getMessage()
+                .contains("immediate table updates"));
+        return;
+      }
+      assertDoesNotThrow(append);
       env.execute("native-dynamic-forward-and-shuffle");
       var seen = new HashSet<Integer>();
       for (String name : new String[] {"forward", "shuffled"}) {

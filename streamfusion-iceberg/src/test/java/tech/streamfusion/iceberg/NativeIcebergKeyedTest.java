@@ -103,7 +103,7 @@ class NativeIcebergKeyedTest {
     env.enableCheckpointing(100);
     if (unaligned) env.getCheckpointConfig().enableUnalignedCheckpoints();
     var input =
-        env.addSource(new PhasedSource(fail))
+        env.addSource(new PhasedSource(fail, location))
             .returns(ArrowBatchTypeInformation.INSTANCE)
             .setParallelism(1);
     NativeIcebergSink.append(
@@ -225,8 +225,11 @@ class NativeIcebergKeyedTest {
     private transient ListState<Integer> state;
     private transient Map<Long, Integer> snapshots;
 
-    private PhasedSource(boolean fail) {
+    private final String location;
+
+    private PhasedSource(boolean fail, String location) {
       this.fail = fail;
+      this.location = location;
     }
 
     @Override
@@ -244,6 +247,14 @@ class NativeIcebergKeyedTest {
       }
       if (!running) return;
       if (next < 2) {
+        var initial = new HadoopTables(new org.apache.hadoop.conf.Configuration()).load(location);
+        while (running && initial.currentSnapshot() == null) {
+          if (System.nanoTime() > deadline)
+            throw new IllegalStateException("initial checkpoint commit timed out");
+          Thread.sleep(5);
+          initial.refresh();
+        }
+        if (!running) return;
         synchronized (context.getCheckpointLock()) {
           EVENTS.add("emit updates");
           context.collect(batch(1));

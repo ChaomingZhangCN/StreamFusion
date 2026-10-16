@@ -30,7 +30,9 @@ Rust crate 0.10.1 with Arrow/Parquet 58. No sibling Iceberg build is required.
 The first implementation boundary is the normal legacy streaming sink. A
 version-gated adapter replaces its task-writer factory before job serialization,
 while retaining Iceberg's writer operator, checkpoint flushes, committer, table
-loader, and downstream graph. The host task writer traverses borrowed Arrow row
+loader, and downstream graph. With unaligned checkpoints enabled, the data exchange
+still captures Arrow channel state; the legacy committable edge is aligned explicitly,
+following Flink's Sink V2 rule that write results precede their checkpoint barrier. The host task writer traverses borrowed Arrow row
 views; the data appender records only accepted positions. Those selections drain
 into parquet-rs's single-file Arrow encoder before releasing each input batch,
 at memory thresholds, at size checks, and before close. Java's per-row counting
@@ -64,12 +66,21 @@ writing. Arbitrary Java payload generators and the dynamic SQL connector stay st
 Unsupported target encoding settings retain the original entire target factory, before
 any file opens; there is no mid-file encoder switch. Deferred Java keyed updates retain
 incoming equality-field IDs, so those IDs must already match the target table. This is
-a released host constraint, unchanged by the adapter. Tests cover auto-created tables,
-forward/shuffle interleaving, cache size one, immediate/deferred updates, partitioned
-v2/v3 upserts and branches, mixed native/stock target policies, plus continuous
+a released host constraint. Keyed dynamic Arrow writes additionally require
+`dynamic-sink.immediate-table-update=true`: the deferred updater and direct output
+are unioned, so metadata refresh can reorder updates across those branches. The direct
+API rejects deferred keyed contracts rather than changing the requested setting.
+Tests cover auto-created tables,
+forward/shuffle interleaving, cache size one, immediate/deferred append updates,
+partitioned immediate v2/v3 upserts and branches, deferred-keyed rejection, mixed
+native/stock target policies, plus continuous
 source/dynamic-sink 2→3 savepoint restore with aligned and unaligned checkpoint
-configurations. Separate normal-sink tests prove captured Arrow channel state before
-2→3 and 3→2 append/keyed restore and exact committed readback. Published Java dynamic
+configurations. Captured-channel fixtures cover 2→3 and 3→2 append/keyed recovery
+for both sink APIs and 1↔2 for the normal sink. They keep the source live, inject a
+failure after a completed checkpoint with actual retained Arrow channel state, then
+verify changing values and exact committed readback after rescaling. An explicit
+non-draining savepoint separates completed streaming writes from the terminal flush.
+Published Java dynamic
 sink/processor/writer/cache/serializer/aggregation/committer tests retain all 97 cases
 in both configurations; these validate delegated host controls alongside native witnesses.
 
@@ -108,8 +119,8 @@ pending selections and closes native resources before borrowed Arrow views expir
 The adapter preserves Flink's keyed context with a representative integer assigned
 to each batch's exact key group. Removing that context reproduced stale committed
 state in one of ten unaligned fault runs; retaining it passed the stress run and
-combined suite. Dedicated captured-channel-state rescaling coverage remains pending
-for this sink. `bin/flink-suite.sh iceberg` requires
+combined suite. Captured-channel tests also verify changing keyed values after rescaling.
+`bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. Native
 Criterion's `iceberg_io` suite separately exercises 126 release fixtures across
 encoding, routing, task reads, and scalar adaptation;
@@ -163,8 +174,7 @@ source task restores from a savepoint at parallelism 2→3 without duplicate com
 rows. Field IDs survive rename, integer promotion and nullable-column additions,
 including historical delete files. Source and sink DataStream APIs accept normal explicit
 UIDs (the sink overload takes a host UID prefix); rescaling must also preserve compatible
-host chaining/max-parallelism boundaries. The legacy committer factory always chains,
-so a 1→N topology change needs the same care as stock Iceberg.
+host chaining/max-parallelism boundaries.
 
 The encoder charges parquet-rs's reported retained memory, an estimate for accumulated
 row-group metadata, and its 1 MiB JNI output buffer to the normal task off-heap budget

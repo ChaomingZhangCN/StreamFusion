@@ -39,3 +39,12 @@ Byte-parity fixtures against that released wrapper cover codecs, page versions, 
 selections, NaNs, estimated file size and split offsets. The accounting includes reported
 writer retention, estimated row-group metadata and the bounded JNI buffer; transient
 codec and decoder allocations are observed through sampled RSS, not claimed as bounded.
+
+The legacy committer's incoming write-result edge explicitly disables unaligned
+capture, matching Flink's Sink V2 translator. A completed checkpoint must include all
+its flushed files; allowing a priority barrier to overtake a write result breaks that
+contract. The payload exchange still supports captured Arrow state and rescaling.
+Dynamic keyed writes require immediate metadata updates because the released deferred
+updater/direct-output union can reorder values for the same key. Deferred append writes
+remain admitted. Recovery fixtures separate a completed streaming savepoint from the
+terminal drain so they test captured-state recovery independently of end-input flushes.
