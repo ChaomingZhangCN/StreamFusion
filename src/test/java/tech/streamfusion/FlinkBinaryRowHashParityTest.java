@@ -50,6 +50,57 @@ class FlinkBinaryRowHashParityTest {
   @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
       named = "streamfusion.experimental.nestedScalarUdfs",
       matches = "true")
+  void nestedFixedBinaryUsesExactRuntimeBytesAndHashes() {
+    RowType child = RowType.of(new BinaryType(4));
+    RowType type = RowType.of(child, new ArrayType(new BinaryType(4)));
+    List<RowData> rows = new ArrayList<>();
+    for (int width : new int[] {0, 1, 4, 8, 4097}) {
+      byte[] bytes = new byte[width];
+      for (int i = 0; i < width; i++) bytes[i] = (byte) (128 + i * 73);
+      for (org.apache.flink.types.RowKind kind : org.apache.flink.types.RowKind.values()) {
+        GenericRowData nested = GenericRowData.of((Object) bytes);
+        nested.setRowKind(kind);
+        rows.add(
+            GenericRowData.of(
+                nested, new GenericArrayData(new Object[] {bytes, null, new byte[0]})));
+      }
+    }
+    GenericRowData nullPayload = GenericRowData.of((Object) null);
+    nullPayload.setRowKind(org.apache.flink.types.RowKind.DELETE);
+    rows.add(GenericRowData.of(nullPayload, new GenericArrayData(new Object[] {null})));
+    rows.add(GenericRowData.of(null, new GenericArrayData(new Object[0])));
+    rows.add(GenericRowData.of(null, null));
+    int[] descriptors = {-1, -1, -1, -1};
+    RowDataSerializer serializer = new RowDataSerializer(type);
+    assertArrayEquals(
+        rows.stream().mapToInt(row -> serializer.toBinaryRow(row).hashCode()).toArray(),
+        nativeHashes(rows, type, new int[] {0, 1}, descriptors));
+    try (BufferAllocator allocator = new RootAllocator();
+        VectorSchemaRoot root = RowDataArrowConverter.write(rows, type, allocator);
+        CDataDictionaryProvider dictionaries = new CDataDictionaryProvider();
+        ArrowArray array = ArrowArray.allocateNew(allocator);
+        ArrowSchema schema = ArrowSchema.allocateNew(allocator)) {
+      Data.exportVectorSchemaRoot(allocator, root, dictionaries, array, schema);
+      byte[][] actual =
+          Native.flinkBinaryRows(
+              array.memoryAddress(),
+              schema.memoryAddress(),
+              new int[] {0, 1},
+              descriptors,
+              java.util.stream.IntStream.range(0, rows.size()).toArray());
+      for (int i = 0; i < rows.size(); i++) {
+        BinaryRowData binary = serializer.toBinaryRow(rows.get(i));
+        byte[] expected = new byte[binary.getSizeInBytes()];
+        binary.getSegments()[0].get(binary.getOffset(), expected, 0, expected.length);
+        assertArrayEquals(expected, actual[i], "row=" + i);
+      }
+    }
+  }
+
+  @Test
+  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+      named = "streamfusion.experimental.nestedScalarUdfs",
+      matches = "true")
   void nestedRowKindsMatchReleasedBinaryBytesAndHashes() {
     RowType child = RowType.of(new BigIntType(), new TimestampType(9));
     RowType type = RowType.of(child, new ArrayType(child));

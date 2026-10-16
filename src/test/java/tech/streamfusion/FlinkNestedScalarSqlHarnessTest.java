@@ -156,7 +156,7 @@ class FlinkNestedScalarSqlHarnessTest {
   }
 
   @Test
-  void nestedFixedBinaryRetainsExplicitFallback() {
+  void nestedFixedBinaryUsesTheExperimentalNativeBoundary() {
     NativeFailureParity.run(
             () -> {
               var table = environment(false, false);
@@ -164,7 +164,7 @@ class FlinkNestedScalarSqlHarnessTest {
               return table;
             },
             "SELECT id, fixed_binary(r) FROM inputs")
-        .assertSuccess(NativeFailureParity.Route.FALLBACK);
+        .assertSuccess(NativeFailureParity.Route.NATIVE);
   }
 
   @Test

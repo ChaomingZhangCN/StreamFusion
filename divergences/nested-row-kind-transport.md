@@ -30,3 +30,19 @@ The existing outer record RowKind column is unchanged. The experiment must be co
 consistently in the planner and task JVMs because the flag also selects this physical struct
 schema. Default schemas remain unchanged. Distributed configuration and performance admission
 remain part of the investigation before enabling the feature by default.
+
+## Binary payload lengths
+
+The same experimental flag maps SQL BINARY to Arrow's variable binary representation. A released
+Flink ROW callback declared `ROW<payload BINARY(4)>` retains byte arrays of lengths zero, one,
+five and 4,097 without padding or truncation. FixedSizeBinary storage would change or reject
+those values. Keeping the logical SQL width separate from physical storage preserves them through
+ROW/ARRAY boundaries and subsequent field projections. Native fixed-size outputs remain readable
+as bytes, and default schemas/admission stay unchanged when the flag is disabled.
+
+This follows [Comet's binary reader](https://github.com/apache/datafusion-comet/blob/4897161704b7b8b7dfa909f4bf897c6508b11117/spark/src/main/java/org/apache/comet/vector/CometPlainVector.java#L169):
+the physical vector supplies its actual byte extent, and the Java result owns its bytes. Released
+Flink converters still normalize callback inputs/results; the experiment changes neither their
+SQL types nor evaluation order. The key-byte/hash oracle compares the resulting nested ROW/ARRAY
+values directly with released Flink serialization, including NULL payloads and all inner kinds.
+Nested binary recovery and whole-job performance admission remain pending in #235/#237.

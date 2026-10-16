@@ -47,7 +47,7 @@ bridge. It defaults to false. Computed ROW-valued programs and filters use whole
 including SQL ROW constructors and comparisons, so physical metadata never becomes a logical SQL
 field. Pure input-reference projections keep the existing native path. Recursive
 ROW/ARRAY values use the existing verified primitive bridge types; string-to-string MAP fields
-are supported. Nested fixed BINARY, custom type inference, specialization and internal Java
+are supported. Nested fixed BINARY uses the experimental transport described below. Custom type inference, specialization and internal Java
 conversion classes retain whole-query fallback. Only external `Row` signatures enter the new gate.
 
 Flink's released converters own external callback inputs and normalize mutable results before the
@@ -62,6 +62,25 @@ descriptor. UNNEST excludes it from SQL columns, and sort keys normalize only it
 while retaining actual kinds in output payloads. The generated Calc's outer projection container
 has no extra kind child. Configure the flag consistently in planner and task JVMs; this changes
 the physical struct schema. See the [transport decision](https://github.com/datafusion-contrib/StreamFusion/blob/fix/237-nested-scalar-results/divergences/nested-row-kind-transport.md).
+
+Under the same default-off flag, BINARY values use length-delimited Arrow binary storage.
+Released Flink callbacks can return bytes shorter or longer than their declared `BINARY(n)`;
+the transport preserves those actual bytes and the resolved SQL type without padding or
+truncation. This applies at the input, nested ROW/ARRAY fields and extracted scalar results.
+Native fixed-size binary vectors are still readable as bytes. The disabled flag retains the
+existing fixed-size mapping and nested admission restrictions. Legacy variable-width casts
+still fall back across the previously restricted native boundaries; binary ELT performance
+admission remains pending in #235.
+
+[Nested BINARY validation](../benchmarks/results/nested-fixed-binary-coverage-2026-10-16.json)
+retains initial 65-case selections on both lines (six compatibility skips on 1.18), followed
+by 16 passes per line with expanded NULL-field cases. Tests cover runtime lengths 0/1/4 and
+oversized payloads through 4,097 bytes, all nested kinds, mutable ROW/array outputs, extracted
+fields, scalar consumers, grouping, exact released BinaryRow bytes/hashes and nullable arrays.
+Default selections pass 23 cases with two skips on 2.2 and 18 with seven skips on 1.18.
+Thirty selected native Criterion smokes exercise sliced nullable nested binary handoffs and
+key hashing. These are correctness checks. Nested BINARY recovery and representative stock/
+actual-previous-runtime speed comparisons remain pending; keep this extension draft.
 
 The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
 identify conversion work; their timings include observed external activity and are excluded from

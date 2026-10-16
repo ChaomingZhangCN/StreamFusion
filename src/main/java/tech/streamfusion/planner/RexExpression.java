@@ -648,9 +648,7 @@ final class RexExpression {
     boolean nested;
     switch (type.getSqlTypeName()) {
       case ARRAY:
-        nested =
-            type.getComponentType().getSqlTypeName() != SqlTypeName.BINARY
-                && rowCalcTypeCode(type.getComponentType()) >= 0;
+        nested = nestedFieldSupported(type.getComponentType());
         break;
       case MAP:
         nested =
@@ -659,17 +657,19 @@ final class RexExpression {
         break;
       case ROW:
         nested =
-            type.getFieldList().stream()
-                .allMatch(
-                    field ->
-                        field.getType().getSqlTypeName() != SqlTypeName.BINARY
-                            && rowCalcTypeCode(field.getType()) >= 0);
+            type.getFieldList().stream().allMatch(field -> nestedFieldSupported(field.getType()));
         break;
       default:
         nested = false;
         break;
     }
     return nested ? tech.streamfusion.operator.NativeUdf.TYPE_INTERNAL : hostCastTypeCode(type);
+  }
+
+  private static boolean nestedFieldSupported(RelDataType type) {
+    return (type.getSqlTypeName() != SqlTypeName.BINARY
+            || Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
+        && rowCalcTypeCode(type) >= 0;
   }
 
   private static boolean containsRowType(RelDataType type) {

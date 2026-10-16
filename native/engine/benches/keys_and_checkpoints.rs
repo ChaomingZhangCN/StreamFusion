@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayRef, Int64Array, Int8Array, ListArray, RecordBatch, StringArray, StructArray,
-    TimestampNanosecondArray,
+    Array, ArrayRef, BinaryArray, Int64Array, Int8Array, ListArray, RecordBatch, StringArray,
+    StructArray, TimestampNanosecondArray,
 };
 use arrow::buffer::{NullBuffer, OffsetBuffer};
 use arrow::datatypes::{DataType, Field, Fields};
@@ -270,5 +270,81 @@ fn nested_row_keys(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, keys_and_checkpoints, nested_row_keys);
+fn nested_binary_keys(c: &mut Criterion) {
+    let mut group = c.benchmark_group("engine/nested_binary_keys");
+    for rows in [16_usize, 1024, 16384] {
+        for width in [4, 256] {
+            for seeds in [1, 64, rows] {
+                let fields: Fields = vec![
+                    Field::new("payload", DataType::Binary, true),
+                    Field::new("__sf_nested_row_kind", DataType::Int8, true).with_metadata(
+                        [("streamfusion.nested-row-kind".into(), "1".into())].into(),
+                    ),
+                ]
+                .into();
+                let payloads: Vec<Vec<u8>> = (0..rows + 1)
+                    .map(|i| {
+                        let length = match i % 4 {
+                            0 => 0,
+                            1 => 1,
+                            2 => width,
+                            _ => width + 3,
+                        };
+                        let seed = (i % seeds).to_le_bytes();
+                        (0..length).map(|j| seed[j % seed.len()]).collect()
+                    })
+                    .collect();
+                let column: ArrayRef = Arc::new(StructArray::new(
+                    fields,
+                    vec![
+                        Arc::new(BinaryArray::from_iter(
+                            payloads
+                                .iter()
+                                .enumerate()
+                                .map(|(i, bytes)| (i % 7 != 0).then_some(bytes.as_slice())),
+                        )),
+                        Arc::new(Int8Array::from_iter_values(
+                            (0..rows + 1).map(|i| (i % 4) as i8),
+                        )),
+                    ],
+                    Some(NullBuffer::from(
+                        (0..rows + 1).map(|i| i % 13 != 0).collect::<Vec<_>>(),
+                    )),
+                ));
+                let batch = RecordBatch::try_from_iter(vec![("r", column)])
+                    .unwrap()
+                    .slice(1, rows);
+                let descriptors = [-1, -1];
+                let label = format!("{rows}/declared_width=4/payload_width={width}/seeds={seeds}");
+                group.throughput(Throughput::Elements(rows as u64));
+                let (hashes, allocations) =
+                    measure(|| flink_key_hashes(&batch, &[0], &descriptors));
+                assert_eq!(hashes.len(), rows);
+                report(
+                    &format!("engine/nested_binary_keys/{label}"),
+                    batch.columns(),
+                    &[],
+                    allocations,
+                );
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| {
+                        std::hint::black_box(flink_key_hashes(
+                            std::hint::black_box(&batch),
+                            &[0],
+                            &descriptors,
+                        ))
+                    })
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    keys_and_checkpoints,
+    nested_row_keys,
+    nested_binary_keys
+);
 criterion_main!(benches);

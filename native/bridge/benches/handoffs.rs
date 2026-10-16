@@ -2,8 +2,8 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, Float64Array, Int64Array, Int64Builder, Int8Builder, ListBuilder, RecordBatch,
-    StringArray, StringBuilder, StructArray, StructBuilder,
+    Array, ArrayRef, BinaryBuilder, Float64Array, Int64Array, Int64Builder, Int8Builder,
+    ListBuilder, RecordBatch, StringArray, StringBuilder, StructArray, StructBuilder,
 };
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
@@ -228,5 +228,74 @@ fn nested_row_kinds(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, handoffs, transformations, nested_row_kinds);
+fn nested_binary(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bridge/nested_binary");
+    for rows in [16, 1024, 16384] {
+        for width in [4, 256] {
+            let fields = vec![
+                Field::new("payload", DataType::Binary, true),
+                Field::new("__sf_nested_row_kind", DataType::Int8, true)
+                    .with_metadata([("streamfusion.nested-row-kind".into(), "1".into())].into()),
+            ];
+            let mut arrays = ListBuilder::new(StructBuilder::new(
+                fields,
+                vec![Box::new(BinaryBuilder::new()), Box::new(Int8Builder::new())],
+            ));
+            for row in 0..rows + 1 {
+                for element in 0..if row % 5 == 0 { 0 } else { 2 } {
+                    let index = row * 2 + element;
+                    let length = match index % 4 {
+                        0 => 0,
+                        1 => 1,
+                        2 => width,
+                        _ => width + 3,
+                    };
+                    let payload: Vec<u8> = (0..length).map(|i| (128 + i * 73) as u8).collect();
+                    let record = arrays.values();
+                    record
+                        .field_builder::<BinaryBuilder>(0)
+                        .unwrap()
+                        .append_option((index % 7 != 0).then_some(payload.as_slice()));
+                    record
+                        .field_builder::<Int8Builder>(1)
+                        .unwrap()
+                        .append_value((index % 4) as i8);
+                    record.append(index % 13 != 0);
+                }
+                arrays.append(row % 17 != 0);
+            }
+            let batch = RecordBatch::try_from_iter(vec![(
+                "records",
+                Arc::new(arrays.finish()) as ArrayRef,
+            )])
+            .unwrap()
+            .slice(1, rows);
+            group.throughput(Throughput::Elements(rows as u64));
+            for cached in [false, true] {
+                let label =
+                    format!("{rows}/declared_width=4/payload_width={width}/cached={cached}");
+                assert_eq!(roundtrip(&batch, cached), batch);
+                let (output, allocations) = measure(|| roundtrip(&batch, cached));
+                report(
+                    &format!("bridge/nested_binary/{label}"),
+                    batch.columns(),
+                    output.columns(),
+                    allocations,
+                );
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| std::hint::black_box(roundtrip(std::hint::black_box(&batch), cached)))
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    handoffs,
+    transformations,
+    nested_row_kinds,
+    nested_binary
+);
 criterion_main!(benches);

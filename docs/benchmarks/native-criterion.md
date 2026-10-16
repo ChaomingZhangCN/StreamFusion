@@ -185,7 +185,7 @@ Some historical suites use
 
 | Production boundary | Suite | Current witnesses |
 | --- | --- | --- |
-| Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string/integer batches and ARRAY of ROW values with nested RowKind metadata |
+| Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string/integer batches and ARRAY of ROW values with nested RowKind metadata, including length-delimited binary payloads |
 | Fluss append routing/statistics | `fluss_write` | Production compacted-key hashing and Arrow bucket grouping; nullable scalar/string bounds and null counts |
 | Shared bridge transforms | `handoffs` | Timestamp unit conversion, float canonical ordering, partition splits |
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors |
@@ -193,7 +193,7 @@ Some historical suites use
 | Calc and column movement | `data_movement`, `keys_and_checkpoints` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST including nested ROW metadata, Arrow IPC encode/decode |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
-| Key materialization | `keys_and_checkpoints` | Arrow-row encode/decode, Flink BinaryRow hash; primitive and wide nullable string composite keys; nullable nested ROW kinds and timestamp precision descriptors, plus metadata-neutral ordering |
+| Key materialization | `keys_and_checkpoints` | Arrow-row encode/decode, Flink BinaryRow hash; primitive and wide nullable string composite keys; nullable nested ROW kinds, variable binary payload lengths and timestamp precision descriptors, plus metadata-neutral ordering |
 | Memory checkpoints | `keys_and_checkpoints`, `data_movement` | Group aggregate and append Top-N snapshot/restore, temporal-join snapshot |
 | Persistent state | `persistent_state` | Production RocksDB temporal sort, keep-first deduplication, interval join, window rank, temporal join and rowtime running-SUM OVER; ingestion/update, probe/eviction/firing, checkpoint and aligned/rebuild recovery; nullable sliced wide rows, ordering and continued-arrival assertions; fixed options in `engine/benches/fixtures/rocks-options.json` |
 | Persistent window aggregation | `persistent_state` | Tumbling and session Int64 SUM; partial firing, checkpoint and aligned/rebuilt single-source recovery; session bridge merging, independent event-list oracle, saved watermark and continued processing |

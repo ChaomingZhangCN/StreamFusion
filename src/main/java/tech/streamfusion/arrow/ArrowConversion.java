@@ -206,7 +206,9 @@ public final class ArrowConversion {
    * type {@code declared} by the vectors {@link #createColumnVector} builds. That dispatch is by
    * Arrow type, not by the declared type, so this is the contract a native output must meet: the
    * same Arrow type the row type converts to, except that timestamps and times may carry any unit
-   * (and any zone), which the vectors convert on read. Nested children are held to the same rule.
+   * (and any zone), which the vectors convert on read. The nested-scalar experiment also reads
+   * fixed binary outputs through its length-delimited binary schema. Nested children follow the
+   * same rules.
    */
   public static boolean readsAs(Field actual, LogicalType declared) {
     return readsAs(actual, toArrowField(actual.getName(), declared));
@@ -222,7 +224,10 @@ public final class ArrowConversion {
       return true;
     }
     boolean convertibleOnRead =
-        actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time;
+        actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time
+            || Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs")
+                && actualType instanceof ArrowType.FixedSizeBinary
+                && expectedType instanceof ArrowType.Binary;
     if (!convertibleOnRead && !actualType.equals(expectedType)) {
       return false;
     }
@@ -554,6 +559,9 @@ public final class ArrowConversion {
 
     @Override
     public ArrowType visit(BinaryType binaryType) {
+      // Released Flink callbacks can retain bytes whose length differs from BINARY(n).
+      if (Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
+        return ArrowType.Binary.INSTANCE;
       return new ArrowType.FixedSizeBinary(binaryType.getLength());
     }
 
