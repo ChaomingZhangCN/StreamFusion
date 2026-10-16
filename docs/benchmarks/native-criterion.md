@@ -39,6 +39,13 @@ boundary includes production state lookup, accumulation, result construction and
 aggregation, flush. Arrow fixtures and operator setup/destruction are outside the timed
 `iter_batched_ref` routine. Schema and nonempty-output checks run before timing.
 
+Its `typed_distinct` group covers DATE, internal millisecond TIME and component TIMESTAMP
+alongside numeric/string membership. The 4,096-row nullable fixtures use 16 grouping keys and
+distinct cardinalities 4/256. Local measurements include accumulation and typed membership-view
+flush; single-phase measurements include state updates and result construction. Arrow input and
+operator construction stay outside timing. These isolate native costs; `TemporalDistinctBenchmark`
+measures complete two-phase Flink jobs, including both transposes and production IPC shuffle.
+
 ## Running and comparing
 
 The `non_time_row_number` target includes eight production-kernel fixtures
@@ -188,7 +195,7 @@ Some historical suites use
 | Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string/integer batches and ARRAY of ROW values with nested RowKind metadata |
 | Fluss append routing/statistics | `fluss_write` | Production compacted-key hashing and Arrow bucket grouping; nullable scalar/string bounds and null counts |
 | Shared bridge transforms | `handoffs` | Timestamp unit conversion, float canonical ordering, partition splits |
-| Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors |
+| Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement`, `keys_and_checkpoints` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST including nested ROW metadata, Arrow IPC encode/decode |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |

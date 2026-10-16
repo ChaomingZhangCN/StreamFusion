@@ -1,7 +1,8 @@
 # Nested Java scalar comparisons
 
-The nested scalar experiment remains default off and draft. Correctness and allocation
-profiles do not establish acceleration. The release diagnostics compare complete jobs
+The nested scalar implementation remains default off. On October 16 the maintainer
+accepted shipping its verified semantics despite the measured performance regressions,
+with further optimization deferred. Correctness and allocation profiles do not establish acceleration. The release diagnostics compare complete jobs
 against stock Flink and immutable StreamFusion revision
 `b170a474d5658330ed7e92e9b8bcc54117c8d287`, before nested scalar admission.
 
@@ -60,8 +61,26 @@ The `Nested scalar release diagnostics` workflow runs these comparisons on separ
 Flink 2.2.1 and 1.18.1 hosts, verifies callback parity first and uploads full mixed JFR
 recordings and logs even on failure. It fingerprints native inputs, compiler and build
 flags before reusing a release payload. A superseding run cancels older diagnostics.
-Results are pending; [coverage and remaining contracts](../operators/calc-filter.md#experimental-nested-java-scalar-results)
-continue to govern admission.
+The [completed isolated matrix](results/nested-scalar-isolated-2026-10-16.json) retains
+all 20 unprofiled runtime/workload comparisons, 12 mixed Java/Rust CPU/allocation recordings
+as collapsed stacks, full trial arrays and GC/query logs. Both jobs succeeded. Candidate
+callback medians regress by about 30–53%; this is coverage groundwork, not acceleration.
+
+| Callback / nominal width | Flink 2.2 stock/native median, s | Flink 1.18 stock/native median, s |
+| --- | ---: | ---: |
+| identity / 16 | 2.346 / 3.576 | 1.231 / 1.815 |
+| reusable transform / 16 | 2.559 / 3.610 | 1.273 / 1.947 |
+| identity / 256 | 3.525 / 4.883 | 1.920 / 2.717 |
+| reusable transform / 256 | 3.940 / 5.194 | 2.305 / 3.007 |
+
+The measured merge is `83970cab7d69bac237ec41b0db518c001af777cc`; production/native/build
+inputs and the three timing fixtures match the recovery/deployment candidate `eab6d2ec`.
+Later integration with main is not measured by this matrix. Actual previous nested
+callbacks retain fallback and their independent stock controls. Raw JFRs remain in the
+[original CI artifacts](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38889442933);
+checked-in compressed payloads retain complete collapsed CPU/allocation stacks and logs.
+[Coverage and remaining contracts](../operators/calc-filter.md#experimental-nested-java-scalar-results)
+continue to govern the opt-in whitelist.
 
 Recovery is verified separately from timing by `FlinkNestedScalarRecoveryTest`: four
 memory/RocksDB and parallelism-one/three cases per released line. Both completed-checkpoint

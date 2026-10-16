@@ -9,11 +9,56 @@ import org.apache.flink.streaming.runtime.partitioner.RebalancePartitioner;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tech.streamfusion.compat.ColumnarShuffleOutput;
 import tech.streamfusion.planner.ColumnarKeyGroupPartitioner;
 
 class ColumnarShuffleOutputTest {
+  @ParameterizedTest
+  @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+  void rejectsMismatchedDistributionSemantics(boolean singleton, boolean recoverable)
+      throws Exception {
+    var operator =
+        new SplitByKeyGroupOperator(
+            singleton ? new int[0] : new int[] {0},
+            singleton ? new int[0] : new int[] {-1}, 128, recoverable);
+    try (var harness = new OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch>(operator)) {
+      var partitioner =
+          singleton
+              ? new ColumnarKeyGroupPartitioner(128, recoverable)
+              : ColumnarKeyGroupPartitioner.singleton(128, recoverable);
+      var output = ColumnarShuffleTestOutput.output(1, 128, partitioner);
+      ColumnarShuffleTestOutput.configure(
+          harness, List.of(output), List.of(output), List.of(ColumnarShuffleTestOutput.writer(1, 128)));
+      harness.setup(new ArrowBatchSerializer());
+      var error =
+          assertThrows(
+              IllegalStateException.class,
+              () -> ColumnarShuffleOutput.parallelism(operator, 128, recoverable, singleton));
+      assertTrue(error.getMessage().contains("disagree on SINGLETON distribution"));
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false,128", "false,256", "true,128", "true,256"})
+  void singletonKeepsItsStateNamespace(boolean recoverable, int maxParallelism) throws Exception {
+    var operator =
+        new SplitByKeyGroupOperator(new int[0], new int[0], maxParallelism, recoverable);
+    try (var harness = new OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch>(operator)) {
+      var output =
+          ColumnarShuffleTestOutput.output(
+              1, maxParallelism, ColumnarKeyGroupPartitioner.singleton(maxParallelism, recoverable));
+      ColumnarShuffleTestOutput.configure(
+          harness,
+          List.of(output),
+          List.of(output),
+          List.of(ColumnarShuffleTestOutput.writer(1, maxParallelism)));
+      harness.setup(new ArrowBatchSerializer());
+      assertEquals(1, ColumnarShuffleOutput.parallelism(operator, maxParallelism, recoverable, true));
+    }
+  }
+
   @Test
   void locatesAChainedOperatorsOutputAmongOtherTaskOutputs() throws Exception {
     var operator = new SplitByKeyGroupOperator(new int[] {0}, new int[] {-1}, 128);

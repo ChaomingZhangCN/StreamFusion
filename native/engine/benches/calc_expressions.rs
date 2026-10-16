@@ -1,5 +1,6 @@
 use arrow::array::{
-    ArrayRef, BooleanArray, Decimal128Array, Float64Array, Int64Array, RecordBatch, StringArray,
+    ArrayRef, BooleanArray, Decimal128Array, Float32Array, Float64Array, Int64Array, RecordBatch,
+    StringArray,
 };
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
@@ -253,5 +254,73 @@ fn decimal_division(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, expressions, decimal_division);
+fn numeric_casts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("engine/numeric_casts");
+    for rows in [16, 1024, 16384] {
+        for null_every in [0, 7] {
+            for cardinality in [4, rows] {
+                let valid = |i: usize| null_every == 0 || i % null_every != 0;
+                let text: Vec<_> = (0..rows)
+                    .map(|i| format!("{}.125", i % cardinality))
+                    .collect();
+                let cases: Vec<(&str, ArrayRef, i64)> = vec![
+                    (
+                        "FLOAT_DECIMAL10_1",
+                        Arc::new(Float32Array::from_iter(
+                            (0..rows).map(|i| valid(i).then_some((i % cardinality) as f32 / 10.0)),
+                        )),
+                        2001,
+                    ),
+                    (
+                        "DOUBLE_DECIMAL15_4",
+                        Arc::new(Float64Array::from_iter(
+                            (0..rows).map(|i| valid(i).then_some((i % cardinality) as f64 / 10.0)),
+                        )),
+                        2504,
+                    ),
+                    (
+                        "DOUBLE_DECIMAL38_4",
+                        Arc::new(Float64Array::from_iter(
+                            (0..rows).map(|i| valid(i).then_some((i % cardinality) as f64 / 10.0)),
+                        )),
+                        4804,
+                    ),
+                    (
+                        "CHAR_DOUBLE",
+                        Arc::new(StringArray::from_iter(
+                            (0..rows).map(|i| valid(i).then_some(text[i].as_str())),
+                        )),
+                        3,
+                    ),
+                ];
+                for (name, values, target) in cases {
+                    // No JVM exists in this fixture. A missed fast path fails instead of timing
+                    // a different implementation, while the full-job benchmark retains JNI edges.
+                    let mut operator = CalcProgram::new(
+                        vec![42, 0],
+                        vec![0, 0],
+                        vec![1, 0],
+                        vec![-1, target],
+                        vec![],
+                        vec![],
+                    );
+                    let input = RecordBatch::try_from_iter(vec![("value", values)]).unwrap();
+                    assert_eq!(operator.run(input.clone()).num_rows(), rows);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    let label =
+                        format!("{name}/{rows}/null_every={null_every}/cardinality={cardinality}");
+                    let (output, allocations) = measure(|| operator.run(input.clone()));
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.bench_function(label, |b| {
+                        b.iter(|| {
+                            std::hint::black_box(operator.run(std::hint::black_box(input.clone())))
+                        })
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+criterion_group!(benches, expressions, decimal_division, numeric_casts);
 criterion_main!(benches);
