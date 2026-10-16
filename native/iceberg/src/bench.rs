@@ -65,6 +65,16 @@ impl ReadFixture {
     }
 
     pub fn read(&self, project_ids: &[i32], batch_rows: usize, skip: u64) -> Vec<RecordBatch> {
+        self.read_as(project_ids, batch_rows, skip, None)
+    }
+
+    pub fn read_as(
+        &self,
+        project_ids: &[i32],
+        batch_rows: usize,
+        skip: u64,
+        output_schema: Option<arrow::datatypes::SchemaRef>,
+    ) -> Vec<RecordBatch> {
         crate::reader::runtime().block_on(async {
             let task = crate::reader::ScanTask {
                 schema: self.schema.clone(),
@@ -78,6 +88,9 @@ impl ReadFixture {
             };
             let mut reader =
                 crate::reader::Reader::new(self.io.clone(), task, batch_rows, skip).unwrap();
+            if let Some(schema) = output_schema {
+                reader = reader.with_output_schema(schema);
+            }
             let mut batches = vec![];
             while let Some(batch) = reader.next().await.unwrap() {
                 batches.push(batch);

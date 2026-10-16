@@ -27,7 +27,11 @@ the production released Iceberg task reader at the same sizes/widths, full versu
 single-column projection, and batch sizes 16/1024. Parquet fixture encoding and
 memory-file setup happen before timing; reader construction, footer/decode,
 projection, Arrow output collection and teardown are measured. JNI/FileIO callbacks,
-delete indexes, Flink discovery and checkpoints remain end-to-end costs.
+delete indexes, Flink discovery and checkpoints remain end-to-end costs. Six further
+scalar fixtures cross the three row counts with encoding and read/adaptation;
+they include nullable float/double, NaN/infinity, precision-38 decimals, time unit
+conversion, and local/UTC microsecond timestamps using the common component
+representation. They call the same schema adaptation used at the JNI boundary.
 
 ## Running and comparing
 

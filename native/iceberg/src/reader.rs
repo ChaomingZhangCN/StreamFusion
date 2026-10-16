@@ -1,4 +1,5 @@
 use arrow::array::RecordBatch;
+use arrow::datatypes::SchemaRef;
 use futures::{StreamExt, TryStreamExt};
 use iceberg::arrow::ArrowReaderBuilder;
 use iceberg::io::FileIO;
@@ -58,6 +59,7 @@ impl ScanTask {
 pub(crate) struct Reader {
     stream: ArrowRecordBatchStream,
     skip: u64,
+    output_schema: Option<SchemaRef>,
 }
 
 impl Reader {
@@ -77,7 +79,13 @@ impl Reader {
         Ok(Self {
             stream: reader.read(tasks)?.stream(),
             skip,
+            output_schema: None,
         })
+    }
+
+    pub(crate) fn with_output_schema(mut self, schema: SchemaRef) -> Self {
+        self.output_schema = Some(schema);
+        self
     }
 
     pub(crate) async fn next(&mut self) -> Result<Option<RecordBatch>> {
@@ -87,7 +95,40 @@ impl Reader {
                 continue;
             }
             let skip = std::mem::take(&mut self.skip) as usize;
-            return Ok(Some(batch.slice(skip, batch.num_rows() - skip)));
+            let batch = batch.slice(skip, batch.num_rows() - skip);
+            let Some(schema) = &self.output_schema else {
+                return Ok(Some(batch));
+            };
+            if batch.num_columns() != schema.fields().len() {
+                return Err(Error::new(
+                    ErrorKind::DataInvalid,
+                    "Iceberg output projection mismatch",
+                ));
+            }
+            let columns = batch
+                .columns()
+                .iter()
+                .zip(schema.fields())
+                .map(|(column, field)| {
+                    if column.data_type() == field.data_type() {
+                        Ok(column.clone())
+                    } else if streamfusion_bridge::timestamp::is_timestamp(column.data_type())
+                        && streamfusion_bridge::timestamp::is_timestamp(field.data_type())
+                    {
+                        streamfusion_bridge::timestamp::cast_timestamp(column, field.data_type())
+                    } else {
+                        arrow::compute::cast(column, field.data_type())
+                    }
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(|e| Error::new(ErrorKind::DataInvalid, e.to_string()))?;
+            let output = RecordBatch::try_new_with_options(
+                schema.clone(),
+                columns,
+                &arrow::array::RecordBatchOptions::new().with_row_count(Some(batch.num_rows())),
+            )
+            .map_err(|e| Error::new(ErrorKind::DataInvalid, e.to_string()))?;
+            return Ok(Some(output));
         }
         if self.skip != 0 {
             return Err(Error::new(

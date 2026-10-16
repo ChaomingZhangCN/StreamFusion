@@ -109,6 +109,11 @@ impl Encoder {
                 };
                 if column.data_type() == field.data_type() {
                     column
+                } else if streamfusion_bridge::timestamp::is_timestamp(column.data_type())
+                    && streamfusion_bridge::timestamp::is_timestamp(field.data_type())
+                {
+                    streamfusion_bridge::timestamp::cast_timestamp(&column, field.data_type())
+                        .expect("Iceberg timestamp column conversion")
                 } else {
                     cast(&column, field.data_type()).expect("Iceberg physical column conversion")
                 }

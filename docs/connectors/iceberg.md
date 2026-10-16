@@ -6,7 +6,8 @@ SQL sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
 The admitted path is the normal legacy sink, unencrypted
 format-v1/v2 Parquet, distribution `none`/`hash`, and verified integer, long, string,
-boolean, binary, and date columns. Java fanout handles partitioned append; a
+boolean, binary, date, float, double, decimal, time, and microsecond timestamp
+columns (with and without a time zone). Java fanout handles partitioned append; a
 four-bucket test verifies interleaved Arrow selections and independent rolling.
 Java's original partition/key selector assigns destinations through borrowed Arrow
 views. Rust splits the batches, then the existing columnar key-group exchange
@@ -16,9 +17,10 @@ identifier fields also admit INSERT/UPDATE_BEFORE/UPDATE_AFTER/DELETE and the
 normal upsert option. SQL primary keys must match the table identifier fields;
 upsert materialization retains the stock sink. Java retains equality/position
 delete encoding, partition validation, and key bookkeeping. For keyed tables,
-`range` keeps Iceberg's normal hash fallback. Append range distribution, other
-types, dynamic destinations, Sink V2, format-v3, and unknown
-writer-affecting options retain the stock sink.
+`range` keeps Iceberg's normal hash fallback. Append range distribution, nested
+structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, dynamic
+destinations, Sink V2, format-v3, and unknown writer-affecting options retain the
+stock sink.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
 Flink 2.2 runtime and requires Java 17 or later. Build it with `-Piceberg`.
@@ -39,6 +41,12 @@ The Rust encoder writes through a bounded reusable JNI byte buffer into the
 Java-selected Iceberg output stream. Java owns filesystem configuration and stream
 close. Footer metrics use Java's metrics policy, supplemented by native NaN counts;
 Java constructs the final data files and commits. Delete encoders remain Java-owned.
+Timestamp conversion reuses the common Arrow component representation and checked
+unit conversion: negative epochs floor correctly and the full supported calendar
+range is preserved. Parquet time units and decimals convert column-wise. Native
+read output adapts to Flink's Arrow schema after Iceberg projection/deletes; no
+payload rows are reconstructed in Java. Tests cover pre-epoch microseconds,
+years 0001/9999, precision-38 decimals, NaN metrics, signed zero, infinity, and nulls.
 
 Writer settings use Iceberg Java's effective precedence and defaults. The encoder
 maps uncompressed, Snappy, Gzip, and Zstd (including Java's default Zstd level 3),

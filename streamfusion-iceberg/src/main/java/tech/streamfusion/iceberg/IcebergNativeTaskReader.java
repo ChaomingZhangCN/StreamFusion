@@ -75,9 +75,21 @@ final class IcebergNativeTaskReader implements AutoCloseable {
       }
     }
     files = new IcebergTaskFiles(io, lengths);
-    try {
+    try (var outputSchema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
+      var selected = new Schema(projection.stream().map(schema::findField).toList());
+      Data.exportSchema(
+          NativeAllocator.SHARED,
+          tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
+              org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected)),
+          NativeAllocator.DICTIONARIES,
+          outputSchema);
       handle =
-          NativeIceberg.createReader(mapper.writeValueAsString(descriptor), files, batchRows, skip);
+          NativeIceberg.createReader(
+              mapper.writeValueAsString(descriptor),
+              files,
+              batchRows,
+              skip,
+              outputSchema.memoryAddress());
     } catch (Throwable failure) {
       try {
         files.close();

@@ -196,6 +196,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_createReader
     files: JObject,
     batch_rows: i32,
     skip: jlong,
+    output_schema: jlong,
 ) -> jlong {
     jni_guard(env, |env| {
         assert!(
@@ -210,7 +211,8 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_createReader
         let io = input::InputStorage::file_io(env, files);
         into_handle(
             reader::Reader::new(io, task, batch_rows as usize, skip as u64)
-                .expect("Iceberg task reader"),
+                .expect("Iceberg task reader")
+                .with_output_schema(import_schema(output_schema)),
         )
     })
 }

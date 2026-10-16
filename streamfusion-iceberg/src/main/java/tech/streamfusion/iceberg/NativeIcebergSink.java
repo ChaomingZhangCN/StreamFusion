@@ -97,6 +97,11 @@ public final class NativeIcebergSink {
         case BOOLEAN:
         case BINARY:
         case DATE:
+        case FLOAT:
+        case DOUBLE:
+        case DECIMAL:
+        case TIME:
+        case TIMESTAMP:
           break;
         default:
           throw new IllegalArgumentException("Unverified native Iceberg type: " + field.type());
