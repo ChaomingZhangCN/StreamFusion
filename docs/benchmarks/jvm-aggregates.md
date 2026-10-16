@@ -164,6 +164,25 @@ The workflow measures that flag explicitly and records it in configuration. Its 
 profiles show lower sampled allocations, while local distinct-key throughput still regresses.
 The new candidate requires its own isolated matrix and remains draft.
 
+[The completed borrowed-exit matrix](results/jvm-aggregates-string-exit-isolated-2026-10-16.json)
+now retains all 18 aggregate cases, eight table-function cases and eight mixed profiles from
+run 38865289316; both Flink jobs succeeded. This measures the exit change before borrowed key
+projection. STRING stock/native medians at 16 / 65,536 / 2M keys are 1.383/1.230,
+1.815/1.619 and 3.450/3.607 s on 2.2, and .949/.836, 1.471/1.300 and 2.717/2.774 s on 1.18.
+Distinct STRING keys still regress by 4.6% and 2.1%; distinct INT on 2.2 also regresses
+(2.850/3.690 s). All ranges and trials remain included. Runner/control drift between matrices
+prevents assigning cross-run changes solely to the exit optimization.
+
+Wide table-function output is approximately tied in this run: stock/native 4.500/4.497 s on
+2.2 and 3.503/3.481 s on 1.18, with overlapping ranges. Split, numeric and grouped output still
+improve on both lines. These results support continued investigation, not default admission.
+
+GC logs and per-trial pause intersections are also retained. On 2.2 distinct INT jobs, median
+stop-the-world time inside the execution interval is .831 s stock versus 1.432 s native;
+distinct STRING is 1.066 versus 1.100 s. These diagnose allocation/heap pressure alongside
+the Java/Rust profiles. No GC time is subtracted from whole-job results, and pause summaries
+do not include concurrent GC, all safepoints or other runtime costs.
+
 The following [borrowed-key projection](../optimizations/borrowed-key-probes.md#borrow-before-projecting-an-owned-jvm-key)
 targets temporary strings on cache misses and after cold bypass. It retains the released
 selector's owned key copy and ordinary callback inputs. Matched distinct-key Java/Rust profiles

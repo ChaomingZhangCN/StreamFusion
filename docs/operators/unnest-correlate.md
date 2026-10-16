@@ -108,6 +108,15 @@ native JSON aggregation. These runs use the ordinary copying STRING exit; the de
 targets that profiled copy and requires separate performance evidence. This corrected matrix
 does not yet repeat the previous-fallback revision control.
 
+The separate, default-off [borrowed-exit matrix](../benchmarks/results/jvm-aggregates-string-exit-isolated-2026-10-16.json)
+also completes both lines with all trials retained. Stock/native medians are 2.403/1.907 s
+(split), 1.485/.931 s (numeric), 3.470/1.528 s (grouped) and 4.500/4.497 s (wide) on 2.2;
+on 1.18 they are 1.563/1.332, 1.114/.704, 3.030/1.215 and 3.503/3.481 s respectively.
+Wide ranges overlap on both lines, so no clear wide-output gain is established. Other shapes
+retain separated native/stock ranges. Host/control drift limits comparisons across matrices,
+and the new exit path remains default off. Actual previous-runtime controls are scheduled
+separately with the same corrected fixtures.
+
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
 all RowKinds, lifecycle errors, repeated/zero-column projection, numeric consumers and a

@@ -708,6 +708,12 @@ plus the separate nested suite pass 109 on 2.2 and 107 with two compatibility sk
 Matched allocation profiles improve, but external work prevents timing claims; isolated
 performance admission remains pending.
 
+The [completed exit-only isolated matrix](../benchmarks/results/jvm-aggregates-string-exit-isolated-2026-10-16.json)
+retains 18 aggregate cases on both lines, before the key-projection follow-up. Low and medium
+cardinality medians improve, while distinct STRING keys remain slower than stock on both
+lines and distinct INT regresses on 2.2. All ranges, negative results and mixed profiles are
+preserved. It validates the exit-only revision, not the later key-projection candidate.
+
 ## Still falls back
 
 Both the single-phase gate and, for the two-phase plan, **both halves independently** must clear

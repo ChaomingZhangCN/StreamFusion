@@ -61,6 +61,14 @@ disabled-flag jobs use separate JVMs and exhibit control drift, so these compari
 isolate the exit change's contribution. Candidate performance on Flink 1.18 remains pending.
 This remains a default-off experiment, not admitted acceleration.
 
+The subsequent [isolated two-line matrix](../benchmarks/results/jvm-aggregates-string-exit-isolated-2026-10-16.json)
+completed with this exit flag enabled, before borrowed key projection. Low/medium STRING
+medians improve versus stock on both lines, but distinct keys still regress: 3.607 s native
+versus 3.450 s stock on 2.2, and 2.774 versus 2.717 s on 1.18. Wide table-function output has
+overlapping stock/native ranges on both lines. The full artifact retains unfavorable typed-key
+results and mixed Java/Rust profiles; success does not establish admission. Control drift
+between runs limits attributing changes to this technique alone.
+
 Validation includes 73 aggregate, checkpoint/savepoint rescale, transpose and ownership cases
 on each Flink line at the normal cache capacity. At capacity three, adding JSON/JVM and nested
 JSON boundaries passes 108 cases on 2.2 and 106 with two compatibility skips on 1.18. Four
