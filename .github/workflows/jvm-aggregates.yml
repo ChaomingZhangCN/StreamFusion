@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/jvm-aggregates.yml'
       - 'bin/bench-jvm-aggregates.py'
+      - 'bin/bench-jvm-previous.py'
       - 'src/main/java/tech/streamfusion/operator/*Jvm*'
       - 'src/main/java/tech/streamfusion/operator/ArrowToRowDataOperator.java'
       - 'src/main/java/tech/streamfusion/arrow/**'
@@ -137,6 +138,11 @@ jobs:
               -Dtablefunc.warmup=2 -Dtablefunc.runs=5 \
               surefire:test@default-test > "$sf_table_output/table-functions-v2-$sf_table_case.log" 2>&1
           done
+      - name: Build then measure the actual previous fallback revision
+        run: >-
+          python3 bin/bench-jvm-previous.py --flink-line '${{ matrix.line }}'
+          --worktree "$RUNNER_TEMP/streamfusion-previous-runtime"
+          --output native/target/jvm-aggregate-diagnostics/previous-runtime
       - name: Retain every trial, GC log, profile and correctness report
         if: always()
         uses: actions/upload-artifact@v4

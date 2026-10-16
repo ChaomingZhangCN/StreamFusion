@@ -96,9 +96,9 @@ class TableFunctionBenchmark {
                 startMillis,
                 seconds);
             if (trial >= warmups) elapsed[engine][trial - warmups] = seconds;
-            if (engine == 0)
+            if (engine == 0 || !expectedNative)
               assertTrue(
-                  metrics.nativeOperators().isEmpty(), "stock control executed native operators");
+                  metrics.nativeOperators().isEmpty(), "fallback control executed native operators");
             if (engine == 1 && expectedNative)
               RecoveryExecutionMetrics.assertConsumed(
                   metrics.nativeOperators(), "NativeTableFunction");

@@ -129,9 +129,9 @@ class JvmAggregateBenchmark {
               if (keys >= rows) assertEquals(0, hits, "distinct keys unexpectedly hit the cache");
               System.out.println("[jvm-aggregate-cache] hits=" + hits + " bypasses=" + bypasses);
             }
-            if (engine == 0)
+            if (engine == 0 || (udf && !expectedUdf))
               assertTrue(
-                  metrics.nativeOperators().isEmpty(), "stock control executed native operators");
+                  metrics.nativeOperators().isEmpty(), "fallback control executed native operators");
             if (engine == 1 && (!udf || expectedUdf))
               RecoveryExecutionMetrics.assertConsumed(
                   metrics.nativeOperators(),

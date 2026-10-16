@@ -171,3 +171,45 @@ show lower sampled allocations but observed external work; their timings are exc
 [full evidence](results/jvm-aggregate-borrowed-key-projection-2026-10-16.json) includes both
 recordings, the earlier diagnostic, source hashes and both released-line validation suites.
 No new clean whole-job speed comparison or default admission is claimed.
+
+## Actual previous-runtime control
+
+After candidate measurements and profiles finish, the workflow builds and measures immutable
+revision `b965b8bf0c97450f6971f20db0fe6abc6bbac8ae`, before JVM table/aggregate implementation.
+`bin/bench-jvm-previous.py` creates a separate worktree and copies only the current aggregate
+fixture, table-function fixture and metrics helper. Production source stays at the previous
+revision. Both engines use symmetric preflight and one cluster per job; the old native-planner
+attempt must fall back completely, with zero native substitutions and runtime operators.
+It is an actual historical runtime comparison, rather than a current-code feature toggle.
+
+The driver requires JDK17, finishes compilation before measurements, then repeats all nine
+typed-key aggregate cases and four table-function shapes. Native build inputs (the full native
+tree, root/module build files, Cargo configuration and toolchain files) are compared against
+the candidate. Identical inputs reuse its release payload with a recorded checksum; otherwise
+the previous revision builds its own release library first. No source/sink or boundary is
+removed from either implementation; whole-query fallback naturally has no native transposes.
+The previous-runtime jobs never overlap their build with measurements or run concurrently
+with candidate measurements on the same runner.
+
+Commands, fixture hashes, actual runtime/fixture revisions, native checksum, every trial and
+GC log are retained under the workflow artifact's `previous-runtime/` directory. JSON uses
+`previous_seconds`; inherited raw fixture logs label that engine `native` even though the
+assertions require fallback. Separate JVMs and control drift still limit causal attribution.
+The new full-size previous-runtime comparison remains pending until that workflow completes.
+
+After the candidate release build, reproduce with a new worktree path:
+
+```sh
+python3 bin/bench-jvm-previous.py --flink-line 2.2 \
+  --worktree native/target/jvm-previous-runtime \
+  --output native/target/jvm-aggregate-diagnostics/previous-runtime
+```
+
+Use `--flink-line 1.18` after the corresponding profile build. `--smoke` selects 2,000 rows,
+one warmup/pair and one cardinality per key type plus all four table-function shapes; those
+durations are fixture checks, not speed evidence. Existing worktrees are never replaced.
+
+[Both released-line fixture checks](results/jvm-previous-runtime-fixture-validation-2026-10-16.json)
+pass all 14 typed aggregate/table-function smoke shapes on the actual prior runtime. The
+artifact records fixture hashes, stock/fallback trials, production-source cleanliness and
+complete build/query logs. These small jobs establish execution and fallback, not throughput.
