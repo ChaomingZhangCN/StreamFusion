@@ -80,6 +80,11 @@ EXPLAIN and per-job cluster setup precede the clock, while both transposes and p
 remain inside execution. The benchmark includes nested identity/transform cases and a primitive
 Rust calculation control; it checks consumed native rows and zero native work in stock plans.
 
+The [matched runtime comparison](../benchmarks/nested-scalars.md) additionally builds the
+immutable previous StreamFusion runtime, retains its own stock controls and compares narrow
+and wide nested values. Separate Java/native CPU and Java allocation profiles cover both
+runtimes; profile durations are excluded. The release matrix is a pending admission gate.
+
 ```bash
 SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am \
   -Dtest=NestedScalarBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
