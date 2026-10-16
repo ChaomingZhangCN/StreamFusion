@@ -390,6 +390,9 @@ class IcebergNexmarkBenchmark {
     if (nativeMode) {
       assertEquals(completion.sourceCount(), completion.nativeSourceCount(), plan);
       assertTrue(completion.nativeWriterCount() > 0, plan);
+    } else {
+      assertEquals(0, completion.nativeSourceCount(), plan);
+      assertEquals(0, completion.nativeWriterCount(), plan);
     }
     var job = env.executeAsync(graph);
     boolean finished = false;
@@ -458,6 +461,10 @@ class IcebergNexmarkBenchmark {
       for (String file : deletes.keySet())
         assertTrue(createdBy(file).contains("parquet-mr"), "delete file did not use Java: " + file);
     }
+    if (!nativeMode)
+      for (String file : dataFiles)
+        assertTrue(
+            createdBy(file).contains("parquet-mr"), "stock data file did not use Java: " + file);
     Files.writeString(trialPath.resolve("plan.txt"), plan);
     Files.writeString(trialPath.resolve("graph.json"), graph.getStreamingPlanAsJSON());
     var observation = new LinkedHashMap<String, Object>();
@@ -473,6 +480,8 @@ class IcebergNexmarkBenchmark {
     observation.put("rocksDBObserved", backendObserved);
     observation.put("fingerprint", fingerprint);
     observation.put("sourceCount", completion.sourceCount());
+    observation.put("nativeSourceCount", completion.nativeSourceCount());
+    observation.put("nativeWriterCount", completion.nativeWriterCount());
     observation.put("nativeParquetTasks", completion.nativeTasks());
     observation.put("stockFallbackTasks", completion.fallbackTasks());
     observation.put("dataFiles", dataFiles.size());

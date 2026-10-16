@@ -248,7 +248,8 @@ inherently different wall-clock window timestamps.
 Outside timing, stock Iceberg reads the committed output and computes a multiset
 fingerprint of declared table columns. Delete-position metadata is excluded from payload
 comparison. Runtime source counters, native writer-factory witnesses, Rust data-file
-footers and Java delete-file footers distinguish native work from fallback. Empty outputs
+footers and Java delete-file footers distinguish native work from fallback. Stock trials
+assert zero native source/writer factories and Java data-file footers. Empty outputs
 are reported without inventing file witnesses. Artifacts retain all samples/warmups,
 paired validation, plans, stream graphs, table locations, hardware/build metadata and
 library hashes. Per-trial observations sample shared task reservations, Arrow allocations
@@ -321,3 +322,22 @@ unaccounted. Sampled process RSS includes retained JVM heap and grows across tri
 so it cannot be attributed solely to a file encoder. The current Iceberg library
 SHA-256 is `1b31d28ff3683b2ae3ec2934dc28ffc43d16af48b6098a5be89b1f68dae676cf`;
 the core library is unchanged from the initial diagnostic.
+
+A release async-profiler 2.9 `itimer` diagnostic (2M rows, one append and one keyed
+stock/native pair; its timings are excluded from the tables) found 1,699 samples in
+stream-task stacks containing a native dynamic control wrapper. Inclusive frames
+contained routing/control in 52.9%, native Parquet writes in 9.2%, and host
+`prepareCommit` in 22.0%. Table-identifier parsing alone appeared in 10.2%. These
+percentages overlap and describe sampled CPU stacks, not wall time.
+[Inclusive frame counts](../benchmarks/iceberg-dynamic-profile-20261016.csv) retain
+these observations. This identifies
+Java routing/metadata allocation and host completion as tuning targets; it does not
+justify changing Java's delete or commit semantics.
+
+A separate RANGE q0 release comparison uses 2M events, memory state, no mini-batching,
+four buckets, one warmup and three measured pairs. Stock median is 1.028 s
+[0.984–1.223], native 0.741 s [0.651–0.763], a 1.39× ratio. This short stateless
+workload is dominated by setup/IO/drain costs; learned post-checkpoint range traffic
+is established by the live correctness fixtures, not inferred from this timing.
+[All RANGE observations](../benchmarks/iceberg-range-20261016.jsonl) include warmups,
+exact committed-output parity and native/stock source/writer/footer witnesses.
