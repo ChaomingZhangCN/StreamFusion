@@ -72,7 +72,8 @@ class FlinkMapJsonJvmSqlHarnessTest {
           values.put(-2, null);
           table.createTemporaryView(
               "inputs",
-              env.fromData(
+              tech.streamfusion.compat.FlinkTestSources.fromData(
+                  env,
                   List.of(Row.of(values, "{}"), Row.of(Map.of(), "[]"), Row.of(null, null)),
                   Types.ROW_NAMED(
                       new String[] {"m", "s"}, Types.MAP(Types.INT, Types.BIG_DEC), Types.STRING)),
@@ -140,7 +141,8 @@ class FlinkMapJsonJvmSqlHarnessTest {
       rows.add(deleted);
     }
     var input =
-        env.fromData(
+        tech.streamfusion.compat.FlinkTestSources.fromData(
+            env,
             rows,
             Types.ROW_NAMED(
                 new String[] {"id", "m", "nested", "ms", "s"},
