@@ -47,6 +47,48 @@ when replaying the same harness against the baseline planner. The native Criteri
 `operators/typed_distinct` fixtures separately check typed membership views at distinct
 cardinalities 4/256; they do not substitute for this complete-job comparison.
 
+## Legacy floating DECIMAL casts (2026-10-16)
+
+Legacy FLOAT/DOUBLE-to-DECIMAL casts can execute through Flink's generated evaluator
+inside native Calc. Borrowed numeric Arrow rows and internal DecimalData results avoid
+the reflective cast executor's boxed argument columns and external BigDecimal conversion.
+This is JVM compatibility evaluation, not a native Rust decimal conversion kernel.
+
+The standalone release jobs still lose to stock Flink, so the explicit
+`streamfusion.calc.legacyNumericCasts.enabled` setting defaults to false. This preserves
+the previous fallback; enabling it is compatibility groundwork pending the tradeoff
+decision on [#376](https://github.com/datafusion-contrib/StreamFusion/issues/376).
+Mixed projections can also use the existing whole-row JVM schedule to preserve error order.
+
+The same M4 Pro/Flink 2.2.1/JDK 17 setup measures two million nullable runtime rows,
+two warmups and five alternating measured jobs per engine, retaining both transposes
+and the callback. The generated path measured FLOAT-to-DECIMAL(10,1) at 0.478000 seconds
+versus stock 0.441688, and DOUBLE-to-DECIMAL(15,4) at 0.456151 versus 0.362734.
+The initial executor prototype measured 0.510154/0.452275 seconds; borrowing reduces
+the FLOAT cost but does not establish a stock-Flink speedup. The previous planner's
+fallback measured 0.432456/0.351380 seconds, with independent stock controls.
+[Raw trials](legacy-floating-decimal-trials-2026-10-16.json) retain all measured samples.
+A final run with the explicit option enabled measured FLOAT at 0.493179 versus stock
+0.440520 seconds and DOUBLE at 0.448349 versus 0.360404. This confirms the standalone
+regression with the final admission guard in place.
+An untimed JFR diagnostic at 10M rows reaches both transpose operators,
+the borrowed-row evaluator and callback result writes.
+It motivates retaining the full boundary and further optimization; samples are not a
+measurement of copied bytes or an attribution of the entire regression to one component.
+Fixed job overhead is significant at these sizes; these are complete-job diagnostics,
+not isolated kernel throughput claims.
+
+```sh
+SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
+  '-Dtest=LegacyCastBenchmark#legacyFloatingDecimalCasts' \
+  -Dsurefire.failIfNoSpecifiedTests=false '-Dnative.cargo.args=build --release' \
+  -Dbasic.rows=2000000 -Dbasic.warmup=2 -Dbasic.runs=5
+```
+
+The fixture explicitly enables the opt-in. `basic.legacyNumericCasts=false` and
+`basic.expectNative=false` verify the default fallback; the same harness with
+`basic.expectNative=false` also measures the unmodified baseline planner.
+
 ## Shared aggregate diagnostics
 
 These diagnostics measure complete Flink jobs from a runtime Row source to a

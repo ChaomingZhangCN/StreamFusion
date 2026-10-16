@@ -44,6 +44,8 @@ final class BasicTypeBenchmark {
           var env = metrics.environment(jobConfig, 1, 0);
           var table = StreamTableEnvironment.create(env);
           table.getConfig().set("table.exec.legacy-cast-behaviour", legacy ? "ENABLED" : "DISABLED");
+          table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled",
+              System.getProperty("basic.legacyNumericCasts", "true"));
           table.getConfig().set("table.optimizer.agg-phase-strategy", twoPhase ? "TWO_PHASE" : "ONE_PHASE");
           table.getConfig().set("table.exec.mini-batch.enabled",
               Boolean.toString(twoPhase || Boolean.parseBoolean(System.getProperty("basic.miniBatch", "true"))));

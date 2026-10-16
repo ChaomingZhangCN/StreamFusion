@@ -882,8 +882,23 @@ BOOLEAN uses the host's legacy lowercase spelling; DECIMAL rendering uses the co
 host executor. Legacy character casts preserve the original text without applying default
 projection trimming or padding, including empty, overlength and surrogate-containing
 strings. Sink length and NOT NULL enforcement remain separate downstream contracts.
-Other host-cast pairs, including floating conversions, retain the legacy fallback until
-their behavior is verified. An unknown cast setting also falls back.
+With `streamfusion.calc.legacyNumericCasts.enabled=true`, FLOAT/DOUBLE to DECIMAL uses a
+complete Flink-generated cast expression in legacy mode. Numeric arguments borrow Arrow rows
+and decimal results retain Flink's internal DecimalData, avoiding the reflective executor's
+intermediate external BigDecimal conversion. The host widens
+FLOAT to DOUBLE before decimal conversion, rounds with the target scale, returns NULL on precision
+overflow, and raises NumberFormatException for NaN/infinity in both modes. Selection and empty
+filtered batches suppress conversions for rows that do not reach the projection. The conversion
+itself runs on the JVM inside the native Calc; it is not a Rust decimal conversion kernel.
+Other legacy floating/string pairs remain unverified and fall back. An unknown cast setting
+also falls back.
+
+The new numeric cast option defaults to false: standalone complete release jobs still lose to
+stock Flink after retaining both row/Arrow transposes and the JVM callback. It does not change
+`table.exec.legacy-cast-behaviour` or relax any correctness requirement. Without the opt-in the
+planner reports `legacy numeric JVM cast ... is opt-in` and retains whole-Calc fallback. Existing
+verified basic legacy pairs and default cast behavior are unaffected. See the release measurements
+for [floating DECIMAL](../benchmarks/basic-type-coverage.md#legacy-floating-decimal-casts-2026-10-16).
 
 Generated cast executors initialize with a valid value of the declared input type, including
 `CHAR`/`VARCHAR NOT NULL`. Startup does not evaluate an illegal NULL input; actual malformed

@@ -3289,17 +3289,28 @@ final class RexExpression {
               + resultType.getSqlTypeName()
               + ": host-exact cast requires the configured cast behavior");
     }
+    boolean floatingDecimal = resultType.getSqlTypeName() == SqlTypeName.DECIMAL
+        && (sourceType.getSqlTypeName() == SqlTypeName.FLOAT
+            || sourceType.getSqlTypeName() == SqlTypeName.REAL
+            || sourceType.getSqlTypeName() == SqlTypeName.DOUBLE);
+    if (legacyCastBehaviour && floatingDecimal
+        && !NativeConfig.legacyNumericCastsEnabled()) {
+      return reject("legacy numeric JVM cast " + sourceType + " to " + resultType
+          + " is opt-in: streamfusion.calc.legacyNumericCasts.enabled=true");
+    }
     if (legacyCastBehaviour
-        && !((SqlTypeFamily.CHARACTER.contains(sourceType)
+        && !(floatingDecimal
+            || (SqlTypeFamily.CHARACTER.contains(sourceType)
                   && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
             || ((sourceType.getSqlTypeName() == SqlTypeName.DECIMAL
                     || sourceType.getSqlTypeName() == SqlTypeName.BOOLEAN)
                 && SqlTypeFamily.CHARACTER.contains(resultType)))) {
       return reject("unverified legacy host cast " + sourceType + " to " + resultType);
     }
-    if (legacyCastBehaviour && SqlTypeFamily.CHARACTER.contains(sourceType)
-        && resultType.getSqlTypeName() == SqlTypeName.DECIMAL) {
-      // SQL generation wraps failing legacy conversions; CastExecutor alone does not.
+    if (legacyCastBehaviour && (floatingDecimal
+        || SqlTypeFamily.CHARACTER.contains(sourceType)
+            && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)) {
+      // Generated casts retain legacy failure wrapping and borrow numeric Arrow inputs.
       return emitHostExpression(call, true);
     }
     int sourceCode = hostCastTypeCode(sourceType);
