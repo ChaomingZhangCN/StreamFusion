@@ -66,6 +66,7 @@ nav:
       - Parquet: connectors/parquet.md
       - ORC: connectors/orc.md
       - Delta Lake: connectors/delta.md
+      - Apache Iceberg: connectors/iceberg.md
       - Apache Paimon: connectors/paimon.md
       - Formats:
           - JSON: connectors/formats/json.md

@@ -12,6 +12,14 @@ fixture does not measure Flink job throughput. UTF-16 DECODE fixtures cover all 
 variants with both JDK U+FFFE rules, sliced nullable arrays, narrow/wide text, and malformed
 trailing bytes at 16, 1024 and 16384 rows. Input construction is outside the measured kernel.
 
+The optional `streamfusion-iceberg` package's `iceberg_io` suite measures the production
+single-file iceberg-rust Parquet encoder through finalization into memory-backed storage.
+Its 18 fixtures cover 16/1024/16384 rows, nullable strings at widths 8/264/4096,
+contiguous slices and sparse selections, field IDs, and stock parquet-rs readback.
+Input construction is outside timing; encoder construction, selection/gather, encoding,
+statistics, and finalization are inside. JNI and Java FileIO remain outside this isolated
+suite and must be included in the Iceberg end-to-end comparison.
+
 ## Running and comparing
 
 Run from a checkout with Rust, Maven, and a JDK available. The runner discovers workspace benchmark targets
