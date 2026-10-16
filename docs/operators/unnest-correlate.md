@@ -133,9 +133,21 @@ reduces sampled table-function allocations by 34%/32% on 1.18/2.2; all profile t
 The [encoding technique](../optimizations/string-copy-reduction.md#repeated-lazy-string-encodings)
 describes the bounds. Forty-one focused checks pass on each line, including table-function
 recovery, mutable rows, UTF-8/null handling, array cells and writer reset. Default portable/JSON
-regressions pass 73 on 2.2 and 71 with two existing skips on 1.18. Isolated whole-job stock and
-previous-native-runtime comparisons, including distinct text, remain required before this draft
-candidate ships. The earlier wide-output regression remains unresolved until those results exist.
+regressions pass 73 on 2.2 and 71 with two existing skips on 1.18.
+
+The [completed isolated encoding comparison](../benchmarks/results/jvm-encoding-isolated-2026-10-16.json)
+measures repeated wide text at 2.817 s native versus 4.802 stock on 2.2, and 2.941 versus 4.911 s
+on 1.18 (1.70×/1.67× stock). Actual previous-native medians are 4.663/4.846 s. Every runtime retains
+its own stock controls, raw trials and ranges. Width-256 row-distinct text still regresses on 2.2:
+4.776 s native versus 4.564 stock; 1.18 is 5.158 versus 5.186 with overlapping ranges. These jobs
+enable the borrowed exit and retain both transposes and production IPC; they do not establish a
+blanket default admission.
+
+The new writer policy keeps its single encoding useful when changing rows produce adjacent equal
+results, resetting its miss counter on a hit. [Mixed profiles](../benchmarks/results/jvm-encoding-adaptive-profiles-2026-10-16.json)
+reduce sampled cold-text encoding allocation by about half and inclusive table-function allocation
+by 14%/18% on 1.18/2.2. Forty-one focused checks pass on each line. Every profile duration is excluded;
+whole-job stock and actual previous-runtime comparisons for this rule remain pending. Keep draft.
 
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,

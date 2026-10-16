@@ -287,7 +287,7 @@ For an actual previous **native** table-function runtime, the existing runner al
 
 ```bash
 python3 bin/bench-jvm-previous.py --flink-line 2.2 \
-  --native-table-baseline 5cbd6ec2bfe9a40bba59a861abc2b30063b5bb56 \
+  --native-table-baseline 846cbb7c5cd8c14fb4cfe32b9329dd3f1b13ef70 \
   --borrowed-string-exit --worktree /tmp/streamfusion-prior-native-tables \
   --output native/target/prior-native-tables
 ```
@@ -302,4 +302,36 @@ JVMs, and their own stock trials and every unfavorable range must remain visible
 
 The native-control mode passes all six smoke cases on each Flink line, and the original fallback
 mode still passes all seven smoke shapes on 2.2. These 2k-row jobs verify the runner, not speed.
-Full isolated results for the encoding candidate remain pending; keep the PR draft.
+The [completed encoding matrix](results/jvm-encoding-isolated-2026-10-16.json) retains 68 unprofiled
+runtime/workload comparisons and eight mixed Java/Rust JFR recordings, including every trial,
+range, GC log, source/library check and actual historical-runtime control. Its original native
+control is immutable `5cbd6ec2`; the reproduction above uses the measured merge `846cbb7c` as the
+control for the next cache-policy change. The native payload was reused byte-for-byte for both
+historical runtimes within each line. The candidate payload cache hit on 2.2; 1.18 built its release.
+Complete collapsed CPU/allocation stacks are checked in; raw JFRs remain in the CI artifacts
+and original local recordings, with their checksums recorded.
+
+All table medians below are complete jobs in seconds, with the borrowed exit enabled. Previous
+runtime JVMs retain separate stock controls in the artifact; these columns are not causal kernel
+measurements.
+
+| Flink | Text | Stock | Encoding candidate | Previous native |
+| --- | --- | ---: | ---: | ---: |
+| 2.2 | width 16, repeated | 2.329 | 1.699 | 1.881 |
+| 1.18 | width 16, repeated | 2.386 | 1.724 | 1.853 |
+| 2.2 | width 256, repeated | 4.802 | 2.817 | 4.663 |
+| 1.18 | width 256, repeated | 4.911 | 2.941 | 4.846 |
+| 2.2 | width 256, row-distinct | 4.564 | 4.776 | 4.883 |
+| 1.18 | width 256, row-distinct | 5.186 | 5.158 | 5.827 |
+
+Repeated wide text beats stock by 1.70×/1.67×. The 2.2 wide-distinct case remains slower, and
+1.18 aggregate regressions remain: low/medium STRING medians are 1.288/1.411 and 1.898/2.142 s
+stock/native; distinct INT is 3.111/3.236 and distinct BIGINT 3.160/3.434 s. Retain the broader draft
+and default-off gates. The measured merge includes three singleton-shuffle Java changes absent
+from the original native control; all native/build inputs match.
+
+The next writer policy resets its bounded miss counter on a successful reuse. Separate
+[cold-text profiles and correctness evidence](results/jvm-encoding-adaptive-profiles-2026-10-16.json)
+show lower allocation and 41 focused passes per released line. All profile durations are excluded.
+The workflow now compares against actual `846cbb7c` before this reset rule, with the same six table
+cases and stock controls. Whole-job results for that change remain pending.

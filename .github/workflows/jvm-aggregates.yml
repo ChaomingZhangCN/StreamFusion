@@ -151,10 +151,10 @@ jobs:
               -Dtablefunc.warmup=2 -Dtablefunc.runs=5 \
               surefire:test@default-test > "$sf_table_output/table-functions-v2-$sf_table_case.log" 2>&1
           done
-      - name: Build then measure the native table-function revision before encoding reuse
+      - name: Build then measure the native runtime before the cache hit reset
         run: >-
           python3 bin/bench-jvm-previous.py --flink-line '${{ matrix.line }}'
-          --native-table-baseline 5cbd6ec2bfe9a40bba59a861abc2b30063b5bb56
+          --native-table-baseline 846cbb7c5cd8c14fb4cfe32b9329dd3f1b13ef70
           --borrowed-string-exit
           --worktree "$RUNNER_TEMP/streamfusion-previous-native-tables"
           --output native/target/jvm-aggregate-diagnostics/previous-native-tables

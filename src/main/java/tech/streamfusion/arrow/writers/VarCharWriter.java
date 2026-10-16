@@ -96,7 +96,10 @@ public abstract class VarCharWriter<T> extends ArrowFieldWriter<T> {
 
     private byte[] encode(String value) {
         if (encodingMisses < MAX_ENCODING_MISSES && value.length() <= MAX_CACHED_CHARACTERS) {
-            if (value.equals(previousString)) return previousEncoding;
+            if (value.equals(previousString)) {
+                encodingMisses = 0;
+                return previousEncoding;
+            }
             byte[] encoded = value.getBytes(StandardCharsets.UTF_8);
             if (++encodingMisses < MAX_ENCODING_MISSES) {
                 previousString = value;

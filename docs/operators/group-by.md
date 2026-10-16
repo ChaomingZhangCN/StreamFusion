@@ -722,6 +722,15 @@ Separate-JVM control drift and all ranges are retained. Both native-library cach
 historical runtime queries verify zero native operators. This completes that measurement gap,
 not performance admission or the remaining merge/reset/OVER/type contracts in #237.
 
+The [encoding follow-up matrix](../benchmarks/results/jvm-encoding-isolated-2026-10-16.json)
+retains a further 18 aggregate cases plus both historical-runtime controls and eight mixed
+profiles. STRING remains slower on 1.18: low/medium stock/native medians are 1.288/1.411 and
+1.898/2.142 s; distinct INT and BIGINT are 3.111/3.236 and 3.160/3.434 s. Repeated wide table
+output improves separately, while distinct wide text on 2.2 remains slower than stock. The
+next writer change resets its bounded miss counter on a hit; its allocation evidence and
+whole-job gate are documented with the [encoding technique](../optimizations/string-copy-reduction.md#repeated-lazy-string-encodings).
+These results do not admit grouped UDAFs by default or finish #237.
+
 ## Still falls back
 
 Both the single-phase gate and, for the two-phase plan, **both halves independently** must clear
