@@ -684,6 +684,20 @@ and string equality remain hot. [Stacks and limits](../benchmarks/results/jvm-ag
 are retained. The change has no throughput admission yet. The borrowed-probe predecessor has its own
 isolated run so later revisions preserve that comparison.
 
+The [completed symmetric-preflight matrix](../benchmarks/results/jvm-aggregates-symmetric-isolated-2026-10-16.json)
+retains 18 aggregate cases and eight Java/Rust profiles across both Flink lines. Medium numeric
+keys improve; STRING and distinct-key results remain mixed, with regressions and broad ranges
+retained. It does not establish default admission or complete #237.
+
+The next default-off [borrowed STRING exit experiment](../optimizations/zero-copy-exit-transpose.md#experimental-borrowed-string-exit)
+shares the batch-scoped UTF-8 view helper used by cache probes, retaining owned cache keys and
+mandatory output copies. Matched profiles reduce inclusive aggregate allocation samples by
+22%, while the latest local distinct-key job remains 7.6% slower than stock. Normal-capacity
+validation passes 73 combined cases on each Flink line; the small-capacity JSON/JVM selection
+passes 108 on 2.2 and 106 with two compatibility skips on 1.18. All trials, profiles and test
+logs are [retained](../benchmarks/results/jvm-aggregate-borrowed-string-exit-2026-10-16.json).
+The aggregate prototype and cache remain default off and draft.
+
 ## Still falls back
 
 Both the single-phase gate and, for the two-phase plan, **both halves independently** must clear

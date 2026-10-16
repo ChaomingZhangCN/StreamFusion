@@ -27,14 +27,17 @@ run use different ref groups and execute on separate diagnostic hosts. Cancel on
 pending copy after the separate run has been scheduled with the verified source.
 The pinned released Rust cache action saves dependencies and workspace crates for canonical
 branches. A separate release-library cache is keyed by native sources, Cargo files/configuration,
-Rust toolchain, root build configuration, workflow, OS/architecture and Flink line. The input
-fingerprint is computed before restoring outputs. A verified library-cache hit skips Cargo;
+Rust compiler identity, root/module build configuration, native build flags, OS/architecture
+and Flink line. The input fingerprint is computed before restoring outputs; Java source and
+unrelated workflow edits do not invalidate it. A verified library-cache hit skips Cargo;
 Java compilation still runs. Native-source/configuration changes miss that cache and rebuild.
 The payload is saved immediately after a successful release build, before correctness and
 measurements, so later Java-only runs can reuse it promptly. The report retains the native
 checksum, source fingerprint and cache-hit state.
-The initial run had no Rust cache hit and saved none because PR saves were disabled. Cache
-restoration and compilation both finish before correctness and timed execution.
+The initial run had no Rust cache hit and saved none because PR saves were disabled. The
+corrected-preflight matrix saved a release payload for each Flink line; a subsequent hit with
+the updated compiler/configuration fingerprint still needs verification. Cache restoration
+and compilation both finish before correctness and timed execution.
 
 Each query is `SELECT k, test_aggregate(v) FROM src GROUP BY k`, using the existing portable
 SUM UDAF. Typed runtime inputs cover INT, BIGINT and STRING grouping keys, at 16, 65,536 and
@@ -138,3 +141,25 @@ results remain historical diagnostics and do not establish current admission.
 retains all 18 v1 cases, eight profiles and full compressed logs/stacks. Medium STRING medians
 are stock/native 1.792/1.911 s on 2.2 and 1.874/1.725 s on 1.18; ranges overlap and the preflight
 limitation applies. These results are retained as diagnostics and do not establish admission.
+
+## Completed symmetric-preflight matrix
+
+[The full corrected matrix](results/jvm-aggregates-symmetric-isolated-2026-10-16.json)
+retains all 18 aggregate cases, eight table-function cases, eight mixed Java/Rust profiles and
+compressed logs/stacks from run 38861235198. Both released Flink lines completed successfully.
+This measures the primitive STRING hash index with the ordinary copying STRING exit.
+Medium INT/BIGINT keys improve on both lines; STRING results remain mixed and distinct-key
+regressions remain visible. A successful workflow is not admission of the aggregate prototype.
+
+The corrected table-function comparisons improve for split, numeric and grouped output on
+both lines. Wide STRING output improves on 2.2 but regresses on 1.18: stock/native medians
+4.441/4.571 s. All five paired native trials are slower there. There is no corrected-preflight
+previous-fallback revision comparison in this matrix. See the [operator results](../operators/unnest-correlate.md#corrected-complete-job-results)
+for all case medians and the evidence JSON for ranges and every trial.
+
+The next [borrowed STRING exit experiment](../optimizations/zero-copy-exit-transpose.md#experimental-borrowed-string-exit)
+targets the profiled temporary string copy while retaining mandatory output ownership.
+It defaults off; pass `--borrowed-string-exit` to the runner after building the candidate.
+The workflow measures that flag explicitly and records it in configuration. Its matched local
+profiles show lower sampled allocations, while local distinct-key throughput still regresses.
+The new candidate requires its own isolated matrix and remains draft.

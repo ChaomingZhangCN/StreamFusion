@@ -6,12 +6,15 @@ on:
       - '.github/workflows/jvm-aggregates.yml'
       - 'bin/bench-jvm-aggregates.py'
       - 'src/main/java/tech/streamfusion/operator/*Jvm*'
+      - 'src/main/java/tech/streamfusion/operator/ArrowToRowDataOperator.java'
+      - 'src/main/java/tech/streamfusion/arrow/**'
       - 'src/main/java/tech/streamfusion/planner/*Jvm*'
       - 'src/main/java-flink*/tech/streamfusion/compat/JvmAggregateCompat.java'
       - 'src/test/java/tech/streamfusion/*JvmAggregate*'
       - 'src/test/java/tech/streamfusion/StatefulSqlRescaleTest.java'
       - 'src/test/java/tech/streamfusion/PortableSqlRecovery.java'
       - 'src/test/java/tech/streamfusion/operator/JvmStringKeyProbeTest.java'
+      - 'src/test/java/tech/streamfusion/operator/StringExitOwnershipTest.java'
   workflow_dispatch: {}
 
 permissions:
@@ -48,7 +51,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.94.0
       - name: Fingerprint native release inputs before restoring build outputs
         id: native-inputs
-        run: echo "fingerprint=${{ hashFiles('native/**', '.cargo/**', 'rust-toolchain*', 'pom.xml', '.github/workflows/jvm-aggregates.yml') }}" >> "$GITHUB_OUTPUT"
+        env:
+          SF_NATIVE_INPUT_HASH: ${{ hashFiles('native/**', '.cargo/**', 'rust-toolchain*', 'pom.xml', 'streamfusion-core/pom.xml', 'streamfusion-runtime/pom.xml') }}
+          SF_NATIVE_PROFILE: ${{ matrix.profile }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, subprocess
+          source = os.environ['SF_NATIVE_INPUT_HASH']
+          assert len(source) == 64, 'native source fingerprint is absent'
+          digest = hashlib.sha256(source.encode())
+          digest.update(subprocess.check_output(['rustc', '-Vv']))
+          for name in ['SF_NATIVE_PROFILE', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS',
+                       'CARGO_BUILD_TARGET', 'CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS']:
+              digest.update((name + '=' + os.environ.get(name, '') + '\n').encode())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('fingerprint=' + digest.hexdigest() + '\n')
+          PY
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: native
@@ -74,10 +92,10 @@ jobs:
         run: |
           for capacity in 65536 3; do
             mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
-              -Dnative.build.skip=true '-Dtest=FlinkJvmAggregateSqlHarnessTest,StatefulSqlRescaleTest,JvmStringKeyProbeTest' \
+              -Dnative.build.skip=true '-Dtest=FlinkJvmAggregateSqlHarnessTest,StatefulSqlRescaleTest,JvmStringKeyProbeTest,StringExitOwnershipTest,TransposeOperatorsTest' \
               -Dsf.testForks=1 \
               '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
-              "-Dsf.extraJvmArgs=-Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=$capacity" \
+              "-Dsf.extraJvmArgs=-Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=$capacity -Dstreamfusion.experimental.borrowedStringExit=true" \
               surefire:test@default-test
           done
       - name: Install pinned released profiler
@@ -96,6 +114,7 @@ jobs:
           python3 bin/bench-jvm-aggregates.py --flink-line '${{ matrix.line }}'
           --output native/target/jvm-aggregate-diagnostics
           --profiler-agent "$RUNNER_TEMP/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so"
+          --borrowed-string-exit
       - name: Measure table functions with symmetric preflight and per-job clusters
         env:
           SF_BENCHMARK: 'true'
@@ -112,7 +131,7 @@ jobs:
               -Dnative.build.skip=true -Dtest=TableFunctionBenchmark -Dsf.testForks=1 \
               "-Dnative.resource.directory=$sf_table_native" \
               '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
-              "-Dsf.extraJvmArgs=-Djava.library.path=$sf_table_native -Xlog:gc*,safepoint:file=$sf_table_output/table-functions-v2-$sf_table_case-gc.log:time,uptime,level,tags" \
+              "-Dsf.extraJvmArgs=-Djava.library.path=$sf_table_native -Dstreamfusion.experimental.borrowedStringExit=true -Xlog:gc*,safepoint:file=$sf_table_output/table-functions-v2-$sf_table_case-gc.log:time,uptime,level,tags" \
               "-Dtablefunc.cases=$sf_table_shapes" "-Dtablefunc.rows=$sf_table_rows" \
               "-Dtablefunc.width=$sf_table_width" -Dtablefunc.keys=65536 \
               -Dtablefunc.warmup=2 -Dtablefunc.runs=5 \

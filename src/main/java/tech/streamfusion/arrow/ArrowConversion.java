@@ -227,6 +227,15 @@ public final class ArrowConversion {
 
   /** A reader that exposes the batch's rows as {@link RowData} backed directly by the Arrow buffers. */
   public static ArrowReader createArrowReader(VectorSchemaRoot root, RowType rowType) {
+    return createArrowReader(root, rowType, false);
+  }
+
+  /** Exit-only reader: downstream must copy or serialize each row before the batch closes. */
+  public static ArrowReader createArrowExitReader(VectorSchemaRoot root, RowType rowType) {
+    return createArrowReader(root, rowType, true);
+  }
+
+  private static ArrowReader createArrowReader(VectorSchemaRoot root, RowType rowType, boolean borrowStrings) {
     List<ColumnVector> columnVectors = new ArrayList<>();
     List<FieldVector> fieldVectors = root.getFieldVectors();
     // Iterate the row type's columns, not the root's: a batch may carry trailing system columns (the
@@ -235,7 +244,24 @@ public final class ArrowConversion {
       columnVectors.add(createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i)));
     }
     org.apache.arrow.vector.complex.ListVector[] caches = StringCacheColumns.readers(root, rowType.getFieldCount());
-    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches);
+    BorrowedStringValues[] borrowed = null;
+    if (borrowStrings) {
+      for (int i = 0; i < rowType.getFieldCount(); i++) {
+        switch (rowType.getTypeAt(i).getTypeRoot()) {
+          case CHAR:
+          case VARCHAR:
+            var values = BorrowedStringValues.create(fieldVectors.get(i));
+            if (values != null) {
+              if (borrowed == null) borrowed = new BorrowedStringValues[rowType.getFieldCount()];
+              borrowed[i] = values;
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    }
+    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches, borrowed);
   }
 
   /** A writer that appends {@link RowData} rows into the (pre-built, matching) Arrow vectors. */

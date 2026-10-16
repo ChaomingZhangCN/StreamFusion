@@ -22,7 +22,7 @@ class JvmStringKeyProbeTest {
       }
       input.setValueCount(values.length);
       input.makeTransferPair(slice).splitAndTransfer(1, 4);
-      var probe = new JvmAccumulatorCache.StringProbe(slice);
+      var probe = tech.streamfusion.arrow.BorrowedStringValues.create(slice);
       for (int i = 0; i < 4; i++) {
         var expected = BinaryStringData.fromString(values[i + 1]);
         var actual = probe.value(i);
@@ -42,7 +42,9 @@ class JvmStringKeyProbeTest {
       for (int i = 0; i < values.length; i++)
         input.setSafe(i, values[i].getBytes(StandardCharsets.UTF_8));
       input.setValueCount(values.length);
-      var probe = new JvmAccumulatorCache.StringProbe(input);
+      var probe = tech.streamfusion.arrow.BorrowedStringValues.create(input);
+      assertEquals(values[0], probe.value(0).toString());
+      assertEquals(values[1], probe.value(1).toString());
       retained.add(((BinaryStringData) probe.value(0)).copy());
       retained.add(((BinaryStringData) probe.value(1)).copy());
       assertEquals(BinaryStringData.fromString(values[0]), retained.get(0));
@@ -63,7 +65,7 @@ class JvmStringKeyProbeTest {
       input.setSafe(2, new byte[0]);
       input.setValueCount(3);
       assertEquals(0, input.getDataBuffer().capacity());
-      var probe = new JvmAccumulatorCache.StringProbe(input);
+      var probe = tech.streamfusion.arrow.BorrowedStringValues.create(input);
       assertEquals(BinaryStringData.EMPTY_UTF8, probe.value(0));
       assertNull(probe.value(1));
       assertEquals(BinaryStringData.EMPTY_UTF8, probe.value(2));

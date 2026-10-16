@@ -193,3 +193,10 @@ ranges are retained, including overlaps and the cold-key regression. The primiti
 [process-scoped diagnostic profile](../benchmarks/results/jvm-aggregate-string-hash-index-profile-2026-10-16.json)
 records external work and no timing claims. It confirms the index executes; lookup and
 string comparison remain sampled hotspots. Default admission is still open.
+
+The [completed corrected matrix](../benchmarks/results/jvm-aggregates-symmetric-isolated-2026-10-16.json)
+now retains both Flink lines, including distinct-key regressions and all mixed Java/Rust
+profiles. The batch-scoped UTF-8 view helper is also reused by the separate, default-off
+[STRING exit experiment](zero-copy-exit-transpose.md#experimental-borrowed-string-exit).
+That reuse does not change the probe's ownership: retained cache keys still refer only to
+owned BinaryRow storage, and ordinary Arrow input readers retain their copying behavior.

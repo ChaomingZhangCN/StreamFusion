@@ -71,6 +71,8 @@ def command(args, label, key_type, keys, profile=False):
         f"-Dstreamfusion.experimental.jvmAccumulatorCacheEntries={args.capacity}",
         f"-Xlog:gc*,safepoint:file={out / (label + '-gc.log')}:time,uptime,level,tags",
     ]
+    if args.borrowed_string_exit:
+        flags.append("-Dstreamfusion.experimental.borrowedStringExit=true")
     if profile:
         flags.append(
             f"-agentpath:{args.profiler_agent}=start,event=cpu-clock,interval=2ms,cstack=dwarf,alloc=1m,file={out / (label + '.jfr')}"
@@ -111,6 +113,7 @@ def main():
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--prefix-chars", type=int, default=16)
     parser.add_argument("--profiler-agent", type=Path)
+    parser.add_argument("--borrowed-string-exit", action="store_true")
     args = parser.parse_args()
     if (
         min(args.rows, args.capacity, args.warmup, args.runs) <= 0
@@ -170,6 +173,7 @@ def main():
             "cluster_lifetime": "per job",
             "preflight_explain": "both engines outside the clock",
             "fixture_method": "symmetric-preflight-v2",
+            "borrowed_string_exit": args.borrowed_string_exit,
             "boundary": "complete executeSql(insert).await; cluster boot/config outside clock",
         },
         "measurements": [],

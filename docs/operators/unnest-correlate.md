@@ -58,7 +58,7 @@ The following v1 results used native-only pre-clock EXPLAIN and metrics clusters
 pair. They remain historical diagnostics; corrected comparisons use EXPLAIN for both engines
 and a fresh cluster for every job. [Method correction](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
 records the change. Both Flink lines pass all four corrected table-function shapes in fixture
-smokes; full-size reruns remain pending. SQL/data/resources/transposes are unchanged.
+smokes and full-size reruns. SQL/data/resources/transposes are unchanged.
 
 Released Flink 2.2.1/JDK 17 release jobs measured 2M-row splitting at **1.055 s native versus
 1.348 s stock and 1.393 s previous StreamFusion**, and 500k-row split-plus-JSON aggregation at
@@ -86,6 +86,27 @@ revision, including both transposes:
 The numeric source emits an INT key and nullable BIGINT value; each non-NULL invocation emits
 two rows with BIGINT/INT results. The width parameter is unused there. These are representative
 function boundaries, not a guarantee that every user function runs faster.
+
+### Corrected complete-job results
+
+[The symmetric-preflight matrix](../benchmarks/results/jvm-aggregates-symmetric-isolated-2026-10-16.json)
+uses a fresh cluster for each job, 2 GiB heap, parallelism one, production IPC, both 1,024-row
+transposes, two warmups and five alternating pairs on separate four-CPU Ubuntu/JDK17 runners:
+
+| Case | Rows | Flink 2.2 stock/native median, s | Flink 1.18 stock/native median, s |
+| --- | ---: | ---: | ---: |
+| STRING split, width 16 | 2M | 2.398 / 1.889 | 2.385 / 1.927 |
+| INT/BIGINT arguments and results | 2M | 1.476 / .902 | 1.420 / .914 |
+| Split plus JSON grouping | 500k | 3.668 / 1.302 | 3.604 / 1.436 |
+| STRING split, width 256 | 2M | 4.729 / 4.570 | 4.441 / 4.571 |
+
+Native ranges lie below stock for the first three shapes on both lines and wide output on
+2.2. Wide output on 1.18 regresses by 2.9%, with every paired native trial slower; its ranges
+overlap slightly. All trials and ranges are preserved. The grouped gain includes existing
+native JSON aggregation. These runs use the ordinary copying STRING exit; the default-off
+[borrowed STRING exit investigation](../optimizations/zero-copy-exit-transpose.md#experimental-borrowed-string-exit)
+targets that profiled copy and requires separate performance evidence. This corrected matrix
+does not yet repeat the previous-fallback revision control.
 
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
