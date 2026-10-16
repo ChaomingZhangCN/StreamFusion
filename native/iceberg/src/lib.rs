@@ -67,7 +67,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_write(
     array: jlong,
     rows: JIntArray,
     count: i32,
-) {
+) -> jlong {
     jni_guard(env, |env| {
         let encoder = unsafe { &mut *(handle as *mut writer::Encoder) };
         let batch = import_record_batch_with_schema(array, &encoder.input_schema);
@@ -88,6 +88,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_write(
             })
             .collect::<Vec<_>>();
         futures::executor::block_on(encoder.write(&batch, &indices));
+        encoder.memory_bytes() as jlong
     })
 }
 

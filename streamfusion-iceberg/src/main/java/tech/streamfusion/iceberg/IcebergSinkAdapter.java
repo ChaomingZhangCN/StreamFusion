@@ -97,7 +97,10 @@ final class IcebergSinkAdapter {
         field.set(
             operator,
             new IcebergTaskWriterFactory(
-                original, FlinkSchemaUtil.convert(table.schema()), decorator));
+                original,
+                FlinkSchemaUtil.convert(table.schema()),
+                decorator,
+                (org.apache.flink.streaming.api.operators.AbstractStreamOperator<?>) operator));
       } catch (IllegalAccessException e) {
         throw new IllegalStateException("Cannot install released Iceberg writer adapter", e);
       }

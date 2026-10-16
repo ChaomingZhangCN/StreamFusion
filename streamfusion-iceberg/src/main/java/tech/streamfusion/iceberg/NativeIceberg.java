@@ -30,7 +30,7 @@ final class NativeIceberg {
       Object output,
       byte[] transferBuffer);
 
-  static native void write(long handle, long arrayAddress, int[] selected, int count);
+  static native long write(long handle, long arrayAddress, int[] selected, int count);
 
   static native long estimatedBytes(long handle);
 

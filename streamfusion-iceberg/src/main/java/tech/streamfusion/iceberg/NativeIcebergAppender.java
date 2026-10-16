@@ -20,6 +20,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.parquet.ParquetUtil;
 import tech.streamfusion.operator.NativeAllocator;
+import tech.streamfusion.operator.TaskOffHeapMemory;
 
 /** Keeps Java's accepted-row prefixes in Arrow until the native file encoder consumes them. */
 final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteContext.PendingWrite {
@@ -31,6 +32,8 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
   private int[] selected = new int[1024];
   private int count;
   private long handle;
+  private long memoryOwner;
+  private long heldBytes;
   private PositionOutputStream output;
   private Metrics metrics;
   private List<Long> splitOffsets;
@@ -72,6 +75,10 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
     var root = context.root();
     var allocator = root.getVector(0).getAllocator();
     if (handle == 0) {
+      if (memoryOwner == 0) {
+        memoryOwner = TaskOffHeapMemory.registerOwner("iceberg-parquet", file.location());
+        account(1 << 20);
+      }
       output = file.create();
       try (var exported = ArrowSchema.allocateNew(allocator)) {
         Data.exportSchema(allocator, root.getSchema(), NativeAllocator.DICTIONARIES, exported);
@@ -95,7 +102,7 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
     try (var array = ArrowArray.allocateNew(allocator)) {
       Data.exportVectorSchemaRoot(allocator, root, NativeAllocator.DICTIONARIES, array);
       try {
-        NativeIceberg.write(handle, array.memoryAddress(), selected, count);
+        account(NativeIceberg.write(handle, array.memoryAddress(), selected, count));
       } finally {
         if (array.snapshot().release != 0) array.release();
       }
@@ -164,11 +171,31 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
       throw failure;
     } finally {
       closed = true;
-      if (handle != 0) {
-        NativeIceberg.closeWriter(handle);
-        handle = 0;
+      try {
+        if (handle != 0) {
+          long current = handle;
+          handle = 0;
+          NativeIceberg.closeWriter(current);
+        }
+      } finally {
+        releaseMemory();
       }
     }
+  }
+
+  private void account(long bytes) {
+    if (bytes < 0) throw new IllegalStateException("Negative Iceberg encoder memory");
+    long delta = bytes - heldBytes;
+    if (delta > 0 && !TaskOffHeapMemory.tryReserve(memoryOwner, delta))
+      throw TaskOffHeapMemory.exhausted("Iceberg Parquet encoder", delta);
+    if (delta < 0) TaskOffHeapMemory.release(memoryOwner, -delta);
+    heldBytes = bytes;
+  }
+
+  private void releaseMemory() {
+    if (memoryOwner != 0) TaskOffHeapMemory.closeOwner(memoryOwner);
+    memoryOwner = 0;
+    heldBytes = 0;
   }
 
   private void closeOutput() throws IOException {
@@ -191,6 +218,7 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
         NativeIceberg.closeWriter(current);
       }
     } finally {
+      releaseMemory();
       closeOutput();
     }
   }

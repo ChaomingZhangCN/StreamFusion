@@ -13,6 +13,7 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import tech.streamfusion.arrow.ArrowConversion;
 import tech.streamfusion.operator.ArrowBatch;
+import tech.streamfusion.operator.NativeAllocator;
 import tech.streamfusion.operator.RowDataArrowConverter;
 
 /**
@@ -25,12 +26,18 @@ final class IcebergTaskWriterFactory implements TaskWriterFactory<ArrowBatch> {
   }
 
   private final RowDataTaskWriterFactory stock;
+  private final org.apache.flink.streaming.api.operators.AbstractStreamOperator<?> owner;
   private final RowType rowType;
   private final Decorator decorator;
   private final boolean keyed;
   private transient ArrowWriteContext context;
 
-  IcebergTaskWriterFactory(RowDataTaskWriterFactory stock, RowType rowType, Decorator decorator) {
+  IcebergTaskWriterFactory(
+      RowDataTaskWriterFactory stock,
+      RowType rowType,
+      Decorator decorator,
+      org.apache.flink.streaming.api.operators.AbstractStreamOperator<?> owner) {
+    this.owner = owner;
     this.stock = stock;
     this.rowType = rowType;
     this.decorator = decorator;
@@ -48,6 +55,7 @@ final class IcebergTaskWriterFactory implements TaskWriterFactory<ArrowBatch> {
   @Override
   @SuppressWarnings("unchecked")
   public void initialize(int taskId, int attemptId) {
+    NativeAllocator.initializeFor(owner);
     stock.initialize(taskId, attemptId);
     context = new ArrowWriteContext();
     var field = IcebergSinkAdapter.field(RowDataTaskWriterFactory.class, "fileWriterFactory");

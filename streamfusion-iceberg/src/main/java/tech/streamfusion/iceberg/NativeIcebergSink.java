@@ -120,6 +120,8 @@ public final class NativeIcebergSink {
   }
 
   static void validateSchema(org.apache.iceberg.Schema schema) {
+    if (schema.columns().isEmpty())
+      throw new IllegalArgumentException("Native Iceberg writes require data columns");
     for (var field : schema.columns()) {
       switch (field.type().typeId()) {
         case INTEGER:

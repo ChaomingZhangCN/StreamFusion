@@ -3,8 +3,8 @@
 Comet provides the model for explicit Iceberg file-task metadata and Arrow/JNI ownership.
 StreamFusion retains Flink's streaming discovery, split ordinals, row offsets, watermark
 emitter, operator/coordinator state, rolling writers, delete encoders and committers.
-Released iceberg-rust reads admitted Parquet tasks and encodes one Java-selected data
-file at a time. Java FileIO supplies credentials, paths, streams and positional reads.
+Released iceberg-rust reads admitted Parquet tasks; parquet-rs encodes one Java-selected
+data file at a time. Java FileIO supplies credentials, paths, streams and positional reads.
 This extends the [encoding-only sink boundary](22-parquet-sink-encoding-only-native.md).
 
 Flink's range sink adds another host boundary: its statistics operator emits borrowed
@@ -30,3 +30,12 @@ reimplementation. The generator/updater still decide metadata and routing over b
 views; target-homogeneous selections cross both forward and keyed paths as Arrow batches.
 A fixed payload layout avoids the host's materialized-row schema conversion becoming a
 transport boundary. Unknown layouts require a separate columnar conversion checkpoint.
+
+The data encoder uses parquet-rs's `AsyncArrowWriter` directly, matching Comet's direct
+Arrow/Parquet encoding boundary. Iceberg-rust's released single-file wrapper hides the
+writer's retention estimate. Calling the underlying writer permits per-file charges
+against Flink's task off-heap pool without replacing any Java rolling or commit policy.
+Byte-parity fixtures against that released wrapper cover codecs, page versions, sparse
+selections, NaNs, estimated file size and split offsets. The accounting includes reported
+writer retention, estimated row-group metadata and the bounded JNI buffer; transient
+codec and decoder allocations are observed through sampled RSS, not claimed as bounded.

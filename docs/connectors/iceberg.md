@@ -32,7 +32,7 @@ version-gated adapter replaces its task-writer factory before job serialization,
 while retaining Iceberg's writer operator, checkpoint flushes, committer, table
 loader, and downstream graph. The host task writer traverses borrowed Arrow row
 views; the data appender records only accepted positions. Those selections drain
-into iceberg-rust's single-file Parquet encoder before releasing each input batch,
+into parquet-rs's single-file Arrow encoder before releasing each input batch,
 at memory thresholds, at size checks, and before close. Java's per-row counting
 and 1,000-row rolling checks remain in place. Different encoders can produce
 different byte sizes and file boundaries under the same target-size policy.
@@ -166,9 +166,17 @@ UIDs (the sink overload takes a host UID prefix); rescaling must also preserve c
 host chaining/max-parallelism boundaries. The legacy committer factory always chains,
 so a 1→N topology change needs the same care as stock Iceberg.
 
-Fine-grained accounting for internal decoder/encoder retention and wider recovery
-coverage remain pending. Shared Arrow allocations use the normal task off-heap budget;
-queued batches and native handles have explicit cleanup. Acceleration remains opt-in
+The encoder charges parquet-rs's reported retained memory, an estimate for accumulated
+row-group metadata, and its 1 MiB JNI output buffer to the normal task off-heap budget
+per open file. Reservations update after each batch and release on close or failure;
+a quota failure aborts pending appends. This is retention accounting, not a bound on
+all transient codec allocations. The released iceberg-rust writer hides this memory
+API, so encoding uses its underlying parquet-rs Arrow writer directly; byte-for-byte
+fixtures compare file bytes, rolling-size estimates, NaN counts and split offsets with
+the released wrapper across codecs/page versions. Iceberg schema conversion, FileIO
+and source task decoding still use crate 0.10.1. Shared Arrow allocations use the same
+budget; internal decoder retention remains opaque. Queued batches and native handles
+have explicit cleanup. Acceleration remains opt-in
 until the release end-to-end comparison establishes performance. The source follows
 Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
 The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark
