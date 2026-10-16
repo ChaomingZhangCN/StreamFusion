@@ -714,6 +714,14 @@ cardinality medians improve, while distinct STRING keys remain slower than stock
 lines and distinct INT regresses on 2.2. All ranges, negative results and mixed profiles are
 preserved. It validates the exit-only revision, not the later key-projection candidate.
 
+The [completed key-projection matrix](../benchmarks/results/jvm-aggregates-key-projection-isolated-2026-10-16.json)
+now includes both Flink lines and actual historical fallback runtime `b965b8bf`. Most medians
+improve, but medium STRING and distinct BIGINT still regress on 1.18. Distinct STRING on 2.2
+beats its current stock control but remains slightly slower than the previous-runtime median.
+Separate-JVM control drift and all ranges are retained. Both native-library caches hit and all
+historical runtime queries verify zero native operators. This completes that measurement gap,
+not performance admission or the remaining merge/reset/OVER/type contracts in #237.
+
 ## Still falls back
 
 Both the single-phase gate and, for the two-phase plan, **both halves independently** must clear

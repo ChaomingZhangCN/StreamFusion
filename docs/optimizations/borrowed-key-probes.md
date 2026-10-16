@@ -227,5 +227,12 @@ stacks are retained as well. Sampled allocations are estimates, not copied bytes
 The normal-capacity selection passes 74 checks on each Flink line. At capacity three, the
 aggregate/transpose/JSON selection passes 94 checks on 2.2 and 92 with two compatibility skips
 on 1.18; the separate 15-case nested JSON/JVM suite also passes each line. Both changed
-production and test sources compile against released dependencies. Isolated performance
-comparison remains required before admission.
+production and test sources compile against released dependencies. The completed isolated
+comparison below retains the remaining admission failures.
+
+[The completed isolated key-projection matrix](../benchmarks/results/jvm-aggregates-key-projection-isolated-2026-10-16.json)
+retains both Flink lines, stock and actual previous-runtime controls, full Java/Rust stacks and
+GC logs. Distinct STRING medians improve versus current stock, but medium STRING on 1.18
+still regresses, and 2.2 distinct STRING remains slightly slower than its previous-runtime
+median. Separate-JVM control drift limits attribution. The cache and aggregate remain default
+off; the allocation reduction does not establish a blanket throughput win.

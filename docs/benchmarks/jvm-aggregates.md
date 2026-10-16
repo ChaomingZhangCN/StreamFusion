@@ -214,7 +214,7 @@ Commands, fixture hashes, actual runtime/fixture revisions, native checksum, eve
 GC log are retained under the workflow artifact's `previous-runtime/` directory. JSON uses
 `previous_seconds`; inherited raw fixture logs label that engine `native` even though the
 assertions require fallback. Separate JVMs and control drift still limit causal attribution.
-The new full-size previous-runtime comparison remains pending until that workflow completes.
+The full-size previous-runtime comparison has completed; the current matrix below retains its actual runtime and all controls.
 
 After the candidate release build, reproduce with a new worktree path:
 
@@ -232,3 +232,40 @@ durations are fixture checks, not speed evidence. Existing worktrees are never r
 pass all 14 typed aggregate/table-function smoke shapes on the actual prior runtime. The
 artifact records fixture hashes, stock/fallback trials, production-source cleanliness and
 complete build/query logs. These small jobs establish execution and fallback, not throughput.
+
+## Current key-projection and previous-runtime matrix
+
+[Run 38867512587](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38867512587)
+completed successfully on both Flink lines. [All current and historical-runtime results](results/jvm-aggregates-key-projection-isolated-2026-10-16.json)
+retain 18 candidate aggregate cases, eight candidate table cases, the corresponding 26 actual
+previous-runtime cases, eight mixed Java/Rust profiles and GC logs. The actual merge matches
+measured production and fixture sources. Both jobs report a native payload cache hit; previous
+runtime production sources remain unchanged and reuse the verified identical native library.
+
+Medians below are seconds, ordered **stock / candidate / actual previous fallback**. The
+previous runtime is a separate JVM measured afterward on the same runner; its own stock
+controls, every trial and all ranges remain in the artifact. Cross-JVM control drift limits
+causal comparisons and a lower candidate median does not establish universal admission.
+
+| Key type / cardinality | Flink 2.2 | Flink 1.18 |
+| --- | ---: | ---: |
+| INT / 16 | 1.099 / .893 / 1.082 | 1.005 / .864 / 1.004 |
+| INT / 65,536 | 1.598 / 1.103 / 1.691 | 1.437 / .945 / 1.390 |
+| INT / 2M | 3.016 / 2.900 / 2.923 | 2.964 / 2.845 / 2.943 |
+| BIGINT / 16 | 1.013 / .943 / .968 | 1.089 / .840 / .976 |
+| BIGINT / 65,536 | 1.563 / 1.005 / 1.453 | 1.379 / 1.054 / 1.313 |
+| BIGINT / 2M | 3.066 / 2.846 / 3.062 | 2.994 / 3.151 / 2.853 |
+| STRING / 16 | 1.406 / 1.340 / 1.342 | 1.257 / 1.195 / 1.203 |
+| STRING / 65,536 | 1.951 / 1.800 / 1.917 | 1.685 / 1.778 / 1.687 |
+| STRING / 2M | 3.764 / 3.402 / 3.350 | 3.565 / 3.333 / 3.493 |
+
+The 1.18 medium STRING and distinct BIGINT medians still regress versus both controls. On
+2.2 distinct STRING, the candidate beats its current stock control but remains slightly slower
+than the actual previous-runtime median. All unfavorable results and overlapping ranges stay
+visible. Aggregates, accumulator caching and the borrowed exit remain default off and draft.
+
+The table-function control also retains its wide-output regression: stock/candidate/previous
+medians are 4.793/4.863/4.415 s on 2.2 and 4.433/5.068/4.364 s on 1.18. Split, numeric and grouped
+cases improve, as recorded on the [operator page](../operators/unnest-correlate.md). The key
+projection change does not establish a table-function speedup; the wide case needs its own
+profiling rather than attribution from aggregate stacks.

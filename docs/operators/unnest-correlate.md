@@ -114,8 +114,17 @@ also completes both lines with all trials retained. Stock/native medians are 2.4
 on 1.18 they are 1.563/1.332, 1.114/.704, 3.030/1.215 and 3.503/3.481 s respectively.
 Wide ranges overlap on both lines, so no clear wide-output gain is established. Other shapes
 retain separated native/stock ranges. Host/control drift limits comparisons across matrices,
-and the new exit path remains default off. Actual previous-runtime controls are scheduled
-separately with the same corrected fixtures.
+and the new exit path remains default off. Actual previous-runtime controls now use the same corrected fixtures in the completed
+comparison below.
+
+[The subsequent completed comparison](../benchmarks/results/jvm-aggregates-key-projection-isolated-2026-10-16.json)
+includes actual prior-runtime `b965b8bf` controls on both lines. Stock/candidate/previous medians
+on 2.2 are 2.457/1.809/2.267 s for split, 1.466/.951/1.514 s for numeric, 3.862/1.428/3.561 s
+for grouped and 4.793/4.863/4.415 s for wide output. On 1.18 they are 2.326/1.891/2.318,
+1.414/.904/1.379, 3.381/1.422/3.446 and 4.433/5.068/4.364 s respectively. Previous controls
+run in separate JVMs; their own stock trials and all ranges are retained. The wide regression
+remains unresolved, especially on 1.18. The borrowed exit stays default off; the aggregate
+key-projection change is not a causal explanation for table-function timings.
 
 Validation passes 67 selected checks on Flink 2.2.1 and 64 on 1.18.1, with three existing UNNEST
 version skips on 1.18.1. Coverage includes mutable output reuse, 8,193 results from one invocation,
