@@ -128,6 +128,10 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
     try (input) {
       var reader = ArrowConversion.createArrowReader(input, inputType);
       var inputKinds = (TinyIntVector) input.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
+      var keyProbe =
+          accumulatorCache == null
+              ? null
+              : accumulatorCache.stringProbe(input.getVector(keyColumn));
       for (int index = 0; index < input.getRowCount(); index++) {
         var row = reader.read(index);
         row.setRowKind(
@@ -135,7 +139,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
         setCurrentKey(
             accumulatorCache == null
                 ? keySelector.getKey(row)
-                : accumulatorCache.keyFor(row, keyColumn, keySelector));
+                : accumulatorCache.keyFor(row, keyColumn, keySelector, keyProbe, index));
         function.processElement(row, context, collector);
       }
       flush();

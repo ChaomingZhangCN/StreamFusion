@@ -10,7 +10,8 @@ retains all local comparisons and profiles, including regressions and runs with 
 Shared-workspace builds repeatedly overlapped local trials. The JVM aggregate diagnostics
 workflow gives each released Flink line its own GitHub-hosted Ubuntu runner and JDK 17.
 Release compilation finishes first, followed by the focused correctness/recovery suite at
-65,536-entry and three-entry capacities, including checkpoint rescaling and actual canonical-savepoint restores. Only then does `bin/bench-jvm-aggregates.py` run
+65,536-entry and three-entry capacities, including checkpoint rescaling, actual canonical-savepoint restores and borrowed-string
+probe slice/ownership checks. Only then does `bin/bench-jvm-aggregates.py` run
 complete jobs; it never overlaps its build or correctness checks with measurements.
 
 The workflow runs on relevant pull-request changes, and can be dispatched once available on
@@ -83,3 +84,16 @@ lines. It predates the STRING cache experiment. Medium numeric keys improve, STR
 keys regress, and distinct-key ranges remain broad. Profiles motivate STRING key reuse;
 they do not establish candidate speed or default admission. Compressed per-case logs and full
 CPU/allocation stacks are checked in before the workflow artifacts expire.
+
+
+[The local copying-probe follow-up](results/jvm-aggregate-copying-string-probe-2026-10-16.json)
+retains all three STRING cardinalities and a separate Java/Rust profile. It still loses at
+medium and distinct keys. These measurements precede the borrowed UTF-8 probe experiment;
+its new results must be reported separately rather than replacing unfavorable trials.
+
+
+[The borrowed-probe follow-up](results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
+retains a matched local CPU/allocation profile and the contaminated unprofiled repeat. Cache
+allocation decreases, but map lookup remains hot and whole-job admission is still unproven.
+The monitor stopped the matrix after observing external Java/Rust work; low/distinct cases
+were not rerun on that shared host.

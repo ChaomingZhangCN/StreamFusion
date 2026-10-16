@@ -9,13 +9,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.core.memory.MemorySegment;
+import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.shaded.netty4.io.netty.util.collection.LongObjectHashMap;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.runtime.keyselector.RowDataKeySelector;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 
@@ -81,9 +86,46 @@ final class JvmAccumulatorCache {
             });
   }
 
-  RowData keyFor(RowData input, int field, RowDataKeySelector selector) throws Exception {
+  StringProbe stringProbe(FieldVector input) {
+    if (!stringKey
+        || !(input instanceof VarCharVector)
+        || input.getDataBuffer().capacity() > Integer.MAX_VALUE
+        || (states.size() == 1 && !states.get(0).enabled)) return null;
+    return new StringProbe((VarCharVector) input);
+  }
+
+  static final class StringProbe {
+    private final VarCharVector input;
+    private final MemorySegment[] segments;
+    private final BinaryStringData value;
+
+    StringProbe(VarCharVector input) {
+      this.input = input;
+      int bytes = Math.toIntExact(input.getDataBuffer().capacity());
+      segments =
+          bytes == 0
+              ? null
+              : new MemorySegment[] {
+                MemorySegmentFactory.wrapOffHeapMemory(input.getDataBuffer().nioBuffer(0, bytes))
+              };
+      value = segments == null ? null : BinaryStringData.fromAddress(segments, 0, 0);
+    }
+
+    // The mutable probe borrows this batch and is never inserted into the retained key map.
+    StringData value(int row) {
+      if (input.isNull(row)) return null;
+      int start = input.getOffsetBuffer().getInt(row * 4L);
+      int end = input.getOffsetBuffer().getInt((row + 1L) * 4);
+      if (start == end) return BinaryStringData.EMPTY_UTF8;
+      value.getBinarySection().pointTo(segments, start, end - start);
+      return value;
+    }
+  }
+
+  RowData keyFor(RowData input, int field, RowDataKeySelector selector, StringProbe probe, int row)
+      throws Exception {
     if (states.size() == 1) {
-      RowData key = states.get(0).keyFor(input, field);
+      RowData key = states.get(0).keyFor(input, field, probe, row);
       if (key != null) return key;
     }
     return selector.getKey(input);
@@ -123,13 +165,13 @@ final class JvmAccumulatorCache {
       this.delegate = delegate;
     }
 
-    private RowData keyFor(RowData input, int field) {
+    private RowData keyFor(RowData input, int field, StringProbe probe, int row) {
       if (!enabled) return null;
       Entry entry =
           input.isNullAt(field)
               ? nullEntry
               : stringKey
-                  ? stringValues.get(input.getString(field))
+                  ? stringValues.get(probe == null ? input.getString(field) : probe.value(row))
                   : values.get(intKey ? input.getInt(field) : input.getLong(field));
       if (stringKey) probedEntry = entry;
       return entry == null ? null : entry.key;

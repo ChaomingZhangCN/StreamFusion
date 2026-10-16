@@ -143,10 +143,31 @@ all typed key/cardinality trials and mixed Java/Rust profiles without asserting 
 Isolated runs on both released Flink lines now confirm medium numeric gains and STRING
 regressions for the prior uncached STRING path. Medium STRING key-selector stacks sample
 1.87 GB on 2.2 and 1.81 GB on 1.18 over 5M native rows per profile. The subsequent STRING
-experiment probes using the released Arrow reader's StringData, reuses owned BinaryRow keys
-on hits, and retains StringData views only over those owned keys. The probe still allocates;
-no borrowed Arrow string survives batch close. Its entry selection also feeds the accumulator
+experiment reuses owned BinaryRow keys on hits and retains StringData views only over those
+owned keys. The copying-probe predecessor still regresses, with a medium-key lookup hotspot.
+The current probe borrows a mutable binary-string view over Arrow UTF-8 bytes only during
+ingest, following Comet's borrowed UTF-8 view discipline; it never becomes a retained key.
+One Flink MemorySegment wraps the current data buffer per batch, and offsets reposition the
+probe without allocating a byte array/string wrapper per lookup. NULL and empty buffers keep
+the released binary-string equality/hash contract. No borrowed Arrow string survives batch close. Its entry selection also feeds the accumulator
 read, avoiding a second lookup/string view on hits. NULL and cold bypass retain the existing
-contracts. Semantic and recovery checks pass; candidate throughput has not yet been measured.
+contracts. The borrowed probe passes all 49 combined semantic/recovery/rescale/ownership cases on both
+Flink lines at both capacities. Its first whole-job repeat observed external work; throughput
+admission remains unproven.
 [Isolated baseline trials and profiles](../benchmarks/results/jvm-aggregates-isolated-2026-10-16.json)
 retain unfavorable results and broad distinct-key ranges. Both experiments remain default off.
+
+
+[The copying-probe follow-up](../benchmarks/results/jvm-aggregate-copying-string-probe-2026-10-16.json)
+retains three clean complete-job comparisons and its Java/Rust CPU/allocation recording. The
+medium-key native median remains 1.405 s versus stock 1.284 s. Its profiled key-selector sample
+is small, while lookup still allocates temporary input strings. The current borrowed-probe
+experiment addresses that measured site; it does not claim a whole-job speedup yet.
+
+
+[Matched local profiles](../benchmarks/results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
+show inclusive JVM aggregate allocation samples fall 4.999 → 4.031 GB and cache-path samples
+1.060 → .086 GB, over the same 5M native UDAF rows in each recording. Both contain symbolized
+Rust builtin-SUM CPU stacks. Map lookup remains the main sampled Java cost in the aggregate
+loop. The subsequent whole-job repeat overlapped external work and is diagnostic only; no
+throughput gain or default admission follows from these allocation estimates.

@@ -11,6 +11,7 @@ on:
       - 'src/test/java/tech/streamfusion/*JvmAggregate*'
       - 'src/test/java/tech/streamfusion/StatefulSqlRescaleTest.java'
       - 'src/test/java/tech/streamfusion/PortableSqlRecovery.java'
+      - 'src/test/java/tech/streamfusion/operator/JvmStringKeyProbeTest.java'
   workflow_dispatch: {}
 
 permissions:
@@ -58,7 +59,7 @@ jobs:
         run: |
           for capacity in 65536 3; do
             mvn -B -ntp -P${{ matrix.profile }} -pl streamfusion-runtime \
-              -Dnative.build.skip=true '-Dtest=FlinkJvmAggregateSqlHarnessTest,StatefulSqlRescaleTest' \
+              -Dnative.build.skip=true '-Dtest=FlinkJvmAggregateSqlHarnessTest,StatefulSqlRescaleTest,JvmStringKeyProbeTest' \
               -Dsf.testForks=1 \
               '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
               "-Dsf.extraJvmArgs=-Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=$capacity" \

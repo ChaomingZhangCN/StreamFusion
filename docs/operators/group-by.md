@@ -552,9 +552,11 @@ snapshots. Snapshot boundaries invalidate borrowed accumulator views before subs
 mutation; restore starts with an empty cache. Flushing restores the operator's previous key
 context and ignores an empty cache on idle subtasks. Other key shapes use managed state directly.
 Cache hits also reuse their immutable, owned Flink BinaryRow key: the input grouping field
-probes a primitive or StringData map before key construction. STRING probes still materialize
-the released reader's StringData; they do not claim zero-copy input. Retained StringData keys
-refer only to owned BinaryRow storage, never to the closing Arrow batch. A STRING hit passes
+probes a primitive or StringData map before key construction. STRING probes borrow a mutable
+Flink binary-string view over the current Arrow buffer for lookup only; the view is local to
+one ingest call and never enters the map. Buffers too large for a Java NIO view retain the
+released copying reader. Retained StringData keys refer only to owned BinaryRow
+storage, never to the closing Arrow batch. A STRING hit passes
 the selected entry to the state read without constructing a second string view. Misses use
 the released selector's owned copy.
 The key field comes from the optimized input projection, rather than the original source schema.
@@ -637,8 +639,28 @@ the builtin-SUM control, while the UDAF itself executes released generated Java.
 
 These profiles motivated the experimental STRING owned-key cache described above. Its
 39-case semantic suite passes both lines at both capacities; the full 46-case rescale/recovery
-selection also passes at capacity three. Its throughput remains unproven pending the next
-isolated run. The feature and cache remain default off, the PR remains draft and #237 stays open.
+selection also passes at capacity three. A subsequent local run of its copying probes still
+regresses: 16-key native/stock medians are .715/.717 s, 65,536-key 1.405/1.284 s, and 2M distinct
+2.082/1.988 s. The medium-key CPU profile shifts the lookup hotspot to the cache, and sampled
+allocations still include temporary input-string wrappers. These are separate-host results
+from the isolated baseline, not a matched causal comparison. [All trials and mixed stacks](../benchmarks/results/jvm-aggregate-copying-string-probe-2026-10-16.json)
+retain the negative results.
+
+The next experiment borrows an Arrow UTF-8 view only for lookup, following Comet's view/ownership
+pattern. All 49 combined checks pass on both Flink lines at both cache capacities: the
+39-case SQL harness, seven checkpoint/savepoint-rescale controls and three new slice/NULL/
+empty-buffer/owned-copy checks. The final NIO-size fallback guard also compiles on both lines
+and passes both three-case view checks. [Validation](../benchmarks/results/jvm-aggregate-borrowed-string-validation-2026-10-16.json)
+records the source hashes and counts.
+
+Matched local profiles retain the same 1M-row, 32,768-key UDAF plus builtin Rust control and
+five native UDAF jobs. Inclusive aggregate-ingest allocation samples fall from 4.999 to 4.031 GB
+(19%); cache-path samples fall from 1.060 to .086 GB (92%). CPU samples still concentrate in
+map lookup. The first unprofiled repeat observed 34.53 external CPU seconds, so its
+1.515/1.432 s native/stock medians are diagnostic only; remaining cases were deferred.
+[Complete stacks and diagnostic trials](../benchmarks/results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
+retain that limitation. This allocation reduction does not establish whole-job admission.
+The feature and cache remain default off, the PR remains draft and #237 stays open.
 
 ## Still falls back
 
