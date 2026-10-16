@@ -7,8 +7,11 @@ import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
+import java.util.function.Function;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 /**
@@ -18,6 +21,28 @@ public final class NativePlannerTestEnvironment {
   private NativePlannerTestEnvironment() {}
 
   public static StreamTableEnvironment create(StreamExecutionEnvironment env) throws IOException {
+    return withPlannerClassLoader(
+        loader ->
+            StreamTableEnvironment.create(
+                env,
+                EnvironmentSettings.newInstance()
+                    .inStreamingMode()
+                    .withClassLoader(loader)
+                    .build()));
+  }
+
+  public static TableEnvironment create(Configuration configuration) throws IOException {
+    return withPlannerClassLoader(
+        loader ->
+            TableEnvironment.create(
+                EnvironmentSettings.newInstance()
+                    .inStreamingMode()
+                    .withConfiguration(configuration)
+                    .withClassLoader(loader)
+                    .build()));
+  }
+
+  private static <T> T withPlannerClassLoader(Function<ClassLoader, T> create) throws IOException {
     String service = "META-INF/services/org.apache.flink.table.factories.Factory";
     ClassLoader parent = NativePlannerTestEnvironment.class.getClassLoader();
     var providers = new LinkedHashSet<String>();
@@ -48,8 +73,7 @@ public final class NativePlannerTestEnvironment {
     ClassLoader previous = Thread.currentThread().getContextClassLoader();
     try {
       Thread.currentThread().setContextClassLoader(loader);
-      return StreamTableEnvironment.create(
-          env, EnvironmentSettings.newInstance().inStreamingMode().withClassLoader(loader).build());
+      return create.apply(loader);
     } finally {
       Thread.currentThread().setContextClassLoader(previous);
     }

@@ -18,6 +18,11 @@ backend is retained for ordinary Flink operators. Incremental checkpointing, loc
 predefined options, previously configured RocksDB options and programmatic memory settings keep
 Flink's precedence; legacy checkpoint storage keeps its precedence too. Custom backend subclasses,
 options factories and memory factories retain the stock backend and cause keyed SQL to fall back.
+Configuration supplied through `EnvironmentSettings` participates in this selection, including
+RocksDB options in the table's root configuration. After successful selection, the application
+table configuration's backend selector is consumed so Flink's later pipeline reconfiguration
+retains the resolved native backend and its configured host delegate. Custom root configurations
+that cannot be copied retain the stock backend and cause keyed SQL to fall back.
 Disabled native acceleration leaves the original backend selection alone. Flink 2.2 still requires
 the explicit StreamFusion factory above to select the Rust-owned RocksDB backend.
 

@@ -1,5 +1,7 @@
 package tech.streamfusion;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.StateBackendOptions;
@@ -13,6 +15,33 @@ import tech.streamfusion.compat.FlinkTestSources;
 
 class FlinkStateBackendAdmissionTest {
   private static final String GROUP = "SELECT k, SUM(v) FROM t GROUP BY k";
+
+  @Test
+  void environmentSettingsRocksBackendSurvivesAggregatePipelineCreation() {
+    var comparison =
+        NativeFailureParity.run(
+            () -> {
+              var configuration = new Configuration();
+              configuration.set(StateBackendOptions.STATE_BACKEND, "rocksdb");
+              configuration.setString("parallelism.default", "1");
+              try {
+                var table = NativePlannerTestEnvironment.create(configuration);
+                table.executeSql(
+                    "CREATE TEMPORARY VIEW t AS SELECT * FROM "
+                        + "(VALUES (1, 'a', 'first'), (1, 'b', 'second'), (2, 'c', 'third')) "
+                        + "AS v(k, json_key, val)");
+                return table;
+              } catch (java.io.IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+              }
+            },
+            "SELECT k, LISTAGG(val, ','), JSON_ARRAYAGG(val), "
+                + "JSON_OBJECTAGG(json_key VALUE val) FROM t GROUP BY k");
+    comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertTrue(
+        comparison.nativeRun().plan().contains("NativeColumnarGroupAggregate"),
+        comparison.nativeRun().plan());
+  }
 
   @Test
   void explicitStockRocksBackendAcceleratesKeyedSql() throws Exception {
@@ -70,7 +99,9 @@ class FlinkStateBackendAdmissionTest {
   }
 
   private static TableEnvironment environment(
-      org.apache.flink.runtime.state.StateBackend backend, boolean configuredRocks, boolean changelog) {
+      org.apache.flink.runtime.state.StateBackend backend,
+      boolean configuredRocks,
+      boolean changelog) {
     Configuration configuration = new Configuration();
     if (configuredRocks) configuration.set(StateBackendOptions.STATE_BACKEND, "rocksdb");
     StreamExecutionEnvironment env =

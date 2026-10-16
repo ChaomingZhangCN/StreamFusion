@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.configuration.StateBackendOptions;
 import org.apache.flink.contrib.streaming.state.DefaultConfigurableOptionsFactory;
 import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.contrib.streaming.state.PredefinedOptions;
@@ -15,6 +16,7 @@ import org.apache.flink.contrib.streaming.state.RocksDBOptions;
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.runtime.state.memory.MemoryStateBackend;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,6 +25,31 @@ import tech.streamfusion.planner.NativePlanner;
 
 class RocksDBBackendSelectionTest {
   @TempDir Path directory;
+
+  @Test
+  void tablePipelineReconfigurationRetainsTheResolvedBackend() throws Exception {
+    var table = TableConfig.getDefault();
+    table.set(StateBackendOptions.STATE_BACKEND, "rocksdb");
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    assertNull(FlinkStateBackendCompat.prepareNativeStateBackend(env, table));
+    var selected = assertInstanceOf(RocksDBNativeStateBackend.class, env.getStateBackend());
+    env.configure(table.getConfiguration(), getClass().getClassLoader());
+    assertSame(selected, env.getStateBackend());
+  }
+
+  @Test
+  void environmentSettingsRootConfigurationSelectsAndConfiguresNativeRocks() throws Exception {
+    var root = new Configuration();
+    root.set(StateBackendOptions.STATE_BACKEND, "rocksdb");
+    root.set(RocksDBConfigurableOptions.MAX_OPEN_FILES, 53);
+    var table = TableConfig.getDefault();
+    table.setRootConfiguration(root);
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    assertNull(FlinkStateBackendCompat.prepareNativeStateBackend(env, table));
+    var nativeBackend = assertInstanceOf(RocksDBNativeStateBackend.class, env.getStateBackend());
+    var options = (FlinkRocksDBOptions) field(nativeBackend, "nativeOptions");
+    assertTrue(options.json().contains("\"maxOpenFiles\":53"));
+  }
 
   @Test
   void preservesProgrammaticAndPreviouslyConfiguredOptionsWithFlinkPrecedence() throws Exception {
