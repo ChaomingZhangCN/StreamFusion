@@ -524,9 +524,18 @@ A further two mixed-UDAF/ListView checkpoint-rescale scenarios per line and capa
 through parallelisms 1 → 3 → 2 with 128 key groups. They verify restored source offsets,
 stable operator identities, consumed native work, checkpoint ownership ranges and final
 materialized values against uninterrupted stock Flink. Existing builtin rescale controls
-also pass. These are externalized-checkpoint restores; broader accumulator types, merge/reset
-and savepoint compatibility remain pending. [Rescale evidence](../benchmarks/results/jvm-aggregate-rescale-2026-10-16.json)
+also pass. [Checkpoint rescale evidence](../benchmarks/results/jvm-aggregate-rescale-2026-10-16.json)
 retains all stages, key-group ranges, source offsets, native work and cleanup observations.
+
+Actual canonical savepoints also restore through 1 → 3 → 2 in eight scenarios: each supported
+Flink line, both backends and both cache capacities. The fixture triggers
+`JobClient.triggerSavepoint(..., CANONICAL)` and restores the returned savepoint path,
+retaining the mixed UDAF/COUNT/managed-ListView workload. It verifies the same values, schemas,
+source offsets, stable operator identities, complete key-group ownership, consumed native work
+and cleanup. Both lines also pass the existing checkpoint controls through the shared harness.
+[Savepoint evidence](../benchmarks/results/jvm-aggregate-savepoint-2026-10-16.json)
+records every stage. Cross-version migration, stock/native state-layout migration, broader
+accumulator types and two-phase merge/reset remain pending.
 
 Mini-batching, positive idle retention or state-TTL hints, asynchronous state, specialized
 functions, DISTINCT, approximate aggregates, FILTER and ordered calls are excluded from this

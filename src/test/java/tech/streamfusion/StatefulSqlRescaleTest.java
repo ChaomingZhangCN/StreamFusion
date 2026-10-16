@@ -36,7 +36,7 @@ class StatefulSqlRescaleTest {
   @ParameterizedTest(name = "rescale-rocks={0}")
   @ValueSource(booleans = {false, true})
   void groupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory) throws Exception {
-    groupedScenario(rocks, directory, false);
+    groupedScenario(rocks, directory, false, false);
   }
 
   @ParameterizedTest(name = "jvm-rescale-rocks={0}")
@@ -46,10 +46,21 @@ class StatefulSqlRescaleTest {
       matches = "true")
   void jvmGroupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory)
       throws Exception {
-    groupedScenario(rocks, directory, true);
+    groupedScenario(rocks, directory, true, false);
   }
 
-  private void groupedScenario(boolean rocks, Path directory, boolean jvm) throws Exception {
+  @ParameterizedTest(name = "jvm-savepoint-rescale-rocks={0}")
+  @ValueSource(booleans = {false, true})
+  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+      named = "streamfusion.experimental.jvmGroupAggregates",
+      matches = "true")
+  void jvmGroupedSavepointAcrossBothDirections(boolean rocks, @TempDir Path directory)
+      throws Exception {
+    groupedScenario(rocks, directory, true, true);
+  }
+
+  private void groupedScenario(boolean rocks, Path directory, boolean jvm, boolean savepoint)
+      throws Exception {
     List<Row> input = new ArrayList<>();
     String text = "long-duplicate-é🙂".repeat(128);
     for (int k = 0; k < 128; k++) {
@@ -77,8 +88,11 @@ class StatefulSqlRescaleTest {
     report.put("physicalBatchRows", 5);
     report.put("logicalMiniBatchRows", jvm ? 0 : 3);
     report.put("jvmAggregate", jvm);
+    report.put("snapshotFormat", savepoint ? "CANONICAL savepoint" : "externalized checkpoint");
     report.put("stages", stageEvidence);
-    RESULTS.put((jvm ? "jvm-" : "") + (rocks ? "rocksdb" : "memory"), report);
+    RESULTS.put(
+        (jvm ? "jvm-" : "") + (savepoint ? "savepoint-" : "") + (rocks ? "rocksdb" : "memory"),
+        report);
     try {
       var reference =
           runStage(
@@ -90,6 +104,7 @@ class StatefulSqlRescaleTest {
               null,
               false,
               jvm,
+              false,
               expected);
       report.put("reference", reference.evidence());
       List<Stage> stages = new ArrayList<>();
@@ -106,6 +121,7 @@ class StatefulSqlRescaleTest {
                 restore,
                 true,
                 jvm,
+                savepoint,
                 i == 2 ? expected : null);
         stages.add(stage);
         stageEvidence.add(stage.evidence());
@@ -204,6 +220,7 @@ class StatefulSqlRescaleTest {
       Path restore,
       boolean nativeRun,
       boolean jvm,
+      boolean savepoint,
       Map<String, Long> expected)
       throws Exception {
     var type =
@@ -237,7 +254,7 @@ class StatefulSqlRescaleTest {
                   ? "SELECT k, test_aggregate(CAST(amount AS BIGINT)), COUNT(text_value), "
                       + "view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
                   : "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY"
-                        + " k");
+                      + " k");
       String plan = query.explain();
       String operatorPrefix = jvm ? "NativeJvmGroup" : "NativeColumnarGroupAggregate";
       if (nativeRun) assertTrue(plan.contains(operatorPrefix), plan);
@@ -283,8 +300,19 @@ class StatefulSqlRescaleTest {
               .collect(ListCollectors.toList());
       if (nativeRun) assertEquals(1, aggregateIds.size(), graph.getStreamNodes().toString());
       var client = env.executeAsync(graph);
+      Path triggeredSavepoint = null;
       try {
         recovery.awaitCompletedInput();
+        if (savepoint) {
+          String location =
+              client
+                  .triggerSavepoint(
+                      checkpoints.resolve("savepoints").toUri().toString(),
+                      org.apache.flink.core.execution.SavepointFormatType.CANONICAL)
+                  .get(60, TimeUnit.SECONDS);
+          triggeredSavepoint = Path.of(java.net.URI.create(location));
+          assertTrue(Files.isRegularFile(triggeredSavepoint.resolve("_metadata")));
+        }
         if (nativeRun)
           RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), operatorPrefix);
         else assertTrue(recovery.nativeExecution().isEmpty());
@@ -306,20 +334,24 @@ class StatefulSqlRescaleTest {
       }
       assertEquals(0, recovery.observations().get(0).get("activeSources"));
       SharedFlinkCluster.assertNativeMemoryReleased("rescale-stage-" + parallelism);
-      Path checkpoint;
-      try (var paths = Files.walk(checkpoints)) {
-        checkpoint =
-            paths
-                .filter(p -> p.getFileName().toString().equals("_metadata"))
-                .map(Path::getParent)
-                .max(
-                    java.util.Comparator.comparingLong(
-                        p -> Long.parseLong(p.getFileName().toString().substring(4))))
-                .orElseThrow();
+      Path checkpoint = triggeredSavepoint;
+      if (checkpoint == null) {
+        try (var paths = Files.walk(checkpoints)) {
+          checkpoint =
+              paths
+                  .filter(p -> p.getFileName().toString().equals("_metadata"))
+                  .map(Path::getParent)
+                  .max(
+                      java.util.Comparator.comparingLong(
+                          p -> Long.parseLong(p.getFileName().toString().substring(4))))
+                  .orElseThrow();
+        }
       }
       var metadata =
           org.apache.flink.test.util.TestUtils.loadCheckpointMetadata(checkpoint.toString());
       List<String> ranges = new ArrayList<>();
+      if (metadata.getCheckpointProperties() != null)
+        assertEquals(savepoint, metadata.getCheckpointProperties().isSavepoint());
       if (nativeRun) {
         var aggregate =
             metadata.getOperatorStates().stream()
@@ -349,6 +381,8 @@ class StatefulSqlRescaleTest {
       }
       Map<String, Object> evidence =
           Map.of(
+              "snapshotFormat",
+              savepoint ? "CANONICAL savepoint" : "externalized checkpoint",
               "parallelism",
               parallelism,
               "sourceOffset",

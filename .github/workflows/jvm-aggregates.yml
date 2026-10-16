@@ -9,6 +9,8 @@ on:
       - 'src/main/java/tech/streamfusion/planner/*Jvm*'
       - 'src/main/java-flink*/tech/streamfusion/compat/JvmAggregateCompat.java'
       - 'src/test/java/tech/streamfusion/*JvmAggregate*'
+      - 'src/test/java/tech/streamfusion/StatefulSqlRescaleTest.java'
+      - 'src/test/java/tech/streamfusion/PortableSqlRecovery.java'
   workflow_dispatch: {}
 
 permissions:
