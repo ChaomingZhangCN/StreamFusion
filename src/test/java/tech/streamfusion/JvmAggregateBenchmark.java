@@ -29,8 +29,8 @@ class JvmAggregateBenchmark {
       String sql = "SELECT k, " + (udf ? "test_aggregate" : "SUM") + "(v) FROM src GROUP BY k";
       double[][] elapsed = new double[2][runs];
       for (int trial = 0; trial < warmups + runs; trial++) {
-        try (var metrics = new RecoveryExecutionMetrics()) {
-          for (int order = 0; order < 2; order++) {
+        for (int order = 0; order < 2; order++) {
+          try (var metrics = new RecoveryExecutionMetrics()) {
             int engine = (trial + order) & 1;
             var env = metrics.environment(new Configuration(), 1, 0);
             env.setParallelism(1);
@@ -81,19 +81,21 @@ class JvmAggregateBenchmark {
                 startMillis,
                 seconds);
             if (trial >= warmups) elapsed[engine][trial - warmups] = seconds;
+            if (engine == 1
+                && udf
+                && expectedUdf
+                && Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0)
+                    > 0) {
+              long hits = metrics.counterValue("jvmAccumulatorCacheHits");
+              if (keys < rows) assertTrue(hits > 0, "accumulator cache did not execute");
+              else assertEquals(0, hits, "distinct keys unexpectedly hit the cache");
+              System.out.println("[jvm-aggregate-cache] hits=" + hits);
+            }
+            if (engine == 1 && (!udf || expectedUdf))
+              RecoveryExecutionMetrics.assertConsumed(
+                  metrics.nativeOperators(),
+                  udf ? "NativeJvmGroup" : "NativeColumnarGroupAggregate");
           }
-          if (udf
-              && expectedUdf
-              && Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0)
-                  > 0) {
-            long hits = metrics.counterValue("jvmAccumulatorCacheHits");
-            if (keys < rows) assertTrue(hits > 0, "accumulator cache did not execute");
-            else assertEquals(0, hits, "distinct keys unexpectedly hit the cache");
-            System.out.println("[jvm-aggregate-cache] hits=" + hits);
-          }
-          if (!udf || expectedUdf)
-            RecoveryExecutionMetrics.assertConsumed(
-                metrics.nativeOperators(), udf ? "NativeJvmGroup" : "NativeColumnarGroupAggregate");
         }
       }
       System.out.printf(

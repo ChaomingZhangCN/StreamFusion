@@ -13,6 +13,7 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.shaded.netty4.io.netty.util.collection.LongObjectHashMap;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.keyselector.RowDataKeySelector;
 
 /** Bounded accumulator views, flushed into managed state before checkpoint snapshots. */
 final class JvmAccumulatorCache {
@@ -71,6 +72,14 @@ final class JvmAccumulatorCache {
             });
   }
 
+  RowData keyFor(RowData input, int field, RowDataKeySelector selector) throws Exception {
+    if (states.size() == 1) {
+      RowData key = states.get(0).keyFor(input, field);
+      if (key != null) return key;
+    }
+    return selector.getKey(input);
+  }
+
   void flush() throws IOException {
     for (CachedState state : states) state.flush();
   }
@@ -99,6 +108,14 @@ final class JvmAccumulatorCache {
 
     private CachedState(ValueState<RowData> delegate) {
       this.delegate = delegate;
+    }
+
+    private RowData keyFor(RowData input, int field) {
+      Entry entry =
+          input.isNullAt(field)
+              ? nullEntry
+              : values.get(intKey ? input.getInt(field) : input.getLong(field));
+      return entry == null ? null : entry.key;
     }
 
     private long keyValue(RowData key) {

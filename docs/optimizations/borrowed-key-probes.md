@@ -98,3 +98,35 @@ The GROUP BY's emitted changelog keys are borrowed slices too, decoded once per 
 The second stage measured q23 **+8.5%**, q18 **+5.4%**, q16 **+3.4%** on the generator profile
 loop — and its q23 profile is what closed the block-store question: stored-row decode no longer
 registers in the joiner at all.
+
+
+## Experimental JVM aggregate keys
+
+The default-off [JVM aggregate investigation](../operators/group-by.md#jvm-aggregate-investigation)
+extends the same probe-before-owning discipline to a bounded INT/BIGINT accumulator cache.
+The borrowed Arrow row's grouping field probes a primitive map. A hit reuses the immutable
+Flink BinaryRow key already owned by the entry; a miss uses the released key selector, whose
+result is an owned copy. NULL has a separate entry. Optimized input-field indices are retained
+explicitly and shown in the plan. Flink managed state, DataViews and checkpoint ownership are
+unchanged; snapshot boundaries invalidate cached references.
+
+The allocation profile motivated this change: constructing keys accounted for about 18% of
+sampled allocations under the high-cardinality JVM aggregate. Matching hot-key profiles then
+sampled 849 MB versus 25 MB through the key selector, and 3.63 GB versus 2.74 GB in total under
+the operator, over 5M native input rows per profile. The baseline records 3.28 external CPU
+seconds and the candidate none. These samples describe Java allocation estimates, not copied
+bytes, Rust heap totals or peak memory; profiled timings are not speed claims.
+
+On released Flink2.2.1/JDK17, 2M rows/65,536 keys, p=1, release/mimalloc, production IPC,
+2 GiB heap, row source/blackhole sink and both transposes, the native median moved from
+0.703 s before key reuse to 0.672 s after. Corresponding paired stock medians moved from
+1.046 s to 1.086 s, so separate-JVM drift limits attribution. The native ranges were below
+stock in both runs. At 16 keys the candidate measured 0.505 s versus stock 0.576 s.
+Every job owns its metrics cluster; timing includes planning/submission, functions, state
+and perimeter conversions, with two warmups and five alternating measured pairs.
+
+This remains an investigation: the clean 2M-distinct-key predecessor measured 2.165 s native
+versus stock 1.767 s, and the candidate's distinct-key repeat observed an external build.
+The feature and cache stay default off while that regression and remaining contracts are
+resolved. [Full trials and mixed Java/Rust profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
+retain unfavorable and contaminated measurements as well as the wins.

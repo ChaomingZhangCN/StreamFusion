@@ -1,9 +1,11 @@
 package tech.streamfusion.planner;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
@@ -35,6 +37,11 @@ public final class StreamPhysicalNativeJvmGroup extends StreamPhysicalNativeSing
     this.retracts = retracts;
     this.retract = retract;
     this.updateBefore = updateBefore;
+  }
+
+  @Override
+  public RelWriter explainTerms(RelWriter writer) {
+    return super.explainTerms(writer).item("grouping", Arrays.toString(grouping));
   }
 
   @Override

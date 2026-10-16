@@ -32,6 +32,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
   private final int batchRows;
   private final int cacheEntries;
   private final int keyWidth;
+  private final int keyColumn;
   private transient JvmAccumulatorCache accumulatorCache;
   private transient KeyedProcessFunction<RowData, RowData, RowData>.Context context;
   private transient Collector<RowData> collector;
@@ -49,7 +50,8 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
       RowDataKeySelector keySelector,
       int batchRows,
       int cacheEntries,
-      int keyWidth) {
+      int keyWidth,
+      int keyColumn) {
     this.inputType = inputType;
     this.outputType = outputType;
     this.function = function;
@@ -57,6 +59,7 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
     this.batchRows = batchRows;
     this.cacheEntries = cacheEntries;
     this.keyWidth = keyWidth;
+    this.keyColumn = keyColumn;
   }
 
   @Override
@@ -127,7 +130,10 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
         var row = reader.read(index);
         row.setRowKind(
             inputKinds == null ? RowKind.INSERT : RowKind.fromByteValue(inputKinds.get(index)));
-        setCurrentKey(keySelector.getKey(row));
+        setCurrentKey(
+            accumulatorCache == null
+                ? keySelector.getKey(row)
+                : accumulatorCache.keyFor(row, keyColumn, keySelector));
         function.processElement(row, context, collector);
       }
       flush();

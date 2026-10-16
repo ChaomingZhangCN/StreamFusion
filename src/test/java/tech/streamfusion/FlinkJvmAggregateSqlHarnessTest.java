@@ -109,6 +109,162 @@ class FlinkJvmAggregateSqlHarnessTest {
   }
 
   @Test
+  void keyReuseReadsNonleadingGroupingColumn() throws Exception {
+    try (var metrics = new RecoveryExecutionMetrics()) {
+      var rows = numericRows(true, true);
+      var comparison =
+          NativeFailureParity.run(
+              () -> {
+                var env = metrics.environment(new Configuration(), 3, 0);
+                var table = StreamTableEnvironment.create(env);
+                table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+                var input =
+                    tech.streamfusion.compat.FlinkTestSources.fromData(
+                        env,
+                        Types.ROW_NAMED(new String[] {"k", "v"}, Types.LONG, Types.LONG),
+                        rows.toArray(new Row[0]));
+                table.createTemporaryView(
+                    "numeric_input", table.fromChangelogStream(input, numericSchema(true)));
+                return register(table);
+              },
+              "SELECT v, test_aggregate(k) FROM numeric_input GROUP BY v");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      assertTrue(
+          comparison.nativeRun().plan().contains("grouping=[[1]]"), comparison.nativeRun().plan());
+      assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
+      RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
+      if (Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0) > 0)
+        assertTrue(metrics.counterValue("jvmAccumulatorCacheHits") > 0);
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void managedDataViewsKeepTheirLogicalKeyAlongsideCachedAccumulators(boolean updating)
+      throws Exception {
+    try (var metrics = new RecoveryExecutionMetrics()) {
+      var rows = numericRows(false, updating);
+      var comparison =
+          NativeFailureParity.run(
+              () -> {
+                var env = metrics.environment(new Configuration(), 3, 0);
+                var table = StreamTableEnvironment.create(env);
+                table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+                var input =
+                    tech.streamfusion.compat.FlinkTestSources.fromData(
+                        env,
+                        Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG),
+                        rows.toArray(new Row[0]));
+                table.createTemporaryView(
+                    "numeric_input", table.fromChangelogStream(input, numericSchema(false)));
+                return registerDataViews(table);
+              },
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM numeric_input GROUP BY"
+                  + " k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      assertEquals(perKey(comparison.host().rows()), perKey(comparison.nativeRun().rows()));
+      RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeJvmGroup");
+      if (Integer.getInteger("streamfusion.experimental.jvmAccumulatorCacheEntries", 0) > 0)
+        assertTrue(metrics.counterValue("jvmAccumulatorCacheHits") > 0);
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "hashmap,false",
+    "hashmap,true",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,false",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,true"
+  })
+  void managedDataViewsRestoreWithCachedAccumulators(String backend, boolean updating)
+      throws Exception {
+    var rows = numericRows(false, updating);
+    try (var recovery =
+        new PortableSqlRecovery(
+                backend,
+                rows,
+                Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, Types.LONG),
+                numericSchema(false),
+                updating,
+                16,
+                40)
+            .withExecutionMetrics()) {
+      var comparison =
+          NativeFailureParity.runRecovery(
+              () -> registerDataViews(recovery.uninterrupted()),
+              () -> registerDataViews(recovery.get()),
+              "SELECT k, view_aggregate(v), test_aggregate(v), COUNT(*) FROM recovery_input GROUP"
+                  + " BY k");
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeJvmGroup");
+      SharedFlinkCluster.assertNativeMemoryReleased("jvm-aggregate-dataview-recovery");
+    }
+  }
+
+  public static class ViewState {
+    public org.apache.flink.table.api.dataview.ListView<Long> values =
+        new org.apache.flink.table.api.dataview.ListView<>();
+    public long count;
+  }
+
+  @org.apache.flink.table.annotation.FunctionHint(
+      input = @org.apache.flink.table.annotation.DataTypeHint("BIGINT"),
+      output = @org.apache.flink.table.annotation.DataTypeHint("STRING"))
+  public static class ViewAggregate
+      extends org.apache.flink.table.functions.AggregateFunction<String, ViewState> {
+    @Override
+    public ViewState createAccumulator() {
+      return new ViewState();
+    }
+
+    public void accumulate(ViewState state, Long value) throws Exception {
+      if (value != null) {
+        state.values.add(value);
+        state.count++;
+      }
+    }
+
+    public void retract(ViewState state, Long value) throws Exception {
+      if (value != null) {
+        state.values.remove(value);
+        state.count--;
+      }
+    }
+
+    public void resetAccumulator(ViewState state) {
+      state.values.clear();
+      state.count = 0;
+    }
+
+    public void merge(ViewState state, Iterable<ViewState> others) throws Exception {
+      for (var other : others) {
+        for (var value : other.values.get()) state.values.add(value);
+        state.count += other.count;
+      }
+    }
+
+    @Override
+    public String getValue(ViewState state) {
+      if (state.count == 0) return null;
+      try {
+        var values = new ArrayList<Long>();
+        for (var value : state.values.get()) values.add(value);
+        java.util.Collections.sort(values);
+        return values.toString();
+      } catch (Exception failure) {
+        throw new IllegalStateException("DataView read failed", failure);
+      }
+    }
+  }
+
+  private static TableEnvironment registerDataViews(TableEnvironment table) {
+    register(table);
+    table.createTemporarySystemFunction("view_aggregate", new ViewAggregate());
+    return table;
+  }
+
+  @Test
   void unsupportedStateModesAndOperatorDisableKeepWholeIslandFallback() {
     for (var settings :
         java.util.List.of(
@@ -125,7 +281,16 @@ class FlinkJvmAggregateSqlHarnessTest {
           NativeFailureParity.run(
               () -> PortableSqlFixtures.environment(RuntimeExecutionMode.STREAMING, settings),
               "SELECT k, test_aggregate(v) FROM test_input GROUP BY k");
-      comparison.assertSuccess(NativeFailureParity.Route.FALLBACK);
+      if ("true".equals(settings.get("table.exec.mini-batch.enabled"))) {
+        // The released host's processing-time trigger may emit different intermediate batches.
+        assertNull(comparison.host().failure());
+        assertNull(comparison.nativeRun().failure());
+        assertEquals(NativeFailureParity.Route.FALLBACK, comparison.nativeRun().route());
+        assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
+        var expected = Map.of(java.util.List.of("A", 27L), 1L, java.util.List.of("B", 8L), 1L);
+        assertEquals(expected, SqlAuditHarness.materialized(comparison.host().rows()));
+        assertEquals(expected, SqlAuditHarness.materialized(comparison.nativeRun().rows()));
+      } else comparison.assertSuccess(NativeFailureParity.Route.FALLBACK);
       assertFalse(comparison.nativeRun().plan().contains("NativeJvmGroup"));
     }
   }

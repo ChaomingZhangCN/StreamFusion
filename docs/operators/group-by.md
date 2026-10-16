@@ -512,12 +512,15 @@ Arrow-batch input/output operator. It preserves each emitted changelog row; inpu
 does not reduce user function invocations or intermediate results. The operator disable switch
 `streamfusion.operator.jvmGroupAggregate.enabled=false` retains whole-island fallback.
 
-The opt-in harness passes 18 checks on each released Flink line with JDK 17: the original
-STRING-key append/CDC fixtures, numeric boundary/NULL keys at parallelism one and three,
-all RowKinds and delete/reinsert, four memory/native-RocksDB repeated-recovery scenarios,
-open/evaluation/close failure causes, and excluded-mode fallback. Recovery asserts consumed
-native work and released native memory. Arbitrary accumulator/DataView types, merge/reset
-and savepoint rescaling require broader evidence before admission.
+The opt-in harness passes 25 checks on each released Flink line with JDK 17, at both
+65,536-entry and three-entry capacities. Coverage includes the original STRING-key append/CDC
+fixtures, numeric boundary/NULL keys at parallelism one and three, nonleading grouping-field
+selection confirmed in the optimized plan, all RowKinds and delete/reinsert, and mixed
+ListView/UDAF/COUNT aggregation. Eight memory/native-RocksDB repeated-recovery scenarios per
+line assert two forced restores, consumed native work and released native memory. Lifecycle
+failures and excluded-mode fallback are checked; the released host's processing-time mini-batch
+control compares known final results and schema because intermediate batches may differ.
+Broader arbitrary accumulator types, merge/reset and savepoint rescaling remain pending.
 
 Mini-batching, positive idle retention or state-TTL hints, asynchronous state, specialized
 functions, DISTINCT, approximate aggregates, FILTER and ordered calls are excluded from this
@@ -531,19 +534,48 @@ Updates flush to Flink managed state at capacity, before watermarks, completion 
 snapshots. Snapshot boundaries invalidate borrowed accumulator views before subsequent
 mutation; restore starts with an empty cache. Flushing restores the operator's previous key
 context and ignores an empty cache on idle subtasks. Other key shapes use managed state directly.
+Cache hits also reuse their immutable, owned Flink BinaryRow key: the borrowed input's numeric
+field probes the cache before key construction. Misses use the released selector's owned copy.
+The key field comes from the optimized input projection, rather than the original source schema.
 The bound counts entries, not accumulator bytes, and is not a task memory budget.
 
 The investigation has mixed Java/symbolized Rust CPU and sampled Java allocation profiles.
 An initial BinaryRow-keyed write-through cache was rejected: its key comparisons outweighed
 saved heap-state reads (1.395 s versus stock 1.084 s at 2M rows/65,536 keys). Primitive-key
-lookups reduced the sampled lookup cost, after which managed-state writes dominated. The
-write-back candidate's first release run had a 0.583–7.201 s native range versus stock
-1.048–1.482 s; this is diagnostic evidence, not a performance admission. Subsequent comparisons
-record GC and external process activity. Profiling timings are excluded from speed claims;
-Java allocation samples do not measure Rust heap totals or peak memory.
-[Diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
-retain every measurement, with no admitted result. Stock Flink remains
-the default until representative release comparisons and remaining contracts are established.
+lookups reduced that cost, after which managed-state writes and rehashing dominated.
+
+Final release measurements use JDK17, Flink2.2.1, the unchanged release/mimalloc native library,
+p=1, 2 GiB heap, production IPC, row source/blackhole sink and both 1,024-row transposes.
+Each complete job owns and closes its metrics cluster; cluster boot/config is outside timing,
+while planning/submission, source, sink, conversions, functions and state remain timed.
+Each row below has two warmup pairs and five alternating measured pairs, with 2M input rows
+and every eighth value NULL. All completed trials are retained.
+
+| Candidate / keys | Stock median (range), s | Native median (range), s |
+|---|---:|---:|
+| Key reuse / 65,536 | 1.086 (0.936–1.114) | 0.672 (0.549–0.822) |
+| Key reuse / 16 | 0.576 (0.544–0.577) | 0.505 (0.401–0.518) |
+| Before key reuse / 2M distinct | 1.767 (1.744–1.832) | 2.165 (2.093–2.237) |
+
+The clean distinct-key regression remains unresolved. The key-reuse distinct-key repeat
+observed another build and is diagnostic only. Earlier per-pair metrics ownership retained
+both completed jobs through the comparison; its distinct-key run had three full GC pauses.
+Per-job ownership had none, but the regression remained. Initial unmonitored dispersed trials
+also remain in the artifact and do not establish performance admission.
+
+Matching hot-key profiles (1M rows/32,768 keys, two warmups/three pairs) sample key-selector
+Java allocations at 849 MB before reuse and 25 MB after. Total allocations under the JVM
+aggregate operator fall from 3.63 GB to 2.74 GB. Both profiles also contain a native builtin-SUM
+Rust control. The baseline records 3.28 external CPU seconds; the candidate records none.
+These are sampled allocation estimates, not peak memory, copied bytes or Rust heap totals;
+profile timings are excluded from speed claims. The key-reuse release medians also span
+separate JVMs with stock drift, so they do not isolate an exact percentage effect of key reuse.
+See the [probe technique](../optimizations/borrowed-key-probes.md#experimental-jvm-aggregate-keys).
+
+[All diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
+retain the variability, GC observations and interference records. There is no default admission:
+Flink1.18 release comparisons, broader key/accumulator contracts and representative
+preceding-fallback comparisons remain outstanding. Stock Flink remains the default.
 
 ## Still falls back
 
