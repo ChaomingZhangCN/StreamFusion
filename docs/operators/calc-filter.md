@@ -69,8 +69,8 @@ the transport preserves those actual bytes and the resolved SQL type without pad
 truncation. This applies at the input, nested ROW/ARRAY fields and extracted scalar results.
 Native fixed-size binary vectors are still readable as bytes. The disabled flag retains the
 existing fixed-size mapping and nested admission restrictions. Legacy variable-width casts
-still fall back across the previously restricted native boundaries; binary ELT performance
-admission remains pending in #235.
+still fall back across the previously restricted native boundaries. Binary ELT has its own
+default-off option, described below; measured performance remains deferred.
 
 [Nested BINARY validation](../benchmarks/results/nested-fixed-binary-coverage-2026-10-16.json)
 retains initial 65-case selections on both lines (six compatibility skips on 1.18), followed
@@ -2294,7 +2294,12 @@ They use memory/nativeRocksDB at parallelism1/3 with repeated completed-checkpoi
 and separate planner/worker JVMs with5003 runtime rows. Current validation results are
 recorded with this extension; performance is a separate deferred contract.
 
-The Flink2.2 extension passes33 focused binary SQL checks and12 recovery/remote checks,
-including4 new binary recovery and2 new binary remote cases alongside the parent cases.
-Flink1.18 validation is still pending. These correctness checks use a pinned existing release
-payload; required CI rebuilds current native code. Their durations are not throughput evidence.
+[The extension evidence](../benchmarks/results/binary-selection-recovery-2026-10-16.json)
+records33 focused binary SQL and12 recovery/remote passes on Flink2.2. Its default mode
+passes26 checks with4 opt-in method skips. Flink1.18 passes26 with19 expected ELT catalog
+availability skips, including all8 recovery and4 remote cases. Across both lines this adds
+8 binary recovery and4 binary remote cases alongside the parent STRING cases. All native
+worker input counts equal5003, and children exit cleanly. These local correctness checks
+use a pinned existing release payload; required CI rebuilds current native code. No duration
+is throughput evidence. Combined remote process failure/recovery and inconsistent flags
+remain unverified.
