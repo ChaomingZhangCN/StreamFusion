@@ -27,6 +27,9 @@ public final class ColumnarShuffleOutput {
         "Native shuffle splitter requires a pipelined columnar key-group partitioner");
     ColumnarKeyGroupPartitioner partitioner = (ColumnarKeyGroupPartitioner) output.getPartitioner();
     checkState(
+        partitioner.requiresSingleton() == singleton,
+        "Native shuffle splitter and partitioner disagree on SINGLETON distribution");
+    checkState(
         partitioner.maxParallelism() == maxParallelism && partitioner.recoverable() == recoverable,
         "Native shuffle splitter and partitioner disagree on key groups or recovery protocol");
 

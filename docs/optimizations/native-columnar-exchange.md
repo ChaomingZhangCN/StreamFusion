@@ -46,6 +46,47 @@ Existing checkpoints of that old topology need an explicit upgrade/recovery deci
 not migrate their state or claim that they restore into the corrected topology. Ordinary HASH
 exchange layouts and the one-key-group sort/keyless-join layouts are unchanged.
 
+### Singleton metadata for external resource planners
+
+`ColumnarKeyGroupPartitioner.requiresSingleton()` exposes the exchange's distribution constraint
+independently of its current channel count. Exchanges with no key columns use the `singleton(...)`
+factory; existing public constructors continue to describe ordinary HASH/key-group distribution.
+A HASH exchange running at parallelism one is still rescalable and does not become SINGLETON.
+Copies and Java serialization preserve this metadata. Partitioner equality includes distribution,
+key-group count, and recovery protocol so Flink cannot share outputs with different contracts.
+Regenerate serialized execution plans created before this metadata existed; this does not change
+checkpoint state or Arrow wire formats. The diagnostic name remains
+`columnar-key-group`; consumers must use the typed accessor rather than interpret that string.
+
+An external resource planner must preserve one downstream state instance for a SINGLETON exchange
+and keep its planned maximum parallelism unchanged. Setting maximum parallelism to one is not a
+substitute: a global aggregate can require one subtask while retaining 128 or 256 state key groups.
+With unaligned checkpoints enabled, the exchange first feeds an `OrderedKeyGroupReassembler`;
+both that receiver and the actual singleton stateful consumer must remain at parallelism one.
+The accessor describes the exchange, not arbitrary downstream topology rewrites. It does not
+automatically enforce constraints in third-party resource planners. Splitter startup checks reject
+disagreement with the partitioner's distribution metadata and still reject multiple network
+destinations; they do not validate every possible mutation beyond the exchange receiver.
+
+Source and local aggregation parallelism need not be one. Stateless operators and sinks after the
+global aggregate may also run in parallel if a valid redistribution edge is supplied at that
+boundary. For example, a two-phase CUMULATE without business grouping keys can have a parallel local
+aggregate, a SINGLETON global aggregate, and a parallel projection/sink reached through rebalance.
+Do not cap the entire downstream chain solely because the aggregate is singleton.
+
+Regression coverage includes HASH versus SINGLETON copies/serialization, distribution mismatch at
+startup, rejection of a 32-channel SINGLETON deployment, and a two-phase 10-second/60-second
+CUMULATE with late parallelism adjustment. The window test compares exact DOUBLE sums and window
+boundaries against stock Flink, preserves 128/256 key groups, allows parallel output after the global
+aggregate, and requires completed checkpoints in aligned and unaligned-enabled modes. It does not
+claim a production deployment or a singleton window restore test.
+
+The singleton metadata change passes a focused 69-test selection on each of public Flink 1.18.1
+and 2.2.1 with JDK 11 on macOS ARM. Both runs apply the Java patch to an isolated upstream snapshot
+and use a freshly built upstream debug native core, with no failures, errors, or skips. The
+selection includes the window parity checks, key-group reassembly, and aligned/unaligned exchange
+checkpoint restore with rescaling. These are correctness checks, not full-suite or performance runs.
+
 SQL regression tests change StreamNode parallelism after translation from 1 to 4, 2 to 4, 4 to 3,
 3 to 1, and 1 to 5, including different producer/consumer parallelism. They verify every key's actual
 Flink owner and exact COUNT/SUM values. Aligned and unaligned-enabled SQL jobs must complete
