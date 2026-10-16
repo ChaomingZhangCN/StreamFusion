@@ -10,21 +10,23 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.shaded.org.apache.parquet.hadoop.ParquetFileReader;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tech.streamfusion.planner.NativePlanner;
 
 class NativeIcebergSqlTest {
   @TempDir Path temp;
 
-  @Test
-  void sqlRetainsTheHostCommitterAndUsesTheNativeDataAppender() throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"none", "hash"})
+  void sqlRetainsTheHostCommitterAndUsesTheNativeDataAppender(String distribution)
+      throws Exception {
     String previous = System.getProperty("streamfusion.experimental.iceberg.enabled");
     System.setProperty("streamfusion.experimental.iceberg.enabled", "true");
     try {
       var env = StreamExecutionEnvironment.getExecutionEnvironment();
       env.configure(Configuration.fromMap(java.util.Map.of("restart-strategy.type", "none")));
-      env.setParallelism(1);
+      env.setParallelism(distribution.equals("hash") ? 2 : 1);
+      env.setMaxParallelism(2);
       env.enableCheckpointing(1000);
       var sql = StreamTableEnvironment.create(env);
       var scan = NativePlanner.install(sql);
@@ -34,7 +36,11 @@ class NativeIcebergSqlTest {
               + "')");
       sql.executeSql("CREATE DATABASE ice.db");
       sql.executeSql(
-          "CREATE TABLE ice.db.t (id INT, payload STRING) WITH ('write.distribution-mode'='none')");
+          "CREATE TABLE ice.db.t (id INT, payload STRING) "
+              + (distribution.equals("hash") ? "PARTITIONED BY (payload) " : "")
+              + "WITH ('write.distribution-mode'='"
+              + distribution
+              + "')");
       sql.executeSql("INSERT INTO ice.db.t VALUES (1, 'first'), (2, CAST(NULL AS STRING))").await();
       try (var catalog =
           new HadoopCatalog(new org.apache.hadoop.conf.Configuration(), temp.toUri().toString())) {

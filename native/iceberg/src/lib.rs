@@ -8,6 +8,7 @@ use streamfusion_bridge::{
 };
 
 streamfusion_bridge::link_allocator!();
+mod routing;
 mod storage;
 mod writer;
 
@@ -132,3 +133,55 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_nativeBuildV
 }
 
 pub mod bench;
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_route(
+    env: JNIEnv,
+    _: JClass,
+    array: jlong,
+    schema: jlong,
+    destinations: JIntArray,
+) -> jlong {
+    jni_guard(env, |env| {
+        let batch = streamfusion_bridge::import_record_batch(array, schema);
+        let mut labels = vec![
+            0i32;
+            env.get_array_length(&destinations)
+                .expect("Iceberg destinations") as usize
+        ];
+        env.get_int_array_region(&destinations, 0, &mut labels)
+            .expect("Iceberg routing labels");
+        into_handle(routing::Routing::new(batch, &labels))
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_nextRoute(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    array: jlong,
+    schema: jlong,
+) -> i32 {
+    jni_guard(env, |_| {
+        let route = unsafe { &mut *(handle as *mut routing::Routing) };
+        match route.batches.pop_front() {
+            None => -1,
+            Some((destination, batch)) => {
+                streamfusion_bridge::export_record_batch(batch, array, schema);
+                destination
+            }
+        }
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_closeRoute(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+) {
+    jni_guard(env, |_| {
+        drop(unsafe { from_handle::<routing::Routing>(handle) });
+    })
+}

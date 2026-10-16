@@ -35,3 +35,11 @@ pub fn encode(schema: &Schema, input: &RecordBatch, selected: &[u32]) -> Bytes {
             .unwrap()
     })
 }
+
+pub fn route(input: &RecordBatch, destinations: &[i32]) -> Vec<RecordBatch> {
+    crate::routing::Routing::new(input.clone(), destinations)
+        .batches
+        .into_iter()
+        .map(|(_, batch)| batch)
+        .collect()
+}

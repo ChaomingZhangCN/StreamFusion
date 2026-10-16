@@ -58,5 +58,53 @@ fn iceberg(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, iceberg);
+
+fn routing(c: &mut Criterion) {
+    header();
+    let mut group = c.benchmark_group("iceberg/routing");
+    for rows in [16usize, 1024, 16384] {
+        for width in [8, 264, 4096] {
+            let text = "x".repeat(width);
+            let input = RecordBatch::try_from_iter(vec![
+                (
+                    "id",
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                ),
+                (
+                    "value",
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|i| (i % 7 != 0).then_some(text.as_str())),
+                    )) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            for channels in [1, 4, 128] {
+                let destinations: Vec<i32> = (0..rows).map(|row| (row % channels) as i32).collect();
+                let label = format!("split/{rows}/bytes={width}/destinations={channels}");
+                let (batches, allocations) =
+                    measure(|| streamfusion_iceberg::bench::route(&input, &destinations));
+                assert_eq!(
+                    batches.iter().map(RecordBatch::num_rows).sum::<usize>(),
+                    rows
+                );
+                let arrays = batches
+                    .iter()
+                    .flat_map(|batch| batch.columns().iter().cloned())
+                    .collect::<Vec<_>>();
+                report(&label, input.columns(), &arrays, allocations);
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| {
+                        std::hint::black_box(streamfusion_iceberg::bench::route(
+                            &input,
+                            &destinations,
+                        ))
+                    })
+                });
+            }
+        }
+    }
+    group.finish();
+}
+criterion_group!(benches, iceberg, routing);
 criterion_main!(benches);

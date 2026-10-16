@@ -18,7 +18,11 @@ Its 18 fixtures cover 16/1024/16384 rows, nullable strings at widths 8/264/4096,
 contiguous slices and sparse selections, field IDs, and stock parquet-rs readback.
 Input construction is outside timing; encoder construction, selection/gather, encoding,
 statistics, and finalization are inside. JNI and Java FileIO remain outside this isolated
-suite and must be included in the Iceberg end-to-end comparison.
+suite and must be included in the Iceberg end-to-end comparison. A further 27
+production routing fixtures cross the same sizes and widths with one/four/128
+destinations. Routing retains contiguous Arrow slices and gathers sparse selections;
+allocation diagnostics report buffer sharing. Destination selection in Java and
+network transport remain outside that isolated kernel.
 
 ## Running and comparing
 

@@ -1,13 +1,18 @@
 package tech.streamfusion.iceberg;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
+import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IcebergBuild;
@@ -26,7 +31,8 @@ final class IcebergSinkAdapter {
   private IcebergSinkAdapter() {}
 
   static boolean compatible() {
-    return "1.12.0".equals(IcebergBuild.version());
+    return "1.12.0".equals(IcebergBuild.version())
+        && org.apache.flink.runtime.util.EnvironmentInformation.getVersion().startsWith("2.2.");
   }
 
   @SuppressWarnings({"unchecked", "rawtypes"})
@@ -41,12 +47,12 @@ final class IcebergSinkAdapter {
       throw new IllegalArgumentException("Iceberg writer adapter requires released Iceberg 1.12.0");
     }
     FlinkWriteConf writeConf = new FlinkWriteConf(table, options, configuration);
-    if (writeConf.distributionMode() != DistributionMode.NONE
+    if ((writeConf.distributionMode() != DistributionMode.NONE
+            && writeConf.distributionMode() != DistributionMode.HASH)
         || writeConf.overwriteMode()
         || writeConf.upsertMode()
         || !table.schema().identifierFieldIds().isEmpty()) {
-      throw new IllegalArgumentException(
-          "Initial Iceberg adapter requires append-only distribution none");
+      throw new IllegalArgumentException("Iceberg append adapter requires none/hash distribution");
     }
     // No RowData crosses this edge: replace the sole writer consumer before graph serialization.
     DataStream<RowData> hostInput =
@@ -60,12 +66,13 @@ final class IcebergSinkAdapter {
             .setAll(options)
             .append();
     int replaced = 0;
-    for (Transformation<?> transformation : sink.getTransformation().getTransitivePredecessors()) {
+    for (Transformation<?> transformation : predecessors(sink.getTransformation())) {
       if (!(transformation instanceof OneInputTransformation)) continue;
       var factory = ((OneInputTransformation<?, ?>) transformation).getOperatorFactory();
       if (!(factory instanceof SimpleOperatorFactory)) continue;
       Object operator = ((SimpleOperatorFactory<?>) factory).getOperator();
       if (!operator.getClass().getName().equals(WRITER)) continue;
+      adaptHashInput((OneInputTransformation) transformation, input, table);
       Field field = field(operator.getClass(), "taskWriterFactory");
       try {
         RowDataTaskWriterFactory original = (RowDataTaskWriterFactory) field.get(operator);
@@ -82,6 +89,69 @@ final class IcebergSinkAdapter {
       throw new IllegalStateException("Expected one normal Iceberg writer, found " + replaced);
     }
     return sink;
+  }
+
+  private static List<Transformation<?>> predecessors(Transformation<?> root) {
+    var seen = new IdentityHashMap<Transformation<?>, Boolean>();
+    var pending = new java.util.ArrayDeque<Transformation<?>>();
+    var result = new ArrayList<Transformation<?>>();
+    pending.add(root);
+    while (!pending.isEmpty()) {
+      var next = pending.removeFirst();
+      if (seen.put(next, true) != null) continue;
+      result.add(next);
+      pending.addAll(next.getInputs());
+    }
+    return result;
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static void adaptHashInput(
+      OneInputTransformation writer, DataStream<ArrowBatch> input, Table table) {
+    var selector = writer.getStateKeySelector();
+    if (selector == null) return;
+    if (!(writer.getInputs().get(0) instanceof PartitionTransformation)) {
+      throw new IllegalStateException("Unsupported released Iceberg hash input layout");
+    }
+    PartitionTransformation original = (PartitionTransformation) writer.getInputs().get(0);
+    if (!(original.getPartitioner()
+        instanceof org.apache.flink.streaming.runtime.partitioner.KeyGroupStreamPartitioner)) {
+      throw new IllegalStateException("Unsupported released Iceberg hash partitioner");
+    }
+    int max = writer.getMaxParallelism();
+    if (max <= 0) max = input.getExecutionEnvironment().getMaxParallelism();
+    if (max <= 0)
+      max = KeyGroupRangeAssignment.computeDefaultMaxParallelism(writer.getParallelism());
+    boolean recoverable =
+        input.getExecutionEnvironment().getCheckpointConfig().isUnalignedCheckpointsEnabled();
+    var router =
+        new OneInputTransformation<ArrowBatch, ArrowBatch>(
+            (Transformation<ArrowBatch>) original.getInputs().get(0),
+            "iceberg-arrow-hash-router",
+            org.apache.flink.streaming.api.operators.SimpleOperatorFactory.of(
+                new IcebergHashRouter(
+                    FlinkSchemaUtil.convert(table.schema()),
+                    selector,
+                    writer.getParallelism(),
+                    max,
+                    recoverable)),
+            tech.streamfusion.operator.ArrowBatchTypeInformation.INSTANCE,
+            original.getParallelism(),
+            false);
+    var exchange =
+        new PartitionTransformation<>(
+            router,
+            new tech.streamfusion.planner.ColumnarKeyGroupPartitioner(max, recoverable),
+            original.getExchangeMode());
+    try {
+      field(OneInputTransformation.class, "input").set(writer, exchange);
+    } catch (IllegalAccessException e) {
+      throw new IllegalStateException("Cannot adapt the released Iceberg batch exchange", e);
+    }
+    // The writer has no Flink keyed state; its Iceberg key/delete bookkeeping remains in Java.
+    writer.setStateKeySelector(null);
+    writer.setStateKeyType(null);
+    writer.setMaxParallelism(max);
   }
 
   static Field field(Class<?> owner, String name) {

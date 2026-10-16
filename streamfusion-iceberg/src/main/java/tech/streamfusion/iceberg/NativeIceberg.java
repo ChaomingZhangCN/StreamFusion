@@ -37,4 +37,10 @@ final class NativeIceberg {
   static native String finish(long handle);
 
   static native void closeWriter(long handle);
+
+  static native long route(long array, long schema, int[] destinations);
+
+  static native int nextRoute(long handle, long array, long schema);
+
+  static native void closeRoute(long handle);
 }

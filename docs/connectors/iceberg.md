@@ -5,11 +5,15 @@
 SQL sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
 The admitted path is the normal legacy sink, INSERT-only input, unencrypted
-format-v1/v2 Parquet, distribution `none`, and verified integer, long, string,
+format-v1/v2 Parquet, distribution `none`/`hash`, and verified integer, long, string,
 boolean, binary, and date columns. Java fanout handles partitioned append; a
 four-bucket test verifies interleaved Arrow selections and independent rolling.
-Other types, keyed/updating inputs, dynamic destinations, Sink V2, hash/range
-exchange, format-v3, and unknown writer-affecting options retain the stock sink.
+Java's original partition/key selector assigns destinations through borrowed Arrow
+views. Rust splits the batches, then the existing columnar key-group exchange
+transports them; no row payload crosses that shuffle. Unaligned checkpoints retain
+actual key-group labels for channel-state rescaling. Other types, keyed/updating
+inputs, dynamic destinations, Sink V2, range exchange, format-v3, and unknown
+writer-affecting options retain the stock sink.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
 Flink 2.2 runtime and requires Java 17 or later. Build it with `-Piceberg`.
@@ -43,7 +47,8 @@ nullable primitive values, field IDs, split offsets and final sizes, sparse
 partition selections, within-batch rolling, empty writer cleanup, native handle
 reclamation, and a SQL native-file witness. `bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. Native
-Criterion's `iceberg_io` suite separately exercises 18 release encoding fixtures;
+Criterion's `iceberg_io` suite separately exercises 18 release encoding fixtures
+and 27 batch-routing fixtures across one, four, and 128 destinations;
 it does not establish an end-to-end speedup.
 
 The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark

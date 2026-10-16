@@ -63,10 +63,11 @@ public final class IcebergSinkPlan {
       throw new IllegalArgumentException("cannot resolve the Iceberg sink table", e);
     }
     var conf = new FlinkWriteConf(table, options, configuration);
-    if (conf.distributionMode() != DistributionMode.NONE
+    if ((conf.distributionMode() != DistributionMode.NONE
+            && conf.distributionMode() != DistributionMode.HASH)
         || conf.upsertMode()
         || !table.schema().identifierFieldIds().isEmpty()) {
-      throw new IllegalArgumentException("only append-only distribution none is admitted");
+      throw new IllegalArgumentException("only append-only none/hash distribution is admitted");
     }
     RowType expected = FlinkSchemaUtil.convert(table.schema());
     if (produced.getFieldCount() != expected.getFieldCount()) {
