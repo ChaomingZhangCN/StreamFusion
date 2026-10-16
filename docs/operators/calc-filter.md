@@ -74,6 +74,15 @@ Default-off regressions pass 105 checks with one opt-in-only skip on 2.2.1 and 1
 on 1.18.1. The native fixtures cover production handoffs, key bytes/hash descriptors, ordering and
 inner/left ARRAY-of-ROW UNNEST; their smoke execution does not establish throughput.
 
+Eight additional [checkpoint/recovery checks](../benchmarks/results/nested-scalar-recovery-2026-10-16.json)
+pass on the two released lines. Memory and native RocksDB deployments at parallelism one
+and three enable object reuse and fail twice, only after source checkpoints at offsets
+12 and 32 complete. Recovered native identity and mutable-transform callbacks match the
+uninterrupted stock result multiset and resolved schema, including nested RowKinds, NULLs
+and long Unicode values. Native consumed-row counters and exact source restore offsets
+are asserted. This verifies task recovery with a consistently configured JVM flag;
+separate planner/task JVM configuration and whole-job performance admission remain pending.
+
 Reproduce the complete-job benchmark from a clean released build (add `-Pflink-1.18` for that
 compatibility line). Every shape uses two warmup pairs and five measured pairs by default;
 EXPLAIN and per-job cluster setup precede the clock, while both transposes and production IPC

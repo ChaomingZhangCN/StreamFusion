@@ -62,3 +62,13 @@ recordings and logs even on failure. It fingerprints native inputs, compiler and
 flags before reusing a release payload. A superseding run cancels older diagnostics.
 Results are pending; [coverage and remaining contracts](../operators/calc-filter.md#experimental-nested-java-scalar-results)
 continue to govern admission.
+
+Recovery is verified separately from timing by `FlinkNestedScalarRecoveryTest`: four
+memory/RocksDB and parallelism-one/three cases per released line. Both completed-checkpoint
+failures must restore their exact source offsets and yield the same 48 results as uninterrupted
+stock Flink. Identity callbacks retain nested kinds; reusable transform callbacks exercise
+owned results across batch flushes and task recreation. See the
+[recovery evidence](results/nested-scalar-recovery-2026-10-16.json). Run with the same pinned
+native resource/loader paths and `streamfusion.experimental.nestedScalarUdfs=true` as the
+benchmark, selecting `-Dtest=FlinkNestedScalarRecoveryTest`. These correctness checks do not
+establish throughput or separate-process deployment compatibility.
