@@ -211,7 +211,8 @@ final class RexExpression {
 
   static RexExpression encode(RexNode node, org.apache.calcite.rel.RelNode context) {
     RexExpression encoder = new RexExpression();
-    encoder.expressionClassLoader = org.apache.flink.table.planner.utils.ShortcutUtils.unwrapClassLoader(context);
+    encoder.expressionClassLoader =
+        org.apache.flink.table.planner.utils.ShortcutUtils.unwrapClassLoader(context);
     encoder.configure(
         org.apache.flink.table.planner.utils.ShortcutUtils.unwrapTableConfig(context));
     return encoder.emit(node) ? encoder : null;
@@ -302,9 +303,7 @@ final class RexExpression {
     }
     add(
         KIND_CALL,
-        months
-            ? WatermarkExpression.SUBTRACT_MONTHS
-            : WatermarkExpression.SUBTRACT_MILLIS,
+        months ? WatermarkExpression.SUBTRACT_MONTHS : WatermarkExpression.SUBTRACT_MILLIS,
         2);
     RexNode timestamp = call.getOperands().get(0);
     // Fuse a direct timestamp read with the shift; composed expressions keep their original order.
@@ -387,6 +386,14 @@ final class RexExpression {
 
   private static CalcEncoding tryEncodeCalc(Calc calc) {
     RexExpression encoder = forCalc(calc);
+    if (Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs")
+        && (calc.getProgram().getCondition() != null
+            || calc.getProgram().getProjectList().stream()
+                .anyMatch(ref -> !(calc.getProgram().expandLocalRef(ref) instanceof RexInputRef)))
+        && containsRowExpression(calc.getProgram())) {
+      encoder.jvmExecutionReason = "ROW metadata requires Flink's whole-Calc evaluation";
+      return new CalcEncoding(encoder, encoder.emitRowCalc(calc));
+    }
     boolean supported = encoder.emitCalc(calc);
     if (supported && !encoder.rowFusion) {
       boolean requiresRowOrder = encoder.requiresCalcRowOrder(calc.getProgram());
@@ -396,7 +403,8 @@ final class RexExpression {
       }
       // Preserve native admission before selecting a different evaluation schedule. A fresh
       // encoder must not retain descriptors or pools from the column-at-a-time attempt.
-      // Fixed BINARY results use the row's declared schema rather than a variable binary UDF result.
+      // Fixed BINARY results use the row's declared schema rather than a variable binary UDF
+      // result.
       encoder = forCalc(calc);
       encoder.jvmExecutionReason =
           requiresRowOrder
@@ -405,7 +413,8 @@ final class RexExpression {
       supported = encoder.emitRowCalc(calc);
     }
     if (!supported
-        && (containsSqlJson(calc.getProgram()) || containsCollectionStringFunction(calc.getProgram()))) {
+        && (containsSqlJson(calc.getProgram())
+            || containsCollectionStringFunction(calc.getProgram()))) {
       // A failed native attempt may have populated pools and UDF bindings. Generate the complete
       // Calc in a fresh encoder so short-circuiting and row evaluation order stay with Flink.
       String nativeReason = encoder.reasonOrDefault();
@@ -418,7 +427,8 @@ final class RexExpression {
 
   private boolean requiresFixedBinaryRow(RexProgram program) {
     for (int i = 0; i < program.getProjectList().size(); i++) {
-      if (program.getProjectList().get(i).getType().getSqlTypeName() != SqlTypeName.BINARY) continue;
+      if (program.getProjectList().get(i).getType().getSqlTypeName() != SqlTypeName.BINARY)
+        continue;
       int root = projectionRoots.get(i);
       int kind = kinds.get(root);
       if (kind == KIND_INPUT_REF
@@ -432,7 +442,9 @@ final class RexExpression {
   private boolean requiresCalcRowOrder(RexProgram program) {
     // Any JVM evaluator can throw, including independent deterministic user functions. Count
     // native failure sites too: a later-row failure must not overtake an earlier projection.
-    long[] failures = {kinds.stream().filter(kind -> kind == KIND_UDF || kind == KIND_DECIMAL_ROUND_TEXT).count()};
+    long[] failures = {
+      kinds.stream().filter(kind -> kind == KIND_UDF || kind == KIND_DECIMAL_ROUND_TEXT).count()
+    };
     var visitor =
         new org.apache.calcite.rex.RexVisitorImpl<Void>(true) {
           @Override
@@ -660,6 +672,47 @@ final class RexExpression {
     return nested ? tech.streamfusion.operator.NativeUdf.TYPE_INTERNAL : hostCastTypeCode(type);
   }
 
+  private static boolean containsRowType(RelDataType type) {
+    switch (type.getSqlTypeName()) {
+      case ROW:
+        return true;
+      case ARRAY:
+      case MULTISET:
+        return containsRowType(type.getComponentType());
+      case MAP:
+        return containsRowType(type.getKeyType()) || containsRowType(type.getValueType());
+      default:
+        return false;
+    }
+  }
+
+  private static boolean containsRowExpression(RexProgram program) {
+    var visitor =
+        new org.apache.calcite.rex.RexVisitorImpl<Boolean>(true) {
+          @Override
+          public Boolean visitCall(RexCall call) {
+            if (containsRowType(call.getType())) return true;
+            return call.getOperands().stream()
+                .anyMatch(arg -> Boolean.TRUE.equals(arg.accept(this)));
+          }
+
+          @Override
+          public Boolean visitInputRef(RexInputRef ref) {
+            return containsRowType(ref.getType());
+          }
+
+          @Override
+          public Boolean visitFieldAccess(org.apache.calcite.rex.RexFieldAccess access) {
+            return access.getReferenceExpr().accept(this);
+          }
+        };
+    if (program.getCondition() != null
+        && Boolean.TRUE.equals(program.expandLocalRef(program.getCondition()).accept(visitor)))
+      return true;
+    return program.getProjectList().stream()
+        .anyMatch(project -> Boolean.TRUE.equals(program.expandLocalRef(project).accept(visitor)));
+  }
+
   private static boolean containsCollectionStringFunction(RexProgram program) {
     return program.getCondition() != null
             && containsCollectionStringFunction(program.expandLocalRef(program.getCondition()))
@@ -731,10 +784,12 @@ final class RexExpression {
             && JsonStringIdentity.containsBinaryString(projection)) {
           return reject("binary-backed STRING requires a final scalar projection");
         }
-        if (LegacyBinaryResults.variableResult(projection, Boolean.TRUE.equals(legacyCastBehaviour)))
+        if (LegacyBinaryResults.variableResult(
+            projection, Boolean.TRUE.equals(legacyCastBehaviour)))
           variableBinaryProjections.add(projections.size());
         if (rowCalcTypeCode(projection.getType()) < 0
-            && !LegacyBinaryResults.variableResult(projection, Boolean.TRUE.equals(legacyCastBehaviour)))
+            && !LegacyBinaryResults.variableResult(
+                projection, Boolean.TRUE.equals(legacyCastBehaviour)))
           return reject("row-fused UDF output type is not supported: " + projection.getType());
         projections.add(projection.accept(remap));
       }
@@ -783,8 +838,7 @@ final class RexExpression {
       longs.add((long) index);
       longs.add((long) strings.size());
       var schema =
-          tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
-              org.apache.flink.table.types.logical.RowType.of(function.rowResultType().copy(true)));
+          tech.streamfusion.arrow.ArrowConversion.toArrowRowResultSchema(function.rowResultType());
       strings.add(Base64.getEncoder().encodeToString(schema.serializeAsMessage()));
       if (arguments.isEmpty()) {
         add(KIND_LIT_INT, longs.size(), 0);
@@ -990,9 +1044,15 @@ final class RexExpression {
     SqlTypeName type = literal.getType().getSqlTypeName();
     int temporalType = temporalTypeCode(literal.getType());
     if (temporalType == 11) {
-      org.apache.flink.table.data.TimestampData timestamp = literal.isNull() ? null
-          : org.apache.flink.table.data.TimestampData.fromLocalDateTime(java.time.LocalDateTime.parse(
-              literal.getValueAs(org.apache.calcite.util.TimestampString.class).toString().replace(' ', 'T')));
+      org.apache.flink.table.data.TimestampData timestamp =
+          literal.isNull()
+              ? null
+              : org.apache.flink.table.data.TimestampData.fromLocalDateTime(
+                  java.time.LocalDateTime.parse(
+                      literal
+                          .getValueAs(org.apache.calcite.util.TimestampString.class)
+                          .toString()
+                          .replace(' ', 'T')));
       add(KIND_LIT_TIMESTAMP, longs.size(), 0);
       longs.add(timestamp == null ? 0L : 1L);
       longs.add(timestamp == null ? 0L : timestamp.getMillisecond());
@@ -1212,7 +1272,8 @@ final class RexExpression {
         || call.getOperator()
                 instanceof org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction
             && ((org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction)
-                    call.getOperator()).getDefinition()
+                        call.getOperator())
+                    .getDefinition()
                 == org.apache.flink.table.functions.BuiltInFunctionDefinitions.UUID) {
       if (!call.getOperands().isEmpty()
           || call.getType().getSqlTypeName() != SqlTypeName.CHAR
@@ -1221,7 +1282,8 @@ final class RexExpression {
       }
       return emitBuiltinCall(call, 166);
     }
-    if (call.getOperator() == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND
+    if (call.getOperator()
+            == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND
         || call.getOperator()
             == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND_INTEGER) {
       return emitRandom(call);
@@ -1504,8 +1566,12 @@ final class RexExpression {
     if ("ARRAY_DISTINCT".equals(functionName)) {
       if (call.getOperands().size() != 1
           || call.getOperands().get(0).getType().getSqlTypeName() != SqlTypeName.ARRAY
-          || !java.util.Set.of(SqlTypeName.TINYINT, SqlTypeName.SMALLINT,
-                  SqlTypeName.INTEGER, SqlTypeName.BIGINT, SqlTypeName.BOOLEAN)
+          || !java.util.Set.of(
+                  SqlTypeName.TINYINT,
+                  SqlTypeName.SMALLINT,
+                  SqlTypeName.INTEGER,
+                  SqlTypeName.BIGINT,
+                  SqlTypeName.BOOLEAN)
               .contains(call.getOperands().get(0).getType().getComponentType().getSqlTypeName())) {
         return reject("ARRAY_DISTINCT requires a BOOLEAN or integer ARRAY");
       }
@@ -1567,8 +1633,7 @@ final class RexExpression {
     if ("INITCAP".equals(functionName)) {
       return emitCharacterFunction(call, 111, 1, 1);
     }
-    if ("TRANSLATE".equals(functionName)
-        || "TRANSLATE3".equals(functionName)) {
+    if ("TRANSLATE".equals(functionName) || "TRANSLATE3".equals(functionName)) {
       return emitCharacterFunction(call, 112, 3, 3);
     }
     if ("BTRIM".equals(functionName)) {
@@ -1608,8 +1673,7 @@ final class RexExpression {
     if ("TRIM".equals(functionName)) {
       return emitTrim(call);
     }
-    if ("SUBSTRING".equals(functionName)
-        || "SUBSTR".equals(functionName)) {
+    if ("SUBSTRING".equals(functionName) || "SUBSTR".equals(functionName)) {
       return emitStringWithIntegers(call, 125, 2, 3);
     }
     if ("REPLACE".equals(functionName)) {
@@ -1679,13 +1743,11 @@ final class RexExpression {
     // Functions whose native result can differ from the host — locale case folding (UPPER/LOWER)
     // and
     // last-ULP transcendental math. They fall back unless the allowIncompatible flag opts them in.
-    Integer incompatUnaryOp =
-        INCOMPATIBLE_UNARY.get(functionName);
+    Integer incompatUnaryOp = INCOMPATIBLE_UNARY.get(functionName);
     if (incompatUnaryOp != null) {
       return emitIncompatibleUnary(call, incompatUnaryOp);
     }
-    if ("POWER".equals(functionName)
-        || "POW".equals(functionName)) {
+    if ("POWER".equals(functionName) || "POW".equals(functionName)) {
       return emitIncompatiblePower(call);
     }
     if (call.getOperator()
@@ -2023,17 +2085,21 @@ final class RexExpression {
   }
 
   private boolean emitRandom(RexCall call) {
-    boolean integer = call.getOperator()
-        == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND_INTEGER;
+    boolean integer =
+        call.getOperator()
+            == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.RAND_INTEGER;
     List<RexNode> args = call.getOperands();
     int required = integer ? 1 : 0;
-    if (args.size() < required || args.size() > required + 1
+    if (args.size() < required
+        || args.size() > required + 1
         || args.stream().anyMatch(arg -> arg.getType().getSqlTypeName() != SqlTypeName.INTEGER)) {
       return reject("RAND/RAND_INTEGER require Flink's INT seed and bound overloads");
     }
     boolean seeded = args.size() > required;
-    int flags = (integer ? 1 : 0) | (seeded ? 2 : 0)
-        | (seeded && args.get(0) instanceof RexLiteral ? 4 : 0);
+    int flags =
+        (integer ? 1 : 0)
+            | (seeded ? 2 : 0)
+            | (seeded && args.get(0) instanceof RexLiteral ? 4 : 0);
     add(KIND_RANDOM, flags, args.size());
     for (RexNode arg : args) {
       if (!emit(arg)) {
@@ -2049,7 +2115,8 @@ final class RexExpression {
     }
     RexCall call = ((RexCall) node);
 
-    return isExactDoubleTruncate(call) || mayFailOnRow(call)
+    return isExactDoubleTruncate(call)
+        || mayFailOnRow(call)
         || call.getOperands().stream().anyMatch(this::requiresRowShortCircuit);
   }
 
@@ -2108,9 +2175,7 @@ final class RexExpression {
         i += "DEFAULT".equals(policy) ? 3 : 2;
       }
     }
-    if ("JSON_EXISTS".equals(name)
-        && args.size() == 3
-        && "ERROR".equals(jsonSymbol(args.get(2)))) {
+    if ("JSON_EXISTS".equals(name) && args.size() == 3 && "ERROR".equals(jsonSymbol(args.get(2)))) {
       return true;
     }
     return false;
@@ -2191,7 +2256,6 @@ final class RexExpression {
               "JSON_VALUE DEFAULT requires a non-null literal matching RETURNING; DOUBLE defaults"
                   + " are not admitted");
         }
-
 
       } else if (!"NULL".equals(behavior) && !"ERROR".equals(behavior)) {
         return reject("JSON_VALUE has an unsupported behavior");
@@ -2725,7 +2789,8 @@ final class RexExpression {
       return emit(call.getOperands().get(0));
     }
     // The casts whose formatting/parsing the native engine cannot reproduce byte-for-byte — a
-    // float/double/decimal to/from a string, narrowing a string / padding to CHAR(n), and the inexact
+    // float/double/decimal to/from a string, narrowing a string / padding to CHAR(n), and the
+    // inexact
     // float/double→DECIMAL — run Flink's own CastExecutor through the columnar JVM upcall, so
     // trailing zeros, scientific-notation thresholds, trim semantics, and failure behavior are the
     // host's own (see HostCastFunction).
@@ -2990,9 +3055,9 @@ final class RexExpression {
 
   private static boolean isDecimalRuntimeRounding(RexCall call) {
     return (call.getOperator()
-            == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.ROUND
-        || call.getOperator()
-            == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.TRUNCATE)
+                == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.ROUND
+            || call.getOperator()
+                == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.TRUNCATE)
         && call.getOperands().size() == 2
         && call.getOperands().get(0).getType().getSqlTypeName() == SqlTypeName.DECIMAL
         && !(call.getOperands().get(1) instanceof RexLiteral)
@@ -3008,11 +3073,15 @@ final class RexExpression {
 
   private boolean validateDecimalRoundingBoundary(RexNode node) {
     if (!containsMetadataDependentDecimalRounding(node)) return true;
-    String operation = containsRuntimeDecimalRounding(node)
-        ? "DECIMAL ROUND/TRUNCATE runtime scale" : "DECIMAL FLOOR/CEIL";
+    String operation =
+        containsRuntimeDecimalRounding(node)
+            ? "DECIMAL ROUND/TRUNCATE runtime scale"
+            : "DECIMAL FLOOR/CEIL";
     SqlTypeName type = node.getType().getSqlTypeName();
-    if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP
-        || type == SqlTypeName.MULTISET || type == SqlTypeName.ROW) {
+    if (type == SqlTypeName.ARRAY
+        || type == SqlTypeName.MAP
+        || type == SqlTypeName.MULTISET
+        || type == SqlTypeName.ROW) {
       return reject(operation + " requires a verified scalar consumer");
     }
     if (unnormalizedDecimalRounding(node)) {
@@ -3027,8 +3096,8 @@ final class RexExpression {
     RexCall call = ((RexCall) node);
 
     if (isDecimalIntegralRounding(call) || isDecimalRuntimeRounding(call)) return true;
-    if (call.getOperator()
-        == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.IF) return false;
+    if (call.getOperator() == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.IF)
+      return false;
     if (call.getKind() == SqlKind.CAST
         && !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
             call.getOperands().get(0).getType(), call.getType())) return false;
@@ -3139,15 +3208,19 @@ final class RexExpression {
         var call = (RexCall) super.visitCall(original);
         if (!isExactDoubleTruncate(call)) return call;
         if (helper == null) {
-          var definition = new org.apache.flink.table.functions.ScalarFunctionDefinition(
-              "streamfusion_exact_double_truncate", new ExactDoubleTruncateFunction());
-          helper = org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction.of(
-              calc.getCluster(), org.apache.flink.table.catalog.ContextResolvedFunction.anonymous(definition));
+          var definition =
+              new org.apache.flink.table.functions.ScalarFunctionDefinition(
+                  "streamfusion_exact_double_truncate", new ExactDoubleTruncateFunction());
+          helper =
+              org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction.of(
+                  calc.getCluster(),
+                  org.apache.flink.table.catalog.ContextResolvedFunction.anonymous(definition));
         }
         var operands = new java.util.ArrayList<>(call.getOperands());
         if (operands.size() == 1) {
-          operands.add(builder.makeLiteral(0,
-              builder.getTypeFactory().createSqlType(SqlTypeName.INTEGER), true));
+          operands.add(
+              builder.makeLiteral(
+                  0, builder.getTypeFactory().createSqlType(SqlTypeName.INTEGER), true));
         }
         return builder.makeCall(call.getType(), helper, operands);
       }
@@ -3216,15 +3289,20 @@ final class RexExpression {
         addUdf(
             tech.streamfusion.operator.NativeUdf.Descriptor.forFunction(
                 function, eval, codes.stream().mapToInt(Integer::intValue).toArray(), returnCode));
-    RexCall decimalRound = call == projectionRoot
-        ? FlinkExpressionFunction.decimalRoundingTextCall(expression) : null;
-    add(decimalRound == null ? KIND_UDF : KIND_DECIMAL_ROUND_TEXT,
-        longs.size(), Math.max(1, arguments.size()));
+    RexCall decimalRound =
+        call == projectionRoot ? FlinkExpressionFunction.decimalRoundingTextCall(expression) : null;
+    add(
+        decimalRound == null ? KIND_UDF : KIND_DECIMAL_ROUND_TEXT,
+        longs.size(),
+        Math.max(1, arguments.size()));
     longs.add((long) localIndex);
     longs.add((long) returnCode);
     if (decimalRound != null) {
-      longs.add(decimalRound.getOperator()
-          == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.TRUNCATE ? 1L : 0L);
+      longs.add(
+          decimalRound.getOperator()
+                  == org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable.TRUNCATE
+              ? 1L
+              : 0L);
     }
     if (arguments.isEmpty()) {
       add(KIND_LIT_INT, longs.size(), 0);
@@ -3291,13 +3369,14 @@ final class RexExpression {
     }
     if (legacyCastBehaviour
         && !((SqlTypeFamily.CHARACTER.contains(sourceType)
-                  && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
+                && resultType.getSqlTypeName() == SqlTypeName.DECIMAL)
             || ((sourceType.getSqlTypeName() == SqlTypeName.DECIMAL
                     || sourceType.getSqlTypeName() == SqlTypeName.BOOLEAN)
                 && SqlTypeFamily.CHARACTER.contains(resultType)))) {
       return reject("unverified legacy host cast " + sourceType + " to " + resultType);
     }
-    if (legacyCastBehaviour && SqlTypeFamily.CHARACTER.contains(sourceType)
+    if (legacyCastBehaviour
+        && SqlTypeFamily.CHARACTER.contains(sourceType)
         && resultType.getSqlTypeName() == SqlTypeName.DECIMAL) {
       // SQL generation wraps failing legacy conversions; CastExecutor alone does not.
       return emitHostExpression(call, true);
@@ -3654,13 +3733,38 @@ final class RexExpression {
     if (!rowFusion && resultType == SqlTypeName.VARBINARY && ++binaryUdfCalls > 1) {
       return rejectUdfMethod("multiple binary UDF calls may share mutable result buffers");
     }
-    int returnCode = udfTypeCode(call.getType());
+    boolean nested = rowFusion && Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs");
+    boolean rowBoundary =
+        resultType == SqlTypeName.ROW
+            || call.getOperands().stream()
+                .anyMatch(arg -> arg.getType().getSqlTypeName() == SqlTypeName.ROW);
+    if (nested && rowBoundary) {
+      try {
+        if (scalar
+                .getClass()
+                .getMethod("getTypeInference", org.apache.flink.table.catalog.DataTypeFactory.class)
+                .getDeclaringClass()
+            != org.apache.flink.table.functions.ScalarFunction.class)
+          return rejectUdfMethod(
+              "nested UDF custom type inference requires unverified Java conversions");
+      } catch (ReflectiveOperationException failure) {
+        return rejectUdfMethod("nested UDF type inference is unavailable");
+      }
+    }
+    int returnCode =
+        nested && resultType == SqlTypeName.ROW
+            ? rowCalcTypeCode(call.getType())
+            : udfTypeCode(call.getType());
     if (returnCode < 0) {
       return rejectUdfMethod("UDF return type not native: " + call.getType().getSqlTypeName());
     }
     List<RexNode> args = call.getOperands();
     for (RexNode argument : args) {
-      if (udfTypeCode(argument.getType()) < 0) {
+      int argumentCode =
+          nested && argument.getType().getSqlTypeName() == SqlTypeName.ROW
+              ? rowCalcTypeCode(argument.getType())
+              : udfTypeCode(argument.getType());
+      if (argumentCode < 0) {
         return rejectUdfMethod(
             "UDF argument type not native: " + argument.getType().getSqlTypeName());
       }
@@ -3670,14 +3774,31 @@ final class RexExpression {
       return rejectUdfMethod(
           "UDF " + scalar.getClass().getName() + " has no single eval of arity " + args.size());
     }
+    if (nested) {
+      Class<?>[] parameters = eval.getParameterTypes();
+      for (int i = 0; i < args.size(); i++) {
+        Class<?> parameter =
+            eval.isVarArgs() && i >= parameters.length - 1
+                ? parameters[parameters.length - 1].getComponentType()
+                : parameters[i];
+        if (args.get(i).getType().getSqlTypeName() == SqlTypeName.ROW
+            && parameter != org.apache.flink.types.Row.class)
+          return rejectUdfMethod("nested UDF arguments require the external Java Row conversion");
+      }
+    }
     if ((resultType == SqlTypeName.DECIMAL && eval.getReturnType() != BigDecimal.class)
-        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)) {
+        || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)
+        || (resultType == SqlTypeName.ROW
+            && eval.getReturnType() != org.apache.flink.types.Row.class)) {
       return rejectUdfMethod("UDF result uses an unsupported Java conversion class");
     }
     return eval;
   }
 
   private boolean validateGeneratedExpression(RexNode node) {
+    if (node instanceof org.apache.calcite.rex.RexFieldAccess)
+      return validateGeneratedExpression(
+          ((org.apache.calcite.rex.RexFieldAccess) node).getReferenceExpr());
     if (!(node instanceof RexCall)) return true;
     RexCall call = ((RexCall) node);
 
@@ -3708,10 +3829,14 @@ final class RexExpression {
         stringOrdering = false;
         break;
     }
-    boolean dynamicTrim = java.util.Set.of("BTRIM", "LTRIM", "RTRIM").contains(name)
-        && call.getOperands().size() == 2 && !(call.getOperands().get(1) instanceof RexLiteral);
-    if ((dynamicTrim || stringOrdering || (name.equals("GREATEST") || name.equals("LEAST"))
-            && SqlTypeFamily.CHARACTER.contains(call.getType()))
+    boolean dynamicTrim =
+        java.util.Set.of("BTRIM", "LTRIM", "RTRIM").contains(name)
+            && call.getOperands().size() == 2
+            && !(call.getOperands().get(1) instanceof RexLiteral);
+    if ((dynamicTrim
+            || stringOrdering
+            || (name.equals("GREATEST") || name.equals("LEAST"))
+                && SqlTypeFamily.CHARACTER.contains(call.getType()))
         && !javaStringInputs
         && call.getOperands().stream().anyMatch(operand -> !isAsciiLiteralResult(operand))) {
       return reject("string representation before Arrow is not proven Java-backed");
@@ -3999,6 +4124,9 @@ final class RexExpression {
         break;
       case VARBINARY:
         argument = byte[].class;
+        break;
+      case ROW:
+        argument = org.apache.flink.types.Row.class;
         break;
       default:
         return -1;

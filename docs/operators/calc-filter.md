@@ -39,6 +39,56 @@ fallback.
   functions below can instead use Flink generation for its complete program,
   subject to the host code generator and the verified batch bridge types.
 
+## Experimental nested Java scalar results
+
+`streamfusion.experimental.nestedScalarUdfs=true` investigates synchronous external Java `Row`
+arguments and results, using Flink's complete generated Calc evaluator through the existing batch
+bridge. It defaults to false. Computed ROW-valued programs and filters use whole-Calc generation,
+including SQL ROW constructors and comparisons, so physical metadata never becomes a logical SQL
+field. Pure input-reference projections keep the existing native path. Recursive
+ROW/ARRAY values use the existing verified primitive bridge types; string-to-string MAP fields
+are supported. Nested fixed BINARY, custom type inference, specialization and internal Java
+conversion classes retain whole-query fallback. Only external `Row` signatures enter the new gate.
+
+Flink's released converters own external callback inputs and normalize mutable results before the
+next invocation. This retains named-row field mapping, reusable ROW/array results, NULLs, Java
+string conversion and callback failures. No generic-array conversion shortcut is enabled: a
+profiled experiment reduced allocations but changed Unicode ARRAY_SORT results.
+
+A tagged nullable Int8 Arrow child carries each SQL ROW's `RowKind` outside its logical ordinals.
+Missing/NULL metadata reads as INSERT; nested non-INSERT kinds remain visible to Java callbacks.
+Key encoding writes the kind into Flink's BinaryRow header without consuming another logical type
+descriptor. UNNEST excludes it from SQL columns, and sort keys normalize only its comparison value
+while retaining actual kinds in output payloads. The generated Calc's outer projection container
+has no extra kind child. Configure the flag consistently in planner and task JVMs; this changes
+the physical struct schema. See the [transport decision](https://github.com/datafusion-contrib/StreamFusion/blob/fix/237-nested-scalar-results/divergences/nested-row-kind-transport.md).
+
+The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
+identify conversion work; their timings include observed external activity and are excluded from
+performance claims. Correctness, distributed configuration, and unprofiled stock/previous-runtime
+comparisons remain required before enabling this gate by default. #237 stays open.
+
+[Release validation evidence](../benchmarks/results/nested-scalar-coverage-2026-10-16.json)
+retains 71 opt-in checks on Flink 2.2.1 and 68 passes with three compatibility skips on 1.18.1.
+Default-off regressions pass 105 checks with one opt-in-only skip on 2.2.1 and 100 with six skips
+on 1.18.1. The native fixtures cover production handoffs, key bytes/hash descriptors, ordering and
+inner/left ARRAY-of-ROW UNNEST; their smoke execution does not establish throughput.
+
+Reproduce the complete-job benchmark from a clean released build (add `-Pflink-1.18` for that
+compatibility line). Every shape uses two warmup pairs and five measured pairs by default;
+EXPLAIN and per-job cluster setup precede the clock, while both transposes and production IPC
+remain inside execution. The benchmark includes nested identity/transform cases and a primitive
+Rust calculation control; it checks consumed native rows and zero native work in stock plans.
+
+```bash
+SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am \
+  -Dtest=NestedScalarBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dnative.resource.directory="${PWD}/native/target/release" \
+  '-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false' \
+  "-Dsf.extraJvmArgs=-Djava.library.path=${PWD}/native/target/release -Dstreamfusion.experimental.nestedScalarUdfs=true" \
+  test
+```
+
 ## Failure order across rows
 
 After the usual expression admission checks, a Calc with multiple potentially failing
@@ -332,7 +382,8 @@ This complete-row path executes on the JVM, including sibling expressions. It ad
 inputs and outputs supported by the scalar bridge: primitive numeric/boolean, character,
 BINARY/VARBINARY, DECIMAL, date/time/timestamp and interval values. Fixed BINARY result
 projections use this row path to retain their declared Arrow width. Collection and nested ROW inputs
-or outputs still fall back, as do unsupported UDF signatures and specialized functions. Temporal
+or outputs retain fallback by default; the nested scalar experiment above extends its verified
+ROW/ARRAY boundary. Unsupported UDF signatures and specialized functions still fall back. Temporal
 columns and builtin expressions are supported here; temporal **user-function signatures** retain
 the restriction above. The path preserves columnar operator boundaries and avoids a separate
 host Calc between native operators; it does not turn Java UDFs into Rust kernels.
