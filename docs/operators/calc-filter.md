@@ -80,7 +80,9 @@ fields, scalar consumers, grouping, exact released BinaryRow bytes/hashes and nu
 Default selections pass 23 cases with two skips on 2.2 and 18 with seven skips on 1.18.
 Thirty selected native Criterion smokes exercise sliced nullable nested binary handoffs and
 key hashing. These are correctness checks. Nested BINARY recovery and representative stock/
-actual-previous-runtime speed comparisons remain pending; keep this extension draft.
+actual-previous-runtime speed comparisons remain pending. The maintainer accepted shipping
+this correctness-tested, default-off extension on October 16 with performance work deferred;
+these pending contracts are not claimed as verified.
 
 The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
 identify conversion work; their timings include observed external activity and are excluded from
@@ -562,7 +564,9 @@ for unconditional, timestamp-only projections of matching width. Every function 
 A byte-equal result column retains the input buffers; the first changed value materializes its
 unchanged prefix and all subsequent values. Preinitialized Arrow fields preserve timestamp
 component metadata through transfers. Other result shapes use the ordinary flat Arrow writer.
-Both experimental switches default off. PR #368 remains draft at the maintainer's request.
+Both experimental switches default off. The maintainer accepted shipping this tested
+implementation on October 16 despite the measured regressions, with further performance
+work deferred; PR #368 has merged.
 
 In an unprofiled 2M-row repeat with the configuration above, direct batches plus timestamp
 aliasing measured identity **0.651 s versus stock 0.645 s**, text **0.830 versus 0.969 s**, and
