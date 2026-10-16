@@ -501,6 +501,50 @@ different types are each read independently (e.g. `SUM(a), SUM(b)` over columns 
 types both accelerate). `COUNT(*)` reads a synthesized non-null column so it counts every row,
 including alongside value aggregates.
 
+## JVM aggregate investigation
+
+JVM aggregate functions still fall back by default under [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
+The diagnostic system property `streamfusion.experimental.jvmGroupAggregates=true` admits
+released Flink bridging aggregate functions in the synchronous single-phase plan when every
+input and output field is VARCHAR, INT or BIGINT. It retains Flink's generated function,
+accumulate/retract logic, managed accumulator/DataView state and lifecycle inside an
+Arrow-batch input/output operator. It preserves each emitted changelog row; input coalescing
+does not reduce user function invocations or intermediate results. The operator disable switch
+`streamfusion.operator.jvmGroupAggregate.enabled=false` retains whole-island fallback.
+
+The opt-in harness passes 18 checks on each released Flink line with JDK 17: the original
+STRING-key append/CDC fixtures, numeric boundary/NULL keys at parallelism one and three,
+all RowKinds and delete/reinsert, four memory/native-RocksDB repeated-recovery scenarios,
+open/evaluation/close failure causes, and excluded-mode fallback. Recovery asserts consumed
+native work and released native memory. Arbitrary accumulator/DataView types, merge/reset
+and savepoint rescaling require broader evidence before admission.
+
+Mini-batching, positive idle retention or state-TTL hints, asynchronous state, specialized
+functions, DISTINCT, approximate aggregates, FILTER and ordered calls are excluded from this
+prototype. Two-phase merge/reset, OVER functions, nested scalar results and broader table
+function types remain separate work in #237. This experiment does not claim those contracts.
+
+`streamfusion.experimental.jvmAccumulatorCacheEntries` defaults to zero. A positive value
+stages accumulators for a single INT or BIGINT grouping key in an entry-bounded heap cache.
+NULL has a separate entry, and full-width primitive keys preserve minimum/maximum values.
+Updates flush to Flink managed state at capacity, before watermarks, completion and checkpoint
+snapshots. Snapshot boundaries invalidate borrowed accumulator views before subsequent
+mutation; restore starts with an empty cache. Flushing restores the operator's previous key
+context and ignores an empty cache on idle subtasks. Other key shapes use managed state directly.
+The bound counts entries, not accumulator bytes, and is not a task memory budget.
+
+The investigation has mixed Java/symbolized Rust CPU and sampled Java allocation profiles.
+An initial BinaryRow-keyed write-through cache was rejected: its key comparisons outweighed
+saved heap-state reads (1.395 s versus stock 1.084 s at 2M rows/65,536 keys). Primitive-key
+lookups reduced the sampled lookup cost, after which managed-state writes dominated. The
+write-back candidate's first release run had a 0.583–7.201 s native range versus stock
+1.048–1.482 s; this is diagnostic evidence, not a performance admission. Subsequent comparisons
+record GC and external process activity. Profiling timings are excluded from speed claims;
+Java allocation samples do not measure Rust heap totals or peak memory.
+[Diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
+retain every measurement, with no admitted result. Stock Flink remains
+the default until representative release comparisons and remaining contracts are established.
+
 ## Still falls back
 
 Both the single-phase gate and, for the two-phase plan, **both halves independently** must clear
@@ -510,7 +554,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 **Single-phase / either two-phase half in common:**
 
 - LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
-- A UDAF (no native path for arbitrary user aggregation logic).
+- A UDAF under normal settings; the default-off investigation below is not admitted acceleration.
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
   over types other than STRING/VARCHAR.

@@ -1,0 +1,280 @@
+{
+  "status": "default-off investigation; no admission or speed claim",
+  "source_base": "c3c6042209f6dd777c384c94de8381a35f610b4d",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": 17,
+    "native": "release, mimalloc, existing #232 native library; no changed Rust source",
+    "parallelism": 1,
+    "heap": "2 GiB",
+    "ipc": true,
+    "rows": 2000000,
+    "keys": 65536,
+    "every_eighth_value_null": true,
+    "row_source": true,
+    "row_blackhole_sink": true,
+    "both_transposes": true,
+    "batch_rows": 1024,
+    "warmup_pairs": 2,
+    "measured_alternating_pairs": 5,
+    "boundary": "executeSql(insert).await includes planning/submission, row source/sink, conversions, function and keyed state; per-pair metrics cluster boot/config outside timing"
+  },
+  "experiments": [
+    {
+      "label": "uncached",
+      "stock_seconds": [
+        1.126322134,
+        1.132233172,
+        1.153742023,
+        1.0079261,
+        1.008001101
+      ],
+      "native_seconds": [
+        1.157628788,
+        1.147236361,
+        1.284233761,
+        0.961404905,
+        1.011594865
+      ],
+      "stock_median_s": 1.126322134,
+      "native_median_s": 1.147236361,
+      "stock_range_s": [
+        1.0079261,
+        1.153742023
+      ],
+      "native_range_s": [
+        0.961404905,
+        1.284233761
+      ],
+      "admitted": false,
+      "limitation": "Diagnostic unmonitored trials; no external-process or GC record. All trials retained. Separate-JVM stock drift prevents attribution across experiments."
+    },
+    {
+      "label": "binary-key-write-through-rejected",
+      "stock_seconds": [
+        1.138904144,
+        1.084294349,
+        1.064063376,
+        1.096872565,
+        1.047127842
+      ],
+      "native_seconds": [
+        1.43048976,
+        1.3926076,
+        1.43879129,
+        1.395229332,
+        1.375391504
+      ],
+      "stock_median_s": 1.084294349,
+      "native_median_s": 1.395229332,
+      "stock_range_s": [
+        1.047127842,
+        1.138904144
+      ],
+      "native_range_s": [
+        1.375391504,
+        1.43879129
+      ],
+      "admitted": false,
+      "limitation": "Diagnostic unmonitored trials; no external-process or GC record. All trials retained. Separate-JVM stock drift prevents attribution across experiments."
+    },
+    {
+      "label": "primitive-write-through",
+      "stock_seconds": [
+        1.173568056,
+        1.255279712,
+        2.278591434,
+        1.103067651,
+        2.123162848
+      ],
+      "native_seconds": [
+        1.194593381,
+        1.226585943,
+        1.041404874,
+        0.958876193,
+        0.958366391
+      ],
+      "stock_median_s": 1.255279712,
+      "native_median_s": 1.041404874,
+      "stock_range_s": [
+        1.103067651,
+        2.278591434
+      ],
+      "native_range_s": [
+        0.958366391,
+        1.226585943
+      ],
+      "admitted": false,
+      "limitation": "Diagnostic unmonitored trials; no external-process or GC record. All trials retained. Separate-JVM stock drift prevents attribution across experiments."
+    },
+    {
+      "label": "primitive-write-back",
+      "stock_seconds": [
+        1.367520026,
+        1.481604942,
+        1.27242523,
+        1.048229743,
+        1.051001572
+      ],
+      "native_seconds": [
+        0.846467557,
+        0.971969087,
+        7.201070375,
+        1.920332004,
+        0.582729462
+      ],
+      "stock_median_s": 1.27242523,
+      "native_median_s": 0.971969087,
+      "stock_range_s": [
+        1.048229743,
+        1.481604942
+      ],
+      "native_range_s": [
+        0.582729462,
+        7.201070375
+      ],
+      "admitted": false,
+      "limitation": "Diagnostic unmonitored trials; no external-process or GC record. All trials retained. Separate-JVM stock drift prevents attribution across experiments."
+    }
+  ],
+  "profiles": {
+    "method": "async-profiler 4.0, cpu-clock 2ms, DWARF native stacks, sampled Java allocations 1m; CPU and allocation profiles from the same process",
+    "limitations": "Different profile workloads; inclusive counts describe observed stacks, not directly comparable speedups. Java allocations are not Rust heap totals or peak memory. Baseline contains native builtin-SUM Rust control; primitive-cache is UDAF-only and Rust time is coalescing. Write-back profile is pending.",
+    "records": [
+      {
+        "label": "baseline",
+        "files": [
+          "jvm-aggregates-2026-10-15-baseline-cpu.collapsed.gz",
+          "jvm-aggregates-2026-10-15-baseline-alloc.collapsed.gz"
+        ],
+        "inclusive_cpu_samples": {
+          "group_operator_samples": 0,
+          "heap_state_read_samples": 0,
+          "heap_state_write_samples": 0,
+          "cache_read_samples": 0,
+          "rust_samples": 259
+        },
+        "timing_excluded": true,
+        "workload": {
+          "rows": 500000,
+          "keys": 16384,
+          "warmup_pairs": 2,
+          "pairs": 3,
+          "cases": [
+            "udaf",
+            "builtin"
+          ]
+        }
+      },
+      {
+        "label": "prototype",
+        "files": [
+          "jvm-aggregates-2026-10-15-prototype-cpu.collapsed.gz",
+          "jvm-aggregates-2026-10-15-prototype-alloc.collapsed.gz"
+        ],
+        "inclusive_cpu_samples": {
+          "group_operator_samples": 1381,
+          "heap_state_read_samples": 474,
+          "heap_state_write_samples": 85,
+          "cache_read_samples": 0,
+          "rust_samples": 586
+        },
+        "timing_excluded": true,
+        "workload": {
+          "rows": 1000000,
+          "keys": 32768,
+          "warmup_pairs": 2,
+          "pairs": 3,
+          "cases": [
+            "udaf",
+            "builtin"
+          ]
+        }
+      },
+      {
+        "label": "write-through",
+        "files": [
+          "jvm-aggregates-2026-10-15-write-through-cpu.collapsed.gz",
+          "jvm-aggregates-2026-10-15-write-through-alloc.collapsed.gz"
+        ],
+        "inclusive_cpu_samples": {
+          "group_operator_samples": 1782,
+          "heap_state_read_samples": 5,
+          "heap_state_write_samples": 254,
+          "cache_read_samples": 627,
+          "rust_samples": 10
+        },
+        "timing_excluded": true,
+        "workload": {
+          "rows": 1000000,
+          "keys": 32768,
+          "warmup_pairs": 2,
+          "pairs": 3,
+          "cases": [
+            "udaf"
+          ]
+        }
+      },
+      {
+        "label": "primitive-cache",
+        "files": [
+          "jvm-aggregates-2026-10-15-primitive-cache-cpu.collapsed.gz",
+          "jvm-aggregates-2026-10-15-primitive-cache-alloc.collapsed.gz"
+        ],
+        "inclusive_cpu_samples": {
+          "group_operator_samples": 1421,
+          "heap_state_read_samples": 9,
+          "heap_state_write_samples": 487,
+          "cache_read_samples": 62,
+          "rust_samples": 10
+        },
+        "timing_excluded": true,
+        "workload": {
+          "rows": 1000000,
+          "keys": 32768,
+          "warmup_pairs": 2,
+          "pairs": 3,
+          "cases": [
+            "udaf"
+          ]
+        }
+      }
+    ]
+  },
+  "pending": [
+    "monitored release comparisons across cardinalities, key types and supported Flink versions",
+    "write-back Java/Rust profile",
+    "merge/reset and broader aggregate contracts",
+    "default admission decision"
+  ],
+  "correctness": {
+    "flink_2_2_1": {
+      "focused_passed": 18,
+      "failed": 0,
+      "skipped": 0
+    },
+    "flink_1_18_1": {
+      "focused_passed": 18,
+      "failed": 0,
+      "skipped": 0
+    },
+    "scope": [
+      "append and CDC original STRING-key fixtures",
+      "single INT/BIGINT keys at parallelism 1 and 3, NULL/min/max/high bits, delete/reinsert and UPDATE_BEFORE/AFTER",
+      "four memory/native-RocksDB append/retract recovery scenarios per line with two forced restores, consumed native rows and memory release",
+      "open/evaluation/close failure cause parity",
+      "TTL, mini-batch, operator-disable, DISTINCT and FILTER fallback"
+    ],
+    "additional_small_cache": "Earlier nine-check suite passed with capacity 3, including forced eviction and four recovery scenarios on Flink 2.2; expanded suite and Flink 1.18 small-capacity coverage pending.",
+    "default_mode": {
+      "portable_passed_per_line": 38,
+      "opt_in_harness_containers_skipped_per_line": 6,
+      "failed": 0,
+      "flink": [
+        "2.2.1",
+        "1.18.1"
+      ],
+      "note": "The default-off gate preserves original UDAF fallback routes and explanations. Opt-in success counts come from the separate focused runs above."
+    }
+  }
+}
