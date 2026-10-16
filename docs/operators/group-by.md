@@ -565,7 +565,10 @@ one ingest call and never enters the map. Buffers too large for a Java NIO view 
 released copying reader. Retained StringData keys refer only to owned BinaryRow
 storage, never to the closing Arrow batch. A STRING hit passes
 the selected entry to the state read without constructing a second string view. Misses use
-the released selector's owned copy.
+the released selector's owned copy. A separate borrowed-string reader supplies key projection
+even after cache bypass or with caching disabled, avoiding a temporary input-string copy before
+that owned key is created. User aggregate callbacks still receive the ordinary reader, whose
+string ownership is unchanged.
 The key field comes from the optimized input projection, rather than the original source schema.
 If an additional key arrives after the cache fills without any hit, pending rows first flush
 to managed state and the cache is bypassed for the rest of that task attempt. Reads, writes
@@ -697,6 +700,13 @@ validation passes 73 combined cases on each Flink line; the small-capacity JSON/
 passes 108 on 2.2 and 106 with two compatibility skips on 1.18. All trials, profiles and test
 logs are [retained](../benchmarks/results/jvm-aggregate-borrowed-string-exit-2026-10-16.json).
 The aggregate prototype and cache remain default off and draft.
+
+The subsequent [owned-key projection investigation](../optimizations/borrowed-key-probes.md#borrow-before-projecting-an-owned-jvm-key)
+avoids a temporary STRING copy on misses and after bypass, while callback inputs remain owned.
+Its normal-capacity selection passes 74 checks per line; small-capacity aggregate/JSON checks
+plus the separate nested suite pass 109 on 2.2 and 107 with two compatibility skips on 1.18.
+Matched allocation profiles improve, but external work prevents timing claims; isolated
+performance admission remains pending.
 
 ## Still falls back
 

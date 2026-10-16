@@ -36,6 +36,8 @@ ownership before the batch closes. Object-reuse-enabled outputs still receive an
 this change does not remove that mandatory copy. Generic Arrow input readers retain their
 existing string ownership, and explicit UTF-16 cache columns preserve Java string values.
 Unsupported vectors or buffers exceeding the Java NIO size limit retain the copying reader.
+The same reader supplies the JVM aggregate's synchronous key projection, whose released
+selector returns an owned key; aggregate callback inputs retain the ordinary reader.
 
 [Matched Java/Rust profiles and complete-job trials](../benchmarks/results/jvm-aggregate-borrowed-string-exit-2026-10-16.json)
 retain both enabled and disabled recordings on identical source, queries and resources.

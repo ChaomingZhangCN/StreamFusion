@@ -230,8 +230,8 @@ public final class ArrowConversion {
     return createArrowReader(root, rowType, false);
   }
 
-  /** Exit-only reader: downstream must copy or serialize each row before the batch closes. */
-  public static ArrowReader createArrowExitReader(VectorSchemaRoot root, RowType rowType) {
+  /** Reader for synchronous consumers that copy or serialize before the batch closes. */
+  public static ArrowReader createBorrowedStringReader(VectorSchemaRoot root, RowType rowType) {
     return createArrowReader(root, rowType, true);
   }
 

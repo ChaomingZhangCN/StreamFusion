@@ -97,7 +97,7 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
     numInputBatches.inc();
     long started = System.nanoTime();
     try (VectorSchemaRoot root = element.getValue().root()) {
-      ArrowReader reader = borrowStrings ? ArrowConversion.createArrowExitReader(root, rowType)
+      ArrowReader reader = borrowStrings ? ArrowConversion.createBorrowedStringReader(root, rowType)
           : ArrowConversion.createArrowReader(root, rowType);
       TinyIntVector kinds = (TinyIntVector) root.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
       int rowCount = root.getRowCount();

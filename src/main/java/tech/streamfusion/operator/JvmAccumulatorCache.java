@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -17,7 +16,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.keyselector.RowDataKeySelector;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
-import tech.streamfusion.arrow.BorrowedStringValues;
 
 /** Bounded accumulator views, flushed into managed state before checkpoint snapshots. */
 final class JvmAccumulatorCache {
@@ -81,16 +79,9 @@ final class JvmAccumulatorCache {
             });
   }
 
-  BorrowedStringValues stringProbe(FieldVector input) {
-    if (!stringKey || (states.size() == 1 && !states.get(0).enabled)) return null;
-    return BorrowedStringValues.create(input);
-  }
-
-  RowData keyFor(
-      RowData input, int field, RowDataKeySelector selector, BorrowedStringValues probe, int row)
-      throws Exception {
+  RowData keyFor(RowData input, int field, RowDataKeySelector selector) throws Exception {
     if (states.size() == 1) {
-      RowData key = states.get(0).keyFor(input, field, probe, row);
+      RowData key = states.get(0).keyFor(input, field);
       if (key != null) return key;
     }
     return selector.getKey(input);
@@ -132,13 +123,13 @@ final class JvmAccumulatorCache {
       this.delegate = delegate;
     }
 
-    private RowData keyFor(RowData input, int field, BorrowedStringValues probe, int row) {
+    private RowData keyFor(RowData input, int field) {
       if (!enabled) return null;
       Entry entry =
           input.isNullAt(field)
               ? nullEntry
               : stringKey
-                  ? stringEntry(probe == null ? input.getString(field) : probe.value(row))
+                  ? stringEntry(input.getString(field))
                   : values.get(intKey ? input.getInt(field) : input.getLong(field));
       if (stringKey) probedEntry = entry;
       return entry == null ? null : entry.key;

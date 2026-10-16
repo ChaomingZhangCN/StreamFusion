@@ -200,3 +200,32 @@ profiles. The batch-scoped UTF-8 view helper is also reused by the separate, def
 [STRING exit experiment](zero-copy-exit-transpose.md#experimental-borrowed-string-exit).
 That reuse does not change the probe's ownership: retained cache keys still refer only to
 owned BinaryRow storage, and ordinary Arrow input readers retain their copying behavior.
+
+### Borrow before projecting an owned JVM key
+
+The JVM aggregate's single-VARCHAR-key path also borrows UTF-8 for the released key selector,
+including cache misses, cold bypass and disabled caching. The selector's generated projection
+immediately returns an owned BinaryRow copy on both released Flink lines. This removes a
+temporary Arrow-string heap copy before key materialization; it preserves the required owned
+key. The aggregate callback still receives the ordinary reader, so user functions do not
+receive these borrowed string views. The shared reader also preserves explicit UTF-16 caches
+and falls back to copying for unsupported buffers.
+
+A released-selector ownership test selects a nonleading key, covers NULL/empty/long Unicode
+strings, moves the view, mutates the source buffer and retains all keys after batch close.
+This change remains inside the default-off aggregate investigation.
+
+[Matched distinct-key profiles and validation](../benchmarks/results/jvm-aggregate-borrowed-key-projection-2026-10-16.json)
+retain the preceding revision and candidate with identical query, resources, release library,
+exit flag and benchmark fixture. Over 5M native UDAF rows, sampled key-selector allocations
+decrease from 1.879 GB to .966 GB and inclusive aggregate-ingest allocations from 6.030 GB to
+5.078 GB. Both recordings observed external work (3.94 and 50.71 CPU seconds); all profile
+timings are excluded and no CPU speedup or throughput gain is claimed. Heap-state incremental
+rehashing remains the largest sampled native-UDAF CPU leaf. Symbolized Rust builtin-SUM control
+stacks are retained as well. Sampled allocations are estimates, not copied bytes or memory use.
+
+The normal-capacity selection passes 74 checks on each Flink line. At capacity three, the
+aggregate/transpose/JSON selection passes 94 checks on 2.2 and 92 with two compatibility skips
+on 1.18; the separate 15-case nested JSON/JVM suite also passes each line. Both changed
+production and test sources compile against released dependencies. Isolated performance
+comparison remains required before admission.

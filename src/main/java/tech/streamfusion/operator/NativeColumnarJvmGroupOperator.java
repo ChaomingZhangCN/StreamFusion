@@ -127,19 +127,20 @@ public final class NativeColumnarJvmGroupOperator extends FlinkStreamOperator<Ar
   private void ingest(VectorSchemaRoot input) {
     try (input) {
       var reader = ArrowConversion.createArrowReader(input, inputType);
+      var keyReader =
+          keyType == LogicalTypeRoot.VARCHAR
+              ? ArrowConversion.createBorrowedStringReader(input, inputType)
+              : reader;
       var inputKinds = (TinyIntVector) input.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
-      var keyProbe =
-          accumulatorCache == null
-              ? null
-              : accumulatorCache.stringProbe(input.getVector(keyColumn));
       for (int index = 0; index < input.getRowCount(); index++) {
         var row = reader.read(index);
+        var keyRow = keyReader == reader ? row : keyReader.read(index);
         row.setRowKind(
             inputKinds == null ? RowKind.INSERT : RowKind.fromByteValue(inputKinds.get(index)));
         setCurrentKey(
             accumulatorCache == null
-                ? keySelector.getKey(row)
-                : accumulatorCache.keyFor(row, keyColumn, keySelector, keyProbe, index));
+                ? keySelector.getKey(keyRow)
+                : accumulatorCache.keyFor(keyRow, keyColumn, keySelector));
         function.processElement(row, context, collector);
       }
       flush();

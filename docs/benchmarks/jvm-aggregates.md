@@ -163,3 +163,11 @@ It defaults off; pass `--borrowed-string-exit` to the runner after building the 
 The workflow measures that flag explicitly and records it in configuration. Its matched local
 profiles show lower sampled allocations, while local distinct-key throughput still regresses.
 The new candidate requires its own isolated matrix and remains draft.
+
+The following [borrowed-key projection](../optimizations/borrowed-key-probes.md#borrow-before-projecting-an-owned-jvm-key)
+targets temporary strings on cache misses and after cold bypass. It retains the released
+selector's owned key copy and ordinary callback inputs. Matched distinct-key Java/Rust profiles
+show lower sampled allocations but observed external work; their timings are excluded. The
+[full evidence](results/jvm-aggregate-borrowed-key-projection-2026-10-16.json) includes both
+recordings, the earlier diagnostic, source hashes and both released-line validation suites.
+No new clean whole-job speed comparison or default admission is claimed.

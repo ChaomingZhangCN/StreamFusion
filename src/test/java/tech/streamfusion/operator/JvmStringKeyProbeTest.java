@@ -6,10 +6,51 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.binary.BinaryStringData;
+import org.apache.flink.table.planner.plan.utils.KeySelectorUtil;
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
+import org.apache.flink.table.types.logical.IntType;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.jupiter.api.Test;
+import tech.streamfusion.arrow.ArrowConversion;
 
 class JvmStringKeyProbeTest {
+  @Test
+  void releasedKeyProjectionOwnsBorrowedStringsAfterInputMutationAndClose() throws Exception {
+    var schema = RowType.of(new IntType(), new VarCharType(16384));
+    var selector =
+        KeySelectorUtil.getRowDataSelector(
+            Thread.currentThread().getContextClassLoader(),
+            new int[] {1},
+            InternalTypeInfo.of(schema));
+    String[] values = {"é🙂\u0000", "", null, "long".repeat(2048), "tail"};
+    var expected = new ArrayList<RowData>();
+    var retained = new ArrayList<RowData>();
+    try (var allocator = new RootAllocator()) {
+      var rows = new ArrayList<RowData>();
+      for (int i = 0; i < values.length; i++) {
+        var row = GenericRowData.of(i, StringData.fromString(values[i]));
+        rows.add(row);
+        expected.add(selector.getKey(row));
+      }
+      try (var root = RowDataArrowConverter.write(rows, schema, allocator, false)) {
+        var reader = ArrowConversion.createBorrowedStringReader(root, schema);
+        for (int i = 0; i < values.length; i++) retained.add(selector.getKey(reader.read(i)));
+        var strings = (VarCharVector) root.getVector(1);
+        strings.setSafe(0, "changed".getBytes(StandardCharsets.UTF_8));
+      }
+    }
+    assertEquals(expected, retained);
+    for (int i = 0; i < values.length; i++) {
+      assertEquals(values[i] == null, retained.get(i).isNullAt(0));
+      if (values[i] != null) assertEquals(values[i], retained.get(i).getString(0).toString());
+    }
+  }
+
   @Test
   void slicedNullEmptyAndUnicodeKeysUseReleasedStringEqualityAndHashing() {
     try (var allocator = new RootAllocator();
