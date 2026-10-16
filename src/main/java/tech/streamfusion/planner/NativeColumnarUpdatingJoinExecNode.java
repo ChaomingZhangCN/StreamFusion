@@ -109,6 +109,10 @@ public class NativeColumnarUpdatingJoinExecNode extends ExecNodeBase<ArrowBatch>
                 || leftInsertOnly && rightInsertOnly)
             && config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_ENABLED);
     long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+    // The host validates even when our updating, non-unique path executes immediately.
+    if (joinType <= 3 && config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_ENABLED)) {
+      miniBatchSize = tech.streamfusion.compat.FlinkCompat.joinMiniBatchSize(config);
+    }
     long leftStateTtlMillis =
         leftStateTtlHintMillis >= 0 ? leftStateTtlHintMillis : config.getStateRetentionTime();
     long rightStateTtlMillis =
