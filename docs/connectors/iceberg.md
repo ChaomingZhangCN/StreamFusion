@@ -5,7 +5,7 @@
 SQL source/sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
 It stays off by default until release end-to-end comparisons demonstrate performance.
 The admitted path is the normal legacy sink, unencrypted
-format-v1/v2/v3 Parquet, distribution `none`/`hash`, and verified integer, long, string,
+format-v1/v2/v3 Parquet, distribution `none`/`hash`/`range`, and verified integer, long, string,
 boolean, binary, date, float, double, decimal, time, and microsecond timestamp
 columns (with and without a time zone). Java fanout handles partitioned append; a
 four-bucket test verifies interleaved Arrow selections and independent rolling.
@@ -17,7 +17,7 @@ identifier fields also admit INSERT/UPDATE_BEFORE/UPDATE_AFTER/DELETE and the
 normal upsert option. SQL primary keys must match the table identifier fields;
 upsert materialization retains the stock sink. Java retains equality/position
 delete encoding, partition validation, and key bookkeeping. For keyed tables,
-`range` keeps Iceberg's normal hash fallback. Append range distribution, nested
+`range` keeps Iceberg's normal hash fallback. Nested
 structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, dynamic
 destinations, Sink V2, and unknown writer-affecting options retain the
 stock sink.
@@ -36,6 +36,16 @@ into iceberg-rust's single-file Parquet encoder before releasing each input batc
 at memory thresholds, at size checks, and before close. Java's per-row counting
 and 1,000-row rolling checks remain in place. Different encoders can produce
 different byte sizes and file boundaries under the same target-size policy.
+
+Append range distribution retains the released statistics operator, coordinator,
+union state, checkpoint events and range partitioner. Java observes borrowed Arrow
+views and chooses each destination; the existing Rust splitter emits selected Arrow
+batches. Statistics update the producer's original partitioner before the corresponding
+checkpoint barrier, where the stock output gate normally applies them. The normal
+custom exchange keeps unaligned channel capture disabled. No file-local sorting is
+added. Map/sketch tests cover nullable sort keys in formats 1/2/3, traffic after learned
+assignments, SQL entry points, and restoration of learned statistics at parallelism 2→3.
+`nativeRangeStatisticsUpdates` exposes applied host assignments.
 
 The Rust encoder writes through a bounded reusable JNI byte buffer into the
 Java-selected Iceberg output stream. Java owns filesystem configuration and stream

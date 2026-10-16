@@ -45,13 +45,29 @@ def source_cases(directory):
     return executed, skipped
 
 
+def range_control_cases(directory):
+    result = {}
+    for name in ("TestDataStatisticsOperator", "TestDataStatisticsCoordinator", "TestRangePartitioner"):
+        classname = f"org.apache.iceberg.flink.sink.shuffle.{name}"
+        root = ET.parse(Path(directory) / f"TEST-{classname}.xml").getroot()
+        if any(case.find("failure") is not None or case.find("error") is not None or case.find("skipped") is not None
+               for case in root.findall("testcase")):
+            raise ValueError(f"Failed/skipped range control case: {name}")
+        result[name] = Counter(case.attrib["name"] for case in root.findall("testcase"))
+    if sum(sum(cases.values()) for cases in result.values()) != 30:
+        raise ValueError("Expected 30 published range operator/coordinator/partitioner cases")
+    return result
+
+
 def main(stock, native):
     if cases(stock) != cases(native):
         raise ValueError("Stock/native upstream invocation inventories differ")
     if source_cases(stock) != source_cases(native):
         raise ValueError("Stock/native upstream source SQL invocation inventories differ")
+    if range_control_cases(stock) != range_control_cases(native):
+        raise ValueError("Stock/native range control inventories differ")
     reports = Path(native)
-    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 11), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 1), ("NativeIcebergSourceTest", 1), ("NativeIcebergSourceSqlTest", 2), ("NativeIcebergSourceRecoveryTest", 1), ("NativeIcebergTaskFallbackTest", 3), ("NativeIcebergEvolutionTest", 2)):
+    for name, count in (("IcebergSinkAdapterTest", 1), ("NativeIcebergSinkTest", 8), ("NativeIcebergSqlTest", 14), ("NativeIcebergKeyedTest", 26), ("NativeIcebergReaderTest", 8), ("NativeIcebergTypeTest", 3), ("NativeIcebergPredicateTest", 10), ("NativeIcebergTaskMetadataTest", 4), ("NativeIcebergFloatingPredicateTest", 28), ("NativeIcebergTemporalPredicateTest", 12), ("NativeIcebergRangeTest", 2), ("NativeIcebergRangeSinkTest", 6), ("NativeIcebergSourceTest", 1), ("NativeIcebergSourceSqlTest", 2), ("NativeIcebergSourceRecoveryTest", 2), ("NativeIcebergTaskFallbackTest", 3), ("NativeIcebergEvolutionTest", 2)):
         root = ET.parse(reports / f"TEST-tech.streamfusion.iceberg.{name}.xml").getroot()
         if any(case.find("failure") is not None or case.find("error") is not None
                for case in root.findall("testcase")):
@@ -60,7 +76,7 @@ def main(stock, native):
                   and case.find("error") is None and case.find("skipped") is None]
         if len(passed) < count:
             raise ValueError(f"Missing native hook/readback witnesses: {name}")
-    print("Iceberg: identical 14 upstream streaming sink/source SQL cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
+    print("Iceberg: identical 14 upstream streaming SQL and 30 range control cases; native hook, SQL file-encoder, keyed recovery, and readback witnesses passed")
 
 
 if __name__ == "__main__":

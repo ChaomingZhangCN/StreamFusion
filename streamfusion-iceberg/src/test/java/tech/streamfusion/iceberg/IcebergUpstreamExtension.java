@@ -31,7 +31,8 @@ public final class IcebergUpstreamExtension
 
   @Override
   public void beforeTestExecution(ExtensionContext context) throws Exception {
-    if (!context.getRequiredTestClass().getName().startsWith("org.apache.iceberg.flink.")
+    if (!java.util.Set.of("TestFlinkTableSinkExtended", "TestIcebergSourceSql")
+            .contains(context.getRequiredTestClass().getSimpleName())
         || !Boolean.getBoolean("streamfusion.iceberg.suite.native")) return;
     boolean installed = false;
     Object instance = context.getRequiredTestInstance();

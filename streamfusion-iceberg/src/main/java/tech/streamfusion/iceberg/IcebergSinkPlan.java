@@ -62,9 +62,8 @@ public final class IcebergSinkPlan {
     var conf = new FlinkWriteConf(table, options, configuration);
     if ((conf.distributionMode() != DistributionMode.NONE
         && conf.distributionMode() != DistributionMode.HASH
-        && !(conf.distributionMode() == DistributionMode.RANGE
-            && !table.schema().identifierFieldIds().isEmpty()))) {
-      throw new IllegalArgumentException("only none/hash streaming distribution is admitted");
+        && conf.distributionMode() != DistributionMode.RANGE)) {
+      throw new IllegalArgumentException("only none/hash/range streaming distribution is admitted");
     }
     if (requested != null
         && requested.getPrimaryKey().isPresent()

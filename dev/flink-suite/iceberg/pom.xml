@@ -11,6 +11,9 @@
         <iceberg.test.jvm.args></iceberg.test.jvm.args>
     </properties>
     <dependencies>
+                <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>4.11.0</version><scope>test</scope></dependency>
+                <dependency><groupId>org.awaitility</groupId><artifactId>awaitility</artifactId><version>4.3.0</version><scope>test</scope></dependency>
+
         <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>1.7.36</version><scope>test</scope></dependency>
         <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-flink-runtime-2.2</artifactId><version>${iceberg.version}</version></dependency>
         <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-flink-2.2</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
@@ -42,7 +45,7 @@
             <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.3</version>
                 <configuration>
                     <dependenciesToScan><dependency>org.apache.iceberg:iceberg-flink-2.2:test-jar:tests</dependency></dependenciesToScan>
-                    <includes><include>**/TestFlinkTableSinkExtended.class</include><include>**/TestIcebergSourceSql.class</include></includes>
+                    <includes><include>**/TestFlinkTableSinkExtended.class</include><include>**/TestIcebergSourceSql.class</include><include>**/TestDataStatisticsOperator.class</include><include>**/TestDataStatisticsCoordinator.class</include><include>**/TestRangePartitioner.class</include></includes>
                     <classpathDependencyExcludes>
                         <classpathDependencyExclude>org.slf4j:slf4j-reload4j</classpathDependencyExclude>
                         <classpathDependencyExclude>org.slf4j:slf4j-log4j12</classpathDependencyExclude>

@@ -91,6 +91,9 @@
         <profile>
             <id>iceberg-upstream</id>
             <dependencies>
+                <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>4.11.0</version><scope>test</scope></dependency>
+                <dependency><groupId>org.awaitility</groupId><artifactId>awaitility</artifactId><version>4.3.0</version><scope>test</scope></dependency>
+
                 <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-flink-2.2</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
                 <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-api</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
                 <dependency><groupId>org.apache.iceberg</groupId><artifactId>iceberg-data</artifactId><version>${iceberg.version}</version><type>test-jar</type><scope>test</scope></dependency>
@@ -102,7 +105,7 @@
                 <configuration>
                     <dependenciesToScan><dependency>org.apache.iceberg:iceberg-flink-2.2:test-jar:tests</dependency></dependenciesToScan>
                     <includes>
-                        <include>**/TestFlinkTableSinkExtended.class</include><include>**/TestIcebergSourceSql.class</include>
+                        <include>**/TestFlinkTableSinkExtended.class</include><include>**/TestIcebergSourceSql.class</include><include>**/TestDataStatisticsOperator.class</include><include>**/TestDataStatisticsCoordinator.class</include><include>**/TestRangePartitioner.class</include>
                         <include>**/*Iceberg*Test.java</include>
                     </includes>
                     <systemPropertyVariables>

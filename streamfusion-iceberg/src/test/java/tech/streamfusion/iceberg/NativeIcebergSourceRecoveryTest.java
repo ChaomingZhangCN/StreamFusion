@@ -13,19 +13,22 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tech.streamfusion.operator.ArrowBatchTypeInformation;
 
 class NativeIcebergSourceRecoveryTest {
   @TempDir Path temp;
   private static final AtomicInteger EMITTED = new AtomicInteger();
-  private static final AtomicInteger CHECKPOINTED = new AtomicInteger();
+  private static final java.util.Map<Long, java.util.Map<Integer, Integer>> CHECKPOINTED =
+      new java.util.concurrent.ConcurrentHashMap<>();
 
-  @Test
-  void midFileSavepointRestoresWithNewParallelismAndCommitsEveryRowOnce() throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"none", "range"})
+  void midFileSavepointRestoresWithNewParallelismAndCommitsEveryRowOnce(String distribution)
+      throws Exception {
     EMITTED.set(0);
-    CHECKPOINTED.set(0);
+    CHECKPOINTED.clear();
+    NativeIcebergRangeSinkTest.clearRangeWitnesses();
     var input = NativeIcebergReaderTest.fixture(temp, false);
     NativeIcebergSourceSqlTest.append(input, 101, 2001);
     var output =
@@ -33,9 +36,12 @@ class NativeIcebergSourceRecoveryTest {
             .create(
                 input.schema(),
                 org.apache.iceberg.PartitionSpec.unpartitioned(),
-                Map.of("format-version", "2", "write.distribution-mode", "none"),
+                Map.of("format-version", "2", "write.distribution-mode", distribution),
                 temp.resolve("output").toUri().toString());
-    var first = environment(input, output, 2, null, true).executeAsync("iceberg-source-recovery");
+    if (distribution.equals("range")) output.replaceSortOrder().asc("id").commit();
+    var first =
+        environment(input, output, 2, null, true, distribution)
+            .executeAsync("iceberg-source-recovery");
     String savepoint;
     try {
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
@@ -46,16 +52,36 @@ class NativeIcebergSourceRecoveryTest {
               .triggerSavepoint(
                   temp.resolve("savepoints").toUri().toString(), SavepointFormatType.CANONICAL)
               .get(30, TimeUnit.SECONDS);
+      if (distribution.equals("range")) {
+        savepoint =
+            first
+                .triggerSavepoint(
+                    temp.resolve("learned").toUri().toString(), SavepointFormatType.CANONICAL)
+                .get(30, TimeUnit.SECONDS);
+        assertTrue(
+            NativeIcebergRangeSinkTest.rangeUpdates() > 0,
+            "range state must be learned before restoration");
+      }
       assertTrue(EMITTED.get() < 2001, "savepoint must interrupt a partially emitted task");
     } finally {
       first.cancel().get(30, TimeUnit.SECONDS);
       first.getJobExecutionResult().handle((result, failure) -> null).get(30, TimeUnit.SECONDS);
     }
-    assertTrue(CHECKPOINTED.get() > 0 && CHECKPOINTED.get() < 2001);
-    EMITTED.set(CHECKPOINTED.get());
+    int checkpointRows =
+        CHECKPOINTED.entrySet().stream()
+            .max(java.util.Map.Entry.comparingByKey())
+            .orElseThrow()
+            .getValue()
+            .values()
+            .stream()
+            .mapToInt(Integer::intValue)
+            .sum();
+    assertTrue(checkpointRows > 0 && checkpointRows < 2001);
+    EMITTED.set(checkpointRows);
     NativeIcebergSourceSqlTest.append(input, 2001, 2004);
     var restored =
-        environment(input, output, 3, savepoint, false).executeAsync("iceberg-source-recovery");
+        environment(input, output, 3, savepoint, false, distribution)
+            .executeAsync("iceberg-source-recovery");
     boolean stopped = false;
     try {
       // The restored sink commits only at the drain savepoint; wait for the remaining input first.
@@ -97,7 +123,12 @@ class NativeIcebergSourceRecoveryTest {
   }
 
   private static StreamExecutionEnvironment environment(
-      Table input, Table output, int parallelism, String restore, boolean slow) {
+      Table input,
+      Table output,
+      int parallelism,
+      String restore,
+      boolean slow,
+      String distribution) {
     var config =
         Configuration.fromMap(
             Map.of(
@@ -105,6 +136,12 @@ class NativeIcebergSourceRecoveryTest {
                 "none",
                 "taskmanager.memory.task.off-heap.size",
                 "256 mb"));
+    if (distribution.equals("range")) {
+      config.setString("metrics.reporters", "range");
+      config.setString(
+          "metrics.reporter.range.factory.class",
+          NativeIcebergRangeSinkTest.WitnessFactory.class.getName());
+    }
     if (restore != null) config.setString("execution.savepoint.path", restore);
     var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     env.setParallelism(parallelism);
@@ -135,7 +172,7 @@ class NativeIcebergSourceRecoveryTest {
         output,
         TableLoader.fromHadoopTable(output.location()),
         config,
-        Map.of("distribution-mode", "none"),
+        Map.of("distribution-mode", distribution),
         "iceberg-output");
     return env;
   }
@@ -145,6 +182,7 @@ class NativeIcebergSourceRecoveryTest {
           tech.streamfusion.operator.ArrowBatch, tech.streamfusion.operator.ArrowBatch>
       implements org.apache.flink.streaming.api.checkpoint.CheckpointedFunction {
     private final boolean slow;
+    private int emitted;
 
     private Delay(boolean slow) {
       this.slow = slow;
@@ -155,6 +193,7 @@ class NativeIcebergSourceRecoveryTest {
         throws Exception {
       try {
         if (slow) Thread.sleep(20);
+        emitted += batch.rowCount();
         EMITTED.addAndGet(batch.rowCount());
         return batch;
       } catch (Throwable failure) {
@@ -169,7 +208,10 @@ class NativeIcebergSourceRecoveryTest {
 
     @Override
     public void snapshotState(org.apache.flink.runtime.state.FunctionSnapshotContext context) {
-      CHECKPOINTED.set(EMITTED.get());
+      CHECKPOINTED
+          .computeIfAbsent(
+              context.getCheckpointId(), ignored -> new java.util.concurrent.ConcurrentHashMap<>())
+          .put(getRuntimeContext().getTaskInfo().getIndexOfThisSubtask(), emitted);
     }
   }
 }

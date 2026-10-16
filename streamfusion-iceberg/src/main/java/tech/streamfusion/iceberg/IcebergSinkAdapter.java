@@ -61,11 +61,10 @@ final class IcebergSinkAdapter {
     FlinkWriteConf writeConf = new FlinkWriteConf(table, options, configuration);
     if ((writeConf.distributionMode() != DistributionMode.NONE
             && writeConf.distributionMode() != DistributionMode.HASH
-            && !(writeConf.distributionMode() == DistributionMode.RANGE
-                && !table.schema().identifierFieldIds().isEmpty()))
+            && writeConf.distributionMode() != DistributionMode.RANGE)
         || writeConf.overwriteMode()) {
       throw new IllegalArgumentException(
-          "Iceberg streaming adapter requires none/hash distribution");
+          "Iceberg streaming adapter requires none/hash/range distribution");
     }
     // No RowData crosses this edge: replace the sole writer consumer before graph serialization.
     DataStream<RowData> hostInput =
@@ -86,7 +85,12 @@ final class IcebergSinkAdapter {
       if (!(factory instanceof SimpleOperatorFactory)) continue;
       Object operator = ((SimpleOperatorFactory<?>) factory).getOperator();
       if (!operator.getClass().getName().equals(WRITER)) continue;
-      adaptHashInput((OneInputTransformation) transformation, input, table);
+      if (writeConf.distributionMode() == DistributionMode.RANGE
+          && table.schema().identifierFieldIds().isEmpty()) {
+        adaptRangeInput((OneInputTransformation) transformation, table);
+      } else {
+        adaptHashInput((OneInputTransformation) transformation, input, table);
+      }
       Field field = field(operator.getClass(), "taskWriterFactory");
       try {
         RowDataTaskWriterFactory original = (RowDataTaskWriterFactory) field.get(operator);
@@ -103,6 +107,61 @@ final class IcebergSinkAdapter {
       throw new IllegalStateException("Expected one normal Iceberg writer, found " + replaced);
     }
     return sink;
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static void adaptRangeInput(OneInputTransformation writer, Table table) {
+    if (!(writer.getInputs().get(0) instanceof OneInputTransformation flatten)
+        || !(flatten.getInputs().get(0) instanceof PartitionTransformation partition)
+        || !(partition.getInputs().get(0) instanceof OneInputTransformation statistics)
+        || !(statistics.getOperatorFactory()
+            instanceof org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory factory)
+        || !(partition.getPartitioner()
+            instanceof org.apache.flink.streaming.runtime.partitioner.CustomPartitionerWrapper)) {
+      throw new IllegalStateException("Unverified released Iceberg range topology");
+    }
+    try {
+      var custom = partition.getPartitioner();
+      var original =
+          (org.apache.flink.api.common.functions.Partitioner<
+                  org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord>)
+              field(
+                      org.apache.flink.streaming.runtime.partitioner.CustomPartitionerWrapper.class,
+                      "partitioner")
+                  .get(custom);
+      if (!(original instanceof org.apache.iceberg.flink.sink.shuffle.RangePartitioner))
+        throw new IllegalStateException("Unverified range partitioner");
+      field(OneInputTransformation.class, "operatorFactory")
+          .set(
+              statistics,
+              new IcebergRangeOperatorFactory(
+                  factory,
+                  original,
+                  FlinkSchemaUtil.convert(table.schema()),
+                  writer.getParallelism()));
+      var channel =
+          new org.apache.flink.streaming.runtime.partitioner.CustomPartitionerWrapper<
+              Integer, ArrowBatch>(
+              (selected, count) -> {
+                if (selected < 0 || selected >= count)
+                  throw new IllegalArgumentException("Invalid Arrow range destination");
+                return selected;
+              },
+              ArrowBatch::keyGroup);
+      field(PartitionTransformation.class, "partitioner").set(partition, channel);
+      field(OneInputTransformation.class, "operatorFactory")
+          .set(
+              flatten,
+              SimpleOperatorFactory.of(
+                  new org.apache.flink.streaming.api.operators.StreamMap<ArrowBatch, ArrowBatch>(
+                      batch -> batch)));
+      for (Object transformation : List.of(statistics, partition, flatten)) {
+        field(Transformation.class, "outputType")
+            .set(transformation, tech.streamfusion.operator.ArrowBatchTypeInformation.INSTANCE);
+      }
+    } catch (IllegalAccessException failure) {
+      throw new IllegalStateException("Cannot adapt the released Iceberg range payload", failure);
+    }
   }
 
   private static List<Transformation<?>> predecessors(Transformation<?> root) {

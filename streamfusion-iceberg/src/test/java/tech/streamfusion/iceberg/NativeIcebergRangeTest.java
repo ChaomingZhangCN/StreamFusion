@@ -15,14 +15,14 @@ import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class NativeIcebergRangeTest {
   @TempDir Path temp;
 
-  @Test
-  void physicalRowGroupMidpointsMatchJavaForEveryTaskBoundary() throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void physicalRowGroupMidpointsMatchJavaForEveryTaskBoundary(boolean deletes) throws Exception {
     var schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -64,6 +64,47 @@ class NativeIcebergRangeTest {
       }
     }
     table.newAppend().appendFile(writer.toDataFile()).commit();
+    if (deletes) {
+      var deleteFactory =
+          new GenericFileWriterFactory.Builder(table)
+              .dataFileFormat(FileFormat.PARQUET)
+              .deleteFileFormat(FileFormat.PARQUET)
+              .equalityFieldIds(new int[] {1})
+              .equalityDeleteRowSchema(new Schema(schema.findField("id")))
+              .build();
+      var equality =
+          deleteFactory.newEqualityDeleteWriter(
+              table
+                  .encryption()
+                  .encrypt(table.io().newOutputFile(table.location() + "/eq.parquet")),
+              table.spec(),
+              null);
+      try (equality) {
+        var row = GenericRecord.create(new Schema(schema.findField("id")));
+        row.setField("id", 177);
+        equality.write(row);
+      }
+      var position =
+          deleteFactory.newPositionDeleteWriter(
+              table
+                  .encryption()
+                  .encrypt(table.io().newOutputFile(table.location() + "/pos.parquet")),
+              table.spec(),
+              null);
+      try (position) {
+        position.write(
+            org.apache.iceberg.deletes.PositionDelete.<org.apache.iceberg.data.Record>create()
+                .set(writer.toDataFile().location(), 501));
+        position.write(
+            org.apache.iceberg.deletes.PositionDelete.<org.apache.iceberg.data.Record>create()
+                .set(writer.toDataFile().location(), 999));
+      }
+      table
+          .newRowDelta()
+          .addDeletes(equality.toDeleteFile())
+          .addDeletes(position.toDeleteFile())
+          .commit();
+    }
     FileScanTask original;
     try (var tasks = table.newScan().planFiles()) {
       original = tasks.iterator().next();
@@ -131,7 +172,12 @@ class NativeIcebergRangeTest {
       assertEquals(expected, actual, "range=" + start + "+" + length);
       all.addAll(actual);
     }
-    assertEquals(java.util.stream.IntStream.range(0, 1001).boxed().toList(), all);
+    assertEquals(
+        java.util.stream.IntStream.range(0, 1001)
+            .filter(id -> !deletes || (id != 177 && id != 501 && id != 999))
+            .boxed()
+            .toList(),
+        all);
     assertEquals("", NativeIceberg.liveNativeHandles());
   }
 

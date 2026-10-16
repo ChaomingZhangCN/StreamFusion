@@ -116,7 +116,9 @@ class NativeIcebergSqlTest {
   }
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.CsvSource({"none,1", "none,2", "none,3", "hash,2", "hash,3"})
+  @org.junit.jupiter.params.provider.CsvSource({
+    "none,1", "none,2", "none,3", "hash,2", "hash,3", "range,1", "range,2", "range,3"
+  })
   void sqlRetainsTheHostCommitterAndUsesTheNativeDataAppender(
       String distribution, int formatVersion) throws Exception {
     String previous = System.getProperty("streamfusion.experimental.iceberg.enabled");
@@ -136,7 +138,7 @@ class NativeIcebergSqlTest {
       sql.executeSql("CREATE DATABASE ice.db");
       sql.executeSql(
           "CREATE TABLE ice.db.t (id INT, payload STRING) "
-              + (distribution.equals("hash") ? "PARTITIONED BY (payload) " : "")
+              + (!distribution.equals("none") ? "PARTITIONED BY (payload) " : "")
               + "WITH ('format-version'='"
               + formatVersion
               + "', 'write.distribution-mode'='"
