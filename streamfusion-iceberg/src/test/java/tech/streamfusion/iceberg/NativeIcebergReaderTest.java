@@ -173,6 +173,92 @@ class NativeIcebergReaderTest {
     assertEquals("", NativeIceberg.liveNativeHandles());
   }
 
+  @org.junit.jupiter.api.Test
+  void cancellationClosesBlockedHostInputWithoutRacingTheNativeHandle() throws Exception {
+    var table = fixture(temp, false);
+    var entered = new java.util.concurrent.CountDownLatch(1);
+    var released = new java.util.concurrent.CountDownLatch(1);
+    var closes = new java.util.concurrent.atomic.AtomicInteger();
+    var io =
+        new org.apache.iceberg.io.FileIO() {
+          @Override
+          public org.apache.iceberg.io.InputFile newInputFile(String path) {
+            return new org.apache.iceberg.io.InputFile() {
+              public long getLength() {
+                return 4096;
+              }
+
+              public boolean exists() {
+                return true;
+              }
+
+              public String location() {
+                return path;
+              }
+
+              public org.apache.iceberg.io.SeekableInputStream newStream() {
+                return new org.apache.iceberg.io.SeekableInputStream() {
+                  public long getPos() {
+                    return 0;
+                  }
+
+                  public void seek(long position) {}
+
+                  public int read() throws java.io.IOException {
+                    entered.countDown();
+                    try {
+                      released.await();
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      throw new java.io.IOException(e);
+                    }
+                    throw new java.io.IOException("cancelled blocked host input");
+                  }
+
+                  public void close() {
+                    closes.incrementAndGet();
+                    released.countDown();
+                  }
+                };
+              }
+            };
+          }
+
+          public org.apache.iceberg.io.OutputFile newOutputFile(String path) {
+            throw new UnsupportedOperationException();
+          }
+
+          public void deleteFile(String path) {
+            throw new UnsupportedOperationException();
+          }
+        };
+    var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+    try (var tasks = table.newScan().planFiles();
+        var cancellation = new IcebergReadCancellation()) {
+      var task = tasks.iterator().next();
+      try (var reader =
+          new IcebergNativeTaskReader(
+              task, table.schema(), List.of(1), io, 7, 0, List.of(), true, null, cancellation)) {
+        var blocked = executor.submit(reader::next);
+        try {
+          assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+          assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), cancellation::close);
+          var failure =
+              assertThrows(
+                  java.util.concurrent.ExecutionException.class,
+                  () -> blocked.get(5, java.util.concurrent.TimeUnit.SECONDS));
+          assertTrue(failure.getCause().getMessage().contains("cancelled blocked host input"));
+        } finally {
+          released.countDown();
+        }
+      }
+    } finally {
+      executor.shutdownNow();
+    }
+    assertEquals(1, closes.get());
+    assertEquals("", NativeIceberg.liveNativeHandles());
+  }
+
   static Table fixture(Path temp, boolean deletes) throws Exception {
     var schema =
         new Schema(

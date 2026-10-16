@@ -11,7 +11,9 @@ streamfusion_bridge::link_allocator!();
 mod input;
 mod reader;
 mod routing;
+mod scan_range;
 mod storage;
+mod task_metadata;
 mod writer;
 
 #[no_mangle]

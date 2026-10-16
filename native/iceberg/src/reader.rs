@@ -33,11 +33,13 @@ pub(crate) struct ScanTask {
     pub project_ids: Vec<i32>,
     pub deletes: Vec<FileScanTaskDeleteFile>,
     pub case_sensitive: bool,
+    #[serde(default)]
+    pub metadata: crate::task_metadata::TaskMetadata,
 }
 
 impl ScanTask {
-    fn task(self) -> FileScanTask {
-        FileScanTask {
+    fn task(self) -> Result<FileScanTask> {
+        let mut task = FileScanTask {
             file_size_in_bytes: self.file_size,
             start: self.start,
             length: self.length,
@@ -52,7 +54,9 @@ impl ScanTask {
             partition_spec: None,
             name_mapping: None,
             case_sensitive: self.case_sensitive,
-        }
+        };
+        self.metadata.apply(&mut task)?;
+        Ok(task)
     }
 }
 
@@ -70,12 +74,16 @@ impl Reader {
                 "Arrow batch size must be positive",
             ));
         }
-        let reader = ArrowReaderBuilder::new(io, Runtime::new(runtime()))
+        let reader = ArrowReaderBuilder::new(io.clone(), Runtime::new(runtime()))
             .with_batch_size(batch_rows)
             .with_data_file_concurrency_limit(1)
-            .with_row_selection_enabled(true)
+            .with_row_selection_enabled(false)
             .build();
-        let tasks = futures::stream::iter([Ok(task.task())]).boxed();
+        let task = task.task()?;
+        let tasks = futures::stream::once(async move { crate::scan_range::tasks(&io, task).await })
+            .map_ok(|tasks| futures::stream::iter(tasks.into_iter().map(Ok)))
+            .try_flatten()
+            .boxed();
         Ok(Self {
             stream: reader.read(tasks)?.stream(),
             skip,
@@ -187,6 +195,7 @@ mod tests {
                         project_ids: vec![17, 38],
                         deletes: vec![],
                         case_sensitive: true,
+                        metadata: Default::default(),
                     };
                     let mut reader = Reader::new(io.clone(), task, batch_rows, skip).unwrap();
                     let mut offset = skip as usize;
@@ -215,6 +224,7 @@ mod tests {
                 project_ids: vec![38],
                 deletes: vec![],
                 case_sensitive: true,
+                metadata: Default::default(),
             };
             let mut reader = Reader::new(io, task, 13, 102).unwrap();
             assert!(reader.next().await.is_err());

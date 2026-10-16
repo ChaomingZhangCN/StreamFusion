@@ -22,12 +22,39 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
   private final List<Integer> projection;
   private final FileIO io;
   private final int batchRows;
+  private final List<org.apache.iceberg.expressions.Expression> filters;
+  private final boolean caseSensitive;
+  private final String nameMapping;
+  private transient IcebergReadCancellation cancellation;
 
   IcebergArrowReaderFunction(Schema schema, List<Integer> projection, FileIO io, int batchRows) {
+    this(schema, projection, io, batchRows, List.of(), true, null);
+  }
+
+  IcebergArrowReaderFunction(
+      Schema schema,
+      List<Integer> projection,
+      FileIO io,
+      int batchRows,
+      List<org.apache.iceberg.expressions.Expression> filters,
+      boolean caseSensitive,
+      String nameMapping) {
+    this.filters = List.copyOf(filters);
+    this.caseSensitive = caseSensitive;
+    this.nameMapping = nameMapping;
     this.schema = schema;
     this.projection = List.copyOf(projection);
     this.io = io;
     this.batchRows = batchRows;
+  }
+
+  private synchronized IcebergReadCancellation cancellation() {
+    if (cancellation == null) cancellation = new IcebergReadCancellation();
+    return cancellation;
+  }
+
+  void cancelIo() throws IOException {
+    cancellation().close();
   }
 
   @Override
@@ -53,7 +80,16 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
             if (reader == null) {
               reader =
                   new IcebergNativeTaskReader(
-                      tasks.get(fileOffset), schema, projection, io, batchRows, rowOffset);
+                      tasks.get(fileOffset),
+                      schema,
+                      projection,
+                      io,
+                      batchRows,
+                      rowOffset,
+                      filters,
+                      caseSensitive,
+                      nameMapping,
+                      cancellation());
             }
             pending = reader.next();
             if (pending != null) return true;

@@ -48,6 +48,8 @@ pub struct ReadFixture {
     io: FileIO,
     schema: Schema,
     size: u64,
+    metadata: Option<serde_json::Value>,
+    range: Option<std::ops::Range<u64>>,
 }
 
 impl ReadFixture {
@@ -61,7 +63,19 @@ impl ReadFixture {
             io,
             schema: schema.clone(),
             size,
+            metadata: None,
+            range: None,
         }
+    }
+
+    pub fn with_range(mut self, range: std::ops::Range<u64>) -> Self {
+        self.range = Some(range);
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
+        self.metadata = Some(metadata);
+        self
     }
 
     pub fn read(&self, project_ids: &[i32], batch_rows: usize, skip: u64) -> Vec<RecordBatch> {
@@ -80,11 +94,21 @@ impl ReadFixture {
                 schema: self.schema.clone(),
                 path: "read.parquet".into(),
                 file_size: self.size,
-                start: 0,
-                length: self.size,
+                start: self.range.as_ref().map_or(0, |range| range.start),
+                length: self
+                    .range
+                    .as_ref()
+                    .map_or(self.size, |range| range.end - range.start),
                 project_ids: project_ids.to_vec(),
                 deletes: vec![],
                 case_sensitive: true,
+                metadata: self
+                    .metadata
+                    .clone()
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .unwrap()
+                    .unwrap_or_default(),
             };
             let mut reader =
                 crate::reader::Reader::new(self.io.clone(), task, batch_rows, skip).unwrap();

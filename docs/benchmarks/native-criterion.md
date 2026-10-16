@@ -32,6 +32,13 @@ scalar fixtures cross the three row counts with encoding and read/adaptation;
 they include nullable float/double, NaN/infinity, precision-38 decimals, time unit
 conversion, and local/UTC microsecond timestamps using the common component
 representation. They call the same schema adaptation used at the JNI boundary.
+Three scalar-filter fixtures include signed-zero floating set membership. Another
+27 task-semantics fixtures cross the same row counts and widths with projected-away
+predicate keys, identity partition constants absent from the physical file, and legacy
+renamed columns without field IDs. Fixture encoding stays outside timing; task metadata
+binding, native decode/filter/adaptation and output collection stay inside. Nine split
+fixtures read half of a four-row-group file with bloom metadata; footer loading,
+physical-to-reader range translation and native decode stay inside timing.
 
 ## Running and comparing
 

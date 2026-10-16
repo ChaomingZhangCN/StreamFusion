@@ -75,7 +75,7 @@ state in one of ten unaligned fault runs; retaining it passed the stress run and
 combined suite. Dedicated captured-channel-state rescaling coverage remains pending
 for this sink. `bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. Native
-Criterion's `iceberg_io` suite separately exercises 87 release fixtures across
+Criterion's `iceberg_io` suite separately exercises 126 release fixtures across
 encoding, routing, task reads, and scalar adaptation;
 it does not establish an end-to-end speedup.
 
@@ -83,14 +83,26 @@ The internal source task-reader foundation now translates Java-planned Parquet
 file tasks explicitly into the released iceberg-rust reader. Host-backed positional
 I/O preserves Java FileIO and authenticates each data/delete read. JNI workers attach
 to the JVM for callbacks; seek/read pairs are synchronized and streams close with the
-task. Field-ID projection, nullable strings, Parquet equality/position deletes
+task. Cancellation closes host streams without holding their seek/read locks, allowing
+blocked reads to unwind before the fetcher releases its native handle. Field-ID projection, nullable strings, Parquet equality/position deletes
 (including projected-away keys), zero-column row counts, sequential task ordinals,
 and logical-row resume with changed batch sizes have direct readback tests. Queued
 batch recycling and iterator cancellation reclaim prefetched Arrow roots; injected
 host read errors propagate and native handles are reclaimed.
 
-This foundation does **not yet admit SQL sources**. Residual predicates, partition
-constants, name mapping, evolving task-feature admission/fallback, full streaming
+Task metadata now carries field-ID-bound source predicates, partition specs/tuples,
+and legacy name mappings. Tests cover projected-away filter keys, identity constants
+omitted from physical files, renamed no-ID columns, null-inclusive Java comparisons,
+NaN/infinity and signed-zero set membership. Native page-index selection remains off:
+the released reader rejects fixed-width decimal indexes. TIME and binary predicates
+are rejected explicitly; residual-only task reads require the complete source filters
+because Java uses residuals for pruning and full source filters for exact row filtering.
+Partial-file tasks translate physical Parquet row-group midpoints to the released
+reader's cumulative offset model; exact-boundary tests preserve Java ownership with
+no omitted or duplicated rows.
+
+This foundation does **not yet admit SQL sources**. Evolving task-feature
+admission/fallback, full streaming
 recovery, watermark/configuration parity, reader memory accounting, and upstream
 source SQL coverage remain required before source admission expands. Native deletion
 vectors remain unavailable in published crate 0.10.1. This follows Comet's explicit

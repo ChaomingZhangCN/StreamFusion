@@ -20,6 +20,7 @@ import tech.streamfusion.operator.NativeAllocator;
 final class IcebergNativeTaskReader implements AutoCloseable {
   private final IcebergTaskFiles files;
   private long handle;
+  private final IcebergReadCancellation cancellation;
 
   IcebergNativeTaskReader(
       FileScanTask task,
@@ -29,14 +30,41 @@ final class IcebergNativeTaskReader implements AutoCloseable {
       int batchRows,
       long skip)
       throws IOException {
+    this(task, schema, projection, io, batchRows, skip, List.of(), true, null);
+  }
+
+  IcebergNativeTaskReader(
+      FileScanTask task,
+      Schema schema,
+      List<Integer> projection,
+      FileIO io,
+      int batchRows,
+      long skip,
+      List<org.apache.iceberg.expressions.Expression> filters,
+      boolean caseSensitive,
+      String nameMapping)
+      throws IOException {
+    this(task, schema, projection, io, batchRows, skip, filters, caseSensitive, nameMapping, null);
+  }
+
+  IcebergNativeTaskReader(
+      FileScanTask task,
+      Schema schema,
+      List<Integer> projection,
+      FileIO io,
+      int batchRows,
+      long skip,
+      List<org.apache.iceberg.expressions.Expression> filters,
+      boolean caseSensitive,
+      String nameMapping,
+      IcebergReadCancellation cancellation)
+      throws IOException {
+    this.cancellation = cancellation;
     if (task.isDataTask()
         || task.file().format() != FileFormat.PARQUET
         || task.file().keyMetadata() != null) {
       throw new IllegalArgumentException(
           "Unverified Iceberg task format, encryption, or data task");
-    }
-    if (task.residual().op() != org.apache.iceberg.expressions.Expression.Operation.TRUE) {
-      throw new IllegalArgumentException("Native residual predicates have not been admitted");
     }
     var mapper = new ObjectMapper();
     var descriptor = mapper.createObjectNode();
@@ -46,7 +74,10 @@ final class IcebergNativeTaskReader implements AutoCloseable {
     descriptor.put("start", task.start());
     descriptor.put("length", task.length());
     descriptor.set("project_ids", mapper.valueToTree(projection));
-    descriptor.put("case_sensitive", true);
+    descriptor.put("case_sensitive", caseSensitive);
+    descriptor.set(
+        "metadata",
+        IcebergTaskMetadata.translate(mapper, task, schema, filters, caseSensitive, nameMapping));
     var deletes = descriptor.putArray("deletes");
     Map<String, Long> lengths = new HashMap<>();
     lengths.put(task.file().location(), task.file().fileSizeInBytes());
@@ -76,6 +107,7 @@ final class IcebergNativeTaskReader implements AutoCloseable {
     }
     files = new IcebergTaskFiles(io, lengths);
     try (var outputSchema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
+      if (cancellation != null) cancellation.add(files);
       var selected = new Schema(projection.stream().map(schema::findField).toList());
       Data.exportSchema(
           NativeAllocator.SHARED,
@@ -83,19 +115,24 @@ final class IcebergNativeTaskReader implements AutoCloseable {
               org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected)),
           NativeAllocator.DICTIONARIES,
           outputSchema);
-      handle =
-          NativeIceberg.createReader(
-              mapper.writeValueAsString(descriptor),
-              files,
-              batchRows,
-              skip,
-              outputSchema.memoryAddress());
+      try {
+        handle =
+            NativeIceberg.createReader(
+                mapper.writeValueAsString(descriptor),
+                files,
+                batchRows,
+                skip,
+                outputSchema.memoryAddress());
+      } finally {
+        if (outputSchema.snapshot().release != 0) outputSchema.release();
+      }
     } catch (Throwable failure) {
       try {
         files.close();
       } catch (Throwable cleanup) {
         failure.addSuppressed(cleanup);
       }
+      if (cancellation != null) cancellation.remove(files);
       throw failure;
     }
   }
@@ -128,7 +165,11 @@ final class IcebergNativeTaskReader implements AutoCloseable {
         NativeIceberg.closeReader(current);
       }
     } finally {
-      files.close();
+      try {
+        files.close();
+      } finally {
+        if (cancellation != null) cancellation.remove(files);
+      }
     }
   }
 }

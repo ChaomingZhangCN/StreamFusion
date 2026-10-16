@@ -241,7 +241,11 @@ fn scalar_types(c: &mut Criterion) {
         .unwrap();
         let selected = (0..rows as u32).collect::<Vec<_>>();
         let bytes = encode(&schema, &input, &selected);
-        let fixture = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes);
+        let fixture = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes.clone());
+        let filtered = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes).with_metadata(
+            serde_json::json!({"predicate":{"op":"PREDICATE","field_id":39,
+                "operation":"IN","literals":[-0.0,0.0,1.0]}}),
+        );
         let target = input.schema();
         let decoded = fixture.read_as(&ids, 1024, 0, Some(target.clone()));
         assert_eq!(
@@ -280,8 +284,211 @@ fn scalar_types(c: &mut Criterion) {
                 });
             }
         }
+        let label = format!("read-filter/{rows}");
+        let (batches, allocations) =
+            measure(|| filtered.read_as(&ids, 1024, 0, Some(target.clone())));
+        assert_eq!(batches.iter().map(RecordBatch::num_rows).sum::<usize>(), 1);
+        let arrays = batches
+            .iter()
+            .flat_map(|b| b.columns().iter().cloned())
+            .collect::<Vec<_>>();
+        report(&label, &[], &arrays, allocations);
+        group.throughput(Throughput::Elements(rows as u64));
+        group.bench_function(BenchmarkId::from_parameter(label), |b| {
+            b.iter(|| std::hint::black_box(filtered.read_as(&ids, 1024, 0, Some(target.clone()))))
+        });
     }
     group.finish();
 }
-criterion_group!(benches, iceberg, routing, reading, scalar_types);
+fn task_semantics(c: &mut Criterion) {
+    let schema = Schema::builder()
+        .with_fields([
+            NestedField::required(17, "id", Type::Primitive(PrimitiveType::Long)).into(),
+            NestedField::optional(38, "value", Type::Primitive(PrimitiveType::String)).into(),
+        ])
+        .build()
+        .unwrap();
+    let mut group = c.benchmark_group("iceberg/task-semantics");
+    for rows in [16usize, 1024, 16384] {
+        for width in [8, 264, 4096] {
+            let text = "x".repeat(width);
+            let input = RecordBatch::try_from_iter(vec![
+                (
+                    "id",
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                ),
+                (
+                    "value",
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|row| (row % 7 != 0).then_some(text.as_str())),
+                    )) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            let selected = (0..rows as u32).collect::<Vec<_>>();
+            for mode in ["predicate", "identity", "name_mapping"] {
+                let (bytes, metadata, skip, expected) = match mode {
+                    "predicate" => (
+                        encode(&schema, &input, &selected),
+                        serde_json::json!({
+                            "predicate": {"op":"AND", "left":{"op":"PREDICATE", "field_id":17,
+                                "operation":"GT_EQ", "literals":[rows / 2]},
+                                "right":{"op":"PREDICATE", "field_id":38,
+                                    "operation":"NOT_STARTS_WITH", "literals":["z"]}}
+                        }),
+                        2,
+                        rows - rows / 2 - 2,
+                    ),
+                    "identity" => {
+                        let physical = Schema::builder()
+                            .with_fields([schema.field_by_id(17).unwrap().clone()])
+                            .build()
+                            .unwrap();
+                        let batch =
+                            RecordBatch::try_from_iter([("id", input.column(0).clone())]).unwrap();
+                        (
+                            encode(&physical, &batch, &selected),
+                            serde_json::json!({
+                                "partition_spec":{"spec-id":0,"fields":[{"source-id":38,
+                                    "field-id":1000,"name":"value","transform":"identity"}]},
+                                "partition_values":{"1000":text}
+                            }),
+                            0,
+                            rows,
+                        )
+                    }
+                    "name_mapping" => {
+                        let old = RecordBatch::try_from_iter([
+                            ("old_id", input.column(0).clone()),
+                            ("old_value", input.column(1).clone()),
+                        ])
+                        .unwrap();
+                        let mut bytes = vec![];
+                        let properties = parquet::file::properties::WriterProperties::builder()
+                            .set_compression(parquet::basic::Compression::ZSTD(
+                                parquet::basic::ZstdLevel::try_new(3).unwrap(),
+                            ))
+                            .build();
+                        let mut writer = parquet::arrow::ArrowWriter::try_new(
+                            &mut bytes,
+                            old.schema(),
+                            Some(properties),
+                        )
+                        .unwrap();
+                        writer.write(&old).unwrap();
+                        writer.close().unwrap();
+                        (
+                            bytes.into(),
+                            serde_json::json!({"name_mapping":[
+                                {"field-id":17,"names":["id","old_id"]},
+                                {"field-id":38,"names":["value","old_value"]}
+                            ]}),
+                            0,
+                            rows,
+                        )
+                    }
+                    _ => unreachable!(),
+                };
+                let fixture = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes)
+                    .with_metadata(metadata);
+                let label = format!("{mode}/{rows}/bytes={width}");
+                let (batches, allocations) = measure(|| fixture.read(&[17, 38], 1024, skip));
+                assert_eq!(
+                    batches.iter().map(RecordBatch::num_rows).sum::<usize>(),
+                    expected
+                );
+                let arrays = batches
+                    .iter()
+                    .flat_map(|b| b.columns().iter().cloned())
+                    .collect::<Vec<_>>();
+                report(&label, &[], &arrays, allocations);
+                group.throughput(Throughput::Elements(expected as u64));
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| std::hint::black_box(fixture.read(&[17, 38], 1024, skip)))
+                });
+            }
+        }
+    }
+    group.finish();
+}
+fn split_ranges(c: &mut Criterion) {
+    let schema = Schema::builder()
+        .with_fields([
+            NestedField::required(17, "id", Type::Primitive(PrimitiveType::Long)).into(),
+            NestedField::optional(38, "value", Type::Primitive(PrimitiveType::String)).into(),
+        ])
+        .build()
+        .unwrap();
+    let mut group = c.benchmark_group("iceberg/split-range");
+    for rows in [16usize, 1024, 16384] {
+        for width in [8, 264, 4096] {
+            let text = "x".repeat(width);
+            let input = RecordBatch::try_from_iter([
+                (
+                    "id",
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                ),
+                (
+                    "value",
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|row| (row % 7 != 0).then_some(text.as_str())),
+                    )) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            let named = RecordBatch::try_from_iter([
+                ("old_id", input.column(0).clone()),
+                ("old_value", input.column(1).clone()),
+            ])
+            .unwrap();
+            let mut bytes = vec![];
+            let props = parquet::file::properties::WriterProperties::builder()
+                .set_max_row_group_row_count(Some(rows / 4))
+                .set_bloom_filter_enabled(true)
+                .build();
+            let mut writer =
+                parquet::arrow::ArrowWriter::try_new(&mut bytes, named.schema(), Some(props))
+                    .unwrap();
+            writer.write(&named).unwrap();
+            writer.close().unwrap();
+            let bytes = bytes::Bytes::from(bytes);
+            let footer = ParquetRecordBatchReaderBuilder::try_new(bytes.clone()).unwrap();
+            assert_eq!(footer.metadata().num_row_groups(), 4);
+            let block = footer.metadata().row_group(2);
+            let start = block.column(0).byte_range().0 + block.compressed_size() as u64 / 2;
+            let end = bytes.len() as u64;
+            let fixture = streamfusion_iceberg::bench::ReadFixture::new(&schema, bytes)
+                .with_range(start..end)
+                .with_metadata(serde_json::json!({"name_mapping":[
+                    {"field-id":17,"names":["id","old_id"]},
+                    {"field-id":38,"names":["value","old_value"]}
+                ]}));
+            let label = format!("read/{rows}/bytes={width}");
+            let (batches, allocations) = measure(|| fixture.read(&[17, 38], 1024, 0));
+            assert_eq!(
+                batches.iter().map(RecordBatch::num_rows).sum::<usize>(),
+                rows / 2
+            );
+            let arrays = batches
+                .iter()
+                .flat_map(|batch| batch.columns().iter().cloned())
+                .collect::<Vec<_>>();
+            report(&label, &[], &arrays, allocations);
+            group.throughput(Throughput::Elements((rows / 2) as u64));
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(fixture.read(&[17, 38], 1024, 0)))
+            });
+        }
+    }
+    group.finish();
+}
+criterion_group!(
+    benches,
+    iceberg,
+    routing,
+    reading,
+    scalar_types,
+    task_semantics,
+    split_ranges
+);
 criterion_main!(benches);
