@@ -882,16 +882,18 @@ BOOLEAN uses the host's legacy lowercase spelling; DECIMAL rendering uses the co
 host executor. Legacy character casts preserve the original text without applying default
 projection trimming or padding, including empty, overlength and surrogate-containing
 strings. Sink length and NOT NULL enforcement remain separate downstream contracts.
-With `streamfusion.calc.legacyNumericCasts.enabled=true`, FLOAT/DOUBLE to DECIMAL uses a
-complete Flink-generated cast expression in legacy mode. Numeric arguments borrow Arrow rows
-and decimal results retain Flink's internal DecimalData, avoiding the reflective executor's
-intermediate external BigDecimal conversion. The host widens
+Legacy FLOAT/DOUBLE to DECIMAL is admitted by default. A direct unary cast first tries a native
+batch kernel: adjacent binary floating values, multiplied by an exact power of ten with outward
+rounding, bound every round-tripping decimal representation the running JDK could choose. Only
+when both bounds round to the same HALF_UP integer does the kernel use that result, with the
+declared precision check. Scale above 18, scaled magnitude at least 2^52, ambiguous rounding,
+NaN and infinity retain the complete released Flink expression for the entire batch. Numeric
+arguments then borrow Arrow rows and decimal results retain internal DecimalData. The host widens
 FLOAT to DOUBLE before decimal conversion, rounds with the target scale, returns NULL on precision
 overflow, and raises NumberFormatException for NaN/infinity in both modes. Selection and empty
 filtered batches suppress conversions for rows that do not reach the projection. The conversion
-itself runs on the JVM inside the native Calc; it is not a Rust decimal conversion kernel.
-The same opt-in enables CHAR to DOUBLE through a complete Flink-generated expression in legacy mode,
-including NULL on malformed
+uses the JVM inside native Calc whenever the batch cannot use the proven native kernel.
+CHAR to DOUBLE is also admitted by default in legacy mode, including NULL on malformed
 text. Whitespace, padding, exponents, signed zero, NaN/infinity and over/underflow retain the running
 host's parser behavior. The complete mixed DECIMAL ROUND projection remains native, including its
 CHAR(8) sort-key conversion. Mixed projections use the existing whole-row JVM schedule when
@@ -899,12 +901,13 @@ needed for Flink failure order; a runtime DECIMAL-only control verifies ROUND in
 VARCHAR-to-floating and CHAR-to-FLOAT legacy casts remain unverified
 and fall back. An unknown cast setting also falls back.
 
-The new numeric cast option defaults to false: standalone complete release jobs still lose to
-stock Flink after retaining both row/Arrow transposes and the JVM callback. It does not change
-`table.exec.legacy-cast-behaviour` or relax any correctness requirement. Newly admitted standalone
-shapes report `legacy numeric JVM cast ... is opt-in` and retain whole-Calc fallback without the
-option. Existing whole-Calc JVM routes, verified basic legacy pairs and default cast behavior
-are unaffected. See the release measurements
+Direct legacy CHAR-to-DOUBLE casts parse ordinary ASCII decimal text in native batches using
+the same correctly-rounded binary64 conversion as Java. Hexadecimal text, numeric suffixes,
+special values, Unicode and malformed input retain the complete released Flink expression for
+the batch, including legacy NULL-on-failure behavior. Composed operands are never mistaken for
+direct reads. Multiple fallible expressions still use the whole-row JVM schedule to preserve
+error order. These paths require no additional setting and preserve
+`table.exec.legacy-cast-behaviour`. See the release measurements
 for [floating DECIMAL](../benchmarks/basic-type-coverage.md#legacy-floating-decimal-casts-2026-10-16)
 and [CHAR to DOUBLE](../benchmarks/basic-type-coverage.md#legacy-char-to-double-casts-2026-10-16).
 

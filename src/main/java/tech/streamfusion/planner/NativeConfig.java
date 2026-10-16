@@ -84,11 +84,6 @@ public final class NativeConfig {
     return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", false);
   }
 
-  /** Legacy numeric JVM casts are opt-in while standalone jobs lose to stock Flink. */
-  public static boolean legacyNumericCastsEnabled() {
-    return booleanValue("streamfusion.calc.legacyNumericCasts.enabled", false);
-  }
-
   /** Diagnostic escape hatch for comparing the legacy synchronous memory-checkpoint path. */
   public static boolean asyncMemorySnapshotsEnabled() {
     return booleanValue("streamfusion.state.asyncMemorySnapshots.enabled", true);

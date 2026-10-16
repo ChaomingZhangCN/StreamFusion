@@ -195,7 +195,7 @@ Some historical suites use
 | Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string and integer batches |
 | Fluss append routing/statistics | `fluss_write` | Production compacted-key hashing and Arrow bucket grouping; nullable scalar/string bounds and null counts |
 | Shared bridge transforms | `handoffs` | Timestamp unit conversion, float canonical ordering, partition splits |
-| Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors |
+| Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST, Arrow IPC encode/decode |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |

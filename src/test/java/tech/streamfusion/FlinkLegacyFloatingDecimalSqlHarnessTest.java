@@ -20,15 +20,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FlinkLegacyFloatingDecimalSqlHarnessTest {
   @ParameterizedTest
   @ValueSource(strings = {"f", "d"})
-  void defaultRetainsTheMeasuredFasterFallback(String column) {
+  void legacyNumericCastsRunNativelyByDefault(String column) {
     var result = NativeFailureParity.run(() -> {
       var table = environment(true, false);
-      table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "false");
       return table;
     }, "SELECT CAST(" + column + " AS DECIMAL(10,1)) FROM src");
-    result.assertSuccess(NativeFailureParity.Route.FALLBACK);
-    assertTrue(result.nativeRun().fallbackReasons().stream()
-        .anyMatch(reason -> reason.contains("streamfusion.calc.legacyNumericCasts.enabled")));
+    result.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertTrue(result.nativeRun().fallbackReasons().isEmpty(), result::toString);
   }
 
   @org.junit.jupiter.api.Test
@@ -42,6 +40,38 @@ class FlinkLegacyFloatingDecimalSqlHarnessTest {
             + " CAST(CAST(e AS DECIMAL(32,5)) AS BIGINT),"
             + " CAST(CAST(e AS DECIMAL(32,5)) AS FLOAT),"
             + " CAST(CAST(e AS DECIMAL(32,5)) AS DOUBLE), CAST(s AS DECIMAL(38,19)) FROM src"));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"10,1", "15,4", "38,18", "38,19"})
+  void runtimeBatchesMatchTheHostAcrossRoundingBoundaries(int precision, int scale) {
+    var random = new java.util.Random(376);
+    var input = new ArrayList<Row>();
+    for (int i = 0; i < 4096; i++) {
+      double value = i < 2048 ? random.nextInt(99999) / 10.0
+          : Double.longBitsToDouble(random.nextLong());
+      if (!Double.isFinite(value)) value = 0;
+      float f = (float) value;
+      if (!Float.isFinite(f)) f = Math.copySign(Float.MAX_VALUE, f);
+      input.add(Row.of(i, i % 7 == 0 ? null : f, i % 7 == 0 ? null : value,
+          "1", new java.math.BigDecimal("1.000000")));
+    }
+    for (String column : List.of("f", "d")) {
+      assertNativeSuccess(NativeFailureParity.run(() -> environment(true, input),
+          "SELECT id, CAST(" + column + " AS DECIMAL(" + precision + "," + scale + ")) FROM src"));
+    }
+  }
+
+  @org.junit.jupiter.api.Test
+  void composedCastOperandsRetainTheirGeneratedEvaluation() {
+    assertNativeSuccess(NativeFailureParity.run(() -> environment(true, false),
+        "SELECT CAST(f * CAST(10 AS FLOAT) AS DECIMAL(10,1)) FROM src WHERE id<10"));
+    assertNativeSuccess(NativeFailureParity.run(() -> environment(true, false),
+        "SELECT CAST(d + CAST(1 AS DOUBLE) AS DECIMAL(15,4)) FROM src WHERE id<10"));
+    NativeFailureParity.run(() -> environment(true, false),
+        "SELECT CAST(f * CAST(10 AS FLOAT) AS DECIMAL(10,1)) FROM src WHERE id=12")
+        .assertFailure(NumberFormatException.class, NativeFailureParity.Phase.ROW_EVALUATION,
+            NativeFailureParity.Route.NATIVE);
   }
 
   @ParameterizedTest
@@ -92,7 +122,6 @@ class FlinkLegacyFloatingDecimalSqlHarnessTest {
         Schema.newBuilder().fromRowDataType(type).build(), false, 5, 10).withExecutionMetrics()) {
       java.util.function.Function<TableEnvironment, TableEnvironment> configure = table -> {
         table.getConfig().set("table.exec.legacy-cast-behaviour", "ENABLED");
-        table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "true");
         return table;
       };
       var result = NativeFailureParity.runRecovery(() -> configure.apply(recovery.uninterrupted()),
@@ -137,13 +166,16 @@ class FlinkLegacyFloatingDecimalSqlHarnessTest {
   }
 
   private static TableEnvironment environment(boolean legacy, boolean nonFinite) {
+    return environment(legacy, rows(nonFinite));
+  }
+
+  private static TableEnvironment environment(boolean legacy, List<Row> rows) {
     var env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     var table = StreamTableEnvironment.create(env);
     table.getConfig().set("table.exec.legacy-cast-behaviour", legacy ? "ENABLED" : "DISABLED");
-    table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "true");
     var type = rowType();
-    table.createTemporaryView("src", table.fromDataStream(fromData(env, rows(nonFinite),
+    table.createTemporaryView("src", table.fromDataStream(fromData(env, rows,
         ExternalTypeInfo.<Row>of(type)), Schema.newBuilder().fromRowDataType(type).build()));
     return table;
   }

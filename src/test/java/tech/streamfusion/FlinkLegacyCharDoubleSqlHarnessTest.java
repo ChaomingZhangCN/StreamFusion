@@ -17,15 +17,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class FlinkLegacyCharDoubleSqlHarnessTest {
   @org.junit.jupiter.api.Test
-  void defaultRetainsTheMeasuredFasterFallback() {
+  void legacyNumericCastsRunNativelyByDefault() {
     var result = NativeFailureParity.run(() -> {
       var table = input(true, 8, false);
-      table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "false");
       return table;
     }, "SELECT CAST(c AS DOUBLE) FROM src");
-    result.assertSuccess(NativeFailureParity.Route.FALLBACK);
-    assertTrue(result.nativeRun().fallbackReasons().stream()
-        .anyMatch(reason -> reason.contains("streamfusion.calc.legacyNumericCasts.enabled")));
+    result.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertTrue(result.nativeRun().fallbackReasons().isEmpty(), result::toString);
   }
 
   @ParameterizedTest
@@ -33,6 +31,40 @@ class FlinkLegacyCharDoubleSqlHarnessTest {
   void legacyCharactersKeepNumericParsingAndNullOnFailure(int length) {
     compare(() -> input(true, length, true), "SELECT id, CAST(c AS DOUBLE) FROM src");
     compare(() -> input(true, length, true), "SELECT id FROM src WHERE CAST(c AS DOUBLE)>0");
+  }
+
+  @org.junit.jupiter.api.Test
+  void decimalTextBatchesMatchTheHostsCorrectlyRoundedParser() {
+    var random = new java.util.Random(377);
+    var input = new ArrayList<Row>();
+    for (int i = 0; i < 4096; i++) {
+      double value = Double.longBitsToDouble(random.nextLong());
+      if (!Double.isFinite(value)) value = 0;
+      input.add(Row.of(i, i % 7 == 0 ? null : " \t" + Double.toString(value) + " "));
+    }
+    var type = ROW(FIELD("id", INT()), FIELD("c", CHAR(32)));
+    compare(() -> table(true, type, input), "SELECT id, CAST(c AS DOUBLE) FROM src");
+  }
+
+  @org.junit.jupiter.api.Test
+  void decimalTextKeepsHalfwaySubnormalAndOverflowRounding() {
+    String[] values = {"9007199254740993", "9007199254740995", "2.2250738585072011e-308",
+        "2.2250738585072012e-308", "2.4703282292062327e-324", "2.4703282292062328e-324",
+        "1.7976931348623157e308", "1.7976931348623159e308",
+        "1.00000000000000011102230246251565404236316680908203125",
+        "1.00000000000000011102230246251565404236316680908203126",
+        ".5", "1.", "+1e-400", "-1e-400", "\u0000-0.0\u001f"};
+    var input = new ArrayList<Row>();
+    for (int i = 0; i < values.length; i++) input.add(Row.of(i, values[i]));
+    var type = ROW(FIELD("id", INT()), FIELD("c", CHAR(128)));
+    compare(() -> table(true, type, input), "SELECT id, CAST(c AS DOUBLE) FROM src");
+  }
+
+  @org.junit.jupiter.api.Test
+  void composedCharacterOperandsRetainTheirGeneratedEvaluation() {
+    var type = ROW(FIELD("id", INT()), FIELD("c", CHAR(8)));
+    compare(() -> table(true, type, List.of(Row.of(0, "2.5"), Row.of(1, "bad"), Row.of(2, null))),
+        "SELECT CAST(CAST(CONCAT('1', c) AS CHAR(8)) AS DOUBLE) FROM src");
   }
 
   @ParameterizedTest
@@ -90,7 +122,6 @@ class FlinkLegacyCharDoubleSqlHarnessTest {
         Schema.newBuilder().fromRowDataType(type).build(), false, 4, 8).withExecutionMetrics()) {
       java.util.function.Function<TableEnvironment, TableEnvironment> configure = table -> {
         table.getConfig().set("table.exec.legacy-cast-behaviour", "ENABLED");
-        table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "true");
         return table;
       };
       var result = NativeFailureParity.runRecovery(() -> configure.apply(recovery.uninterrupted()),
@@ -141,7 +172,6 @@ class FlinkLegacyCharDoubleSqlHarnessTest {
     env.setParallelism(1);
     var table = StreamTableEnvironment.create(env);
     table.getConfig().set("table.exec.legacy-cast-behaviour", legacy ? "ENABLED" : "DISABLED");
-    table.getConfig().set("streamfusion.calc.legacyNumericCasts.enabled", "true");
     table.createTemporaryView("src", table.fromDataStream(fromData(env, rows,
         ExternalTypeInfo.<Row>of(type)), Schema.newBuilder().fromRowDataType(type).build()));
     return table;

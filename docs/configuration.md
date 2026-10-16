@@ -20,12 +20,6 @@ serialized operator configuration rather than process-global state before a stab
   Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
   measurements. Existing admitted binary/generated shapes are unaffected. See
   [Calc/filter](operators/calc-filter.md) for the scope and results.
-- **`streamfusion.calc.legacyNumericCasts.enabled`** (default false) - opt into verified legacy
-  FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE evaluation inside native Calc. It preserves Flink's
-  configured cast semantics through JVM evaluation. Standalone release jobs remain slower than
-  stock Flink, so this setting is separate from the legacy cast mode and defaults to fallback.
-  VARCHAR-to-floating and CHAR-to-FLOAT legacy casts remain unverified. See
-  [Calc/filter](operators/calc-filter.md#the-host-exact-jvm-upcall) for boundaries and measurements.
 - **`-Dstreamfusion.fluss.enabled=false`** — disable the optional Fluss extension’s source/sink
   substitutions. This JVM property defaults to true when `streamfusion-fluss` is installed;
   only the verified combinations in [Fluss](connectors/fluss.md) accelerate.

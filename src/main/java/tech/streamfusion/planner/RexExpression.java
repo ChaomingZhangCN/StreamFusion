@@ -81,6 +81,8 @@ final class RexExpression {
   private static final int KIND_UDF = 17;
   // Runtime decimal rounding to text, retaining a JVM evaluator for exceptional scales.
   private static final int KIND_DECIMAL_ROUND_TEXT = 41;
+  // Proven numeric cast batches avoid an upcall; exceptional batches retain Flink's evaluator.
+  private static final int KIND_NUMERIC_CAST = 42;
   // A narrowing cast to an integer type: payload is the target integer type code (CAST_TINYINT..
   // CAST_BIGINT), one child. Built natively as a wrapping/saturating kernel matching Flink's
   // primitive
@@ -432,7 +434,7 @@ final class RexExpression {
   private boolean requiresCalcRowOrder(RexProgram program) {
     // Any JVM evaluator can throw, including independent deterministic user functions. Count
     // native failure sites too: a later-row failure must not overtake an earlier projection.
-    long[] failures = {kinds.stream().filter(kind -> kind == KIND_UDF || kind == KIND_DECIMAL_ROUND_TEXT).count()};
+    long[] failures = {kinds.stream().filter(kind -> isJvmKind(kind) && kind != KIND_ROW_UDF).count()};
     var visitor =
         new org.apache.calcite.rex.RexVisitorImpl<Void>(true) {
           @Override
@@ -3218,7 +3220,11 @@ final class RexExpression {
                 function, eval, codes.stream().mapToInt(Integer::intValue).toArray(), returnCode));
     RexCall decimalRound = call == projectionRoot
         ? FlinkExpressionFunction.decimalRoundingTextCall(expression) : null;
-    add(decimalRound == null ? KIND_UDF : KIND_DECIMAL_ROUND_TEXT,
+    boolean numericCast = Boolean.TRUE.equals(legacyCastBehaviour)
+        && expression instanceof RexCall && expression.getKind() == SqlKind.CAST
+        && ((RexCall) expression).getOperands().get(0) instanceof RexInputRef
+        && isLegacyNumericCast(((RexCall) expression).getOperands().get(0).getType(), call.getType());
+    add(decimalRound != null ? KIND_DECIMAL_ROUND_TEXT : numericCast ? KIND_NUMERIC_CAST : KIND_UDF,
         longs.size(), Math.max(1, arguments.size()));
     longs.add((long) localIndex);
     longs.add((long) returnCode);
@@ -3239,7 +3245,8 @@ final class RexExpression {
   }
 
   private static boolean isJvmKind(int kind) {
-    return kind == KIND_UDF || kind == KIND_ROW_UDF || kind == KIND_DECIMAL_ROUND_TEXT;
+    return kind == KIND_UDF || kind == KIND_ROW_UDF || kind == KIND_DECIMAL_ROUND_TEXT
+        || kind == KIND_NUMERIC_CAST;
   }
 
   private RexNode hostExpressionArguments(
@@ -3295,11 +3302,6 @@ final class RexExpression {
             || sourceType.getSqlTypeName() == SqlTypeName.DOUBLE);
     boolean characterDouble = sourceType.getSqlTypeName() == SqlTypeName.CHAR
         && resultType.getSqlTypeName() == SqlTypeName.DOUBLE;
-    if (legacyCastBehaviour && (floatingDecimal || characterDouble)
-        && !NativeConfig.legacyNumericCastsEnabled()) {
-      return reject("legacy numeric JVM cast " + sourceType + " to " + resultType
-          + " is opt-in: streamfusion.calc.legacyNumericCasts.enabled=true");
-    }
     if (legacyCastBehaviour
         && !(floatingDecimal || characterDouble
             || (SqlTypeFamily.CHARACTER.contains(sourceType)
@@ -3339,6 +3341,15 @@ final class RexExpression {
     longs.add((long) localIndex);
     longs.add((long) targetCode);
     return emit(call.getOperands().get(0));
+  }
+
+  private static boolean isLegacyNumericCast(RelDataType source, RelDataType target) {
+    return target.getSqlTypeName() == SqlTypeName.DECIMAL
+            && (source.getSqlTypeName() == SqlTypeName.FLOAT
+                || source.getSqlTypeName() == SqlTypeName.REAL
+                || source.getSqlTypeName() == SqlTypeName.DOUBLE)
+        || source.getSqlTypeName() == SqlTypeName.CHAR
+            && target.getSqlTypeName() == SqlTypeName.DOUBLE;
   }
 
   /**

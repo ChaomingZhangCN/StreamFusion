@@ -51,6 +51,7 @@ mod json_value;
 mod locate;
 pub(crate) mod map_lookup;
 pub(crate) mod numeric;
+pub(crate) mod numeric_cast;
 mod scalar;
 mod sign;
 mod string_to_boolean;

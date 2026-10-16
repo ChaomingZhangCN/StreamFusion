@@ -49,34 +49,41 @@ cardinalities 4/256; they do not substitute for this complete-job comparison.
 
 ## Legacy floating DECIMAL casts (2026-10-16)
 
-Legacy FLOAT/DOUBLE-to-DECIMAL casts can execute through Flink's generated evaluator
-inside native Calc. Borrowed numeric Arrow rows and internal DecimalData results avoid
-the reflective cast executor's boxed argument columns and external BigDecimal conversion.
-This is JVM compatibility evaluation, not a native Rust decimal conversion kernel.
+Legacy FLOAT/DOUBLE-to-DECIMAL is admitted by default, without an additional setting.
+Direct unary casts use a proven native batch kernel when adjacent binary values bound
+all possible host decimal renderings to the same HALF_UP result. Scale above 18, scaled
+magnitude at least 2^52, ambiguous rounding and non-finite values retain the released
+Flink expression for the complete batch. The source FLOAT first widens to DOUBLE, as in
+Flink. Composed operands retain generated evaluation; multiple fallible expressions
+retain the existing whole-row JVM schedule for error order.
 
-The standalone release jobs still lose to stock Flink, so the explicit
-`streamfusion.calc.legacyNumericCasts.enabled` setting defaults to false. This preserves
-the previous fallback; enabling it is compatibility groundwork pending the tradeoff
-decision on [#376](https://github.com/datafusion-contrib/StreamFusion/issues/376).
-Mixed projections can also use the existing whole-row JVM schedule to preserve error order.
+The same M4 Pro/Flink 2.2.1/JDK 17 release setup measures two million runtime rows with
+NULL every seven rows, two warmups and five alternating complete jobs per engine.
+The source and blackhole sink remain rowwise, retaining both perimeter transposes and
+JNI. Successful batches avoid the scalar JVM upcall; this is the measured optimization.
+The benchmark's unchanged default cardinality is 9,999 numeric values.
 
-The same M4 Pro/Flink 2.2.1/JDK 17 setup measures two million nullable runtime rows,
-two warmups and five alternating measured jobs per engine, retaining both transposes
-and the callback. The generated path measured FLOAT-to-DECIMAL(10,1) at 0.478000 seconds
-versus stock 0.441688, and DOUBLE-to-DECIMAL(15,4) at 0.456151 versus 0.362734.
-The initial executor prototype measured 0.510154/0.452275 seconds; borrowing reduces
-the FLOAT cost but does not establish a stock-Flink speedup. The previous planner's
-fallback measured 0.432456/0.351380 seconds, with independent stock controls.
-[Raw trials](legacy-floating-decimal-trials-2026-10-16.json) retain all measured samples.
-A final run with the explicit option enabled measured FLOAT at 0.493179 versus stock
-0.440520 seconds and DOUBLE at 0.448349 versus 0.360404. This confirms the standalone
-regression with the final admission guard in place.
-An untimed JFR diagnostic at 10M rows reaches both transpose operators,
-the borrowed-row evaluator and callback result writes.
-It motivates retaining the full boundary and further optimization; samples are not a
-measurement of copied bytes or an attribution of the entire regression to one component.
-Fixed job overhead is significant at these sizes; these are complete-job diagnostics,
-not isolated kernel throughput claims.
+| Cast | Stock median (range) | Native median (range) | Stock / native |
+| --- | ---: | ---: | ---: |
+| FLOAT to DECIMAL(10,1) | 0.447904s (0.447384-0.455371) | 0.322528s (0.317984-0.332269) | 1.39x |
+| DOUBLE to DECIMAL(15,4) | 0.367161s (0.363938-0.375215) | 0.326870s (0.321769-0.328776) | 1.12x |
+
+At ten million rows and input cardinality two million, FLOAT measures stock/native
+1.858968/1.348888s (1.38x) and DOUBLE 1.645330/1.348762s (1.22x). All five trials remain
+in the raw results: stock/native ranges are 1.815736-1.866674/1.335060-1.359264s for FLOAT
+and 1.636341-1.656261/1.341284-1.361720s for DOUBLE. No result memoization is used;
+the same batch conversion handles low and high cardinality.
+
+The earlier generated-expression implementation measured 0.493179/0.448349 seconds,
+with separate stock medians 0.440520/0.360404. Its default-off prototype setting has been
+removed. The unmodified planner's fallback measured 0.432456/0.351380 seconds with its
+own stock controls. These are separate runs, so the new same-run stock comparison is
+the primary speedup measure. Earlier unfavorable trials remain in the
+[historical floating-cast trials](legacy-floating-decimal-trials-2026-10-16.json).
+Current trials are retained in the
+[numeric cast fast-path results](numeric-cast-fast-path-trials-2026-10-16.json).
+These complete-job numbers include fixed costs and do not establish a speedup for every
+exceptional input profile or a JVM-fallback-heavy batch.
 
 ```sh
 SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
@@ -85,30 +92,42 @@ SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
   -Dbasic.rows=2000000 -Dbasic.warmup=2 -Dbasic.runs=5
 ```
 
-The fixture explicitly enables the opt-in. `basic.legacyNumericCasts=false` and
-`basic.expectNative=false` verify the default fallback; the same harness with
-`basic.expectNative=false` also measures the unmodified baseline planner.
+`basic.castCardinality` selects the number of distinct input values; its numeric default
+is 9,999. `basic.expectNative=false` is only for replaying the same fixture against the
+unmodified planner's previous fallback. It does not change engine admission.
 
 ## Legacy CHAR to DOUBLE casts (2026-10-16)
 
-The same opt-in also admits verified legacy CHAR-to-DOUBLE casts using the complete
-released Flink expression, including NULL on failed conversion. It does not extend
-VARCHAR or CHAR-to-FLOAT admission. The mixed eight-expression DECIMAL ROUND projection
-keeps its sort-key cast; an independent runtime DECIMAL control verifies ROUND without
-character conversions. JVM evaluation inside the native Calc is reported explicitly.
+Legacy CHAR-to-DOUBLE is admitted by default. Direct unary casts parse ordinary ASCII
+decimal text as correctly-rounded binary64 in native batches. Hexadecimal forms, suffixes,
+special values, Unicode and malformed text retain the complete released Flink expression,
+including NULL on failed legacy conversion. VARCHAR-to-floating and CHAR-to-FLOAT legacy
+casts remain outside this admission. A composed operand never bypasses its generated
+expression. The mixed eight-expression DECIMAL ROUND projection keeps its character sort
+key, and an independent runtime DECIMAL control verifies ROUND without character conversion.
 
-At two million nullable CHAR(8) runtime rows, the standalone release path measured
-0.494686 seconds versus stock 0.411758. The previous planner's whole-Calc fallback
-measured 0.402268 seconds with its own stock control at 0.397853. This is a regression,
-so the default remains Flink and [#377](https://github.com/datafusion-contrib/StreamFusion/issues/377)
-tracks the remaining default-admission/performance decision. Both transposes and the
-JVM callback remain in the measurement. See the
-[raw trials](legacy-char-double-trials-2026-10-16.json).
-A final explicit-opt-in run measured 0.519314 versus stock 0.458194 seconds, again slower.
+The same two-million-row nullable CHAR(8) fixture, with 1,000 input values and both transposes,
+measures stock median 0.449092s (0.445728-0.455735) and native 0.384287s (0.381995-0.399833),
+a 1.17x same-run speedup. The generated prototype measured 0.519314s against stock 0.458194;
+the unmodified planner's fallback measured 0.402268s against its own stock control 0.397853.
+The prototype option has been removed. All earlier trials remain in the
+[historical character-cast results](legacy-char-double-trials-2026-10-16.json), with current
+trials in the [numeric cast fast-path results](numeric-cast-fast-path-trials-2026-10-16.json).
+No speedup is claimed for batches which require the released JVM evaluator.
 
-Reproduce with the floating-cast command above, selecting
-`-Dtest=LegacyCastBenchmark#legacyCharDoubleCasts` instead. No performance equivalence
-is inferred from result parity or a native operator name.
+At ten million rows, cardinality two million and CHAR(16), stock/native medians are
+1.918966/1.556556s (1.23x); ranges are 1.910777-1.974244/1.523132-1.564620s.
+The longer input values fit the declared CHAR length. This comparison retains the
+same resources, two warmups, five alternating trials and row/Arrow boundaries.
+
+Reproduce with the floating-cast command, selecting
+`-Dtest=LegacyCastBenchmark#legacyCharDoubleCasts` instead. `basic.castCardinality` defaults
+to 1,000 for this case; `basic.charLength` defaults to 8 and must fit the generated text.
+For a high-cardinality run, set both explicitly, for example cardinality 2,000,000 and
+CHAR length 16. Input shape and resources are identical between engines.
+
+For the larger run, add `-Dbasic.rows=10000000 -Dbasic.castCardinality=2000000`
+and, for the character case, `-Dbasic.charLength=16`.
 
 ## Shared aggregate diagnostics
 
