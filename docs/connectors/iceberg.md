@@ -426,3 +426,9 @@ passes all 23 queries and 120 paired validations, with median-speedup geometric
 means **1.44× exact SQL / 1.47× README variants**. It uses four Kafka partitions,
 four-bucket outputs, equal 4 GiB heaps and 512 MiB managed memory across four slots.
 The report retains q0/q5/q19 regressions and large state-heavy timing ranges.
+
+The separate [q0/q19 CPU diagnostics](../benchmarks/kafka-iceberg-final-20261017/profiles/README.md)
+do not reproduce the primary elapsed-time losses. In the profiled q19 pair,
+Rust data-file write/finish accounts for 8.0% of execution CPU samples and retained
+Java position-delete finalization for 21.0%; inclusive shares overlap and are not
+wall-time attribution. The primary benchmark retains its original repeated medians.

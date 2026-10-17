@@ -78,6 +78,13 @@ end-to-end totals do not isolate the Parquet encoder. q19's committed summaries
 show similar physical data/delete volumes on both engines; elapsed time alone
 does not identify the source, writer or state cost.
 
+The separate [q0/q19 CPU diagnostics](profiles/README.md) pass all four profiled
+pairs with identical release libraries. Neither primary regression reproduces;
+q19's native Rust data-write/finish entry is 8.0% of execution CPU samples, while
+retained Java position-delete finalization is 21.0%. Inclusive CPU samples overlap
+and do not explain the primary elapsed-time reversals. These diagnostic timings
+remain excluded from the suite metrics.
+
 The historical Paimon disk suite uses Flink 1.18 and best-of-two samples. The
 Iceberg-to-Iceberg suite uses a different source/completion protocol and the
 MiniCluster's default managed-memory budget. Their geometric means provide
