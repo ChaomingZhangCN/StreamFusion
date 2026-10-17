@@ -1,14 +1,12 @@
 package tech.streamfusion.iceberg;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.flink.table.data.RowData;
@@ -58,7 +56,7 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
     if (closed) throw new IllegalStateException("Iceberg appender closed");
     if (count == selected.length) selected = Arrays.copyOf(selected, count * 2);
     selected[count++] = context.position(row);
-    context.pending(this);
+    if (count == 1) context.pending(this);
     if (count >= 8192) {
       try {
         drain();
@@ -99,14 +97,7 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
         throw failure;
       }
     }
-    try (var array = ArrowArray.allocateNew(allocator)) {
-      Data.exportVectorSchemaRoot(allocator, root, NativeAllocator.DICTIONARIES, array);
-      try {
-        account(NativeIceberg.write(handle, array.memoryAddress(), selected, count));
-      } finally {
-        if (array.snapshot().release != 0) array.release();
-      }
-    }
+    account(NativeIceberg.write(handle, context.nativeBatch(handle), selected, count));
     count = 0;
   }
 
@@ -131,7 +122,7 @@ final class NativeIcebergAppender implements FileAppender<RowData>, ArrowWriteCo
         splitOffsets = List.of();
         return;
       }
-      JsonNode result = new ObjectMapper().readTree(NativeIceberg.finish(handle));
+      JsonNode result = IcebergJson.mapper().readTree(NativeIceberg.finish(handle));
       output.flush();
       finalSize = output.getPos();
       closeOutput();

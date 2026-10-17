@@ -41,6 +41,15 @@ binding, native decode/filter/adaptation and output collection stay inside. Nine
 fixtures read half of a four-row-group file with bloom metadata; footer loading,
 physical-to-reader range translation and native decode stay inside timing.
 
+The `streamfusion-bridge` package's `handoffs` suite also covers array-only C Data
+export with a cached schema. A further 54 fanout fixtures cross the existing row
+counts/string widths with one/four/16 consumers and repeated versus shared imports.
+They call the production C Data bridge and verify identical sliced/null data plus
+buffer sharing. The measured boundary includes Rust C Data export/import and teardown;
+Java export, JNI calls, Parquet encoding and Flink scheduling stay in the end-to-end
+comparison. Repeated imports model the previous Iceberg file handoff; shared imports
+model retaining one batch while several file writers borrow it.
+
 ## Running and comparing
 
 Run from a checkout with Rust, Maven, and a JDK available. The runner discovers workspace benchmark targets

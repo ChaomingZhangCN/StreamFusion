@@ -25,6 +25,8 @@ final class IcebergHashRouter extends tech.streamfusion.compat.FlinkStreamOperat
   private final int writers;
   private final int maxParallelism;
   private final boolean recoverable;
+  private transient int[] writerKeyGroups;
+  private transient KeySelector<RowData, Integer> groups;
 
   IcebergHashRouter(
       RowType rowType,
@@ -43,6 +45,23 @@ final class IcebergHashRouter extends tech.streamfusion.compat.FlinkStreamOperat
   public void open() throws Exception {
     super.open();
     NativeAllocator.initializeFor(this);
+    groups = grouping(selector, maxParallelism);
+    if (!recoverable) {
+      writerKeyGroups = new int[maxParallelism];
+      for (int group = 0; group < maxParallelism; group++) {
+        int writer =
+            KeyGroupRangeAssignment.computeOperatorIndexForKeyGroup(maxParallelism, writers, group);
+        writerKeyGroups[group] =
+            KeyGroupRangeAssignment.computeKeyGroupRangeForOperatorIndex(
+                    maxParallelism, writers, writer)
+                .getStartKeyGroup();
+      }
+    }
+  }
+
+  static KeySelector<RowData, Integer> grouping(
+      KeySelector<RowData, ?> selector, int maxParallelism) {
+    return IcebergPartitionGroups.create(selector, maxParallelism);
   }
 
   @Override
@@ -53,19 +72,8 @@ final class IcebergHashRouter extends tech.streamfusion.compat.FlinkStreamOperat
       int[] destinations = new int[root.getRowCount()];
       var reader = ArrowConversion.createArrowReader(root, rowType);
       for (int row = 0; row < root.getRowCount(); row++) {
-        int group =
-            KeyGroupRangeAssignment.assignToKeyGroup(
-                selector.getKey(reader.read(row)), maxParallelism);
-        if (recoverable) destinations[row] = group;
-        else {
-          int writer =
-              KeyGroupRangeAssignment.computeOperatorIndexForKeyGroup(
-                  maxParallelism, writers, group);
-          destinations[row] =
-              KeyGroupRangeAssignment.computeKeyGroupRangeForOperatorIndex(
-                      maxParallelism, writers, writer)
-                  .getStartKeyGroup();
-        }
+        int group = groups.getKey(reader.read(row));
+        destinations[row] = recoverable ? group : writerKeyGroups[group];
       }
       var allocator =
           root.getFieldVectors().isEmpty()

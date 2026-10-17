@@ -5,6 +5,8 @@ boundaries with the released Flink Iceberg reader/writer, without starting a Fli
 cluster. The default process takes about 8–9 seconds on the recorded benchmark host,
 including validation; an unchanged build check takes about 0.04 seconds. Initial
 release compilation and dependency preparation are separate, one-time costs.
+[Recorded before/after comparisons](iceberg-boundary-20261017/README.md) retain
+full ranges, profiles and focused streaming confirmation.
 
 ```sh
 # JDK 17, Rust and Maven required; run from a checkout.
@@ -77,4 +79,3 @@ keyed delete behavior, dynamic routing, range distribution and recovery stay in 
 streaming SQL/connector suites. Once a change wins here, run a focused release
 Nexmark confirmation and the relevant SQL/recovery tests. Rerun the complete matrix
 when preparing the final end-to-end comparison, not after every edit.
-

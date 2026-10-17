@@ -15,6 +15,7 @@ CI build reuse and runner scheduling are documented separately in the
 caching, shared build artifacts, grouped connector suites and combined coverage verification.
 Those measurements describe CI job counts and elapsed time, not SQL execution throughput.
 
+- [Reuse Iceberg boundary setup](iceberg-boundary-overhead.md): cached task schemas and serializers, shared Arrow leases and routing maps.
 - [Retire dead Delta checkpoint buffers](delta-live-buffer-retirement.md): release fully superseded Arrow batches and metadata.
 - [Preserve Paimon partition pruning](paimon-partition-pruning.md): carry retained partition equalities into released split planning.
 - [Indexed pending rowtime deduplication](pending-dedup-index.md): incoming-key probes over bounded Arrow chunks.

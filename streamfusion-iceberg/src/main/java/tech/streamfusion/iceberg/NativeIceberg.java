@@ -30,7 +30,11 @@ final class NativeIceberg {
       Object output,
       byte[] transferBuffer);
 
-  static native long write(long handle, long arrayAddress, int[] selected, int count);
+  static native long retainWriteBatch(long writer, long arrayAddress);
+
+  static native void releaseWriteBatch(long batch);
+
+  static native long write(long handle, long batch, int[] selected, int count);
 
   static native long estimatedBytes(long handle);
 
@@ -47,7 +51,7 @@ final class NativeIceberg {
   static native long createReader(
       String task, Object files, int batchRows, long skip, long outputSchema);
 
-  static native boolean nextRead(long handle, long array, long schema);
+  static native boolean nextRead(long handle, long array);
 
   static native void closeReader(long handle);
 }

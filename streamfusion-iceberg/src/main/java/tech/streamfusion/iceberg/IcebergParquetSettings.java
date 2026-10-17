@@ -3,7 +3,6 @@ package tech.streamfusion.iceberg;
 import static org.apache.iceberg.TableProperties.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -87,7 +86,7 @@ final class IcebergParquetSettings implements Serializable {
     settings.put("dictionary_enabled", Boolean.parseBoolean(dictionary));
     settings.put("version", version.equals("v1") ? 1 : 2);
     try {
-      return new IcebergParquetSettings(new ObjectMapper().writeValueAsString(settings));
+      return new IcebergParquetSettings(IcebergJson.mapper().writeValueAsString(settings));
     } catch (JsonProcessingException e) {
       throw new IllegalStateException(e);
     }

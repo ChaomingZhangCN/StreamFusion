@@ -60,17 +60,41 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_createWriter
 }
 
 #[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_retainWriteBatch(
+    env: JNIEnv,
+    _: JClass,
+    writer: jlong,
+    array: jlong,
+) -> jlong {
+    jni_guard(env, |_| {
+        let encoder = unsafe { &*(writer as *const writer::Encoder) };
+        into_handle(import_record_batch_with_schema(array, &encoder.input_schema))
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_releaseWriteBatch(
+    env: JNIEnv,
+    _: JClass,
+    batch: jlong,
+) {
+    jni_guard(env, |_| {
+        drop(unsafe { from_handle::<arrow::array::RecordBatch>(batch) });
+    })
+}
+
+#[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_write(
     env: JNIEnv,
     _: JClass,
     handle: jlong,
-    array: jlong,
+    batch: jlong,
     rows: JIntArray,
     count: i32,
 ) -> jlong {
     jni_guard(env, |env| {
         let encoder = unsafe { &mut *(handle as *mut writer::Encoder) };
-        let batch = import_record_batch_with_schema(array, &encoder.input_schema);
+        let batch = unsafe { &*(batch as *const arrow::array::RecordBatch) };
         assert!(
             count >= 0 && count <= env.get_array_length(&rows).expect("Iceberg selection size")
         );
@@ -87,7 +111,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_write(
                 row as u32
             })
             .collect::<Vec<_>>();
-        futures::executor::block_on(encoder.write(&batch, &indices));
+        futures::executor::block_on(encoder.write(batch, &indices));
         encoder.memory_bytes() as jlong
     })
 }
@@ -226,7 +250,6 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_nextRead(
     _: JClass,
     handle: jlong,
     array: jlong,
-    schema: jlong,
 ) -> jni::sys::jboolean {
     jni_guard(env, |_| {
         let decoder = unsafe { &mut *(handle as *mut reader::Reader) };
@@ -235,7 +258,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_nextRead(
             .expect("Iceberg Parquet task read")
         {
             Some(batch) => {
-                streamfusion_bridge::export_record_batch(batch, array, schema);
+                streamfusion_bridge::export_record_batch_array(batch, array);
                 1
             }
             None => 0,

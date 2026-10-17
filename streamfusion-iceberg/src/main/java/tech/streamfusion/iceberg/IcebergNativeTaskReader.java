@@ -1,6 +1,5 @@
 package tech.streamfusion.iceberg;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +19,7 @@ import tech.streamfusion.operator.NativeAllocator;
 final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
   private final IcebergTaskFiles files;
   private long handle;
+  private final org.apache.arrow.vector.types.pojo.Schema outputType;
   private final IcebergReadCancellation cancellation;
 
   IcebergNativeTaskReader(
@@ -66,7 +66,7 @@ final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
       throw new IllegalArgumentException(
           "Unverified Iceberg task format, encryption, or data task");
     }
-    var mapper = new ObjectMapper();
+    var mapper = IcebergJson.mapper();
     var descriptor = mapper.createObjectNode();
     descriptor.set("schema", mapper.readTree(SchemaParser.toJson(schema)));
     descriptor.put("path", task.file().location());
@@ -105,16 +105,15 @@ final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
         throw new IllegalArgumentException("Conflicting Java-planned file lengths");
       }
     }
+    var selected = new Schema(projection.stream().map(schema::findField).toList());
+    outputType =
+        tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
+            org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected));
     files = new IcebergTaskFiles(io, lengths);
     try (var outputSchema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
       if (cancellation != null) cancellation.add(files);
-      var selected = new Schema(projection.stream().map(schema::findField).toList());
       Data.exportSchema(
-          NativeAllocator.SHARED,
-          tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
-              org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected)),
-          NativeAllocator.DICTIONARIES,
-          outputSchema);
+          NativeAllocator.SHARED, outputType, NativeAllocator.DICTIONARIES, outputSchema);
       try {
         handle =
             NativeIceberg.createReader(
@@ -139,19 +138,23 @@ final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
 
   public VectorSchemaRoot next() {
     if (handle == 0) throw new IllegalStateException("Iceberg native task reader is closed");
-    try (var array = ArrowArray.allocateNew(NativeAllocator.SHARED);
-        var schema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
+    try (var array = ArrowArray.allocateNew(NativeAllocator.SHARED)) {
       try {
-        if (!NativeIceberg.nextRead(handle, array.memoryAddress(), schema.memoryAddress()))
-          return null;
-        return Data.importVectorSchemaRoot(
-            NativeAllocator.SHARED,
-            ArrowArray.wrap(array.memoryAddress()),
-            ArrowSchema.wrap(schema.memoryAddress()),
-            NativeAllocator.DICTIONARIES);
+        if (!NativeIceberg.nextRead(handle, array.memoryAddress())) return null;
+        var root = VectorSchemaRoot.create(outputType, NativeAllocator.SHARED);
+        try {
+          Data.importIntoVectorSchemaRoot(
+              NativeAllocator.SHARED,
+              ArrowArray.wrap(array.memoryAddress()),
+              root,
+              NativeAllocator.DICTIONARIES);
+          return root;
+        } catch (Throwable failure) {
+          root.close();
+          throw failure;
+        }
       } finally {
         if (array.snapshot().release != 0) array.release();
-        if (schema.snapshot().release != 0) schema.release();
       }
     }
   }

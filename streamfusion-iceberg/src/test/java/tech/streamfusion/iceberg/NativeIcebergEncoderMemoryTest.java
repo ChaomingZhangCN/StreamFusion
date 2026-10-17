@@ -25,6 +25,85 @@ import tech.streamfusion.operator.TaskOffHeapMemory;
 class NativeIcebergEncoderMemoryTest {
   @TempDir Path temp;
 
+  @org.junit.jupiter.api.Test
+  void sharedBatchLeaseEndsBeforeTheNextInputAndSurvivesIndependentFileDrains() throws Exception {
+    TaskOffHeapMemory.initialize(
+        Configuration.fromMap(Map.of("taskmanager.memory.task.off-heap.size", "8mb")));
+    var schema = new Schema(Types.NestedField.required(17, "id", Types.IntegerType.get()));
+    var table =
+        new HadoopTables(new org.apache.hadoop.conf.Configuration())
+            .create(schema, PartitionSpec.unpartitioned(), temp.resolve("leases").toString());
+    var context = new ArrowWriteContext();
+    var settings = IcebergParquetSettings.translate(Map.of());
+    var paths =
+        java.util.List.of(table.location() + "/even.parquet", table.location() + "/odd.parquet");
+    try (var even =
+            new NativeIcebergAppender(
+                context,
+                table.io().newOutputFile(paths.get(0)),
+                SchemaParser.toJson(schema),
+                settings,
+                MetricsConfig.forTable(table));
+        var odd =
+            new NativeIcebergAppender(
+                context,
+                table.io().newOutputFile(paths.get(1)),
+                SchemaParser.toJson(schema),
+                settings,
+                MetricsConfig.forTable(table))) {
+      for (int batch = 0; batch < 2; batch++) {
+        try (var ids = new IntVector("id", NativeAllocator.SHARED)) {
+          ids.allocateNew(128);
+          for (int i = 0; i < 128; i++) ids.set(i, batch * 128 + i);
+          ids.setValueCount(128);
+          try (var root = VectorSchemaRoot.of(ids)) {
+            context.begin(root);
+            try {
+              var rows = ArrowConversion.createArrowReader(root, FlinkSchemaUtil.convert(schema));
+              for (int i = 0; i < 128; i++) {
+                var row = rows.read(i);
+                context.position(i, row);
+                (i % 2 == 0 ? even : odd).add(row);
+                if (i % 16 == 15) {
+                  even.length();
+                  odd.length();
+                  assertTrue(NativeIceberg.liveNativeHandles().contains("RecordBatch=1"));
+                }
+              }
+              context.drain();
+            } finally {
+              context.clear();
+            }
+            assertFalse(NativeIceberg.liveNativeHandles().contains("RecordBatch"));
+          }
+        }
+      }
+    }
+    for (int parity = 0; parity < 2; parity++) {
+      var actual = new java.util.ArrayList<Integer>();
+      try (var records =
+          org.apache.iceberg.parquet.Parquet.read(table.io().newInputFile(paths.get(parity)))
+              .project(schema)
+              .createReaderFunc(
+                  fileSchema ->
+                      org.apache.iceberg.data.parquet.GenericParquetReaders.buildReader(
+                          schema, fileSchema))
+              .<org.apache.iceberg.data.Record>build()) {
+        for (var record : records) actual.add((Integer) record.getField("id"));
+      }
+      final int expectedParity = parity;
+      assertEquals(
+          java.util.stream.IntStream.range(0, 256)
+              .filter(i -> i % 2 == expectedParity)
+              .boxed()
+              .toList(),
+          actual);
+    }
+    assertEquals("", NativeIceberg.liveNativeHandles());
+    assertEquals(0L, NativeAllocator.SHARED.getAllocatedMemory());
+    assertEquals(0L, TaskOffHeapMemory.reservedBytes());
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void encoderRetentionIsChargedAndReleasedOnCloseOrQuotaFailure(boolean exhaust) throws Exception {

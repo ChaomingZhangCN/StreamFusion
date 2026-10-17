@@ -39,6 +39,12 @@ into parquet-rs's single-file Arrow encoder before releasing each input batch,
 at memory thresholds, at size checks, and before close. Java's per-row counting
 and 1,000-row rolling checks remain in place. Different encoders can produce
 different byte sizes and file boundaries under the same target-size policy.
+Each input batch exports one shared native Arrow lease across file drains; that lease
+ends before the borrowed root is released, including abort paths. Hash routing caches
+the host key-group-to-writer mapping when exact recovery labels are unnecessary.
+Integer partition tuples also cache their exact Java-selected key groups, avoiding
+repeated bucket-path formatting. Other key selectors remain unchanged. Java retains
+the partition/hash semantics and controls every rolling check.
 
 Append range distribution retains the released statistics operator, coordinator,
 union state, checkpoint events and range partitioner. Java observes borrowed Arrow
@@ -123,7 +129,7 @@ state in one of ten unaligned fault runs; retaining it passed the stress run and
 combined suite. Captured-channel tests also verify changing keyed values after rescaling.
 `bin/flink-suite.sh iceberg` requires
 matching published upstream streaming cases on stock and StreamFusion. The
-[final validation](../benchmarks/iceberg-validation-20261017/README.md) passes 298 tests
+[current validation](../benchmarks/iceberg-boundary-20261017/validation/summary.json) passes 302 tests
 with 13 batch exclusions, plus six release Rust unit tests. Native
 Criterion's `iceberg_io` suite separately exercises 126 release fixtures across
 encoding, routing, task reads, and scalar adaptation;
@@ -155,6 +161,15 @@ because Java uses residuals for pruning and full source filters for exact row fi
 Partial-file tasks translate physical Parquet row-group midpoints to the released
 reader's cumulative offset model; exact-boundary tests preserve Java ownership with
 no omitted or duplicated rows.
+The source reuses the task's verified Arrow output schema instead of exchanging a
+C Data schema for every decoded batch. Source tasks and sink file closes share a
+configured-once JSON mapper, retaining metadata serializer caches across files.
+The [boundary optimization ledger](../optimizations/iceberg-boundary-overhead.md)
+records the ownership contract and measured limits. The
+[fast reader/writer comparison](../benchmarks/iceberg-io.md) isolates file-task costs
+for iteration before full SQL/recovery and Nexmark validation. Its
+[paired observations](../benchmarks/iceberg-boundary-20261017/README.md) retain
+component gains, focused streaming confirmation and slower dynamic writer results.
 
 The SQL source now retains the released FLIP-27 streaming source,
 including snapshot discovery, assigners, watermarks, split serializers and coordinator
