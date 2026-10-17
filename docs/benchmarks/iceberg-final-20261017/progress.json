@@ -1,9 +1,9 @@
 {
-  "completedCells": 111,
+  "completedCells": 112,
   "expectedCells": 120,
   "lastCell": [
     "q21",
     "memory-on",
-    "exact"
+    "native regex/case (incompatible)"
   ]
 }
