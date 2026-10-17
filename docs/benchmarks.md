@@ -414,6 +414,11 @@ per-query table, baseline sweep, controlled shutdown experiment and profiles.
 
 ## Iceberg streaming comparison
 
+For connector development, the [fast reader/writer loop](benchmarks/iceberg-io.md)
+isolates production file tasks against stock Flink Iceberg in seconds. It complements
+the full streaming comparison below; it does not replace query, shuffle, checkpoint
+or commit measurements.
+
 The separate [four-partition Iceberg Nexmark matrix](benchmarks/iceberg-final-20261017/README.md)
 passes all 480 paired validations. Using the README query variants, geometric means
 of median speedups are **1.24× / 1.44×** on memory and **2.63× / 2.97×** on RocksDB
