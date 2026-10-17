@@ -172,8 +172,17 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
         var root = pending;
         pending = null;
         rowOffset = Math.addExact(rowOffset, root.getRowCount());
-        return new Batch(
-            split.splitId(), new RecordAndPosition<>(new ArrowBatch(root), fileOffset, rowOffset));
+        var batch =
+            new Batch(
+                split.splitId(),
+                new RecordAndPosition<>(new ArrowBatch(root), fileOffset, rowOffset),
+                cancellation());
+        try {
+          cancellation().add(batch);
+          return batch;
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
       }
 
       @Override
@@ -195,13 +204,19 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
     };
   }
 
-  private static final class Batch implements RecordsWithSplitIds<RecordAndPosition<ArrowBatch>> {
+  private static final class Batch
+      implements RecordsWithSplitIds<RecordAndPosition<ArrowBatch>>, java.io.Closeable {
     private String split;
     private RecordAndPosition<ArrowBatch> record;
+    private final IcebergReadCancellation cancellation;
 
-    private Batch(String split, RecordAndPosition<ArrowBatch> record) {
+    private Batch(
+        String split,
+        RecordAndPosition<ArrowBatch> record,
+        IcebergReadCancellation cancellation) {
       this.split = split;
       this.record = record;
+      this.cancellation = cancellation;
     }
 
     @Override
@@ -212,9 +227,10 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
     }
 
     @Override
-    public RecordAndPosition<ArrowBatch> nextRecordFromSplit() {
+    public synchronized RecordAndPosition<ArrowBatch> nextRecordFromSplit() {
       var result = record;
       record = null;
+      cancellation.remove(this);
       return result;
     }
 
@@ -224,11 +240,21 @@ final class IcebergArrowReaderFunction implements ReaderFunction<ArrowBatch> {
     }
 
     @Override
-    public void recycle() {
+    public synchronized void recycle() {
       if (record != null) {
-        record.record().root().close();
+        var root = record.record().root();
         record = null;
+        try {
+          root.close();
+        } finally {
+          cancellation.remove(this);
+        }
       }
+    }
+
+    @Override
+    public void close() {
+      recycle();
     }
   }
 }

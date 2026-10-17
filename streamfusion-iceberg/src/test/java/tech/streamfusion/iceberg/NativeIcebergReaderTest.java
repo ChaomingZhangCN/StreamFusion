@@ -23,6 +23,34 @@ class NativeIcebergReaderTest {
   @TempDir Path temp;
 
   @org.junit.jupiter.api.Test
+  void cancellationRecyclesQueuedBatchesWithoutClosingClaimedBatches() throws Exception {
+    var table = fixture(temp, false);
+    org.apache.iceberg.FileScanTask task;
+    try (var files = table.newScan().planFiles()) {
+      task = files.iterator().next();
+    }
+    var split =
+        org.apache.iceberg.flink.source.split.IcebergSourceSplit.fromCombinedScanTask(
+            new org.apache.iceberg.BaseCombinedScanTask(List.of(task)));
+    var function = new IcebergArrowReaderFunction(table.schema(), List.of(1), table.io(), 7);
+    try (var input = function.apply(split)) {
+      var queued = input.next();
+      var claimed = input.next().nextRecordFromSplit();
+      try (var root = claimed.record().root()) {
+        function.cancelIo();
+        queued.recycle();
+        assertNull(queued.nextRecordFromSplit());
+        assertEquals(7, root.getRowCount());
+        assertEquals(7, root.getVector("id").getObject(0));
+      }
+      function.cancelIo();
+    }
+    assertEquals("", NativeIceberg.liveNativeHandles());
+    assertEquals(0L, tech.streamfusion.operator.NativeAllocator.SHARED.getAllocatedMemory());
+    assertEquals(0L, tech.streamfusion.operator.TaskOffHeapMemory.reservedBytes());
+  }
+
+  @org.junit.jupiter.api.Test
   void sourceSplitResumeUsesRowsAndFileOrdinalsAcrossDifferentBatchSizes() throws Exception {
     var table = fixture(temp, false);
     org.apache.iceberg.FileScanTask task;

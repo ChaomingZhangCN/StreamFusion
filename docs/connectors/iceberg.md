@@ -136,6 +136,11 @@ blocked reads to unwind before the fetcher releases its native handle. Field-ID 
 and logical-row resume with changed batch sizes have direct readback tests. Queued
 batch recycling and iterator cancellation reclaim prefetched Arrow roots; injected
 host read errors propagate and native handles are reclaimed.
+The cancellation registry owns fetched batches until the emitter claims them, so
+shutdown also releases records left in Flink's fetch queue after its last fetcher
+exits. Claimed batches remain owned by downstream consumers. Recovery fixtures wait
+for every task to run before requesting savepoints and require zero Arrow/task
+reservations after cancellation and restore.
 
 Task metadata now carries field-ID-bound source predicates, partition specs/tuples,
 and legacy name mappings. Tests cover projected-away filter keys, identity constants

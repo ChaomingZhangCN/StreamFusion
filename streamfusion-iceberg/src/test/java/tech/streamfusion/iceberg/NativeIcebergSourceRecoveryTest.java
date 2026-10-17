@@ -53,8 +53,14 @@ class NativeIcebergSourceRecoveryTest {
     String savepoint;
     try {
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-      while (EMITTED.get() < 21 && System.nanoTime() < deadline) Thread.sleep(5);
+      while ((EMITTED.get() < 21 || !NativeIcebergCapturedRecoveryTest.allTasksRunning(first))
+          && System.nanoTime() < deadline) {
+        if (first.getJobStatus().get().isGloballyTerminalState())
+          first.getJobExecutionResult().get();
+        Thread.sleep(5);
+      }
       assertTrue(EMITTED.get() >= 21);
+      assertTrue(NativeIcebergCapturedRecoveryTest.allTasksRunning(first));
       savepoint =
           first
               .triggerSavepoint(
@@ -75,6 +81,8 @@ class NativeIcebergSourceRecoveryTest {
       first.cancel().get(30, TimeUnit.SECONDS);
       first.getJobExecutionResult().handle((result, failure) -> null).get(30, TimeUnit.SECONDS);
     }
+    assertEquals(0L, tech.streamfusion.operator.NativeAllocator.SHARED.getAllocatedMemory());
+    assertEquals(0L, tech.streamfusion.operator.TaskOffHeapMemory.reservedBytes());
     int checkpointRows =
         CHECKPOINTED.entrySet().stream()
             .max(java.util.Map.Entry.comparingByKey())
@@ -94,8 +102,14 @@ class NativeIcebergSourceRecoveryTest {
     try {
       // The restored sink commits only at the drain savepoint; wait for the remaining input first.
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-      while (EMITTED.get() < 2004 && System.nanoTime() < deadline) Thread.sleep(5);
+      while ((EMITTED.get() < 2004 || !NativeIcebergCapturedRecoveryTest.allTasksRunning(restored))
+          && System.nanoTime() < deadline) {
+        if (restored.getJobStatus().get().isGloballyTerminalState())
+          restored.getJobExecutionResult().get();
+        Thread.sleep(5);
+      }
       assertTrue(EMITTED.get() >= 2004);
+      assertTrue(NativeIcebergCapturedRecoveryTest.allTasksRunning(restored));
       restored
           .stopWithSavepoint(
               true, temp.resolve("final").toUri().toString(), SavepointFormatType.CANONICAL)
@@ -128,6 +142,8 @@ class NativeIcebergSourceRecoveryTest {
       }
     }
     assertEquals("", NativeIceberg.liveNativeHandles());
+    assertEquals(0L, tech.streamfusion.operator.NativeAllocator.SHARED.getAllocatedMemory());
+    assertEquals(0L, tech.streamfusion.operator.TaskOffHeapMemory.reservedBytes());
   }
 
   private static StreamExecutionEnvironment environment(

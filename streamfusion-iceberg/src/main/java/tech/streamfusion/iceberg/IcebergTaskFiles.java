@@ -10,7 +10,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SeekableInputStream;
 
 /** Task-local positional reads retain the host's filesystem and credential configuration. */
-final class IcebergTaskFiles implements AutoCloseable {
+final class IcebergTaskFiles implements java.io.Closeable {
   private final FileIO io;
   private final Map<String, Long> lengths;
   private final Map<String, Input> streams = new HashMap<>();

@@ -1,44 +1,49 @@
 package tech.streamfusion.iceberg;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Cancels host IO without racing the fetcher's native reader ownership. */
+/** Owns host IO and unclaimed fetched batches until reader cancellation. */
 final class IcebergReadCancellation implements AutoCloseable {
-  private final Set<IcebergTaskFiles> active = new HashSet<>();
+  private final Set<Closeable> active = new HashSet<>();
   private boolean closed;
 
-  void add(IcebergTaskFiles files) throws IOException {
+  void add(Closeable resource) throws IOException {
     synchronized (this) {
       if (!closed) {
-        active.add(files);
+        active.add(resource);
         return;
       }
     }
-    files.close();
+    resource.close();
     throw new IOException("Iceberg source reader is closed");
   }
 
-  synchronized void remove(IcebergTaskFiles files) {
-    active.remove(files);
+  synchronized void remove(Closeable resource) {
+    active.remove(resource);
   }
 
   @Override
   public void close() throws IOException {
-    List<IcebergTaskFiles> files;
+    List<Closeable> resources;
     synchronized (this) {
       if (closed) return;
       closed = true;
-      files = List.copyOf(active);
+      resources = List.copyOf(active);
       active.clear();
     }
     IOException failure = null;
-    for (var input : files) {
+    for (var resource : resources) {
       try {
-        input.close();
-      } catch (IOException e) {
+        resource.close();
+      } catch (Exception cause) {
+        IOException e =
+            cause instanceof IOException
+                ? (IOException) cause
+                : new IOException("Cannot close Iceberg source resource", cause);
         if (failure == null) failure = e;
         else failure.addSuppressed(e);
       }

@@ -338,7 +338,7 @@ class NativeIcebergCapturedRecoveryTest {
     }
   }
 
-  private static boolean allTasksRunning(org.apache.flink.core.execution.JobClient job)
+  static boolean allTasksRunning(org.apache.flink.core.execution.JobClient job)
       throws Exception {
     var field =
         org.apache.flink.runtime.minicluster.MiniClusterJobClient.class.getDeclaredField(
