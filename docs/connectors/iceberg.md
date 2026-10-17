@@ -275,6 +275,11 @@ also split total time into corpus/window progress, the settling checkpoint, and 
 drain/commit. `SF_ICEBERG_DYNAMIC_FORMAT_VERSION=3` selects v3 for the separate dynamic
 writer diagnostic; keyed runs with repeated keys require actual Java Puffin deletion
 vectors and stock readback. This does not admit native v3 reads.
+For separate diagnostics, `SF_ICEBERG_PROFILE_TOOL` can point to the released
+async-profiler `profiler.sh`; `SF_ICEBERG_PROFILE_EVENT` selects `itimer` or `wall`.
+Each trial starts profiling before its timer and stops before stock readback, retaining
+thread-labelled collapsed stacks beside the plan. Profiled observations are diagnostic
+and excluded from the final performance matrix.
 Exact-query aggregates report geometric mean ratios per mode and nominal corpus-event
 throughput; labelled expression variants remain separate.
 It also reports the headline sampling convention (first memory sample, best of the first

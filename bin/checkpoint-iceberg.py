@@ -40,12 +40,14 @@ def archive_cell(artifacts, destination, observations):
                 trial = artifacts / token
                 table = artifacts / 'warehouse' / 'bench' / token
                 paths = [trial / 'plan.txt', trial / 'graph.json']
+                paths.extend(sorted(trial.glob('*.collapsed')))
                 versions = list((table / 'metadata').glob('v*.metadata.json'))
                 if not versions:
                     raise RuntimeError(f'No committed table metadata for {token}')
                 paths.append(max(versions, key=lambda p: int(p.name.split('.')[0][1:])))
                 for path in paths:
                     data = path.read_bytes().replace(str(artifacts).encode(), b'artifact:')
+                    data = data.replace(str(Path(__file__).resolve().parent.parent).encode(), b'repo:')
                     info = tarfile.TarInfo(str(path.relative_to(artifacts)))
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))

@@ -106,6 +106,8 @@ class IcebergNexmarkBenchmark {
       metadata.put("runs", RUNS);
       metadata.put("baselineEngine", IO_BASELINE ? "streamfusion-stock-io" : "flink");
       metadata.put("baselineLabel", IO_BASELINE ? "StreamFusion with stock Iceberg IO" : "Flink");
+      metadata.put(
+          "profileEvent", System.getenv().getOrDefault("SF_ICEBERG_PROFILE_EVENT", "none"));
       metadata.put("fileSettings", FILE_SETTINGS);
       metadata.put("snapshots", snapshots);
       metadata.put("java", System.getProperty("java.version"));
@@ -398,6 +400,7 @@ class IcebergNexmarkBenchmark {
             + " "
             + nativeMode);
     var resources = new IcebergBenchmarkResources();
+    profile("start", trialPath);
     long start = System.nanoTime();
     sql.createStatementSet().addInsertSql(query.insertSql).attachAsDataStream();
     var graph = env.getStreamGraph();
@@ -471,6 +474,7 @@ class IcebergNexmarkBenchmark {
       }
     }
     double seconds = (System.nanoTime() - start) / 1e9;
+    profile("stop", trialPath);
     var resourceObservation = resources.finish();
     output.refresh();
     var fingerprint = fingerprint(output, query.label);
@@ -550,6 +554,21 @@ class IcebergNexmarkBenchmark {
         return false;
     }
     return true;
+  }
+
+  private static void profile(String action, Path trial) throws Exception {
+    String tool = System.getenv("SF_ICEBERG_PROFILE_TOOL");
+    if (tool == null) return;
+    String event = System.getenv().getOrDefault("SF_ICEBERG_PROFILE_EVENT", "itimer");
+    var command = new ArrayList<>(List.of(tool, action));
+    if (action.equals("start")) command.addAll(List.of("-e", event, "-t", "--cstack", "dwarf"));
+    else
+      command.addAll(
+          List.of("-o", "collapsed", "-f", trial.resolve(event + ".collapsed").toString()));
+    command.add(Long.toString(ProcessHandle.current().pid()));
+    var process = new ProcessBuilder(command).inheritIO().start();
+    assertTrue(process.waitFor(30, TimeUnit.SECONDS), "profiler command timed out");
+    assertEquals(0, process.exitValue(), "profiler command failed");
   }
 
   private static boolean backendObserved(String mode, boolean nativeMode, Path directory)
