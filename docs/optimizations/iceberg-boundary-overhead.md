@@ -78,3 +78,12 @@ A bounded task-local parsed-identifier cache reduces dynamic generator medians f
 ownership on every row. It caches no catalog/schema/spec state. The combined-size
 JNI prototype has no consistent gain and is removed; the checksummed local source
 stream has no direct-buffer capability. Original rolling checks and FileIO remain.
+
+The subsequent [complete unchanged Iceberg Nexmark rerun](../benchmarks/iceberg-optimized-20261017/README.md)
+passes all 120 cells / 480 paired validations. README-selection median geometric
+means versus stock are 1.22× / 1.81× memory and 2.80× / 2.94× RocksDB (mini-batching
+off/on). Direct previous-native/current-native geometric means are 1.03× / 1.19× /
+1.22× / 0.90×: RocksDB/on regresses about 10%. These cohorts include all boundary
+changes since the previous complete matrix, with storage/JVM variation and large
+ranges; they do not isolate each edit. q18/q20 memory regressions and state/checkpoint
+follow-up #391 remain. Default-on acceleration is unchanged.

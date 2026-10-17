@@ -419,9 +419,12 @@ isolates production file tasks against stock Flink Iceberg in seconds. It comple
 the full streaming comparison below; it does not replace query, shuffle, checkpoint
 or commit measurements.
 
-The separate [four-partition Iceberg Nexmark matrix](benchmarks/iceberg-final-20261017/README.md)
-passes all 480 paired validations. Using the README query variants, geometric means
-of median speedups are **1.24× / 1.44×** on memory and **2.63× / 2.97×** on RocksDB
-(mini-batching off/on). Exact-query results, ranges, profiles, checkpoint tuning and
-the comparison with previous StreamFusion I/O remain on that page. The optional
-connector accelerates supported streaming contracts by default when installed; the Kafka headline is unchanged.
+The latest [four-partition Iceberg Nexmark matrix](benchmarks/iceberg-optimized-20261017/README.md)
+passes all 120 cells / 480 paired validations. Using the README query variants,
+geometric means of repeated median speedups are **1.22× / 1.81×** on memory and
+**2.80× / 2.94×** on RocksDB (mini-batching off/on). Exact-SQL ratios are
+1.23× / 1.69× and 2.51× / 2.74×. The report retains every range, remaining
+state-heavy regressions and the mixed comparison with the
+[previous complete matrix](benchmarks/iceberg-final-20261017/README.md).
+The optional connector accelerates supported streaming contracts by default when
+installed; the Kafka headline is unchanged.

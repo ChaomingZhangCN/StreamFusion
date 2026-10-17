@@ -81,7 +81,9 @@ exclusions**, across 37 classes. All 12 captured-channel recovery/rescaling case
 four source recovery cases, SQL and normal/dynamic/range controls pass.
 [Summary/library hashes](validation/summary.json), [reports](validation/reports.tar.gz)
 and compressed logs retain the evidence. The complete
-[Iceberg Nexmark rerun](../iceberg-optimized-20261017/README.md) follows this validation.
+[Iceberg Nexmark rerun](../iceberg-optimized-20261017/README.md) passes all
+120 cells / 480 paired validations after this validation, retaining mixed gains
+and remaining regressions.
 
 The `dynamic-*-checked` cohorts are the final generator comparison. Earlier
 generator-only cohorts omitted the borrowed-row-kind guard in their uncached

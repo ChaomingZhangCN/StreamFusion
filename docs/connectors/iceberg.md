@@ -216,7 +216,7 @@ have explicit cleanup. Supported paths accelerate by default; the standard per-o
 switches remain available for controlled comparisons. The source follows
 Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
 The implementation is available in [PR #386](https://github.com/datafusion-contrib/StreamFusion/pull/386),
-with the completed [four-partition Iceberg-to-Iceberg Nexmark comparison](../benchmarks/iceberg-final-20261017/README.md).
+with the completed [four-partition Iceberg-to-Iceberg Nexmark comparison](../benchmarks/iceberg-optimized-20261017/README.md).
 The original design and reference implementations are recorded in
 [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
 All work concerns streaming jobs; batch overwrite and maintenance are outside scope.
@@ -337,44 +337,41 @@ validations across 120 cells (one warmup and three measured pairs).
 
 ### Final streaming Nexmark results
 
-Using the README's existing expression-variant selection, the geometric means of
-stock/native median elapsed-time ratios are:
+The [latest complete matrix](../benchmarks/iceberg-optimized-20261017/README.md)
+passes 120 cells / 480 paired validations. Using the README expression-variant
+selection, geometric means of repeated stock/native median elapsed-time ratios are:
 
 | State | Mini-batching off | Mini-batching on |
 |---|---:|---:|
-| Memory | 1.24× | 1.44× |
-| RocksDB | 2.63× | 2.97× |
+| Memory | 1.22× | 1.81× |
+| RocksDB | 2.80× | 2.94× |
 
-The exact-SQL geometric means are 1.06× / 1.38× memory and 2.34× / 2.81× RocksDB.
-The README sampling convention separately gives 1.14× / 1.30× / 2.55× / 2.96×.
-All 23 queries contribute once per mode; labelled incompatible expression variants
-remain explicit. [Every time/range, method, build and audit](../benchmarks/iceberg-final-20261017/README.md)
-is retained. This i7-12650H WSL2/ext4 host uses equal 4 GiB job heaps, rather than
-the usual 8 GiB test fork; the published Kafka headline uses an Apple M1 Max.
-These short end-to-end jobs include filesystem checkpoints and final drain/commit.
+Exact-SQL geometric means are 1.23× / 1.69× memory and 2.51× / 2.74× RocksDB.
+All 23 queries contribute once per mode; incompatible expression variants remain
+explicit. This i7-12650H WSL2/ext4 comparison uses equal 4 GiB job heaps, two million
+events, four input/output buckets, one warmup and three measured pairs per cell.
+Timing includes configured checkpoints and final drain/commit. All 480 native graphs
+have no row/Arrow transposes or operator fallback; native source/writer/task/footer
+witnesses and committed output parity pass. All prior matrix settings match and all
+480 input files have identical data pages and normalized decoded footers.
 
-All 480 native graphs contain no row/Arrow transposes and all native plans report
-no operator fallback. Source/task/writer/file witnesses verify native Parquet I/O,
-and all paired committed-output validations pass (q12 conserves per-bidder counts
-across inherently variable processing-time windows). Resumed cohorts have identical
-input data pages; their differing footer encoding-list order is verified with the
-released Parquet decoder. The final cancellation ownership fix has a separate
-2M-event q0 confirmation: 1.53×, versus 1.51× in the full matrix.
+The [previous full matrix](../benchmarks/iceberg-final-20261017/README.md) reports
+1.24× / 1.44× memory and 2.63× / 2.97× RocksDB. Current native medians improve
+geometrically 1.03× / 1.19× / 1.22× in the first three modes and regress to 0.90×
+previous/current in RocksDB/on. Cohort timing drift and large per-cell ranges remain
+visible. These are combined boundary changes, not a causal measurement of each edit.
 
-The slower default results remain visible: q9 memory/on 0.16×, q18 memory/off 0.10×,
-and q20 memory/off/on 0.09× / 0.08×. [Stock/native CPU, wall and kernel profiles](../benchmarks/iceberg-profile-20261017/README.md)
-identify substantial state/checkpoint storage costs. Separate warmed comparisons
-with Flink snapshot compression enabled for both engines give q9 memory/on 1.63×,
-q18 memory/off 1.15×, and q20 memory/off/on 1.36× / 2.12×. Compression reduces state
-bytes while storage variability remains; these tuning cohorts do not replace the
-uncompressed matrix. Native data encoding is a small CPU share in those profiles.
-
-The [same-query comparison with previous StreamFusion I/O](../benchmarks/iceberg-io-baseline-20261017/README.md)
-passes 32 paired validations. q0 improves about 1.8×, but the four-query geometric
-means are 1.90× memory/off and 0.95× disk/off, with a 0.49× q9 disk/off regression.
-This does not establish a universal gain over the old connector path. The connector
-accelerates supported contracts by default; [issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391)
-tracks state/checkpoint and input-scheduling work.
+Default-on regressions remain: q18 memory/off is 0.14× stock and q20 memory/off/on
+is 0.10× / 0.11×; q23 RocksDB/on is 0.51×. The
+[report](../benchmarks/iceberg-optimized-20261017/README.md) retains full ranges and
+phase timings: native q18/q20 corpus medians are about 0.66–2.31 seconds, while
+settling/draining medians reach 8–16 seconds. Separate phase medians need not sum
+to the total. [Earlier CPU/wall/kernel profiles](../benchmarks/iceberg-profile-20261017/README.md)
+identify substantial state/checkpoint storage work;
+[issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391) remains open.
+Snapshot-compression tuning and the earlier
+[same-query stock-I/O ablation](../benchmarks/iceberg-io-baseline-20261017/README.md)
+remain separate historical measurements. Supported acceleration stays on by default.
 
 ### Current dynamic writer diagnostics
 

@@ -124,6 +124,7 @@ nav:
       - Scalar functions: benchmarks/scalar-functions.md
       - Decimal expressions: benchmarks/decimal-expressions.md
       - Fast Iceberg I/O loop: benchmarks/iceberg-io.md
+      - Iceberg streaming results: benchmarks/iceberg-optimized-20261017/README.md
       - Basic type coverage: benchmarks/basic-type-coverage.md
       - Flink 1.18 compatibility: benchmarks/flink118-nexmark.md
   - Optimizations:
