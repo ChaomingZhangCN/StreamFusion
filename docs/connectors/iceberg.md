@@ -121,7 +121,9 @@ to each batch's exact key group. Removing that context reproduced stale committe
 state in one of ten unaligned fault runs; retaining it passed the stress run and
 combined suite. Captured-channel tests also verify changing keyed values after rescaling.
 `bin/flink-suite.sh iceberg` requires
-matching published upstream streaming cases on stock and StreamFusion. Native
+matching published upstream streaming cases on stock and StreamFusion. The
+[final validation](../benchmarks/iceberg-validation-20261017/README.md) passes 298 tests
+with 13 batch exclusions, plus six release Rust unit tests. Native
 Criterion's `iceberg_io` suite separately exercises 126 release fixtures across
 encoding, routing, task reads, and scalar adaptation;
 it does not establish an end-to-end speedup.
@@ -194,15 +196,17 @@ budget; internal decoder retention remains opaque. Queued batches and native han
 have explicit cleanup. Acceleration remains opt-in
 until the release end-to-end comparison establishes performance. The source follows
 Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
-The remaining implementation and final four-partition Iceberg-to-Iceberg Nexmark
-comparison are tracked in [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
+The implementation is available in [PR #386](https://github.com/datafusion-contrib/StreamFusion/pull/386),
+with the completed [four-partition Iceberg-to-Iceberg Nexmark comparison](../benchmarks/iceberg-final-20261017/README.md).
+The original design and reference implementations are recorded in
+[issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
 All work concerns streaming jobs; batch overwrite and maintenance are outside scope.
 
 ## Separate Iceberg Nexmark comparison
 
 `JAVA_HOME`/`PATH` must select JDK 17. Run `bin/bench-iceberg.sh` to build and stage
 isolated release+mimalloc libraries and execute the separate streaming comparison.
-This leaves the headline Kafka/blackhole benchmark sources and SQL corpus unchanged.
+This leaves the headline Kafka benchmark sources and SQL corpus unchanged.
 `SF_ROWS`, `SF_PARALLELISM`, `SF_MATRIX_QUERIES`, `SF_WARMUP`, `SF_RUNS`,
 `SF_ICEBERG_MODES`, `SF_ICEBERG_VARIANTS` and `SF_ICEBERG_ARTIFACTS` select the run.
 `SF_ICEBERG_JAVA_HEAP` defaults to `4g` for both engines. The untimed Maven launcher
@@ -309,80 +313,87 @@ It also reports the headline sampling convention (first memory sample, best of t
 two disk samples) alongside all repeated medians/ranges. A 10k-event smoke matrix passed
 120 stock/native pairs across all 23 queries, four modes and labelled variants; q8 also
 passed ten repeated disk/mini-batch pairs with file watermarks. These are correctness
-checks, not throughput results. Final 2M-event results remain pending.
+checks, not throughput results. The final 2M-event matrix passes all 480 paired
+validations across 120 cells (one warmup and three measured pairs).
 
-### Initial dynamic writer release diagnostic
+### Final streaming Nexmark results
 
-On 2026-10-16, an Intel i7-12650H Linux host (16 available logical CPUs, 9.7 GiB
-physical memory) ran 2M generated Arrow rows through the dynamic sink, with one
-warmup and three measured pairs in alternating engine order. Both engines start
-with the same 8,192-row Arrow batches: required integer ID and nullable Unicode
-payload. The stock generator immediately visits Arrow row views and uses the normal
-Java payload serializer/encoder; the native adapter retains batches. One producer,
-parallelism four, one TaskManager/eight slots, 8 GiB maximum Java heap, 48 GiB logical
-task-off-heap budget, Zstd 3, four buckets per target and one-second checkpoints
-apply to both engines. The host metadata cache is 1,000; size-one eviction is covered
-by correctness fixtures. Timing includes generation, host routing, transport, JNI,
-Java deletes, data encoding and the final draining savepoint/commit. Stock Iceberg
-validates every committed ID/payload outside timing; native file footers and released
-handles/Arrow reservations are checked. Upserts repeat 100k keys over 2M input rows.
+Using the README's existing expression-variant selection, the geometric means of
+stock/native median elapsed-time ratios are:
 
-| Dynamic mode | Stock median [range], s | Native median [range], s | Median ratio |
+| State | Mini-batching off | Mini-batching on |
+|---|---:|---:|
+| Memory | 1.24× | 1.44× |
+| RocksDB | 2.63× | 2.97× |
+
+The exact-SQL geometric means are 1.06× / 1.38× memory and 2.34× / 2.81× RocksDB.
+The README sampling convention separately gives 1.14× / 1.30× / 2.55× / 2.96×.
+All 23 queries contribute once per mode; labelled incompatible expression variants
+remain explicit. [Every time/range, method, build and audit](../benchmarks/iceberg-final-20261017/README.md)
+is retained. This i7-12650H WSL2/ext4 host uses equal 4 GiB job heaps, rather than
+the usual 8 GiB test fork; the published Kafka headline uses an Apple M1 Max.
+These short end-to-end jobs include filesystem checkpoints and final drain/commit.
+
+All 480 native graphs contain no row/Arrow transposes and all native plans report
+no operator fallback. Source/task/writer/file witnesses verify native Parquet I/O,
+and all paired committed-output validations pass (q12 conserves per-bidder counts
+across inherently variable processing-time windows). Resumed cohorts have identical
+input data pages; their differing footer encoding-list order is verified with the
+released Parquet decoder. The final cancellation ownership fix has a separate
+2M-event q0 confirmation: 1.53×, versus 1.51× in the full matrix.
+
+The slower default results remain visible: q9 memory/on 0.16×, q18 memory/off 0.10×,
+and q20 memory/off/on 0.09× / 0.08×. [Stock/native CPU, wall and kernel profiles](../benchmarks/iceberg-profile-20261017/README.md)
+identify substantial state/checkpoint storage costs. Separate warmed comparisons
+with Flink snapshot compression enabled for both engines give q9 memory/on 1.63×,
+q18 memory/off 1.15×, and q20 memory/off/on 1.36× / 2.12×. Compression reduces state
+bytes while storage variability remains; these tuning cohorts do not replace the
+uncompressed matrix. Native data encoding is a small CPU share in those profiles.
+
+The [same-query comparison with previous StreamFusion I/O](../benchmarks/iceberg-io-baseline-20261017/README.md)
+passes 32 paired validations. q0 improves about 1.8×, but the four-query geometric
+means are 1.90× memory/off and 0.95× disk/off, with a 0.49× q9 disk/off regression.
+This does not establish a universal gain over the old connector path. The connector
+remains experimental and opt-in; [issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391)
+tracks state/checkpoint and input-scheduling work.
+
+### Current dynamic writer diagnostics
+
+The separate dynamic writer comparison starts both engines with the same generated
+8,192-row Arrow batches (integer ID and nullable Unicode payload), writes 2M rows to
+two four-bucket targets, and uses one warmup and three alternating measured pairs.
+Both engines use parallelism four, 4 GiB heaps, Zstd 3, one-second checkpoints and
+immediate metadata updates. Java handles routing, deletes and commits. Timing includes
+encoding plus non-draining and draining canonical savepoints; stock readback is outside
+timing. These writer-only diagnostics are separate from the main Nexmark protocol.
+
+| Format / mode | Stock median [range], s | Native median [range], s | Ratio |
 |---|---:|---:|---:|
-| Mixed forward/hash append | 2.791 [2.787–2.975] | 2.556 [2.352–3.425] | 1.09× |
-| Partitioned upsert | 3.568 [3.557–3.573] | 2.973 [2.965–3.090] | 1.20× |
+| v2 / mixed forward-hash append | 2.249 [2.179–2.301] | 2.313 [2.303–2.322] | 0.97× |
+| v2 / keyed upsert | 3.206 [2.951–3.641] | 3.371 [3.057–3.505] | 0.95× |
+| v3 / mixed forward-hash append | 2.315 [2.170–2.486] | 2.258 [2.203–2.305] | 1.03× |
+| v3 / keyed upsert | 2.689 [2.528–3.072] | 2.745 [2.539–3.076] | 0.98× |
 
-[All samples and warmups](../benchmarks/iceberg-dynamic-20261016.jsonl) retain the
-append variability. This diagnostic uses JDK 17 and release Rust with `mimalloc`.
-The core library SHA-256 is `7a218e3b3242b5ebaa18a22848be89b556eb29426b6037b625bbce3b650e3ed5`;
-the Iceberg library is `73d14da4d49e056b89e92e0b31678b47c1254d38677a275a62fa6936a63168df`.
-To repeat, use profile `iceberg,iceberg-nexmark,bench`, test `IcebergDynamicBenchmark`,
-set `SF_ICEBERG_DYNAMIC_BENCHMARK=true` and `SF_ICEBERG_RELEASE_CONFIRMED=true`, and
-stage the same release libraries as `bin/bench-iceberg.sh`. `SF_ROWS`, `SF_WARMUP`,
-`SF_RUNS` and `SF_ICEBERG_ARTIFACTS` select the run. The final Nexmark matrix remains
-pending; the connector stays an explicit opt-in.
+All 32 trials pass payload/readback and native data-file/handle/reservation checks.
+Keyed writes repeat 100k keys; v3 trials require actual Java Puffin deletion vectors.
+[Version 2 evidence](../benchmarks/iceberg-dynamic-v2-20261017/README.md) and
+[version 3 evidence](../benchmarks/iceberg-dynamic-v3-20261017/README.md) retain all
+warmups, plans, file counts, metadata and build hashes. These measurements remain
+near parity; dynamic acceleration does not establish an end-to-end speedup.
 
-### Resource-accounted dynamic comparison
+An earlier release CPU diagnostic found routing/control in 52.9% of 1,699 sampled
+stream-task stacks, native Parquet writes in 9.2%, and host prepare-commit in 22.0%.
+Table-identifier parsing appears in 10.2%. These inclusive shares overlap and are
+not wall-time shares. [Counts](../benchmarks/iceberg-dynamic-profile-20261016.csv)
+and the [routing follow-up](https://github.com/datafusion-contrib/StreamFusion/issues/387)
+retain that work. Earlier [8 GiB](../benchmarks/iceberg-dynamic-20261016.jsonl) and
+[resource-accounted](../benchmarks/iceberg-dynamic-accounted-20261016.jsonl) cohorts
+remain separate, including the slower 0.94× / 0.98× accounted measurements on a
+shared host; they are not a controlled estimate of the accounting overhead.
 
-A second 2M-row comparison uses a 4 GiB Java heap, immediate metadata updates, and a
-non-draining savepoint before terminal drain for both engines. Other settings and the
-input payload match the diagnostic above. One warmup and three alternating measured
-pairs compare the prior released Iceberg wrapper (`3c537a19`) with the accounted
-parquet-rs writer. Each implementation has its own stock Flink cohort.
-
-| Implementation / mode | Stock median [range], s | Native median [range], s | Median ratio |
-|---|---:|---:|---:|
-| Previous / append | 2.256 [2.100–2.636] | 2.314 [2.298–2.384] | 0.97× |
-| Accounted / append | 2.992 [2.943–3.927] | 3.169 [2.847–3.189] | 0.94× |
-| Previous / keyed | 3.406 [3.336–4.535] | 3.179 [2.902–4.156] | 1.07× |
-| Accounted / keyed | 3.150 [3.115–3.388] | 3.208 [2.880–3.391] | 0.98× |
-
-[All observations and method](../benchmarks/iceberg-dynamic-accounted-20261016.jsonl)
-retain the slower results and warmups. Other development workloads were observed on
-the shared host, so these are noisy diagnostics, not an isolated measurement of the
-accounting overhead. The current native path does not establish an append/keyed
-end-to-end speedup here and remains opt-in. Sampled native task reservations now include
-encoder retention (up to 71.9 MiB append / 25.2 MiB keyed); the previous encoder was
-unaccounted. Sampled process RSS includes retained JVM heap and grows across trials,
-so it cannot be attributed solely to a file encoder. The current Iceberg library
-SHA-256 is `1b31d28ff3683b2ae3ec2934dc28ffc43d16af48b6098a5be89b1f68dae676cf`;
-the core library is unchanged from the initial diagnostic.
-
-A release async-profiler 2.9 `itimer` diagnostic (2M rows, one append and one keyed
-stock/native pair; its timings are excluded from the tables) found 1,699 samples in
-stream-task stacks containing a native dynamic control wrapper. Inclusive frames
-contained routing/control in 52.9%, native Parquet writes in 9.2%, and host
-`prepareCommit` in 22.0%. Table-identifier parsing alone appeared in 10.2%. These
-percentages overlap and describe sampled CPU stacks, not wall time.
-[Inclusive frame counts](../benchmarks/iceberg-dynamic-profile-20261016.csv) retain
-these observations. This identifies
-Java routing/metadata allocation and host completion as tuning targets; it does not
-justify changing Java's delete or commit semantics.
-
-A separate RANGE q0 release comparison uses 2M events, memory state, no mini-batching,
-four buckets, one warmup and three measured pairs. Stock median is 1.028 s
-[0.984–1.223], native 0.741 s [0.651–0.763], a 1.39× ratio. This short stateless
-workload is dominated by setup/IO/drain costs; learned post-checkpoint range traffic
-is established by the live correctness fixtures, not inferred from this timing.
-[All RANGE observations](../benchmarks/iceberg-range-20261016.jsonl) include warmups,
-exact committed-output parity and native/stock source/writer/footer witnesses.
+A separate [RANGE q0 release comparison](../benchmarks/iceberg-range-20261016.jsonl)
+uses 2M events, memory state, no mini-batching, four buckets, one warmup and three
+measured pairs. Stock median is 1.028 s [0.984–1.223], native 0.741 s [0.651–0.763],
+a 1.39× ratio. This short stateless case measures startup/I/O/drain as well as
+processing; learned post-checkpoint range routing is proved by the live correctness
+fixtures rather than inferred from this timing.

@@ -411,3 +411,12 @@ uniform sustained-throughput improvement. q23 remains slower than native Kafka
 on its median, and stateful outliers remain in the results. Delivery is exactly-once
 for Kafka and at-least-once for Fluss. The connector page contains the absolute
 per-query table, baseline sweep, controlled shutdown experiment and profiles.
+
+## Iceberg streaming comparison
+
+The separate [four-partition Iceberg Nexmark matrix](benchmarks/iceberg-final-20261017/README.md)
+passes all 480 paired validations. Using the README query variants, geometric means
+of median speedups are **1.24× / 1.44×** on memory and **2.63× / 2.97×** on RocksDB
+(mini-batching off/on). Exact-query results, ranges, profiles, checkpoint tuning and
+the comparison with previous StreamFusion I/O remain on that page. The optional
+connector is experimental and off by default; the Kafka headline is unchanged.

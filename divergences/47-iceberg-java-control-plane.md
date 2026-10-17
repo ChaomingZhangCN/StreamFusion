@@ -20,8 +20,10 @@ or separate statistics checkpoint format is introduced.
 The cost is Java control traversal, batch gathering when selections are sparse, JNI
 and host IO callbacks. These remain inside the separate Iceberg Nexmark timing. The
 version-gated topology adapter changes payload factories/types before serialization;
-unknown connector layouts retain the normal planning fallback. Wider resource accounting
-and remaining sink checkpoints are tracked in [#373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
+unknown connector layouts retain the normal planning fallback. Encoder retention and
+streaming checkpoint coverage are implemented; [coverage and measurements](../docs/connectors/iceberg.md)
+record their limits. Remaining state/checkpoint performance work is tracked in
+[#391](https://github.com/datafusion-contrib/StreamFusion/issues/391).
 
 The dynamic sink uses the same boundary: wrap its declared `Map` factory cache while
 delegating storage/eviction to the original LRU cache. Decorate newly created factories
@@ -29,7 +31,7 @@ before the host initializes them, so there is no provisional file creation or wr
 reimplementation. The generator/updater still decide metadata and routing over borrowed
 views; target-homogeneous selections cross both forward and keyed paths as Arrow batches.
 A fixed payload layout avoids the host's materialized-row schema conversion becoming a
-transport boundary. Unknown layouts require a separate columnar conversion checkpoint.
+transport boundary. Unknown layouts keep the stock path.
 
 The data encoder uses parquet-rs's `AsyncArrowWriter` directly, matching Comet's direct
 Arrow/Parquet encoding boundary. Iceberg-rust's released single-file wrapper hides the
@@ -48,3 +50,10 @@ Dynamic keyed writes require immediate metadata updates because the released def
 updater/direct-output union can reorder values for the same key. Deferred append writes
 remain admitted. Recovery fixtures separate a completed streaming savepoint from the
 terminal drain so they test captured-state recovery independently of end-input flushes.
+
+Source cancellation follows Comet's explicit task-completion ownership pattern.
+The cancellation registry owns fetched Arrow batches until the emitter claims them;
+it releases records left in Flink's fetch queue when its last fetcher has already
+exited. Claimed batches belong to downstream consumers, and the fetcher still owns
+native reader destruction. This extends the host-IO cancellation hook without changing
+split offsets, queue scheduling or the Java reader lifecycle.

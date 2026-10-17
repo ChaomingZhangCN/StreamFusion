@@ -77,3 +77,48 @@ Measured medians are 3.312 s stock [3.261–3.440] and 2.026 s native
 [1.772–2.079], a 1.63× ratio. This is an operational tuning comparison, not
 a production connector change or a replacement for the uncompressed primary cell.
 Its compression setting is explicitly recorded and cannot be mixed on resume.
+
+## q18/q20 and the previous I/O path
+
+`q18-cpu/` and `q20-cpu/` retain one warmup and one measured stock/native pair
+for memory/off. Both pairs pass for each query. Their measured native elapsed
+times are 40.465 s and 40.554 s; stock is 4.329 s and 18.128 s. These profiled
+observations are excluded from the primary medians.
+
+[Inclusive CPU counts](inclusive-cpu-counts.csv) retain the exact frame substrings,
+sample numerators and all-JVM denominators. In q18, source fetch is 3.0% stock /
+1.6% native, sink processing 16.8% / 15.0%, and the native data-write JNI entry
+4.0%. Native dedup snapshot encoding appears in 26.9%. In q20, source fetch is
+7.3% / 2.6%, sink processing 0.3% / 0.9%, native data writes 0.4%, and native join
+snapshot encoding 10.1%. Native Java Parquet samples are expected from the retained
+Java delete writers. Percentages are inclusive, overlap, and describe CPU rather
+than blocked wall time.
+
+`q18-compressed/` and `q20-compressed/` enable standard Flink snapshot compression
+for both engines, with one warmup and three measured pairs per cell. All twelve
+pairs pass. Compressed checkpoint state sizes and repeated medians are:
+
+| Query / mode | Stock state, MiB | Native state, MiB | Stock median, s | Native median, s | Ratio |
+|---|---:|---:|---:|---:|---:|
+| q18 / memory-off | 64.69 | 94.32 | 4.149 | 3.601 | 1.15× |
+| q20 / memory-off | 36.56 | 36.02 | 1.906 | 1.406 | 1.36× |
+| q20 / memory-on | 36.56 | 36.03 | 11.155 | 5.253 | 2.12× |
+
+The uncompressed q18 checkpoints are approximately 254/261 MiB stock/native;
+q20 is approximately 215/220 MiB. Storage variability remains: q18's compressed
+native samples range from 3.600–30.323 s. Every range is retained in the individual
+reports. These comparisons establish a useful tuning option, not a guarantee that
+compression removes all waits or a reason to replace the primary defaults.
+
+`q9-disk-io-cpu/` separately holds native query execution fixed and switches only
+Iceberg I/O, with one warmup and one measured pair. Both pass. The measured stock-I/O
+leg takes 28.736 s and native I/O 125.693 s. Source fetch appears in 1.2% / 0.8%
+of CPU samples, sink processing 4.8% / 4.3%, sink flush 2.5% / 3.2%, and RocksDB
+frames 42.4% / 27.6%; the native data-write entry appears in 1.6%. The slower
+native observation is retained. Small CPU shares do not rule out I/O waiting in a
+component. Alongside the earlier wall/kernel traces and phase metrics, this points
+to state/checkpoint I/O and input scheduling as investigation targets rather than
+establishing a Parquet-encoding bottleneck. The disk regression against previous
+StreamFusion I/O remains a measured limitation; acceleration stays opt-in.
+[Issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391) tracks the
+state/checkpoint and input-scheduling investigation.
