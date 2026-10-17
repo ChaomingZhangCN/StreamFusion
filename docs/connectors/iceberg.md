@@ -267,6 +267,14 @@ cell is rerun in full, including its warmup. Each cohort records its own input s
 IDs and environment; both engines within a pair share the same files. Plans, graphs,
 table metadata and checkpoint sizes are retained without committing the Parquet corpus
 or savepoint payloads. Final reporting requires every declared cell across the cohorts.
+`SF_ICEBERG_IO_BASELINE=true` separately compares native query execution with stock
+Iceberg IO against native query execution with native Iceberg IO. The stock-IO leg
+keeps both row/Arrow transposes where a native query island exists; it is labelled
+separately from stock Flink and excluded from stock-Flink aggregates. Observations
+also split total time into corpus/window progress, the settling checkpoint, and final
+drain/commit. `SF_ICEBERG_DYNAMIC_FORMAT_VERSION=3` selects v3 for the separate dynamic
+writer diagnostic; keyed runs with repeated keys require actual Java Puffin deletion
+vectors and stock readback. This does not admit native v3 reads.
 Exact-query aggregates report geometric mean ratios per mode and nominal corpus-event
 throughput; labelled expression variants remain separate.
 It also reports the headline sampling convention (first memory sample, best of the first

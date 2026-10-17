@@ -45,6 +45,8 @@ class IcebergNexmarkBenchmark {
   private static final int WARMUPS =
       Integer.parseInt(System.getenv().getOrDefault("SF_WARMUP", "1"));
   private static final int RUNS = Integer.parseInt(System.getenv().getOrDefault("SF_RUNS", "3"));
+  private static final boolean IO_BASELINE =
+      Boolean.parseBoolean(System.getenv().getOrDefault("SF_ICEBERG_IO_BASELINE", "false"));
   private static final Map<String, String> FILE_SETTINGS =
       Map.of(
           "format-version",
@@ -102,6 +104,8 @@ class IcebergNexmarkBenchmark {
       metadata.put("watermarkDelayMillis", IcebergCorpusCompletion.WATERMARK_DELAY_MILLIS);
       metadata.put("warmups", WARMUPS);
       metadata.put("runs", RUNS);
+      metadata.put("baselineEngine", IO_BASELINE ? "streamfusion-stock-io" : "flink");
+      metadata.put("baselineLabel", IO_BASELINE ? "StreamFusion with stock Iceberg IO" : "Flink");
       metadata.put("fileSettings", FILE_SETTINGS);
       metadata.put("snapshots", snapshots);
       metadata.put("java", System.getProperty("java.version"));
@@ -176,7 +180,8 @@ class IcebergNexmarkBenchmark {
             }
             String acknowledgement = System.getenv("SF_ICEBERG_CELL_ACK_DIRECTORY");
             if (acknowledgement != null) {
-              Path ack = Path.of(acknowledgement, query.label + "-" + mode + "-" + variant.getKey());
+              Path ack =
+                  Path.of(acknowledgement, query.label + "-" + mode + "-" + variant.getKey());
               long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
               while (!Files.exists(ack) && System.nanoTime() < deadline) Thread.sleep(100);
               assertTrue(Files.exists(ack), "evidence checkpoint acknowledgement timed out");
@@ -314,12 +319,14 @@ class IcebergNexmarkBenchmark {
       int trial,
       boolean nativeMode)
       throws Exception {
+    boolean nativeQuery = nativeMode || IO_BASELINE;
+    System.setProperty("streamfusion.experimental.iceberg.enabled", Boolean.toString(nativeMode));
     String token =
         query.label
             + "_"
             + mode.replace('-', '_')
             + "_"
-            + (nativeMode ? "sf" : "flink")
+            + (nativeMode ? "sf" : IO_BASELINE ? "sf_stock_io" : "flink")
             + "_"
             + UUID.randomUUID().toString().replace("-", "");
     Path trialPath = artifacts.resolve(token);
@@ -346,7 +353,7 @@ class IcebergNexmarkBenchmark {
                 "none",
                 "state.backend.type",
                 mode.startsWith("disk")
-                    ? (nativeMode
+                    ? (nativeQuery
                         ? "tech.streamfusion.state.RocksDBNativeStateBackendFactory"
                         : "rocksdb")
                     : "hashmap"));
@@ -378,7 +385,7 @@ class IcebergNexmarkBenchmark {
     if (!schema.identifierFieldIds().isEmpty())
       sinkSchema.primaryKey(schema.identifierFieldNames().toArray(String[]::new));
     sql.createTemporaryTable("sink", descriptor(token, sinkSchema.build(), settings));
-    var scan = nativeMode ? NativePlanner.install(sql) : null;
+    var scan = nativeQuery ? NativePlanner.install(sql) : null;
     System.out.println(
         "ICEBERG_TRIAL "
             + query.label
@@ -402,6 +409,11 @@ class IcebergNexmarkBenchmark {
             + completion.nativeSourceCount()
             + ", writer factories="
             + completion.nativeWriterCount();
+    if (IO_BASELINE && !nativeMode && !query.label.equals("q0")) {
+      String operators = graph.getStreamingPlanAsJSON();
+      assertTrue(operators.contains("RowDataToArrow"), operators);
+      assertTrue(operators.contains("ArrowToRowData"), operators);
+    }
     if (nativeMode) {
       assertEquals(completion.sourceCount(), completion.nativeSourceCount(), plan);
       assertTrue(completion.nativeWriterCount() > 0, plan);
@@ -412,11 +424,13 @@ class IcebergNexmarkBenchmark {
     var job = env.executeAsync(graph);
     boolean finished = false;
     boolean backendObserved = false;
+    double progressSeconds = 0;
+    double checkpointSeconds = 0;
     try {
       long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
       while ((!completion.complete() || !allTasksRunning(job)) && System.nanoTime() < deadline) {
         resources.sample();
-        backendObserved |= backendObserved(mode, nativeMode, trialPath);
+        backendObserved |= backendObserved(mode, nativeQuery, trialPath);
         var status = job.getJobStatus().get(10, TimeUnit.SECONDS);
         if (status.isGloballyTerminalState()) {
           job.getJobExecutionResult().get();
@@ -425,7 +439,7 @@ class IcebergNexmarkBenchmark {
         Thread.sleep(10);
       }
       assertTrue(completion.complete() && allTasksRunning(job), "corpus/task readiness timeout");
-      backendObserved |= backendObserved(mode, nativeMode, trialPath);
+      backendObserved |= backendObserved(mode, nativeQuery, trialPath);
       if (mode.startsWith("disk") && query.label.equals("q4"))
         assertTrue(backendObserved, "q4 did not engage its requested RocksDB backend");
       if (query.label.equals("q12")) {
@@ -436,10 +450,13 @@ class IcebergNexmarkBenchmark {
           Thread.sleep(10);
         }
       }
+      progressSeconds = (System.nanoTime() - start) / 1e9;
+      long checkpointStart = System.nanoTime();
       job.triggerSavepoint(
               trialPath.resolve("streaming-checkpoint").toUri().toString(),
               SavepointFormatType.CANONICAL)
           .get(120, TimeUnit.SECONDS);
+      checkpointSeconds = (System.nanoTime() - checkpointStart) / 1e9;
       job.stopWithSavepoint(
               true,
               trialPath.resolve("savepoint").toUri().toString(),
@@ -489,8 +506,17 @@ class IcebergNexmarkBenchmark {
     observation.put("variant", variant);
     observation.put("trial", trial);
     observation.put("warmup", trial < 0);
-    observation.put("engine", nativeMode ? "streamfusion" : "flink");
+    observation.put(
+        "engine", nativeMode ? "streamfusion" : IO_BASELINE ? "streamfusion-stock-io" : "flink");
     observation.put("seconds", seconds);
+    observation.put("nativeQuery", nativeQuery);
+    observation.put("nativeIcebergIo", nativeMode);
+    observation.put(
+        "timingPhases",
+        Map.of(
+            "submissionToCorpusAndWindowSeconds", progressSeconds,
+            "settleCheckpointSeconds", checkpointSeconds,
+            "drainCommitSeconds", seconds - progressSeconds - checkpointSeconds));
     observation.put("resources", resourceObservation);
     observation.put("rocksDBObserved", backendObserved);
     observation.put("fingerprint", fingerprint);

@@ -45,10 +45,13 @@ class IcebergDynamicBenchmark {
   private static final int BATCH = 8192;
   private static final long ROWS =
       Long.parseLong(System.getenv().getOrDefault("SF_ROWS", "2000000"));
+  private static final int FORMAT_VERSION =
+      Integer.parseInt(System.getenv().getOrDefault("SF_ICEBERG_DYNAMIC_FORMAT_VERSION", "2"));
 
   @Test
   void compare() throws Exception {
     assertEquals("true", System.getenv("SF_ICEBERG_RELEASE_CONFIRMED"));
+    assertTrue(FORMAT_VERSION == 2 || FORMAT_VERSION == 3);
     Path artifacts =
         Path.of(
                 System.getenv()
@@ -102,7 +105,7 @@ class IcebergDynamicBenchmark {
             spec,
             Map.of(
                 "format-version",
-                "2",
+                Integer.toString(FORMAT_VERSION),
                 "write.parquet.compression-codec",
                 "zstd",
                 "write.parquet.compression-level",
@@ -197,8 +200,25 @@ class IcebergDynamicBenchmark {
       double seconds = (System.nanoTime() - started) / 1e9;
       var resourceObservation = resources.finish();
       Set<Integer> seen = new HashSet<>();
+      Set<String> dataFiles = new HashSet<>();
+      Set<String> deleteFiles = new HashSet<>();
+      Set<String> puffinFiles = new HashSet<>();
       for (String name : new String[] {"a", "b"}) {
         var table = catalog.loadTable(TableIdentifier.of("bench", name));
+        try (var tasks = table.newScan().planFiles()) {
+          for (var task : tasks) {
+            dataFiles.add(task.file().location());
+            for (var delete : task.deletes()) {
+              deleteFiles.add(delete.location());
+              if (delete.format() == org.apache.iceberg.FileFormat.PUFFIN) {
+                assertNotNull(delete.referencedDataFile());
+                assertTrue(delete.contentOffset() >= 0);
+                assertTrue(delete.contentSizeInBytes() > 0);
+                puffinFiles.add(delete.location());
+              }
+            }
+          }
+        }
         try (var rows = IcebergGenerics.read(table).build()) {
           for (var row : rows) {
             int id = (Integer) row.getField("id");
@@ -211,6 +231,8 @@ class IcebergDynamicBenchmark {
           NativeIcebergSqlTest.assertNativeDataFiles(table, "dynamic release benchmark");
       }
       assertEquals(keyed ? Math.min(ROWS, 100000) : ROWS, seen.size());
+      if (keyed && FORMAT_VERSION == 3 && ROWS > 100000)
+        assertFalse(puffinFiles.isEmpty(), "v3 benchmark must exercise Java deletion vectors");
       assertEquals("", NativeIceberg.liveNativeHandles());
       assertEquals(0L, NativeAllocator.SHARED.getAllocatedMemory(), token);
       assertEquals(0L, tech.streamfusion.operator.TaskOffHeapMemory.reservedBytes(), token);
@@ -233,7 +255,17 @@ class IcebergDynamicBenchmark {
                       "resources",
                       resourceObservation,
                       "directory",
-                      directory.toString()));
+                      directory.toString(),
+                      "formatVersion",
+                      FORMAT_VERSION,
+                      "files",
+                      Map.of(
+                          "data",
+                          dataFiles.size(),
+                          "deletes",
+                          deleteFiles.size(),
+                          "puffin",
+                          puffinFiles.size())));
       Files.writeString(
           artifacts.resolve("dynamic-observations.jsonl"),
           observation + "\n",

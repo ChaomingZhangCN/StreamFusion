@@ -97,7 +97,7 @@ def main():
                 if prior.exists():
                     previous = json.loads(prior.read_text())
                     for setting in ('events', 'parallelism', 'stripeEvents', 'warmups', 'runs',
-                                    'fileSettings', 'expectedCells', 'maxJavaHeapBytes'):
+                                    'fileSettings', 'expectedCells', 'maxJavaHeapBytes', 'baselineEngine'):
                         if previous[setting] != method[setting]:
                             process.terminate()
                             raise RuntimeError(f'Resume changed {setting}')
@@ -118,15 +118,19 @@ def main():
                     measurements = [r for r in records if r['kind'] == 'measurement']
                     counts = collections.Counter((r['engine'], r['trial']) for r in measurements)
                     if counts != collections.Counter((engine, trial) for engine in
-                                                     ('flink', 'streamfusion') for trial in trials):
+                                                     (method['baselineEngine'], 'streamfusion') for trial in trials):
                         raise RuntimeError(f'Invalid paired observations: {cell}')
                     for row in measurements:
+                        assert row['resources']['maxJavaHeapBytes'] == method['maxJavaHeapBytes']
                         if row['engine'] == 'streamfusion':
                             assert row['sourceCount'] == row['nativeSourceCount'] > 0
                             assert row['nativeWriterCount'] > 0
                             assert row['nativeParquetTasks'] > 0 and row['stockFallbackTasks'] == 0
                         else:
                             assert row['nativeSourceCount'] == row['nativeWriterCount'] == 0
+                    for trial in trials:
+                        fingerprints = [r['fingerprint'] for r in measurements if r['trial'] == trial]
+                        assert fingerprints[0] == fingerprints[1], (cell, trial)
                     archive_cell(artifacts, cohort_path / ('-'.join(cell) + '.tar.gz'), records)
                     for name in ('method.json', 'environment.json'):
                         (cohort_path / name).write_text((artifacts / name).read_text())
