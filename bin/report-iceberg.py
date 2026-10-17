@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Report only paired, validated measurements; retain every raw observation alongside them."""
 import collections
+import csv
 import json
 import math
 from pathlib import Path
@@ -63,6 +64,32 @@ for mode in sorted({key[1] for key in groups}):
             values = throughput[engine]
             return f'{min(values):,.0f}–{max(values):,.0f}'
         lines.append(f'| {mode} | {len(ratios)} | {gm:.2f}× | {rate(baseline)} | {rate("streamfusion")} |')
+lines += ['', '## README query selection', '',
+          'Each query contributes once per mode, using its existing labelled variant when '
+          'present. Median ratios retain all repetitions. The secondary headline sample '
+          'uses the first memory sample or the best of the first two disk samples.', '',
+          '| State / mini-batch | Queries | Geomean median ratio | Geomean headline-sample ratio |',
+          '|---|---:|---:|---:|']
+preferred = {}
+for key in groups:
+    query_mode = key[:2]
+    if query_mode not in preferred or key[2] != 'exact':
+        if key[2] != 'exact' and preferred.get(query_mode, key)[2] != 'exact' and preferred.get(query_mode) not in (None, key):
+            raise SystemExit(f'Ambiguous README variant: {query_mode}')
+        preferred[query_mode] = key
+for mode in sorted({key[1] for key in groups}):
+    median_ratios, headline_ratios = [], []
+    for (query, selected_mode), key in preferred.items():
+        if selected_mode != mode:
+            continue
+        samples = {engine: [r['seconds'] for r in sorted(groups[key][engine], key=lambda r: r['trial'])]
+                   for engine in (baseline, 'streamfusion')}
+        median_ratios.append(statistics.median(samples[baseline]) / statistics.median(samples['streamfusion']))
+        selected = {engine: min(values[:2]) if mode.startswith('disk') else values[0]
+                    for engine, values in samples.items()}
+        headline_ratios.append(selected[baseline] / selected['streamfusion'])
+    gm = lambda values: math.exp(statistics.mean(math.log(v) for v in values))
+    lines.append(f'| {mode} | {len(median_ratios)} | {gm(median_ratios):.2f}× | {gm(headline_ratios):.2f}× |')
 if method['runs'] >= 2:
     lines += ['', '## Headline sampling convention', '',
               'Memory uses the first measured sample; disk uses the best of the first two. '
@@ -79,5 +106,45 @@ if method['runs'] >= 2:
 lines += ['', 'Raw samples, warmups, parity checks, plans, committed table locations and native/fallback '
           'task/file witnesses are retained in this artifact directory. PROCTIME q12 validates per-bidder '
           'count conservation and includes waiting for the final processing-time window.', '']
+lines += ['[Per-cell timing, checkpoint and sampled-memory metrics](metrics.csv) retain '
+          'separate phase medians. Phase medians need not sum to the total median. '
+          'Memory peaks are sampled during progress polling, not exhaustive job maxima.', '']
+
+def median_field(observations, *path):
+    values = []
+    for row in observations:
+        value = row
+        for name in path:
+            value = value.get(name) if isinstance(value, dict) else None
+        if value is None:
+            return None
+        values.append(value)
+    return statistics.median(values)
+
+metrics = []
+for key, engines in sorted(groups.items()):
+    for engine in (baseline, 'streamfusion'):
+        observations = engines[engine]
+        seconds = [r['seconds'] for r in observations]
+        metrics.append(dict(
+            query=key[0], mode=key[1], variant=key[2], engine=engine,
+            repetitions=len(seconds), median_seconds=statistics.median(seconds),
+            min_seconds=min(seconds), max_seconds=max(seconds),
+            nominal_corpus_events_per_second=method['events'] / statistics.median(seconds),
+            corpus_window_median_seconds=median_field(observations, 'timingPhases', 'submissionToCorpusAndWindowSeconds'),
+            settling_checkpoint_median_seconds=median_field(observations, 'timingPhases', 'settleCheckpointSeconds'),
+            drain_commit_median_seconds=median_field(observations, 'timingPhases', 'drainCommitSeconds'),
+            checkpoint_state_median_bytes=median_field(observations, 'settlingCheckpoint', 'stateBytes'),
+            checkpoint_reported_median_millis=median_field(observations, 'settlingCheckpoint', 'durationMillis'),
+            sampled_task_peak_median_bytes=median_field(observations, 'resources', 'sampledTaskPeakBytes'),
+            sampled_arrow_peak_median_bytes=median_field(observations, 'resources', 'sampledArrowPeakBytes'),
+            sampled_rss_peak_median_bytes=median_field(observations, 'resources', 'sampledRssPeakBytes'),
+            java_heap_limit_bytes=median_field(observations, 'resources', 'maxJavaHeapBytes'),
+            data_files_median=median_field(observations, 'dataFiles'),
+            delete_files_median=median_field(observations, 'deleteFiles')))
+with (root / 'metrics.csv').open('w', newline='') as output:
+    writer = csv.DictWriter(output, fieldnames=list(metrics[0]))
+    writer.writeheader()
+    writer.writerows(metrics)
 (root / 'results.md').write_text('\n'.join(lines))
 print('\n'.join(lines))

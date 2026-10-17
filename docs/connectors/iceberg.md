@@ -266,6 +266,9 @@ peaks, not exhaustive allocation maxima. RSS includes Java and opaque native ret
 baseline RSS and effective maximum Java heap are recorded as well.
 `bin/report-iceberg.py <artifact-directory>` reports medians and ranges
 and rejects incomplete/unpaired measured repetitions or missing declared matrix cells.
+It also reports a separate aggregate using the README's existing variant selection
+and sampling convention. `metrics.csv` retains per-cell phase/checkpoint medians,
+sampled task/Arrow/RSS peaks and file counts; phase medians need not sum to the total.
 
 For interruption-safe execution, `bin/checkpoint-iceberg.py <evidence-directory>` runs
 the same matrix and retains each complete cell (its warmup and all three paired

@@ -31,6 +31,7 @@ def write_json(path, value):
 
 def archive_cell(artifacts, destination, observations):
     checkpoint_sizes = []
+    destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open('wb') as raw, gzip.GzipFile(fileobj=raw, mode='wb', mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode='w') as archive:
             for row in observations:
@@ -158,7 +159,9 @@ def main():
                                         f'Retain validated Iceberg benchmark cell {"/".join(cell)}'],
                                        cwd=repo, check=True)
                         subprocess.run(['git', 'push', args.push, 'HEAD'], cwd=repo, check=True)
-                    (acknowledgements / '-'.join(cell)).touch()
+                    acknowledgement = acknowledgements / '-'.join(cell)
+                    acknowledgement.parent.mkdir(parents=True, exist_ok=True)
+                    acknowledgement.touch()
             if process.poll() is not None:
                 break
             time.sleep(1)

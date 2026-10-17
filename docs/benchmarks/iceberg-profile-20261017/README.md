@@ -73,7 +73,7 @@ blocked in uninterruptible kernel IO; they do not support blaming Parquet encodi
 `q9-compressed/` separately enables Flink's standard snapshot compression for
 both engines, with one warmup and three measured pairs. All four pairs pass.
 Checkpoint bytes fall from roughly 254/266 MiB stock/native to 49.63/52.86 MiB.
-Measured medians are 3.305 s stock [3.263–3.438] and 2.029 s native
-[1.766–2.078], a 1.63× ratio. This is an operational tuning comparison, not
+Measured medians are 3.312 s stock [3.261–3.440] and 2.026 s native
+[1.772–2.079], a 1.63× ratio. This is an operational tuning comparison, not
 a production connector change or a replacement for the uncompressed primary cell.
 Its compression setting is explicitly recorded and cannot be mixed on resume.
