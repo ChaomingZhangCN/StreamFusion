@@ -112,7 +112,6 @@
                         <log4j.configurationFile>${project.basedir}/src/test/resources/log4j2-test.xml</log4j.configurationFile>
                         <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
                         <streamfusion.iceberg.suite.native>true</streamfusion.iceberg.suite.native>
-                        <streamfusion.experimental.iceberg.enabled>true</streamfusion.experimental.iceberg.enabled>
                     </systemPropertyVariables>
                     <classpathDependencyExcludes>
                         <classpathDependencyExclude>org.slf4j:slf4j-reload4j</classpathDependencyExclude>

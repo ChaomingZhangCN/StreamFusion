@@ -25,5 +25,5 @@ The [additional q9 profile](../iceberg-profile-20261017/README.md) keeps query
 execution fixed and retains the much slower profiled native observation.
 
 The I/O paths therefore do not establish a universal end-to-end speedup over
-previous StreamFusion behavior. The optional connector remains off by default. Further state/checkpoint and input
+previous StreamFusion behavior. Supported contracts now accelerate by default when the optional module is installed. Further state/checkpoint and input
 scheduling work is tracked in [issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391).

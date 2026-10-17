@@ -419,4 +419,4 @@ passes all 480 paired validations. Using the README query variants, geometric me
 of median speedups are **1.24× / 1.44×** on memory and **2.63× / 2.97×** on RocksDB
 (mini-batching off/on). Exact-query results, ranges, profiles, checkpoint tuning and
 the comparison with previous StreamFusion I/O remain on that page. The optional
-connector is experimental and off by default; the Kafka headline is unchanged.
+connector accelerates supported streaming contracts by default when installed; the Kafka headline is unchanged.

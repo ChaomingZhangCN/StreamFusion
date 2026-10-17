@@ -16,11 +16,6 @@ final class IcebergSinkMatcher {
   }
 
   static RelNode substitute(StreamPhysicalSink sink, PlanContext context) {
-    if (!Boolean.getBoolean("streamfusion.experimental.iceberg.enabled")) {
-      context.decline(
-          "Iceberg acceleration requires experimental opt-in until release comparisons pass");
-      return null;
-    }
     if (!NativeConfig.operatorEnabled("icebergSink")) {
       context.decline(Substitution.disabledReason("icebergSink"));
       return null;

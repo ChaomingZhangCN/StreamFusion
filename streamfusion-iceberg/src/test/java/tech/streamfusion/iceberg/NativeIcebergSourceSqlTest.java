@@ -28,90 +28,82 @@ class NativeIcebergSourceSqlTest {
   @ValueSource(booleans = {false, true})
   void continuousSqlKeepsDiscoveryFiltersProjectionAndFinalDrain(boolean nativeMode)
       throws Exception {
-    String previous = System.getProperty("streamfusion.experimental.iceberg.enabled");
-    System.setProperty("streamfusion.experimental.iceberg.enabled", "true");
-    try {
-      var config =
-          Configuration.fromMap(
-              Map.of(
-                  "restart-strategy.type",
-                  "none",
-                  "taskmanager.memory.task.off-heap.size",
-                  "256 mb"));
-      var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
-      env.setParallelism(2);
-      env.setMaxParallelism(16);
-      env.enableCheckpointing(100);
-      var sql = StreamTableEnvironment.create(env);
-      var planner = nativeMode ? NativePlanner.install(sql) : null;
-      sql.executeSql(
-          "CREATE CATALOG ice WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='"
-              + temp.resolve("warehouse").toUri()
-              + "')");
-      sql.executeSql("CREATE DATABASE ice.db");
-      sql.executeSql(
-          "CREATE TABLE ice.db.input (id INT, payload STRING) WITH ('format-version'='2',"
-              + " 'streaming'='true', 'monitor-interval'='10ms',"
-              + " 'starting-strategy'='TABLE_SCAN_THEN_INCREMENTAL')");
-      sql.executeSql(
-          "CREATE TABLE ice.db.output (id INT, payload STRING) WITH ('format-version'='2',"
-              + " 'write.distribution-mode'='none')");
-      try (var catalog =
-          new HadoopCatalog(
-              new org.apache.hadoop.conf.Configuration(),
-              temp.resolve("warehouse").toUri().toString())) {
-        var input = catalog.loadTable(TableIdentifier.of("db", "input"));
-        var output = catalog.loadTable(TableIdentifier.of("db", "output"));
-        append(input, 0, 101);
-        String query =
-            "INSERT INTO ice.db.output SELECT id + 1, payload FROM ice.db.input WHERE id >= 13 AND"
-                + " payload IS NOT NULL";
-        var explanation = sql.explainSql(query);
+    var config =
+        Configuration.fromMap(
+            Map.of(
+                "restart-strategy.type",
+                "none",
+                "taskmanager.memory.task.off-heap.size",
+                "256 mb"));
+    var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+    env.setParallelism(2);
+    env.setMaxParallelism(16);
+    env.enableCheckpointing(100);
+    var sql = StreamTableEnvironment.create(env);
+    var planner = nativeMode ? NativePlanner.install(sql) : null;
+    sql.executeSql(
+        "CREATE CATALOG ice WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='"
+            + temp.resolve("warehouse").toUri()
+            + "')");
+    sql.executeSql("CREATE DATABASE ice.db");
+    sql.executeSql(
+        "CREATE TABLE ice.db.input (id INT, payload STRING) WITH ('format-version'='2',"
+            + " 'streaming'='true', 'monitor-interval'='10ms',"
+            + " 'starting-strategy'='TABLE_SCAN_THEN_INCREMENTAL')");
+    sql.executeSql(
+        "CREATE TABLE ice.db.output (id INT, payload STRING) WITH ('format-version'='2',"
+            + " 'write.distribution-mode'='none')");
+    try (var catalog =
+        new HadoopCatalog(
+            new org.apache.hadoop.conf.Configuration(),
+            temp.resolve("warehouse").toUri().toString())) {
+      var input = catalog.loadTable(TableIdentifier.of("db", "input"));
+      var output = catalog.loadTable(TableIdentifier.of("db", "output"));
+      append(input, 0, 101);
+      String query =
+          "INSERT INTO ice.db.output SELECT id + 1, payload FROM ice.db.input WHERE id >= 13 AND"
+              + " payload IS NOT NULL";
+      var explanation = sql.explainSql(query);
+      if (nativeMode)
+        assertTrue(
+            explanation.contains("NativeIcebergSource"),
+            explanation + "\n" + planner.fallbackReasons());
+      var job = sql.executeSql(query).getJobClient().orElseThrow();
+      boolean stopped = false;
+      try {
+        awaitRows(output, 88);
+        append(input, 101, 104);
+        awaitRows(output, 91);
+        var savepoint =
+            job.stopWithSavepoint(
+                    true,
+                    temp.resolve("savepoints").toUri().toString(),
+                    SavepointFormatType.CANONICAL)
+                .get(30, TimeUnit.SECONDS);
+        assertNotNull(savepoint);
+        job.getJobExecutionResult().get(30, TimeUnit.SECONDS);
+        stopped = true;
+        output.refresh();
+        var ids = new java.util.TreeSet<Integer>();
+        try (var rows = IcebergGenerics.read(output).build()) {
+          for (var row : rows)
+            assertTrue(ids.add((Integer) row.getField("id")), "duplicate committed row");
+        }
+        assertEquals(
+            java.util.stream.IntStream.range(14, 105)
+                .boxed()
+                .collect(java.util.stream.Collectors.toSet()),
+            ids);
         if (nativeMode)
-          assertTrue(
-              explanation.contains("NativeIcebergSource"),
-              explanation + "\n" + planner.fallbackReasons());
-        var job = sql.executeSql(query).getJobClient().orElseThrow();
-        boolean stopped = false;
-        try {
-          awaitRows(output, 88);
-          append(input, 101, 104);
-          awaitRows(output, 91);
-          var savepoint =
-              job.stopWithSavepoint(
-                      true,
-                      temp.resolve("savepoints").toUri().toString(),
-                      SavepointFormatType.CANONICAL)
-                  .get(30, TimeUnit.SECONDS);
-          assertNotNull(savepoint);
-          job.getJobExecutionResult().get(30, TimeUnit.SECONDS);
-          stopped = true;
-          output.refresh();
-          var ids = new java.util.TreeSet<Integer>();
-          try (var rows = IcebergGenerics.read(output).build()) {
-            for (var row : rows)
-              assertTrue(ids.add((Integer) row.getField("id")), "duplicate committed row");
-          }
-          assertEquals(
-              java.util.stream.IntStream.range(14, 105)
-                  .boxed()
-                  .collect(java.util.stream.Collectors.toSet()),
-              ids);
-          if (nativeMode)
-            NativeIcebergSqlTest.assertNativeDataFiles(
-                output, planner.fallbackReasons().toString());
-        } finally {
-          if (!stopped) {
-            job.cancel().get(30, TimeUnit.SECONDS);
-            job.getJobExecutionResult().handle((result, failure) -> null).get(30, TimeUnit.SECONDS);
-          }
+          NativeIcebergSqlTest.assertNativeDataFiles(output, planner.fallbackReasons().toString());
+      } finally {
+        if (!stopped) {
+          job.cancel().get(30, TimeUnit.SECONDS);
+          job.getJobExecutionResult().handle((result, failure) -> null).get(30, TimeUnit.SECONDS);
         }
       }
-      assertEquals("", NativeIceberg.liveNativeHandles());
-    } finally {
-      if (previous == null) System.clearProperty("streamfusion.experimental.iceberg.enabled");
-      else System.setProperty("streamfusion.experimental.iceberg.enabled", previous);
     }
+    assertEquals("", NativeIceberg.liveNativeHandles());
   }
 
   static void append(Table table, int start, int end) throws Exception {

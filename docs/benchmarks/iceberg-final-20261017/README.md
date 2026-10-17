@@ -121,7 +121,7 @@ means are 1.90× memory/off and 0.95× disk/off. q9 disk/off regresses to 0.49×
 cohort. This does not establish an across-the-board gain over the previous I/O path.
 [State/checkpoint investigation](https://github.com/datafusion-contrib/StreamFusion/issues/391)
 tracks the remaining regressions. The [v2/v3 dynamic writer diagnostics](../../connectors/iceberg.md#current-dynamic-writer-diagnostics)
-remain near parity. Acceleration stays experimental and opt-in.
+remain near parity. Supported contracts now accelerate by default when the optional module is installed.
 
 The [final SQL/recovery/native validation](../iceberg-validation-20261017/README.md)
 passes 298 tests with 13 batch exclusions, six Rust units and 126 Criterion fixtures.

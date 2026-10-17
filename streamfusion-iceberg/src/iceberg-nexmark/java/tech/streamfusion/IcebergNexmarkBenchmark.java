@@ -91,7 +91,6 @@ class IcebergNexmarkBenchmark {
             .toAbsolutePath();
     Files.createDirectories(artifacts);
     warehouse = artifacts.resolve("warehouse");
-    System.setProperty("streamfusion.experimental.iceberg.enabled", "true");
     try (var loaded =
         new HadoopCatalog(
             new org.apache.hadoop.conf.Configuration(), warehouse.toUri().toString())) {
@@ -329,7 +328,11 @@ class IcebergNexmarkBenchmark {
       boolean nativeMode)
       throws Exception {
     boolean nativeQuery = nativeMode || IO_BASELINE;
-    System.setProperty("streamfusion.experimental.iceberg.enabled", Boolean.toString(nativeMode));
+    for (String operator : List.of("icebergSource", "icebergSink")) {
+      String property = "streamfusion.operator." + operator + ".enabled";
+      if (nativeMode) System.clearProperty(property);
+      else System.setProperty(property, "false");
+    }
     String token =
         query.label
             + "_"

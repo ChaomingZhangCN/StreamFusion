@@ -119,6 +119,6 @@ native observation is retained. Small CPU shares do not rule out I/O waiting in 
 component. Alongside the earlier wall/kernel traces and phase metrics, this points
 to state/checkpoint I/O and input scheduling as investigation targets rather than
 establishing a Parquet-encoding bottleneck. The disk regression against previous
-StreamFusion I/O remains a measured limitation; acceleration stays opt-in.
+StreamFusion I/O remains a measured limitation; supported contracts now accelerate by default.
 [Issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391) tracks the
 state/checkpoint and input-scheduling investigation.

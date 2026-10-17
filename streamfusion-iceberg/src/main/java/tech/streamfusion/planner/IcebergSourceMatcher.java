@@ -17,9 +17,8 @@ final class IcebergSourceMatcher {
   }
 
   static RelNode substitute(StreamPhysicalTableSourceScan scan, PlanContext context) {
-    if (!Boolean.getBoolean("streamfusion.experimental.iceberg.enabled")
-        || !NativeConfig.operatorEnabled("icebergSource")) {
-      context.decline("Iceberg source requires experimental opt-in and enabled operator");
+    if (!NativeConfig.operatorEnabled("icebergSource")) {
+      context.decline(Substitution.disabledReason("icebergSource"));
       return null;
     }
     var table = scan.getTable().unwrap(TableSourceTable.class);

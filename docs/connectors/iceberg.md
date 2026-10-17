@@ -1,9 +1,10 @@
 # Apache Iceberg
 
-**Status: partial, experimental streaming source and sink.**
+**Status: partial streaming source and sink.**
 
-SQL source/sink admission requires `-Dstreamfusion.experimental.iceberg.enabled=true`.
-It stays off by default until release end-to-end comparisons demonstrate performance.
+Supported streaming SQL sources and sinks accelerate automatically when the optional
+module is installed and the native planner is enabled. Unsupported contracts retain
+the stock connector through the normal admission checks.
 The admitted path is the normal legacy sink, unencrypted
 format-v1/v2/v3 Parquet, distribution `none`/`hash`/`range`, and verified integer, long, string,
 boolean, binary, date, float, double, decimal, time, and microsecond timestamp
@@ -20,7 +21,7 @@ delete encoding, partition validation, and key bookkeeping. For keyed tables,
 `range` keeps Iceberg's normal hash fallback. Nested
 structs/lists/maps, fixed-width binary/UUID, nanosecond timestamps, arbitrary dynamic
 payload generators, normal Sink V2, and unknown writer-affecting options retain the
-stock SQL sink. The experimental dynamic DataStream API is described below.
+stock SQL sink. The dynamic DataStream API is described below.
 
 The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
 Flink 2.2 runtime and requires Java 17 or later. Build it with `-Piceberg`.
@@ -49,7 +50,7 @@ added. Map/sketch tests cover nullable sort keys in formats 1/2/3, traffic after
 assignments, SQL entry points, and restoration of learned statistics at parallelism 2→3.
 `nativeRangeStatisticsUpdates` exposes applied host assignments.
 
-The experimental `NativeIcebergDynamicSink.append` API accepts Arrow input, one fixed
+The `NativeIcebergDynamicSink.append` API accepts Arrow input, one fixed
 scalar payload schema and a routing-only callback. The callback returns destination,
 branch, spec, distribution, parallelism and key settings; it cannot replace the payload.
 The original dynamic processor/updater perform catalog operations, table/branch creation
@@ -155,7 +156,7 @@ Partial-file tasks translate physical Parquet row-group midpoints to the release
 reader's cumulative offset model; exact-boundary tests preserve Java ownership with
 no omitted or duplicated rows.
 
-The experimental SQL source now retains the released FLIP-27 streaming source,
+The SQL source now retains the released FLIP-27 streaming source,
 including snapshot discovery, assigners, watermarks, split serializers and coordinator
 state. It emits Arrow batches with logical row offsets and counts rows in source IO
 metrics. SQL admission covers plaintext v1/v2 tables, verified top-level scalar types,
@@ -193,8 +194,8 @@ fixtures compare file bytes, rolling-size estimates, NaN counts and split offset
 the released wrapper across codecs/page versions. Iceberg schema conversion, FileIO
 and source task decoding still use crate 0.10.1. Shared Arrow allocations use the same
 budget; internal decoder retention remains opaque. Queued batches and native handles
-have explicit cleanup. Acceleration remains opt-in
-until the release end-to-end comparison establishes performance. The source follows
+have explicit cleanup. Supported paths accelerate by default; the standard per-operator
+switches remain available for controlled comparisons. The source follows
 Comet's explicit task handoff and Paimon's host-FileIO/C Data bridge.
 The implementation is available in [PR #386](https://github.com/datafusion-contrib/StreamFusion/pull/386),
 with the completed [four-partition Iceberg-to-Iceberg Nexmark comparison](../benchmarks/iceberg-final-20261017/README.md).
@@ -354,7 +355,7 @@ The [same-query comparison with previous StreamFusion I/O](../benchmarks/iceberg
 passes 32 paired validations. q0 improves about 1.8×, but the four-query geometric
 means are 1.90× memory/off and 0.95× disk/off, with a 0.49× q9 disk/off regression.
 This does not establish a universal gain over the old connector path. The connector
-remains experimental and opt-in; [issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391)
+accelerates supported contracts by default; [issue #391](https://github.com/datafusion-contrib/StreamFusion/issues/391)
 tracks state/checkpoint and input-scheduling work.
 
 ### Current dynamic writer diagnostics
