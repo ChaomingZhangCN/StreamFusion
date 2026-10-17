@@ -85,6 +85,13 @@ retained Java position-delete finalization is 21.0%. Inclusive CPU samples overl
 and do not explain the primary elapsed-time reversals. These diagnostic timings
 remain excluded from the suite metrics.
 
+The later [matched Kafka→Paimon run](../kafka-paimon-final-20261017/README.md)
+measures **1.43× exact SQL**, almost identical to this run's 1.44× overall. Its
+append / primary-key geomeans are 1.24× / 1.97×, versus Iceberg's 1.45× / 1.40×.
+All per-query comparisons and Paimon regressions remain in that report. This does
+not show a large whole-suite Paimon advantage; update-file semantics and the wide
+stateful timing ranges still matter to individual queries.
+
 The historical Paimon disk suite uses Flink 1.18 and best-of-two samples. The
 Iceberg-to-Iceberg suite uses a different source/completion protocol and the
 MiniCluster's default managed-memory budget. Their geometric means provide

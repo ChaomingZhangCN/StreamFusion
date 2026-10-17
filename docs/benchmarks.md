@@ -466,6 +466,18 @@ The optional connector accelerates supported streaming contracts by default when
 installed; the Kafka headline is unchanged.
 
 
+## Paimon streaming comparison
+
+The fresh [Kafka→Paimon RocksDB/off comparison](benchmarks/kafka-paimon-final-20261017/README.md)
+completes all 23 queries and 120 paired validations on this same host: **1.43×**
+for exact SQL and the README selection. Exact append / primary-key geomeans are
+**1.24× / 1.97×**, versus **1.45× / 1.40×** for the matched Kafka→Iceberg setup.
+The whole-suite point estimates are almost identical (Iceberg exact: 1.44×).
+Paimon retains q5/q20/q23 losses and every wide timing range. The detailed report
+contains per-query comparisons, physical write-volume witnesses and an independent
+plan/table/footer audit. This fresh Flink 2.2 run does not reuse the historical
+Flink 1.18 best-of-two samples.
+
 The matched Kafka→Paimon runner, `bin/bench-paimon.sh`, uses the unchanged
 Kafka JSON corpus and Paimon SQL fixtures with four Kafka partitions and four
 fixed output buckets. Run with JDK 17: `bin/bench-paimon.sh`. It builds and stages
