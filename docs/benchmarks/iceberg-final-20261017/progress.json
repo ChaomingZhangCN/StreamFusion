@@ -1,9 +1,9 @@
 {
-  "completedCells": 8,
+  "completedCells": 9,
   "expectedCells": 120,
   "lastCell": [
     "q1",
-    "memory-on",
-    "approximate decimal (incompatible)"
+    "disk-off",
+    "exact"
   ]
 }
