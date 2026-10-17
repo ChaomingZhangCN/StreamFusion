@@ -1,9 +1,9 @@
 {
-  "completedCells": 55,
+  "completedCells": 56,
   "expectedCells": 120,
   "lastCell": [
     "q15",
     "memory-on",
-    "exact"
+    "native datetime (incompatible)"
   ]
 }
