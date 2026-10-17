@@ -5,6 +5,7 @@ export SF_ICEBERG_ARTIFACTS="${SF_ICEBERG_ARTIFACTS:-${REPO_ROOT}/target/iceberg
 mkdir -p "${SF_ICEBERG_ARTIFACTS}"
 SF_ICEBERG_ARTIFACTS="$(cd "${SF_ICEBERG_ARTIFACTS}" && pwd)"
 export SF_ICEBERG_ARTIFACTS
+export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m}"
 java_major="$(java -version 2>&1 | head -1 | sed -E 's/.*version "([0-9]+).*/\1/')"
 if [[ "${java_major}" != 17 ]]; then
   echo 'This comparison uses JDK 17; set JAVA_HOME and PATH to a JDK 17 installation.' >&2

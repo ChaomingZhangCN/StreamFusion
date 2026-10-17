@@ -200,7 +200,8 @@ isolated release+mimalloc libraries and execute the separate streaming compariso
 This leaves the headline Kafka/blackhole benchmark sources and SQL corpus unchanged.
 `SF_ROWS`, `SF_PARALLELISM`, `SF_MATRIX_QUERIES`, `SF_WARMUP`, `SF_RUNS`,
 `SF_ICEBERG_MODES`, `SF_ICEBERG_VARIANTS` and `SF_ICEBERG_ARTIFACTS` select the run.
-`SF_ICEBERG_JAVA_HEAP` defaults to `4g` for both engines. `SF_ICEBERG_DISTRIBUTION`
+`SF_ICEBERG_JAVA_HEAP` defaults to `4g` for both engines. The untimed Maven launcher
+defaults to a 512 MiB heap unless `MAVEN_OPTS` is set. `SF_ICEBERG_DISTRIBUTION`
 defaults to `hash`; `range` adds the same append sort order to both output tables.
 Defaults are 2M events, parallelism four, all 23 queries, one warmup and three measured
 pairs, all four state/mini-batch modes and the existing labelled expression variants.
@@ -236,11 +237,18 @@ Arrow IPC shuffle remains enabled through the normal `bench` profile.
 The timer includes planning/submission, Java discovery, file IO, decode, query and exchange,
 JNI, data/delete encoding, checkpoints and final drain/commit. A benchmark-only delegating
 source observer waits for the seeded snapshot to be enumerated, no pending assignments,
-and acknowledgements that all assigned splits have been consumed. It then requests a
-non-draining savepoint to settle the completed streaming writes, then a normal
-draining savepoint and waits for job completion. Both checkpoints remain timed; the
-explicit separation avoids merging a pending regular upsert flush with the terminal
-flush in the released dynamic aggregator. Sources remain continuous and
+and acknowledgements that all assigned splits have been consumed. It requests an
+ordinary configured checkpoint to settle the completed streaming writes, followed by a
+draining savepoint in the backend's native format, and waits for job completion.
+Both remain timed. Checkpoints use the shared MiniCluster's filesystem default,
+as the Kafka headline does; the final savepoint and Iceberg files are also written
+to disk. The benchmark retains
+completed checkpoint IDs, state bytes, durations and final savepoint file sizes.
+This replaces an initial diagnostic protocol that exported two canonical migration
+savepoints: kernel sampling found substantial ext4 journal/writeback waits in both
+engines. Those observations remain separate and are excluded from the final matrix.
+The explicit checkpoint separation avoids merging a pending regular upsert flush with
+the terminal flush in the released dynamic aggregator. Sources remain continuous and
 use their normal checkpoint serializers. For q12, waiting for the last processing-time
 window is included; validation conserves every bidder's count instead of comparing
 inherently different wall-clock window timestamps.

@@ -106,6 +106,9 @@ class IcebergNexmarkBenchmark {
       metadata.put("runs", RUNS);
       metadata.put("baselineEngine", IO_BASELINE ? "streamfusion-stock-io" : "flink");
       metadata.put("baselineLabel", IO_BASELINE ? "StreamFusion with stock Iceberg IO" : "Flink");
+      metadata.put("completionProtocol", "configured checkpoint then draining native savepoint");
+      metadata.put("checkpointStorage", "shared MiniCluster filesystem default");
+      metadata.put("objectReuse", true);
       metadata.put(
           "profileEvent", System.getenv().getOrDefault("SF_ICEBERG_PROFILE_EVENT", "none"));
       metadata.put("fileSettings", FILE_SETTINGS);
@@ -429,6 +432,8 @@ class IcebergNexmarkBenchmark {
     boolean backendObserved = false;
     double progressSeconds = 0;
     double checkpointSeconds = 0;
+    long settledCheckpointId = -1;
+    Map<String, Long> checkpointObservation = Map.of();
     try {
       long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
       while ((!completion.complete() || !allTasksRunning(job)) && System.nanoTime() < deadline) {
@@ -455,15 +460,28 @@ class IcebergNexmarkBenchmark {
       }
       progressSeconds = (System.nanoTime() - start) / 1e9;
       long checkpointStart = System.nanoTime();
-      job.triggerSavepoint(
-              trialPath.resolve("streaming-checkpoint").toUri().toString(),
-              SavepointFormatType.CANONICAL)
-          .get(120, TimeUnit.SECONDS);
+      settledCheckpointId =
+          cluster(job)
+              .triggerCheckpoint(
+                  job.getJobID(), org.apache.flink.core.execution.CheckpointType.CONFIGURED)
+              .get(120, TimeUnit.SECONDS);
       checkpointSeconds = (System.nanoTime() - checkpointStart) / 1e9;
+      var checkpointStats =
+          cluster(job)
+              .getExecutionGraph(job.getJobID())
+              .get(10, TimeUnit.SECONDS)
+              .getCheckpointStatsSnapshot()
+              .getHistory()
+              .getCheckpointById(settledCheckpointId);
+      assertNotNull(checkpointStats, "settling checkpoint statistics");
+      checkpointObservation =
+          Map.of(
+              "id", settledCheckpointId,
+              "stateBytes", checkpointStats.getStateSize(),
+              "checkpointedBytes", checkpointStats.getCheckpointedSize(),
+              "durationMillis", checkpointStats.getEndToEndDuration());
       job.stopWithSavepoint(
-              true,
-              trialPath.resolve("savepoint").toUri().toString(),
-              SavepointFormatType.CANONICAL)
+              true, trialPath.resolve("savepoint").toUri().toString(), SavepointFormatType.NATIVE)
           .get(120, TimeUnit.SECONDS);
       job.getJobExecutionResult().get(120, TimeUnit.SECONDS);
       finished = true;
@@ -513,6 +531,8 @@ class IcebergNexmarkBenchmark {
     observation.put(
         "engine", nativeMode ? "streamfusion" : IO_BASELINE ? "streamfusion-stock-io" : "flink");
     observation.put("seconds", seconds);
+    observation.put("settledCheckpointId", settledCheckpointId);
+    observation.put("settlingCheckpoint", checkpointObservation);
     observation.put("nativeQuery", nativeQuery);
     observation.put("nativeIcebergIo", nativeMode);
     observation.put(
@@ -541,19 +561,23 @@ class IcebergNexmarkBenchmark {
 
   private static boolean allTasksRunning(org.apache.flink.core.execution.JobClient job)
       throws Exception {
+    var graph = cluster(job).getExecutionGraph(job.getJobID()).get(10, TimeUnit.SECONDS);
+    for (var vertex : graph.getAllExecutionVertices()) {
+      if (vertex.getExecutionState() != org.apache.flink.runtime.execution.ExecutionState.RUNNING)
+        return false;
+    }
+    return true;
+  }
+
+  private static org.apache.flink.runtime.minicluster.MiniCluster cluster(
+      org.apache.flink.core.execution.JobClient job) throws Exception {
     if (!(job instanceof org.apache.flink.runtime.minicluster.MiniClusterJobClient))
       throw new IllegalStateException("comparison requires its test MiniCluster");
     var field =
         org.apache.flink.runtime.minicluster.MiniClusterJobClient.class.getDeclaredField(
             "miniCluster");
     field.setAccessible(true);
-    var cluster = (org.apache.flink.runtime.minicluster.MiniCluster) field.get(job);
-    var graph = cluster.getExecutionGraph(job.getJobID()).get(10, TimeUnit.SECONDS);
-    for (var vertex : graph.getAllExecutionVertices()) {
-      if (vertex.getExecutionState() != org.apache.flink.runtime.execution.ExecutionState.RUNNING)
-        return false;
-    }
-    return true;
+    return (org.apache.flink.runtime.minicluster.MiniCluster) field.get(job);
   }
 
   private static void profile(String action, Path trial) throws Exception {

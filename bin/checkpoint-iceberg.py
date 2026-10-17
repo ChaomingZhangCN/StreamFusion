@@ -52,6 +52,8 @@ def archive_cell(artifacts, destination, observations):
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))
                 for phase in ('streaming-checkpoint', 'savepoint'):
+                    if not (trial / phase).exists():
+                        continue
                     sizes = [p.stat().st_size for p in (trial / phase).rglob('*') if p.is_file()]
                     checkpoint_sizes.append(dict(trial=token, phase=phase,
                                                  files=len(sizes), bytes=sum(sizes)))
@@ -78,7 +80,7 @@ def main():
             subprocess.run(['python3', str(repo / 'bin/report-iceberg.py'), str(evidence)], check=True)
             return
     cohort = f'cohort-{len(list((evidence / "cohorts").glob("*"))) + 1:03d}'
-    artifacts = repo / 'target' / 'iceberg-checkpointed' / cohort
+    artifacts = repo / 'target' / 'iceberg-checkpointed' / evidence.name / cohort
     artifacts.mkdir(parents=True, exist_ok=False)
     resume = artifacts / 'completed.jsonl'
     resume.write_text(''.join(json.dumps(c) + '\n' for c in sorted(completed)))
@@ -99,7 +101,8 @@ def main():
                 if prior.exists():
                     previous = json.loads(prior.read_text())
                     for setting in ('events', 'parallelism', 'stripeEvents', 'warmups', 'runs',
-                                    'fileSettings', 'expectedCells', 'maxJavaHeapBytes', 'baselineEngine'):
+                                    'fileSettings', 'expectedCells', 'maxJavaHeapBytes', 'baselineEngine',
+                                    'completionProtocol', 'checkpointStorage', 'objectReuse'):
                         if previous[setting] != method[setting]:
                             process.terminate()
                             raise RuntimeError(f'Resume changed {setting}')
