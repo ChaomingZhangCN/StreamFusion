@@ -68,7 +68,10 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_retainWriteB
 ) -> jlong {
     jni_guard(env, |_| {
         let encoder = unsafe { &*(writer as *const writer::Encoder) };
-        into_handle(import_record_batch_with_schema(array, &encoder.input_schema))
+        into_handle(import_record_batch_with_schema(
+            array,
+            &encoder.input_schema,
+        ))
     })
 }
 
@@ -111,7 +114,7 @@ pub extern "system" fn Java_tech_streamfusion_iceberg_NativeIceberg_write(
                 row as u32
             })
             .collect::<Vec<_>>();
-        futures::executor::block_on(encoder.write(batch, &indices));
+        futures::executor::block_on(encoder.write(batch, indices));
         encoder.memory_bytes() as jlong
     })
 }

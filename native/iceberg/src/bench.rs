@@ -25,7 +25,7 @@ pub fn encode(schema: &Schema, input: &RecordBatch, selected: &[u32]) -> Bytes {
             io.new_output("benchmark.parquet").unwrap(),
         )
         .await;
-        encoder.write(input, selected).await;
+        encoder.write(input, selected.to_vec()).await;
         std::hint::black_box(encoder.memory_bytes());
         let result = encoder.finish().await;
         assert_eq!(result.row_count as usize, selected.len());

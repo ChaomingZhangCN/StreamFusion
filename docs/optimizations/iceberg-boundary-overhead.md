@@ -68,3 +68,13 @@ for Arrow buffer ownership; Iceberg's
 for shared serializers; and the released Iceberg partition selector plus Flink
 key-group assignment for exact host routing. StreamFusion's existing cached-schema
 bridge and keyed-upsert import cleanup supply the local ownership conventions.
+
+The follow-on [four-candidate investigation](../benchmarks/iceberg-boundary-round2-20261017/README.md)
+transfers the existing selection vector into sparse Arrow indices and skips index
+construction for contiguous slices. This removes a selection clone at the production
+JNI boundary; repeated writer timings overlap, so no throughput improvement is claimed.
+A bounded task-local parsed-identifier cache reduces dynamic generator medians from
+34.12 to 9.90 ms (3.45× previous), while preserving fresh routing metadata and payload
+ownership on every row. It caches no catalog/schema/spec state. The combined-size
+JNI prototype has no consistent gain and is removed; the checksummed local source
+stream has no direct-buffer capability. Original rolling checks and FileIO remain.

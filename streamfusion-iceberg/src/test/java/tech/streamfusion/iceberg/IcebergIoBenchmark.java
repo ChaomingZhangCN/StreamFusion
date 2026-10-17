@@ -120,7 +120,7 @@ public final class IcebergIoBenchmark implements AutoCloseable {
     prepareRecords();
     var cases = List.of(env("CASES", "read,write").split(","));
     for (String name : cases) {
-      if (!List.of("read", "write", "route").contains(name))
+      if (!List.of("read", "write", "route", "dynamic-route").contains(name))
         throw new IllegalArgumentException("Unknown case: " + name);
     }
     if (cases.contains("read")) prepareInput();
@@ -178,13 +178,13 @@ public final class IcebergIoBenchmark implements AutoCloseable {
               assertEquals(tasks.size(), nativeTasks);
               assertEquals(0, fallbackTasks);
             }
-          } else if (name.equals("route")) {
+          } else if (name.equals("route") || name.equals("dynamic-route")) {
             profile("start", name, nativeMode, trial);
             long start = System.nanoTime();
-            int[] actual = route(nativeMode);
+            int[] actual = name.equals("route") ? route(nativeMode) : dynamicRoute(nativeMode);
             nanos = System.nanoTime() - start;
             profile("stop", name, nativeMode, trial);
-            assertArrayEquals(route(false), actual);
+            assertArrayEquals(name.equals("route") ? route(false) : dynamicRoute(false), actual);
           } else {
             // Retaining fixture views models owned input batches, outside the file-write timer.
             var owned = new ArrayList<ArrowBatch>();
@@ -487,6 +487,73 @@ public final class IcebergIoBenchmark implements AutoCloseable {
       fields.add((FieldVector) transfer.getTo());
     }
     return new VectorSchemaRoot(root.getSchema(), fields, root.getRowCount());
+  }
+
+  private int[] dynamicRoute(boolean nativeMode) throws Exception {
+    NativeIcebergDynamicSink.Router router =
+        row -> {
+          long id = row.getLong(0);
+          return new NativeIcebergDynamicSink.Destination(
+              "bench.target" + id % partitions,
+              id % 2 == 0 ? "main" : "audit",
+              spec,
+              org.apache.iceberg.DistributionMode.HASH,
+              4,
+              false,
+              java.util.Set.of());
+        };
+    org.apache.iceberg.flink.sink.dynamic.DynamicRecordGenerator<RowData> generator =
+        (row, out) -> {
+          var kind = row.getRowKind();
+          var destination = router.route(row);
+          if (row.getRowKind() != kind)
+            throw new IllegalArgumentException("Dynamic router changed the borrowed row kind");
+          var record =
+              new org.apache.iceberg.flink.sink.dynamic.DynamicRecord(
+                  org.apache.iceberg.catalog.TableIdentifier.parse(destination.table()),
+                  destination.branch(),
+                  SCHEMA,
+                  row,
+                  destination.spec(),
+                  destination.distribution(),
+                  destination.writeParallelism());
+          record.setUpsertMode(destination.upsert());
+          record.setEqualityFields(destination.equalityFields());
+          out.collect(record);
+        };
+    if (nativeMode) {
+      try {
+        var factory =
+            NativeIcebergDynamicSink.class.getDeclaredMethod(
+                "generator", Schema.class, NativeIcebergDynamicSink.Router.class, boolean.class);
+        factory.setAccessible(true);
+        generator =
+            (org.apache.iceberg.flink.sink.dynamic.DynamicRecordGenerator<RowData>)
+                factory.invoke(null, SCHEMA, router, true);
+      } catch (NoSuchMethodException previousImplementation) {
+        // Saved pre-optimization connector classes use the original uncached generator above.
+      }
+    }
+    int[] result = new int[rows];
+    int[] position = {0};
+    var collector =
+        new org.apache.flink.util.Collector<org.apache.iceberg.flink.sink.dynamic.DynamicRecord>() {
+          public void collect(org.apache.iceberg.flink.sink.dynamic.DynamicRecord record) {
+            result[position[0]++] =
+                31 * record.tableIdentifier().hashCode() + record.branch().hashCode();
+          }
+
+          public void close() {}
+        };
+    if (nativeMode) {
+      for (var root : batches) {
+        var reader = ArrowConversion.createArrowReader(root, TYPE);
+        for (int row = 0; row < root.getRowCount(); row++)
+          generator.generate(reader.read(row), collector);
+      }
+    } else for (var row : records) generator.generate(row, collector);
+    assertEquals(rows, position[0]);
+    return result;
   }
 
   private void profile(String action, String operation, boolean nativeMode, int trial)

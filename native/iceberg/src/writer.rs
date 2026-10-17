@@ -122,12 +122,14 @@ impl Encoder {
         }
     }
 
-    pub(crate) async fn write(&mut self, batch: &RecordBatch, selected: &[u32]) {
+    pub(crate) async fn write(&mut self, batch: &RecordBatch, selected: Vec<u32>) {
         if selected.is_empty() {
             return;
         }
         let contiguous = selected.windows(2).all(|w| w[1] == w[0] + 1);
-        let indices = UInt32Array::from(selected.to_vec());
+        let start = selected[0] as usize;
+        let count = selected.len();
+        let indices = (!contiguous).then(|| UInt32Array::from(selected));
         let columns = self
             .write_schema
             .fields()
@@ -135,9 +137,14 @@ impl Encoder {
             .enumerate()
             .map(|(i, field)| {
                 let column = if contiguous {
-                    batch.column(i).slice(selected[0] as usize, selected.len())
+                    batch.column(i).slice(start, count)
                 } else {
-                    take(batch.column(i), &indices, None).expect("Iceberg Arrow selection")
+                    take(
+                        batch.column(i),
+                        indices.as_ref().expect("Sparse selection"),
+                        None,
+                    )
+                    .expect("Iceberg Arrow selection")
                 };
                 if column.data_type() == field.data_type() {
                     column
@@ -335,7 +342,7 @@ mod tests {
                             .collect(),
                     )
                     .unwrap();
-                    native.write(&batch, &rows).await;
+                    native.write(&batch, rows.clone()).await;
                     released.write(&selected).await.unwrap();
                     assert_eq!(native.size(), released.current_written_size());
                     assert!(native.memory_bytes() >= 1 << 20);
@@ -405,9 +412,9 @@ mod tests {
                 io.new_output("file").unwrap(),
             )
             .await;
-            writer.write(&batch, &[]).await;
-            writer.write(&batch, &[2, 0, 2]).await;
-            writer.write(&batch, &[1]).await;
+            writer.write(&batch, vec![]).await;
+            writer.write(&batch, vec![2, 0, 2]).await;
+            writer.write(&batch, vec![1]).await;
             assert!(writer.size() > 0);
             let result = writer.finish().await;
             assert_eq!(result.row_count, 4);

@@ -54,6 +54,12 @@ Arrow/task reservations must be released after each trial. Output payload files
 are deleted after validation; raw observations, ranges, build fingerprints, library
 hashes and logs remain under `target/iceberg-io/` or `--output`.
 
+The optional `--cases dynamic-route` compares the production dynamic generator
+with its original uncached implementation, including borrowed Arrow row views. It
+checks every table/branch destination and excludes the host processor, catalog,
+shuffle and file writing. [Candidate results](iceberg-boundary-round2-20261017/README.md)
+retain gains, inconclusive writer timings and rejected prototypes.
+
 For CPU, allocation or wall profiles, use a released async-profiler installation:
 
 ```sh

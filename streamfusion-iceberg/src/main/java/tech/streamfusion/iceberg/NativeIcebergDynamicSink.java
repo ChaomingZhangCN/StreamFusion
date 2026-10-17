@@ -50,6 +50,57 @@ public final class NativeIcebergDynamicSink {
       Set<String> equalityFields)
       implements Serializable {}
 
+  static DynamicRecordGenerator<RowData> generator(
+      Schema schema, Router router, boolean immediate) {
+    return new Generator(schema, router, immediate);
+  }
+
+  private static final class Generator implements DynamicRecordGenerator<RowData> {
+    private final Schema schema;
+    private final Router router;
+    private final boolean immediate;
+    private transient Map<String, TableIdentifier> identifiers;
+
+    private Generator(Schema schema, Router router, boolean immediate) {
+      this.schema = schema;
+      this.router = router;
+      this.immediate = immediate;
+    }
+
+    @Override
+    public void generate(RowData row, org.apache.flink.util.Collector<DynamicRecord> out)
+        throws Exception {
+      var kind = row.getRowKind();
+      var destination = router.route(row);
+      if (!immediate
+          && (destination.upsert()
+              || (destination.equalityFields() != null && !destination.equalityFields().isEmpty())))
+        throw new IllegalArgumentException(
+            "Keyed dynamic Arrow writes require immediate table updates");
+      if (row.getRowKind() != kind)
+        throw new IllegalArgumentException("Dynamic router changed the borrowed row kind");
+      if (identifiers == null) identifiers = new java.util.HashMap<>();
+      var identifier = identifiers.get(destination.table());
+      if (identifier == null) {
+        identifier = TableIdentifier.parse(destination.table());
+        if (identifiers.size() == 1024) identifiers.clear();
+        identifiers.put(destination.table(), identifier);
+      }
+      var record =
+          new DynamicRecord(
+              identifier,
+              destination.branch(),
+              schema,
+              row,
+              destination.spec(),
+              destination.distribution(),
+              destination.writeParallelism());
+      record.setUpsertMode(destination.upsert());
+      record.setEqualityFields(destination.equalityFields());
+      out.collect(record);
+    }
+  }
+
   @SuppressWarnings({"rawtypes", "unchecked"})
   public static DataStreamSink<?> append(
       DataStream<ArrowBatch> input,
@@ -74,31 +125,7 @@ public final class NativeIcebergDynamicSink {
     if (!immediate && !inputSchema.identifierFieldIds().isEmpty())
       throw new IllegalArgumentException(
           "Keyed dynamic Arrow writes require immediate table updates");
-    DynamicRecordGenerator<RowData> generator =
-        (row, out) -> {
-          var kind = row.getRowKind();
-          var destination = router.route(row);
-          if (!immediate
-              && (destination.upsert()
-                  || (destination.equalityFields() != null
-                      && !destination.equalityFields().isEmpty())))
-            throw new IllegalArgumentException(
-                "Keyed dynamic Arrow writes require immediate table updates");
-          if (row.getRowKind() != kind)
-            throw new IllegalArgumentException("Dynamic router changed the borrowed row kind");
-          var record =
-              new DynamicRecord(
-                  TableIdentifier.parse(destination.table()),
-                  destination.branch(),
-                  inputSchema,
-                  row,
-                  destination.spec(),
-                  destination.distribution(),
-                  destination.writeParallelism());
-          record.setUpsertMode(destination.upsert());
-          record.setEqualityFields(destination.equalityFields());
-          out.collect(record);
-        };
+    var generator = generator(inputSchema, router, immediate);
     DataStream<RowData> host =
         new DataStream<>(
             input.getExecutionEnvironment(), (Transformation) input.getTransformation());
