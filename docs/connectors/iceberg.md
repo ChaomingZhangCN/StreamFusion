@@ -244,6 +244,9 @@ Both remain timed. Checkpoints use the shared MiniCluster's filesystem default,
 as the Kafka headline does; the final savepoint and Iceberg files are also written
 to disk. The benchmark retains
 completed checkpoint IDs, state bytes, durations and final savepoint file sizes.
+Flink's statistics snapshot may lag or evict a completed checkpoint; its optional
+size/duration fields are left absent in that case. The completed checkpoint future
+and committed-result validation remain mandatory, and the client wait stays timed.
 This replaces an initial diagnostic protocol that exported two canonical migration
 savepoints: kernel sampling found substantial ext4 journal/writeback waits in both
 engines. Those observations remain separate and are excluded from the final matrix.

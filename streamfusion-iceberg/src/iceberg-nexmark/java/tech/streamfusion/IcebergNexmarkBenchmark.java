@@ -479,13 +479,14 @@ class IcebergNexmarkBenchmark {
               .getCheckpointStatsSnapshot()
               .getHistory()
               .getCheckpointById(settledCheckpointId);
-      assertNotNull(checkpointStats, "settling checkpoint statistics");
       checkpointObservation =
-          Map.of(
-              "id", settledCheckpointId,
-              "stateBytes", checkpointStats.getStateSize(),
-              "checkpointedBytes", checkpointStats.getCheckpointedSize(),
-              "durationMillis", checkpointStats.getEndToEndDuration());
+          !(checkpointStats instanceof org.apache.flink.runtime.checkpoint.CompletedCheckpointStats)
+              ? Map.of("id", settledCheckpointId)
+              : Map.of(
+                  "id", settledCheckpointId,
+                  "stateBytes", checkpointStats.getStateSize(),
+                  "checkpointedBytes", checkpointStats.getCheckpointedSize(),
+                  "durationMillis", checkpointStats.getEndToEndDuration());
       job.stopWithSavepoint(
               true, trialPath.resolve("savepoint").toUri().toString(), SavepointFormatType.NATIVE)
           .get(120, TimeUnit.SECONDS);
@@ -539,6 +540,7 @@ class IcebergNexmarkBenchmark {
     observation.put("seconds", seconds);
     observation.put("settledCheckpointId", settledCheckpointId);
     observation.put("settlingCheckpoint", checkpointObservation);
+    observation.put("checkpointStatsPublished", checkpointObservation.containsKey("stateBytes"));
     observation.put("nativeQuery", nativeQuery);
     observation.put("nativeIcebergIo", nativeMode);
     observation.put(
