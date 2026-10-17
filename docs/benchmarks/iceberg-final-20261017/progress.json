@@ -1,9 +1,9 @@
 {
-  "completedCells": 105,
+  "completedCells": 106,
   "expectedCells": 120,
   "lastCell": [
     "q14",
     "disk-off",
-    "exact"
+    "native datetime (incompatible)"
   ]
 }
