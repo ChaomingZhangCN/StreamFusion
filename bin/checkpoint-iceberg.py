@@ -100,6 +100,9 @@ def main():
                 prior = evidence / 'method.json'
                 if prior.exists():
                     previous = json.loads(prior.read_text())
+                    if previous.get('snapshotCompression', False) != method.get('snapshotCompression', False):
+                        process.terminate()
+                        raise RuntimeError('Resume changed snapshot compression')
                     for setting in ('events', 'parallelism', 'stripeEvents', 'warmups', 'runs',
                                     'fileSettings', 'expectedCells', 'maxJavaHeapBytes', 'baselineEngine',
                                     'completionProtocol', 'checkpointStorage', 'objectReuse'):

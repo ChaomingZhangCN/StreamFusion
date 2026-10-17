@@ -57,3 +57,23 @@ the same revised protocol rather than mixing old and new observations.
 disk/on (46.452 s stock, 2.079 s native), checkpoint IDs/bytes/durations, native
 task and file witnesses, and the final savepoint sizes. These remain preflight
 observations, separate from the repeated final matrix.
+
+## q9 memory/on checkpoint sensitivity
+
+The uncompressed primary cell has medians of 3.611 s stock and 22.942 s native,
+with ranges 3.127–35.944 s and 10.768–46.235 s. Native corpus progress is faster
+(median 1.073 versus 2.882 s); checkpoint/drain waits dominate the regression.
+`q9-cpu/` retains a separate warmed CPU-profile pair that reverses the elapsed
+ranking (37.809 s stock, 2.474 s native), reproducing the storage variability.
+In the native profile, the data-write JNI entry appears in 0.1% of CPU samples,
+sink processing in 0.7%, sink flush in 1.2%, source fetch in 1.9%, and join-state
+snapshot encoding in 10.5%. These inclusive frame shares overlap and omit time
+blocked in uninterruptible kernel IO; they do not support blaming Parquet encoding.
+
+`q9-compressed/` separately enables Flink's standard snapshot compression for
+both engines, with one warmup and three measured pairs. All four pairs pass.
+Checkpoint bytes fall from roughly 254/266 MiB stock/native to 49.63/52.86 MiB.
+Measured medians are 3.305 s stock [3.263–3.438] and 2.029 s native
+[1.766–2.078], a 1.63× ratio. This is an operational tuning comparison, not
+a production connector change or a replacement for the uncompressed primary cell.
+Its compression setting is explicitly recorded and cannot be mixed on resume.

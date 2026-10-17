@@ -288,6 +288,10 @@ async-profiler `profiler.sh`; `SF_ICEBERG_PROFILE_EVENT` selects `itimer` or `wa
 Each trial starts profiling before its timer and stops before stock readback, retaining
 thread-labelled collapsed stacks beside the plan. Profiled observations are diagnostic
 and excluded from the final performance matrix.
+`SF_ICEBERG_SNAPSHOT_COMPRESSION=true` selects Flink's standard
+`execution.checkpointing.snapshot-compression` option for both engines in a
+separate tuning comparison. It defaults to false to retain the headline setting;
+compressed and uncompressed observations are never combined in one matrix.
 Exact-query aggregates report geometric mean ratios per mode and nominal corpus-event
 throughput; labelled expression variants remain separate.
 It also reports the headline sampling convention (first memory sample, best of the first

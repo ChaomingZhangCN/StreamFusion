@@ -47,6 +47,9 @@ class IcebergNexmarkBenchmark {
   private static final int RUNS = Integer.parseInt(System.getenv().getOrDefault("SF_RUNS", "3"));
   private static final boolean IO_BASELINE =
       Boolean.parseBoolean(System.getenv().getOrDefault("SF_ICEBERG_IO_BASELINE", "false"));
+  private static final boolean SNAPSHOT_COMPRESSION =
+      Boolean.parseBoolean(
+          System.getenv().getOrDefault("SF_ICEBERG_SNAPSHOT_COMPRESSION", "false"));
   private static final Map<String, String> FILE_SETTINGS =
       Map.of(
           "format-version",
@@ -109,6 +112,7 @@ class IcebergNexmarkBenchmark {
       metadata.put("completionProtocol", "configured checkpoint then draining native savepoint");
       metadata.put("checkpointStorage", "shared MiniCluster filesystem default");
       metadata.put("objectReuse", true);
+      metadata.put("snapshotCompression", SNAPSHOT_COMPRESSION);
       metadata.put(
           "profileEvent", System.getenv().getOrDefault("SF_ICEBERG_PROFILE_EVENT", "none"));
       metadata.put("fileSettings", FILE_SETTINGS);
@@ -363,6 +367,8 @@ class IcebergNexmarkBenchmark {
                         : "rocksdb")
                     : "hashmap"));
     config.setString("state.backend.rocksdb.localdir", trialPath.resolve("rocksdb").toString());
+    config.set(
+        org.apache.flink.configuration.ExecutionOptions.SNAPSHOT_COMPRESSION, SNAPSHOT_COMPRESSION);
     var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     env.setParallelism(PARALLELISM);
     env.setMaxParallelism(128);
