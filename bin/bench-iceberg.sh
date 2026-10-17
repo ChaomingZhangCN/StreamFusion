@@ -11,12 +11,18 @@ if [[ "${java_major}" != 17 ]]; then
   echo 'This comparison uses JDK 17; set JAVA_HOME and PATH to a JDK 17 installation.' >&2
   exit 2
 fi
+packages=(-p streamfusion -p streamfusion-iceberg)
+libraries=(streamfusion streamfusion_iceberg)
+if [[ "${SF_ICEBERG_SOURCE:-iceberg}" == kafka ]]; then
+  packages+=(-p streamfusion-kafka -p streamfusion-json)
+  libraries+=(streamfusion_kafka streamfusion_json)
+fi
 cargo build --manifest-path "${REPO_ROOT}/native/Cargo.toml" --release --features mimalloc \
-  -p streamfusion -p streamfusion-iceberg > "${SF_ICEBERG_ARTIFACTS}/cargo.log" 2>&1
+  "${packages[@]}" > "${SF_ICEBERG_ARTIFACTS}/cargo.log" 2>&1
 cargo_target="$(cargo metadata --manifest-path "${REPO_ROOT}/native/Cargo.toml" --format-version 1 --no-deps | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 staged="${SF_ICEBERG_ARTIFACTS}/native"
 mkdir -p "${staged}"
-for library in streamfusion streamfusion_iceberg; do
+for library in "${libraries[@]}"; do
   case "$(uname -s)" in Darwin) extension=dylib ;; *) extension=so ;; esac
   cp "${cargo_target}/release/lib${library}.${extension}" "${staged}/"
 done
@@ -30,7 +36,9 @@ metadata = {
     'platform': platform.platform(), 'processor': platform.processor(),
     'java': subprocess.run(['java', '-version'], text=True, capture_output=True).stderr.strip(),
     'rust': command('rustc', '--version'),
-    'build': 'cargo build --release --features mimalloc -p streamfusion -p streamfusion-iceberg',
+    'build': 'cargo build --release --features mimalloc -p streamfusion -p streamfusion-iceberg'
+             + (' -p streamfusion-kafka -p streamfusion-json'
+                if __import__('os').environ.get('SF_ICEBERG_SOURCE') == 'kafka' else ''),
     'javaHeap': __import__('os').environ.get('SF_ICEBERG_JAVA_HEAP', '4g'),
     'libraries': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (output / 'native').iterdir()},
 }

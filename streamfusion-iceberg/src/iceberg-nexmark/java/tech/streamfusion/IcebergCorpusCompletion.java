@@ -33,6 +33,12 @@ final class IcebergCorpusCompletion {
 
   @SuppressWarnings({"rawtypes", "unchecked"})
   static IcebergCorpusCompletion install(StreamGraph graph, Set<Long> snapshots) throws Exception {
+    return install(graph, snapshots, false);
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  static IcebergCorpusCompletion install(StreamGraph graph, Set<Long> snapshots, boolean kafka)
+      throws Exception {
     PROGRESS.clear();
     int count = 0, nativeSources = 0, nativeWriters = 0;
     var field = SourceOperatorFactory.class.getDeclaredField("source");
@@ -56,6 +62,13 @@ final class IcebergCorpusCompletion {
       if (!(node.getOperatorFactory() instanceof SourceOperatorFactory factory)) continue;
       var source = (Source<?, ?, ?>) field.get(factory);
       String type = source.getClass().getName();
+      if (kafka) {
+        if (type.equals("tech.streamfusion.kafka.NativeKafkaSource")) {
+          count++;
+          nativeSources++;
+        } else if (type.equals("org.apache.flink.connector.kafka.source.KafkaSource")) count++;
+        continue;
+      }
       if (!type.equals("org.apache.iceberg.flink.source.IcebergSource")
           && !type.equals("tech.streamfusion.iceberg.IcebergArrowSource")) continue;
       if (type.equals("tech.streamfusion.iceberg.IcebergArrowSource")) nativeSources++;
@@ -64,8 +77,7 @@ final class IcebergCorpusCompletion {
       PROGRESS.put(id, new Progress());
       field.set(factory, new ObservedSource(source, id, Set.copyOf(snapshots)));
     }
-    if (count == 0)
-      throw new IllegalStateException("No streaming Iceberg sources in benchmark graph");
+    if (count == 0) throw new IllegalStateException("No expected sources in benchmark graph");
     return new IcebergCorpusCompletion(count, nativeSources, nativeWriters);
   }
 

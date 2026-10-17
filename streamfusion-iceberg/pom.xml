@@ -82,6 +82,8 @@
     </build>
     <profiles>
         <profile><id>iceberg-nexmark</id><dependencies>
+            <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-kafka${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+            <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-json${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><scope>test</scope></dependency>
             <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-core${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><type>test-jar</type><scope>test</scope></dependency>
         </dependencies><build><plugins>
             <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><executions>

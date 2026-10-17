@@ -27,7 +27,8 @@ if 'expectedCells' in method and set(groups) != {tuple(cell) for cell in method[
     raise SystemExit('Missing or unexpected query/mode/variant cells')
 lines = ['# Streaming Iceberg Nexmark observations', '',
          f'{method["events"]:,} deterministic events; parallelism {method["parallelism"]}; '
-         'four-bucket input/output tables. All times include streaming completion and final drain/commit.', '',
+         f'{method.get("inputDescription", "four-bucket Iceberg input tables")}; four-bucket Iceberg output tables. '
+         f'Completion: {method["completionProtocol"]}.', '',
          f'| Query | State / mini-batch | Variant | {baseline_label} median [range], s | StreamFusion median [range], s | Median ratio |',
          '|---|---|---|---:|---:|---:|']
 for key, engines in sorted(groups.items(), key=lambda item: (int(item[0][0][1:]), item[0][1:])):
@@ -105,7 +106,9 @@ if method['runs'] >= 2:
         lines.append(f'| {key[0]} | {key[1]} | {key[2]} | {selected[baseline]:.3f} | {selected["streamfusion"]:.3f} | {ratio:.2f}× |')
 lines += ['', 'Raw samples, warmups, parity checks, plans, committed table locations and native/fallback '
           'task/file witnesses are retained in this artifact directory. PROCTIME q12 validates per-bidder '
-          'count conservation and includes waiting for the final processing-time window.', '']
+          + ('emitted counts do not exceed input counts; unfinished processing-time windows remain open.'
+             if method.get('source') == 'kafka-json' else
+             'count conservation and includes waiting for the final processing-time window.'), '']
 lines += ['[Per-cell timing, checkpoint and sampled-memory metrics](metrics.csv) retain '
           'separate phase medians. Phase medians need not sum to the total median. '
           'Memory peaks are sampled during progress polling, not exhaustive job maxima.', '']

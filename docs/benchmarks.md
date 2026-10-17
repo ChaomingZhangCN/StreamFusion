@@ -414,6 +414,34 @@ per-query table, baseline sweep, controlled shutdown experiment and profiles.
 
 ## Iceberg streaming comparison
 
+The separate Kafka JSON → Iceberg comparison uses the unchanged Kafka corpus and
+views with four topic partitions, parallelism four and four-bucket Iceberg output
+tables. Select the input with `SF_ICEBERG_SOURCE=kafka`; for the RocksDB,
+mini-batching-off suite run:
+
+```sh
+SF_ICEBERG_SOURCE=kafka SF_ICEBERG_MODES=disk-off \
+  SF_BENCH_MANAGED_MEMORY='512 mb' \
+  SF_ROWS=2000000 SF_PARALLELISM=4 SF_WARMUP=1 SF_RUNS=3 \
+  bin/bench-iceberg.sh
+```
+
+Use JDK 17. This command gives both engines 512 MiB managed memory across four
+slots (128 MiB per slot), matching the historical disk/Paimon diagnostic. Both engines run in streaming mode with the same earliest-to-latest
+finite Kafka offsets, 8,192-record poll setting, UTC session zone, one-second
+checkpoints and Iceberg writer settings. Timings include planning/submission,
+consumption, query/state/shuffle work and the final Iceberg commit; input production
+and committed-output readback are untimed. Updating queries use identifier-field
+upserts and Java delete encoding. Every native graph must have the native Kafka
+source, native Iceberg writer and no row/Arrow transposes; data-file footers must
+identify parquet-rs. q4 checks that each requested RocksDB backend actually opens.
+All warmups and alternating measured pairs are retained. Exact SQL and the existing
+labelled expression variants are reported separately. Processing-time q12 leaves
+unfinished windows open, as the historical Kafka suites do; its emitted per-bidder
+counts are checked against input bounds rather than requiring identical clock-dependent
+windows. The Iceberg-input comparison below has a different completion procedure.
+
+
 For connector development, the [fast reader/writer loop](benchmarks/iceberg-io.md)
 isolates production file tasks against stock Flink Iceberg in seconds. It complements
 the full streaming comparison below; it does not replace query, shuffle, checkpoint

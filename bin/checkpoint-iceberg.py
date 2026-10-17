@@ -110,6 +110,12 @@ def main():
                         if previous[setting] != method[setting]:
                             process.terminate()
                             raise RuntimeError(f'Resume changed {setting}')
+                    if previous.get('managedMemory', 'cluster default') != method.get('managedMemory', 'cluster default'):
+                        process.terminate()
+                        raise RuntimeError('Resume changed managed memory')
+                    if previous.get('source', 'iceberg') != method.get('source', 'iceberg'):
+                        process.terminate()
+                        raise RuntimeError('Resume changed source')
                 else:
                     write_json(prior, method)
                 rows = read_rows(artifacts / 'observations.jsonl')
@@ -134,7 +140,9 @@ def main():
                         if row['engine'] == 'streamfusion':
                             assert row['sourceCount'] == row['nativeSourceCount'] > 0
                             assert row['nativeWriterCount'] > 0
-                            assert row['nativeParquetTasks'] > 0 and row['stockFallbackTasks'] == 0
+                            assert row['stockFallbackTasks'] == 0
+                            if method.get('source', 'iceberg') == 'iceberg':
+                                assert row['nativeParquetTasks'] > 0
                         else:
                             assert row['nativeSourceCount'] == row['nativeWriterCount'] == 0
                     for trial in trials:

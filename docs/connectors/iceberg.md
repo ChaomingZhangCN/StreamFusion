@@ -413,3 +413,10 @@ measured pairs. Stock median is 1.028 s [0.984–1.223], native 0.741 s [0.651�
 a 1.39× ratio. This short stateless case measures startup/I/O/drain as well as
 processing; learned post-checkpoint range routing is proved by the live correctness
 fixtures rather than inferred from this timing.
+
+The [Kafka-to-Iceberg diagnostic](../benchmarks.md#iceberg-streaming-comparison)
+reuses the headline Kafka JSON input at four partitions and four-bucket Iceberg
+outputs, including real identifier-field upserts for updating queries. It supports
+the same exact and separately labelled expression variants. Its finite-offset
+streaming completion includes final sink commits and differs from the continuous
+Iceberg-input suite's explicit checkpoint and draining savepoint.

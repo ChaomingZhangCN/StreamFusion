@@ -70,7 +70,11 @@ class IcebergNexmarkBenchmark {
           "536870912",
           "write.distribution-mode",
           System.getenv().getOrDefault("SF_ICEBERG_DISTRIBUTION", "hash"));
+  private static final boolean KAFKA_SOURCE =
+      "kafka".equals(System.getenv().getOrDefault("SF_ICEBERG_SOURCE", "iceberg"));
+  private String brokers;
   private final Map<Long, Long> bidCounts = new TreeMap<>();
+  private Map<Long, Long> processingTimeCounts = Map.of();
   private Path artifacts;
   private Path warehouse;
   private HadoopCatalog catalog;
@@ -91,26 +95,56 @@ class IcebergNexmarkBenchmark {
             .toAbsolutePath();
     Files.createDirectories(artifacts);
     warehouse = artifacts.resolve("warehouse");
-    try (var loaded =
-        new HadoopCatalog(
-            new org.apache.hadoop.conf.Configuration(), warehouse.toUri().toString())) {
+    try (var kafka =
+            KAFKA_SOURCE
+                ? new org.testcontainers.containers.KafkaContainer(
+                    org.testcontainers.utility.DockerImageName.parse("confluentinc/cp-kafka:7.6.1"))
+                : null;
+        var loaded =
+            new HadoopCatalog(
+                new org.apache.hadoop.conf.Configuration(), warehouse.toUri().toString())) {
       catalog = loaded;
       catalog.createNamespace(org.apache.iceberg.catalog.Namespace.of("bench"));
+      if (kafka != null) {
+        kafka.start();
+        brokers = kafka.getBootstrapServers();
+        NexmarkKafkaBenchmark.produce(brokers, "nexmark", "json", EVENTS, 4);
+      }
       seed();
       var metadata = new LinkedHashMap<String, Object>();
       metadata.put("events", EVENTS);
       metadata.put("parallelism", PARALLELISM);
       metadata.put("partitions", 4);
       metadata.put("stripeEvents", STRIPE);
-      metadata.put("watermarks", "Iceberg ordered file lower bounds via SOURCE_WATERMARK()");
+      metadata.put("source", KAFKA_SOURCE ? "kafka-json" : "iceberg");
+      metadata.put(
+          "inputDescription",
+          KAFKA_SOURCE
+              ? "four-partition Kafka JSON topic; earliest to captured latest offsets"
+              : "four-bucket Iceberg input tables");
+      metadata.put("runtimeMode", "STREAMING");
+      metadata.put(
+          "watermarks",
+          KAFKA_SOURCE
+              ? "TO_TIMESTAMP_LTZ(dateTime, 3) minus 4 seconds, unchanged Kafka harness"
+              : "Iceberg ordered file lower bounds via SOURCE_WATERMARK()");
       metadata.put("watermarkDelayMillis", IcebergCorpusCompletion.WATERMARK_DELAY_MILLIS);
       metadata.put("warmups", WARMUPS);
       metadata.put("runs", RUNS);
       metadata.put("baselineEngine", IO_BASELINE ? "streamfusion-stock-io" : "flink");
       metadata.put("baselineLabel", IO_BASELINE ? "StreamFusion with stock Iceberg IO" : "Flink");
-      metadata.put("completionProtocol", "configured checkpoint then draining native savepoint");
+      metadata.put(
+          "completionProtocol",
+          KAFKA_SOURCE
+              ? "finite Kafka offsets, streaming end-of-input and final Iceberg commit"
+              : "configured checkpoint then draining native savepoint");
       metadata.put("checkpointStorage", "shared MiniCluster filesystem default");
       metadata.put("objectReuse", true);
+      metadata.put(
+          "managedMemory",
+          System.getenv().getOrDefault("SF_BENCH_MANAGED_MEMORY", "cluster default"));
+      metadata.put(
+          "clusterSlots", System.getenv("SF_BENCH_MANAGED_MEMORY") == null ? 8 : PARALLELISM);
       metadata.put("snapshotCompression", SNAPSHOT_COMPRESSION);
       metadata.put(
           "profileEvent", System.getenv().getOrDefault("SF_ICEBERG_PROFILE_EVENT", "none"));
@@ -207,6 +241,49 @@ class IcebergNexmarkBenchmark {
 
   private void seed() throws Exception {
     var template = (StreamTableEnvironment) NexmarkBenchmark.environment(EVENTS);
+    if (!KAFKA_SOURCE) seedIcebergInputs(template);
+    if (KAFKA_SOURCE) {
+      snapshots = Set.of();
+      for (long index = 0; index < EVENTS; index++) {
+        int position = (int) (index % 50);
+        if (position >= 4) bidCounts.merge((long) position, 1L, Long::sum);
+      }
+    }
+    for (var query : NexmarkMatrixBenchmark.ALL_QUERIES) {
+      template.executeSql("DROP TABLE IF EXISTS sink");
+      template.executeSql(
+          query
+              .sinkDdl
+              .replace("%TS%", KAFKA_SOURCE ? "TIMESTAMP_LTZ(3)" : "TIMESTAMP(3)")
+              .replace("%WTS%", "TIMESTAMP(3)"));
+      var schema = FlinkSchemaUtil.convert(template.from("sink").getResolvedSchema());
+      String keys = NexmarkMatrixBenchmark.UPSERT_KEYS.get(query.label);
+      if (keys != null) {
+        Set<String> names =
+            new HashSet<>(Arrays.asList(keys.replace("`", "").replace(" ", "").split(",")));
+        var columns =
+            schema.columns().stream()
+                .map(
+                    field ->
+                        names.contains(field.name())
+                            ? Types.NestedField.required(
+                                field.fieldId(), field.name(), field.type())
+                            : field)
+                .toList();
+        var identifiers =
+            columns.stream()
+                .filter(field -> names.contains(field.name()))
+                .map(Types.NestedField::fieldId)
+                .collect(java.util.stream.Collectors.toSet());
+        schema = new org.apache.iceberg.Schema(columns, identifiers);
+      }
+      outputSchemas.put(query.label, schema);
+    }
+    appendJson(
+        Map.of("kind", "seed", "events", EVENTS, "snapshots", snapshots, "bidCounts", bidCounts));
+  }
+
+  private void seedIcebergInputs(StreamTableEnvironment template) throws Exception {
     String[] kinds = {"person", "auction", "bid"};
     var tables = new LinkedHashMap<String, Table>();
     var appends = new HashMap<String, AppendFiles>();
@@ -288,35 +365,6 @@ class IcebergNexmarkBenchmark {
       assertEquals(
           Set.of(0, 1, 2, 3), occupied, "input must occupy four physical partitions: " + kind);
     }
-    for (var query : NexmarkMatrixBenchmark.ALL_QUERIES) {
-      template.executeSql("DROP TABLE IF EXISTS sink");
-      template.executeSql(
-          query.sinkDdl.replace("%TS%", "TIMESTAMP(3)").replace("%WTS%", "TIMESTAMP(3)"));
-      var schema = FlinkSchemaUtil.convert(template.from("sink").getResolvedSchema());
-      String keys = NexmarkMatrixBenchmark.UPSERT_KEYS.get(query.label);
-      if (keys != null) {
-        Set<String> names =
-            new HashSet<>(Arrays.asList(keys.replace("`", "").replace(" ", "").split(",")));
-        var columns =
-            schema.columns().stream()
-                .map(
-                    field ->
-                        names.contains(field.name())
-                            ? Types.NestedField.required(
-                                field.fieldId(), field.name(), field.type())
-                            : field)
-                .toList();
-        var identifiers =
-            columns.stream()
-                .filter(field -> names.contains(field.name()))
-                .map(Types.NestedField::fieldId)
-                .collect(java.util.stream.Collectors.toSet());
-        schema = new org.apache.iceberg.Schema(columns, identifiers);
-      }
-      outputSchemas.put(query.label, schema);
-    }
-    appendJson(
-        Map.of("kind", "seed", "events", EVENTS, "snapshots", snapshots, "bidCounts", bidCounts));
   }
 
   private Fingerprint run(
@@ -373,6 +421,7 @@ class IcebergNexmarkBenchmark {
     config.set(
         org.apache.flink.configuration.ExecutionOptions.SNAPSHOT_COMPRESSION, SNAPSHOT_COMPRESSION);
     var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+    env.setRuntimeMode(org.apache.flink.api.common.RuntimeExecutionMode.STREAMING);
     env.setParallelism(PARALLELISM);
     env.setMaxParallelism(128);
     env.enableCheckpointing(1000);
@@ -387,8 +436,11 @@ class IcebergNexmarkBenchmark {
     tableConfig.setString("table.exec.mini-batch.allow-latency", "2 s");
     tableConfig.setString("table.exec.mini-batch.size", "50000");
     extra.forEach(tableConfig::setString);
-    for (String kind : List.of("person", "auction", "bid")) input(sql, kind);
-    sql.createTemporarySystemFunction("count_char", NexmarkMatrixBenchmark.CountChar.class);
+    if (KAFKA_SOURCE) kafkaInput(sql);
+    else {
+      for (String kind : List.of("person", "auction", "bid")) input(sql, kind);
+      sql.createTemporarySystemFunction("count_char", NexmarkMatrixBenchmark.CountChar.class);
+    }
     NexmarkMatrixBenchmark.runSetup(sql, query);
     var sinkSchema = Schema.newBuilder();
     var type = FlinkSchemaUtil.convert(schema);
@@ -417,10 +469,10 @@ class IcebergNexmarkBenchmark {
     sql.createStatementSet().addInsertSql(query.insertSql).attachAsDataStream();
     var graph = env.getStreamGraph();
     graph.setJobName("iceberg-nexmark-" + token);
-    var completion = IcebergCorpusCompletion.install(graph, snapshots);
+    var completion = IcebergCorpusCompletion.install(graph, snapshots, KAFKA_SOURCE);
     String plan =
         (scan == null ? "stock Flink" : scan.explainSummary())
-            + "\nNative Iceberg sources="
+            + (KAFKA_SOURCE ? "\nNative Kafka sources=" : "\nNative Iceberg sources=")
             + completion.nativeSourceCount()
             + ", writer factories="
             + completion.nativeWriterCount();
@@ -436,6 +488,12 @@ class IcebergNexmarkBenchmark {
       assertEquals(0, completion.nativeSourceCount(), plan);
       assertEquals(0, completion.nativeWriterCount(), plan);
     }
+    if (nativeMode && KAFKA_SOURCE) {
+      String execution = graph.getStreamingPlanAsJSON();
+      assertTrue(execution.contains("native-kafka-source"), execution);
+      assertFalse(execution.contains("RowDataToArrow"), execution);
+      assertFalse(execution.contains("ArrowToRowData"), execution);
+    }
     var job = env.executeAsync(graph);
     boolean finished = false;
     boolean backendObserved = false;
@@ -444,56 +502,71 @@ class IcebergNexmarkBenchmark {
     long settledCheckpointId = -1;
     Map<String, Long> checkpointObservation = Map.of();
     try {
-      long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
-      while ((!completion.complete() || !allTasksRunning(job)) && System.nanoTime() < deadline) {
-        resources.sample();
-        backendObserved |= backendObserved(mode, nativeQuery, trialPath);
-        var status = job.getJobStatus().get(10, TimeUnit.SECONDS);
-        if (status.isGloballyTerminalState()) {
-          job.getJobExecutionResult().get();
-          fail("job ended before corpus completion");
-        }
-        Thread.sleep(10);
-      }
-      assertTrue(completion.complete() && allTasksRunning(job), "corpus/task readiness timeout");
-      backendObserved |= backendObserved(mode, nativeQuery, trialPath);
-      if (mode.startsWith("disk") && query.label.equals("q4"))
-        assertTrue(backendObserved, "q4 did not engage its requested RocksDB backend");
-      if (query.label.equals("q12")) {
-        long earliest = System.currentTimeMillis() + (mode.endsWith("on") ? 2500 : 0);
-        long boundary = (earliest / 10000 + 1) * 10000 + 500;
-        while (System.currentTimeMillis() < boundary) {
+      if (KAFKA_SOURCE) {
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
+        while (!job.getJobStatus().get(10, TimeUnit.SECONDS).isGloballyTerminalState()
+            && System.nanoTime() < deadline) {
           resources.sample();
+          backendObserved |= backendObserved(mode, nativeQuery, trialPath);
           Thread.sleep(10);
         }
+        job.getJobExecutionResult().get(10, TimeUnit.SECONDS);
+        progressSeconds = (System.nanoTime() - start) / 1e9;
+        if (mode.startsWith("disk") && query.label.equals("q4"))
+          assertTrue(backendObserved, "q4 did not engage its requested RocksDB backend");
+      } else {
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10);
+        while ((!completion.complete() || !allTasksRunning(job)) && System.nanoTime() < deadline) {
+          resources.sample();
+          backendObserved |= backendObserved(mode, nativeQuery, trialPath);
+          var status = job.getJobStatus().get(10, TimeUnit.SECONDS);
+          if (status.isGloballyTerminalState()) {
+            job.getJobExecutionResult().get();
+            fail("job ended before corpus completion");
+          }
+          Thread.sleep(10);
+        }
+        assertTrue(completion.complete() && allTasksRunning(job), "corpus/task readiness timeout");
+        backendObserved |= backendObserved(mode, nativeQuery, trialPath);
+        if (mode.startsWith("disk") && query.label.equals("q4"))
+          assertTrue(backendObserved, "q4 did not engage its requested RocksDB backend");
+        if (query.label.equals("q12")) {
+          long earliest = System.currentTimeMillis() + (mode.endsWith("on") ? 2500 : 0);
+          long boundary = (earliest / 10000 + 1) * 10000 + 500;
+          while (System.currentTimeMillis() < boundary) {
+            resources.sample();
+            Thread.sleep(10);
+          }
+        }
+        progressSeconds = (System.nanoTime() - start) / 1e9;
+        long checkpointStart = System.nanoTime();
+        settledCheckpointId =
+            cluster(job)
+                .triggerCheckpoint(
+                    job.getJobID(), org.apache.flink.core.execution.CheckpointType.CONFIGURED)
+                .get(120, TimeUnit.SECONDS);
+        checkpointSeconds = (System.nanoTime() - checkpointStart) / 1e9;
+        var checkpointStats =
+            cluster(job)
+                .getExecutionGraph(job.getJobID())
+                .get(10, TimeUnit.SECONDS)
+                .getCheckpointStatsSnapshot()
+                .getHistory()
+                .getCheckpointById(settledCheckpointId);
+        checkpointObservation =
+            !(checkpointStats
+                    instanceof org.apache.flink.runtime.checkpoint.CompletedCheckpointStats)
+                ? Map.of("id", settledCheckpointId)
+                : Map.of(
+                    "id", settledCheckpointId,
+                    "stateBytes", checkpointStats.getStateSize(),
+                    "checkpointedBytes", checkpointStats.getCheckpointedSize(),
+                    "durationMillis", checkpointStats.getEndToEndDuration());
+        job.stopWithSavepoint(
+                true, trialPath.resolve("savepoint").toUri().toString(), SavepointFormatType.NATIVE)
+            .get(120, TimeUnit.SECONDS);
+        job.getJobExecutionResult().get(120, TimeUnit.SECONDS);
       }
-      progressSeconds = (System.nanoTime() - start) / 1e9;
-      long checkpointStart = System.nanoTime();
-      settledCheckpointId =
-          cluster(job)
-              .triggerCheckpoint(
-                  job.getJobID(), org.apache.flink.core.execution.CheckpointType.CONFIGURED)
-              .get(120, TimeUnit.SECONDS);
-      checkpointSeconds = (System.nanoTime() - checkpointStart) / 1e9;
-      var checkpointStats =
-          cluster(job)
-              .getExecutionGraph(job.getJobID())
-              .get(10, TimeUnit.SECONDS)
-              .getCheckpointStatsSnapshot()
-              .getHistory()
-              .getCheckpointById(settledCheckpointId);
-      checkpointObservation =
-          !(checkpointStats instanceof org.apache.flink.runtime.checkpoint.CompletedCheckpointStats)
-              ? Map.of("id", settledCheckpointId)
-              : Map.of(
-                  "id", settledCheckpointId,
-                  "stateBytes", checkpointStats.getStateSize(),
-                  "checkpointedBytes", checkpointStats.getCheckpointedSize(),
-                  "durationMillis", checkpointStats.getEndToEndDuration());
-      job.stopWithSavepoint(
-              true, trialPath.resolve("savepoint").toUri().toString(), SavepointFormatType.NATIVE)
-          .get(120, TimeUnit.SECONDS);
-      job.getJobExecutionResult().get(120, TimeUnit.SECONDS);
       finished = true;
     } finally {
       if (!finished) {
@@ -517,7 +590,8 @@ class IcebergNexmarkBenchmark {
       }
     }
     if (nativeMode) {
-      assertTrue(completion.nativeTasks() > 0, "no native Parquet task executed");
+      if (!KAFKA_SOURCE)
+        assertTrue(completion.nativeTasks() > 0, "no native Parquet task executed");
       assertEquals(
           0, completion.fallbackTasks(), "benchmark must expose a native Parquet source boundary");
       for (String file : dataFiles)
@@ -546,6 +620,7 @@ class IcebergNexmarkBenchmark {
     observation.put("checkpointStatsPublished", checkpointObservation.containsKey("stateBytes"));
     observation.put("nativeQuery", nativeQuery);
     observation.put("nativeIcebergIo", nativeMode);
+    observation.put("source", KAFKA_SOURCE ? "kafka-json" : "iceberg");
     observation.put(
         "timingPhases",
         Map.of(
@@ -555,6 +630,7 @@ class IcebergNexmarkBenchmark {
     observation.put("resources", resourceObservation);
     observation.put("rocksDBObserved", backendObserved);
     observation.put("fingerprint", fingerprint);
+    if (query.label.equals("q12")) observation.put("processingTimeCounts", processingTimeCounts);
     observation.put("sourceCount", completion.sourceCount());
     observation.put("nativeSourceCount", completion.nativeSourceCount());
     observation.put("nativeWriterCount", completion.nativeWriterCount());
@@ -615,6 +691,21 @@ class IcebergNexmarkBenchmark {
     try (var files = Files.list(rocks)) {
       return files.findAny().isPresent();
     }
+  }
+
+  // Same schema, wire format, offsets, poll size and views as the headline Kafka harness.
+  private void kafkaInput(StreamTableEnvironment sql) {
+    sql.executeSql(
+        "CREATE TABLE src ("
+            + NexmarkKafkaBenchmark.SCHEMA
+            + ", rowtime AS TO_TIMESTAMP_LTZ(`dateTime`, 3), WATERMARK FOR rowtime AS rowtime -"
+            + " INTERVAL '4' SECOND) WITH ('connector' = 'kafka', 'topic' = 'nexmark',"
+            + " 'properties.bootstrap.servers' = '"
+            + brokers
+            + "', 'properties.group.id' = 'nexmark', 'properties.max.poll.records' = '8192',"
+            + " 'scan.startup.mode' = 'earliest-offset',"
+            + " 'scan.bounded.mode' = 'latest-offset', 'format' = 'json')");
+    NexmarkMatrixBenchmark.registerEventViews(sql);
   }
 
   private void input(StreamTableEnvironment sql, String kind) {
@@ -704,11 +795,24 @@ class IcebergNexmarkBenchmark {
       }
     }
     if (query.equals("q12")) {
-      assertEquals(
-          bidCounts, proctime, "PROCTIME windows must conserve each bidder's complete corpus");
+      processingTimeCounts = Map.copyOf(proctime);
+      if (KAFKA_SOURCE) {
+        // Finite-offset streaming leaves unfinished processing-time windows open, as stock Flink
+        // does.
+        for (var entry : proctime.entrySet())
+          assertTrue(
+              entry.getValue() >= 0
+                  && entry.getValue() <= bidCounts.getOrDefault(entry.getKey(), 0L),
+              "processing-time output exceeds its bidder's input count");
+      } else
+        assertEquals(
+            bidCounts, proctime, "PROCTIME windows must conserve each bidder's complete corpus");
       return new Fingerprint(
           bidCounts.values().stream().mapToLong(Long::longValue).sum(),
-          List.of("processing-time count conservation"));
+          List.of(
+              KAFKA_SOURCE
+                  ? "processing-time emitted counts bounded by input; unfinished windows excluded"
+                  : "processing-time count conservation"));
     }
     return new Fingerprint(
         count, Arrays.stream(sums).mapToObj(value -> Long.toUnsignedString(value, 16)).toList());
