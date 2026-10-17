@@ -414,6 +414,14 @@ per-query table, baseline sweep, controlled shutdown experiment and profiles.
 
 ## Iceberg streaming comparison
 
+The fresh [Kafka-to-Iceberg RocksDB/off suite](benchmarks/kafka-iceberg-final-20261017/README.md)
+completes all 23 queries and 120 paired validations: repeated-median geometric
+means are **1.44× exact SQL** and **1.47× with the README variants** over stock
+Flink. It uses four Kafka partitions, four-bucket output tables, 512 MiB managed
+memory across four slots, one warmup and three alternating measured pairs.
+All regressions, ranges and configuration differences from historical runs are retained.
+
+
 The separate Kafka JSON → Iceberg comparison uses the unchanged Kafka corpus and
 views with four topic partitions, parallelism four and four-bucket Iceberg output
 tables. Select the input with `SF_ICEBERG_SOURCE=kafka`; for the RocksDB,

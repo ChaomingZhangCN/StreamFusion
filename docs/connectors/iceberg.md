@@ -420,3 +420,9 @@ outputs, including real identifier-field upserts for updating queries. It suppor
 the same exact and separately labelled expression variants. Its finite-offset
 streaming completion includes final sink commits and differs from the continuous
 Iceberg-input suite's explicit checkpoint and draining savepoint.
+
+The fresh [Kafka-to-Iceberg RocksDB/off suite](../benchmarks/kafka-iceberg-final-20261017/README.md)
+passes all 23 queries and 120 paired validations, with median-speedup geometric
+means **1.44× exact SQL / 1.47× README variants**. It uses four Kafka partitions,
+four-bucket outputs, equal 4 GiB heaps and 512 MiB managed memory across four slots.
+The report retains q0/q5/q19 regressions and large state-heavy timing ranges.
