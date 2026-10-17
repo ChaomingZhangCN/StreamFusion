@@ -43,4 +43,6 @@ mvn -B -ntp -f "${REPO_ROOT}/pom.xml" -Piceberg,iceberg-nexmark,bench \
   -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.javadoc.skip=true -Dnative.build.skip=true \
   "-Dnative.resource.directory=${staged}" "-Dsf.extraJvmArgs=-Djava.library.path='${staged}' -Xmx${SF_ICEBERG_JAVA_HEAP:-4g}" \
   test 2>&1 | tee "${SF_ICEBERG_ARTIFACTS}/run.log"
-python3 "${REPO_ROOT}/bin/report-iceberg.py" "${SF_ICEBERG_ARTIFACTS}"
+if [[ -z "${SF_ICEBERG_COMPLETED_CELLS:-}" ]]; then
+  python3 "${REPO_ROOT}/bin/report-iceberg.py" "${SF_ICEBERG_ARTIFACTS}"
+fi

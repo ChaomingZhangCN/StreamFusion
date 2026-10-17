@@ -258,6 +258,15 @@ peaks, not exhaustive allocation maxima. RSS includes Java and opaque native ret
 baseline RSS and effective maximum Java heap are recorded as well.
 `bin/report-iceberg.py <artifact-directory>` reports medians and ranges
 and rejects incomplete/unpaired measured repetitions or missing declared matrix cells.
+
+For interruption-safe execution, `bin/checkpoint-iceberg.py <evidence-directory>` runs
+the same matrix and retains each complete cell (its warmup and all three paired
+measurements). `--push upstream` commits and pushes these checkpoints on the current
+branch. Resume with the same command: completed cells are skipped, while an interrupted
+cell is rerun in full, including its warmup. Each cohort records its own input snapshot
+IDs and environment; both engines within a pair share the same files. Plans, graphs,
+table metadata and checkpoint sizes are retained without committing the Parquet corpus
+or savepoint payloads. Final reporting requires every declared cell across the cohorts.
 Exact-query aggregates report geometric mean ratios per mode and nominal corpus-event
 throughput; labelled expression variants remain separate.
 It also reports the headline sampling convention (first memory sample, best of the first

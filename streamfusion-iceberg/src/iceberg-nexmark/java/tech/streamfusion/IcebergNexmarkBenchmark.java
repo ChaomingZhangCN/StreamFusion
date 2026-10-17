@@ -126,6 +126,13 @@ class IcebergNexmarkBenchmark {
         }
       }
       metadata.put("expectedCells", expected);
+      var completed = new HashSet<List<String>>();
+      String completedPath = System.getenv("SF_ICEBERG_COMPLETED_CELLS");
+      if (completedPath != null)
+        for (String line : Files.readAllLines(Path.of(completedPath)))
+          completed.add(Arrays.asList(JSON.readValue(line, String[].class)));
+      assertTrue(expected.containsAll(completed), "resume cells must belong to this matrix");
+      metadata.put("resumedCells", completed);
       Files.writeString(
           artifacts.resolve("method.json"),
           JSON.writerWithDefaultPrettyPrinter().writeValueAsString(metadata));
@@ -139,6 +146,7 @@ class IcebergNexmarkBenchmark {
         for (String mode : List.of("memory-off", "memory-on", "disk-off", "disk-on")) {
           if (!modes.contains(mode)) continue;
           for (var variant : variants.entrySet()) {
+            if (completed.contains(List.of(query.label, mode, variant.getKey()))) continue;
             for (int trial = -WARMUPS; trial < RUNS; trial++) {
               var pair = new HashMap<Boolean, Fingerprint>();
               for (boolean nativeMode :
@@ -165,6 +173,13 @@ class IcebergNexmarkBenchmark {
                       trial,
                       "matched",
                       true));
+            }
+            String acknowledgement = System.getenv("SF_ICEBERG_CELL_ACK_DIRECTORY");
+            if (acknowledgement != null) {
+              Path ack = Path.of(acknowledgement, query.label + "-" + mode + "-" + variant.getKey());
+              long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
+              while (!Files.exists(ack) && System.nanoTime() < deadline) Thread.sleep(100);
+              assertTrue(Files.exists(ack), "evidence checkpoint acknowledgement timed out");
             }
           }
         }
