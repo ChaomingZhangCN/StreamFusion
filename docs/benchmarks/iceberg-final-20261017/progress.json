@@ -1,9 +1,9 @@
 {
-  "completedCells": 27,
+  "completedCells": 28,
   "expectedCells": 120,
   "lastCell": [
     "q7",
-    "disk-off",
+    "disk-on",
     "exact"
   ]
 }
