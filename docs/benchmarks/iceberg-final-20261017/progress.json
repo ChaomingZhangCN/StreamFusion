@@ -1,9 +1,9 @@
 {
-  "completedCells": 77,
+  "completedCells": 78,
   "expectedCells": 120,
   "lastCell": [
     "q18",
-    "memory-off",
+    "memory-on",
     "exact"
   ]
 }
