@@ -428,7 +428,7 @@ SF_ICEBERG_SOURCE=kafka SF_ICEBERG_MODES=disk-off \
 
 Use JDK 17. This command gives both engines 512 MiB managed memory across four
 slots (128 MiB per slot), matching the historical disk/Paimon diagnostic. Both engines run in streaming mode with the same earliest-to-latest
-finite Kafka offsets, 8,192-record poll setting, UTC session zone, one-second
+finite Kafka offsets, 8,192-record poll setting, `UTC` IANA session zone, one-second
 checkpoints and Iceberg writer settings. Timings include planning/submission,
 consumption, query/state/shuffle work and the final Iceberg commit; input production
 and committed-output readback are untimed. Updating queries use identifier-field

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.Configuration;
@@ -123,6 +123,7 @@ class IcebergNexmarkBenchmark {
               ? "four-partition Kafka JSON topic; earliest to captured latest offsets"
               : "four-bucket Iceberg input tables");
       metadata.put("runtimeMode", "STREAMING");
+      metadata.put("sessionTimeZone", "UTC");
       metadata.put(
           "watermarks",
           KAFKA_SOURCE
@@ -427,7 +428,7 @@ class IcebergNexmarkBenchmark {
     env.enableCheckpointing(1000);
     env.getConfig().enableObjectReuse();
     var sql = StreamTableEnvironment.create(env);
-    sql.getConfig().setLocalTimeZone(ZoneOffset.UTC);
+    sql.getConfig().setLocalTimeZone(ZoneId.of("UTC"));
     var tableConfig = sql.getConfig().getConfiguration();
     tableConfig.setString("state.backend.type", config.getString("state.backend.type", "hashmap"));
     tableConfig.setString(

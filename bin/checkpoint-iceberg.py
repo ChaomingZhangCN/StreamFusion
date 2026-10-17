@@ -113,6 +113,9 @@ def main():
                     if previous.get('managedMemory', 'cluster default') != method.get('managedMemory', 'cluster default'):
                         process.terminate()
                         raise RuntimeError('Resume changed managed memory')
+                    if previous.get('sessionTimeZone') != method.get('sessionTimeZone'):
+                        process.terminate()
+                        raise RuntimeError('Resume changed session time-zone configuration')
                     if previous.get('source', 'iceberg') != method.get('source', 'iceberg'):
                         process.terminate()
                         raise RuntimeError('Resume changed source')
