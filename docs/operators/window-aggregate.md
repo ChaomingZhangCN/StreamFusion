@@ -101,7 +101,8 @@ companion `COUNT(*)`; groups whose rows have all retracted produce no window res
 The existing window assignment, filtering and changelog restrictions still apply.
 
 SQL comparisons cover single/local-global TUMBLE, HOP and CUMULATE, NULL-only keys,
-independent filters, and signed input with complete group removal. Recovery covers string
+independent filters, and signed input with complete group removal. Mixed timestamp COUNT/MIN/MAX
+regressions also require native execution in both aggregation phases. Recovery covers string
 counts alongside extrema and BOOLEAN/TIME counts across raw checkpoints and canonical
 memory/RocksDB transitions. Thirty-six release Criterion fixtures compare an independent
 validity-by-key oracle at 128/4096 rows, one/64/1024 keys, NULL-only keys, 8/256-byte strings,

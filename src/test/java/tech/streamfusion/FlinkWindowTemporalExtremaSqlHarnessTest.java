@@ -157,10 +157,10 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void ordinaryTemporalCountRetainsItsSeparateTypeGate(String phase) {
+  void ordinaryTemporalCountSharesTypedExtremaWindows(String phase) {
     var runs = NativeFailureParity.run(() -> environment(phase, 9, "UTC", false),
         sql("TUMBLE", "COUNT(tv), MIN(tv), MAX(lv)"));
-    runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
     assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
   }
 
