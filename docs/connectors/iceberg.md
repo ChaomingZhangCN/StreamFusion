@@ -80,7 +80,8 @@ initialization or file creation, changing only data-file encoding. Java writes a
 Dynamic controls use typed handles for the pinned released record contract. A task-local
 cache holds at most 1,024 immutable resolved targets, keyed by actual schema/spec identity,
 table, branch, writer key, upsert mode and copied equality IDs. It retains no payload
-views. Route labels use one lookup per row. The host selector LRU also keeps its original
+views. Schema/spec encodings and row types remain batch-scoped, so target-cache eviction
+does not repeatedly encode the same batch metadata. Route labels use one lookup per row. The host selector LRU also keeps its original
 capacity and metadata invalidation: only bucket selectors whose maximum tuple cardinality (including nulls) fits
 1,024 entries gain bounded exact-result reuse. Cache misses call the original writer-key selector;
 round-robin, equality-only, unbounded and large-cardinality selectors remain unchanged. Java still applies

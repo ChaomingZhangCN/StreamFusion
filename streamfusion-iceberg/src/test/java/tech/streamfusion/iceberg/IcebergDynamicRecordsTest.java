@@ -82,6 +82,28 @@ class IcebergDynamicRecordsTest {
   }
 
   @Test
+  void targetEvictionDoesNotRepeatedlyEncodeTheSameBatchMetadata() {
+    var cache = new IcebergDynamicRecords.Targets(2);
+    var initial = target("bench.first", "main", SCHEMA, SPEC, 3, false, Set.of());
+    var first =
+        cache.resolve(IcebergDynamicRecords.record(initial, SCHEMA, SPEC, GenericRowData.of(1)));
+    for (int i = 0; i < 64; i++) {
+      var next = target("bench.t" + i, "main", SCHEMA, SPEC, i, false, Set.of());
+      var resolved =
+          cache.resolve(IcebergDynamicRecords.record(next, SCHEMA, SPEC, GenericRowData.of(i)));
+      assertSame(first.target().schemaJson(), resolved.target().schemaJson());
+      assertSame(first.target().specJson(), resolved.target().specJson());
+      assertSame(first.rowType(), resolved.rowType());
+    }
+    cache.clearBatchMetadata();
+    var next = target("bench.next", "main", SCHEMA, SPEC, 7, false, Set.of());
+    var resolved =
+        cache.resolve(IcebergDynamicRecords.record(next, SCHEMA, SPEC, GenericRowData.of(2)));
+    assertEquals(first.target().schemaJson(), resolved.target().schemaJson());
+    assertNotSame(first.target().schemaJson(), resolved.target().schemaJson());
+  }
+
+  @Test
   void copiesMutableEqualitySetsBeforeCachingAndBoundsRetention() throws Exception {
     var target = target("bench.t", "main", SCHEMA, SPEC, 3, true, Set.of(1));
     Object record = IcebergDynamicRecords.record(target, SCHEMA, SPEC, GenericRowData.of(1));

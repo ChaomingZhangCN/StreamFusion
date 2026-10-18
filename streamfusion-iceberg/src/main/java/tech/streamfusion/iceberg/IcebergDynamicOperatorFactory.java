@@ -117,6 +117,7 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
               currentType[0] = dynamic == null ? inputType : FlinkSchemaUtil.convert(schema);
               ColumnarRecordMetrics.countIngested(host.getMetricGroup(), batch.rowCount());
               routes.clear();
+              targets.clearBatchMetadata();
               long route;
               try (var root = batch.root()) {
                 labels[0] = new int[root.getRowCount()];
@@ -172,6 +173,7 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
                           });
               IcebergArrowRouting.emit(route, (StreamRecord) input, routed, host.getMetricGroup());
               routes.clear();
+              targets.clearBatchMetadata();
               return null;
             });
   }

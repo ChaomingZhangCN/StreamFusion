@@ -113,3 +113,9 @@ Source inspiration is the released Iceberg `HashKeyGenerator` selector LRU and t
 writer mapping, together with StreamFusion's existing exact integer-partition cache.
 The adapter inspects only the pinned released partition-selector shape; it does not
 reimplement Iceberg's table hash, equality-key encoding or partition path representation.
+
+Schema/spec JSON encodings and derived Flink row types remain scoped to the current input batch, as in the original
+adapter. Evicting the bounded persistent target cache does not clear those encodings
+mid-batch: cycling through more destinations than the target cache can hold must not
+serialize the same schema/spec or rebuild its row type on every miss. The encodings clear at batch boundaries;
+only the bounded resolved targets survive between batches.

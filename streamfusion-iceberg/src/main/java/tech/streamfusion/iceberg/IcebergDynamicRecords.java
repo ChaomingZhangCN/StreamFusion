@@ -60,11 +60,13 @@ final class IcebergDynamicRecords {
 
   record Resolved(IcebergDynamicBatch.Target target, RowType rowType) {}
 
+  private record Layout(String json, RowType rowType) {}
+
   /** Derived immutable metadata only; never caches a host control record or its borrowed row. */
   static final class Targets {
     private final int capacity;
     private final Map<Control, Resolved> targets = new HashMap<>();
-    private final Map<Schema, String> schemas = new IdentityHashMap<>();
+    private final Map<Schema, Layout> schemas = new IdentityHashMap<>();
     private final Map<PartitionSpec, String> specs = new IdentityHashMap<>();
 
     Targets() {
@@ -75,6 +77,11 @@ final class IcebergDynamicRecords {
       if (capacity < 1)
         throw new IllegalArgumentException("Positive metadata cache capacity required");
       this.capacity = capacity;
+    }
+
+    void clearBatchMetadata() {
+      schemas.clear();
+      specs.clear();
     }
 
     @SuppressWarnings("unchecked")
@@ -93,19 +100,21 @@ final class IcebergDynamicRecords {
         if (cached != null) return cached;
         if (targets.size() >= capacity) {
           targets.clear();
-          schemas.clear();
-          specs.clear();
         }
+        var layout =
+            schemas.computeIfAbsent(
+                control.schema(),
+                schema -> new Layout(SchemaParser.toJson(schema), FlinkSchemaUtil.convert(schema)));
         var target =
             new IcebergDynamicBatch.Target(
                 control.table(),
                 control.branch(),
-                schemas.computeIfAbsent(control.schema(), SchemaParser::toJson),
+                layout.json(),
                 specs.computeIfAbsent(control.spec(), PartitionSpecParser::toJson),
                 control.writerKey(),
                 control.upsert(),
                 control.equalityFields());
-        var resolved = new Resolved(target, FlinkSchemaUtil.convert(control.schema()));
+        var resolved = new Resolved(target, layout.rowType());
         // Host equality sets may be mutable. Only the transient lookup borrows them.
         targets.put(
             new Control(
