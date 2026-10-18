@@ -99,6 +99,11 @@ public final class NativeConfig {
     return booleanValue("streamfusion.experimental.metadataExpressions", true);
   }
 
+  /** A lone row-source changelog filter cannot repay a row/Arrow round trip. */
+  public static boolean standaloneDropUpdateBeforeEnabled() {
+    return booleanValue("streamfusion.dropUpdateBefore.standalone.enabled", false);
+  }
+
   /** Diagnostic escape hatch for comparing the legacy synchronous memory-checkpoint path. */
   public static boolean asyncMemorySnapshotsEnabled() {
     return booleanValue("streamfusion.state.asyncMemorySnapshots.enabled", true);

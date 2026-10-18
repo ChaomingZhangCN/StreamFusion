@@ -2090,3 +2090,8 @@ impl StringOverReduction {
         self.0.emit()
     }
 }
+
+/// Production changelog metadata filter; includes mask construction and Arrow filtering.
+pub fn drop_update_before(batch: &RecordBatch) -> RecordBatch {
+    crate::changelog_filter::drop_update_before(batch)
+}

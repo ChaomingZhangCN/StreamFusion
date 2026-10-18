@@ -34,6 +34,7 @@ mod append_buffer;
 mod bridge;
 mod bucket_route;
 mod calc;
+mod changelog_filter;
 mod dedup;
 mod exchange;
 mod expr;

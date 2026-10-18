@@ -70,9 +70,10 @@ that error. Multi-operand UNNEST also remains subject to the released host plann
 An unsupported shape falls the operator back, dragging the whole query with it per the
 [all-or-nothing island rule](index.md#the-all-or-nothing-island). See
 [Unsupported operators](unsupported.md) for the full accounting of these cases.
-This includes an updating source whose surrounding plan inserts the currently unsupported
-[`DropUpdateBefore`](https://github.com/datafusion-contrib/StreamFusion/issues/239) node, even when
-the UNNEST operand and its value types are otherwise admitted.
+An updating source may insert [DropUpdateBefore](drop-update-before.md) before UNNEST when its
+consumer omits update-before images. That surrounding filter runs columnarly inside the native
+chain and no longer prevents an otherwise admitted UNNEST from accelerating. Its page records
+exact changelog/recovery validation and complete-job comparisons against the preceding fallback.
 
 ## JVM table functions
 

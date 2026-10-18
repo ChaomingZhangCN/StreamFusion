@@ -1,0 +1,1539 @@
+{
+  "purpose": "Complete-job validation of DropUpdateBefore inside updating UNNEST pipelines and the conservative standalone row-source gate",
+  "baseline_commit": "a6ccfaefd901e3dbca5c0052c1d29cc9f3862bd2",
+  "flink_version": "2.2.1",
+  "java_version": "17",
+  "native_library_sha256": "803e0f0cbc25b351dbe3f0fe408d306dfd5f5ca2ff30f7c6edc2c4a40d8f4823",
+  "prior_native_library_sha256": "a6bef8b5b9b14fd76c0fab68a573d535edf095ef54df71dfbe5000f769e1b6bb",
+  "fixture": "src/test/java/tech/streamfusion/ComputedUnnestBenchmark.java",
+  "fixture_sha256": "47cbeccc21fb012a2b51fc85465aaaee319d4cffefa67c257b19500686737bbb",
+  "configuration": {
+    "maven_profile": "bench",
+    "java_heap": "2g",
+    "parallelism": 1,
+    "transpose_batch_rows": 1024,
+    "zero_copy_local": false,
+    "timezone": "America/New_York",
+    "warmups_per_engine": 2,
+    "measured_trials_per_engine": 3,
+    "alternating_engine_order": true,
+    "one_fresh_JVM_per_profile": true,
+    "native_build": "release with mimalloc",
+    "source": "rowwise fromSequence/map, BIGINT and ARRAY<BIGINT>, advertised ChangelogMode.all()",
+    "sink": "rowwise blackhole",
+    "other_builds_tests_timings": "none during complete-job timing"
+  },
+  "notes": [
+    "Both production row/Arrow transposes are asserted for native UNNEST plans; NativeDropUpdateBefore, NativeCalc and NativeUnnest must consume rows. Previous and final standalone fallback plans assert zero substitutions.",
+    "allKinds=false preserves the original reproduction: actual INSERT and DELETE rows while advertising all kinds. allKinds=true emits repeating INSERT/UPDATE_BEFORE/UPDATE_AFTER/DELETE for each original row.",
+    "The initial standalone native loss is retained. The shipped default avoids that Arrow round trip. Reproduce its native behavior with unnest.standaloneNative=true, which sets streamfusion.dropUpdateBefore.standalone.enabled=true.",
+    "Initial standalone results used the same production filter before the default standalone gate was added; the query, data and resources were unchanged.",
+    "Candidate and prior phases each retain their own paired stock controls. Their JVM and startup variability is visible in the individual trials; short-job differences are not claims of isolated kernel throughput.",
+    "Two additional profiled jobs are diagnostics only and are recorded separately; their elapsed times are excluded here.",
+    "The committed fixture was formatted after timing; timed_fixture_sha256 records the measured source, and fixture_sha256 records the formatted source. Only whitespace and equivalent string-literal wrapping changed."
+  ],
+  "job_count": 150,
+  "profiles": [
+    {
+      "phase": "initial_native",
+      "profile_index": 6,
+      "parameters": {
+        "operand": "identity",
+        "left": false,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 0.475592715,
+          "minimum": 0.474710748,
+          "maximum": 0.488789528,
+          "trials": [
+            0.488789528,
+            0.474710748,
+            0.475592715
+          ]
+        },
+        "StreamFusion": {
+          "median": 0.712563335,
+          "minimum": 0.710604195,
+          "maximum": 0.719643079,
+          "trials": [
+            0.710604195,
+            0.712563335,
+            0.719643079
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.066579985
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.222824993
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.780863731
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.495357084
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.488789528
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.710604195
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.712563335
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.474710748
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.475592715
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.719643079
+        }
+      ],
+      "log_sha256": "1135ada7b6a01d7d29a0aa2906fea0cc9db77b4d4562d276f2d1928637051c12"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 0,
+      "parameters": {
+        "operand": "date_days",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 2.311291826,
+          "minimum": 2.311122806,
+          "maximum": 2.332487844,
+          "trials": [
+            2.311122806,
+            2.332487844,
+            2.311291826
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.46555236,
+          "minimum": 1.455161754,
+          "maximum": 1.48666338,
+          "trials": [
+            1.48666338,
+            1.455161754,
+            1.46555236
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.894286297
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.996103479
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.609557768
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.344839934
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.311122806
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.48666338
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.455161754
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.332487844
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.311291826
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.46555236
+        }
+      ],
+      "log_sha256": "c3f149e3ed741d8b7302eb17be23591ce1e46e1385808c7dae7ed6a714b4faa8"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 1,
+      "parameters": {
+        "operand": "literal",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.570424877,
+          "minimum": 1.541050043,
+          "maximum": 1.623140572,
+          "trials": [
+            1.623140572,
+            1.570424877,
+            1.541050043
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.096226921,
+          "minimum": 1.090101002,
+          "maximum": 1.149732865,
+          "trials": [
+            1.149732865,
+            1.096226921,
+            1.090101002
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.157621227
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.555494656
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.205635039
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.655143799
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.623140572
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.149732865
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.096226921
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.570424877
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.541050043
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.090101002
+        }
+      ],
+      "log_sha256": "02689de969147b9893377717983efcc819305c9b15da3bab2141f65a1bf8b6da"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 2,
+      "parameters": {
+        "operand": "append",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 2000000,
+        "keys": 64,
+        "width": 16
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 4.11904694,
+          "minimum": 3.994440725,
+          "maximum": 4.124569684,
+          "trials": [
+            4.124569684,
+            4.11904694,
+            3.994440725
+          ]
+        },
+        "StreamFusion": {
+          "median": 2.419484518,
+          "minimum": 2.41049791,
+          "maximum": 2.426497861,
+          "trials": [
+            2.426497861,
+            2.41049791,
+            2.419484518
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 4.920311187
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.873159107
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.466944277
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 4.099561029
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 4.124569684
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.426497861
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.41049791
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 4.11904694
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.994440725
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.419484518
+        }
+      ],
+      "log_sha256": "96ee30815730e67597c1b5adab5c3713f12d2995c287d71a352f33c673e7ea35"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 3,
+      "parameters": {
+        "operand": "date_days",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.803694883,
+          "minimum": 1.793129152,
+          "maximum": 1.825007212,
+          "trials": [
+            1.825007212,
+            1.803694883,
+            1.793129152
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.536461272,
+          "minimum": 1.504317621,
+          "maximum": 1.614369871,
+          "trials": [
+            1.614369871,
+            1.536461272,
+            1.504317621
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.511311427
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.067363701
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.680580108
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.861529075
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.825007212
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.614369871
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.536461272
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.803694883
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.793129152
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.504317621
+        }
+      ],
+      "log_sha256": "b43a62709ef269d2198be0f887afbfbdd95eb643856d41f5845d3ab55ca5692c"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 4,
+      "parameters": {
+        "operand": "literal",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.270725256,
+          "minimum": 1.265541301,
+          "maximum": 1.309174195,
+          "trials": [
+            1.309174195,
+            1.265541301,
+            1.270725256
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.17753181,
+          "minimum": 1.1510093,
+          "maximum": 1.242925177,
+          "trials": [
+            1.242925177,
+            1.17753181,
+            1.1510093
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.902470968
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.63350117
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.271538364
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.369677597
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.309174195
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.242925177
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.17753181
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.265541301
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.270725256
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.1510093
+        }
+      ],
+      "log_sha256": "dd2269a01ac0764602bfc9bfad1e5e970e2a985222ecfaa6fb2636b84bcde49b"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 5,
+      "parameters": {
+        "operand": "append",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 2000000,
+        "keys": 64,
+        "width": 16
+      },
+      "streamfusion_route": "native columnar",
+      "summary_seconds": {
+        "Flink": {
+          "median": 3.359654625,
+          "minimum": 3.258660758,
+          "maximum": 3.494964789,
+          "trials": [
+            3.494964789,
+            3.359654625,
+            3.258660758
+          ]
+        },
+        "StreamFusion": {
+          "median": 2.138386408,
+          "minimum": 2.062307316,
+          "maximum": 2.163460843,
+          "trials": [
+            2.163460843,
+            2.138386408,
+            2.062307316
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.9581895
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.69408871
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.200899291
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.478427401
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.494964789
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.163460843
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.138386408
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.359654625
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.258660758
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.062307316
+        }
+      ],
+      "log_sha256": "b34f1022e1251d315e04680a5d3dca1f4d484b8d34c5437784fc9c0873aa8d3b"
+    },
+    {
+      "phase": "candidate",
+      "profile_index": 6,
+      "parameters": {
+        "operand": "identity",
+        "left": false,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 0.442472336,
+          "minimum": 0.42639956,
+          "maximum": 0.512495491,
+          "trials": [
+            0.512495491,
+            0.442472336,
+            0.42639956
+          ]
+        },
+        "StreamFusion": {
+          "median": 0.435958491,
+          "minimum": 0.42542365,
+          "maximum": 0.442201283,
+          "trials": [
+            0.435958491,
+            0.442201283,
+            0.42542365
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.071723909
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.519899591
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.416877857
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.423383657
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.512495491
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.435958491
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.442201283
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.442472336
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.42639956
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.42542365
+        }
+      ],
+      "log_sha256": "e859ea1cc5d5bd881698155da350bdda53c21f7a00647f28489eee3684e25f6d"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 0,
+      "parameters": {
+        "operand": "date_days",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 2.176196209,
+          "minimum": 2.151133356,
+          "maximum": 2.221655443,
+          "trials": [
+            2.176196209,
+            2.221655443,
+            2.151133356
+          ]
+        },
+        "StreamFusion": {
+          "median": 2.196390919,
+          "minimum": 2.1871601,
+          "maximum": 2.213305975,
+          "trials": [
+            2.196390919,
+            2.213305975,
+            2.1871601
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.843215423
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.219896203
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.226743198
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.243851041
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.176196209
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.196390919
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.213305975
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.221655443
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.151133356
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.1871601
+        }
+      ],
+      "log_sha256": "d4eec1b2b9dd19c3d20d1fb4b2caee33a75a2e5fc71c8cef79bbeb4de54de689"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 1,
+      "parameters": {
+        "operand": "literal",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.501467109,
+          "minimum": 1.441281482,
+          "maximum": 1.511117789,
+          "trials": [
+            1.501467109,
+            1.441281482,
+            1.511117789
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.507148547,
+          "minimum": 1.431872913,
+          "maximum": 1.510211603,
+          "trials": [
+            1.507148547,
+            1.510211603,
+            1.431872913
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.200416995
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.623540667
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.532899854
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.527620782
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.501467109
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.507148547
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.510211603
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.441281482
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.511117789
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.431872913
+        }
+      ],
+      "log_sha256": "8a112b3de6dacb6ec36e203a93918fc024ee363bbb10d42f401ba02441dd69f8"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 2,
+      "parameters": {
+        "operand": "append",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": false,
+        "rows": 2000000,
+        "keys": 64,
+        "width": 16
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 4.536274429,
+          "minimum": 4.453634057,
+          "maximum": 4.568689301,
+          "trials": [
+            4.536274429,
+            4.568689301,
+            4.453634057
+          ]
+        },
+        "StreamFusion": {
+          "median": 4.712261316,
+          "minimum": 4.522282611,
+          "maximum": 4.73004749,
+          "trials": [
+            4.712261316,
+            4.73004749,
+            4.522282611
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 5.239303468
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 4.737602856
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 4.554939148
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 4.501326418
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 4.536274429
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 4.712261316
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 4.73004749
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 4.568689301
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 4.453634057
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 4.522282611
+        }
+      ],
+      "log_sha256": "7cff94913d61695b342fd8090ceb3b5eba90a58916d1266138b98885bc919f83"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 3,
+      "parameters": {
+        "operand": "date_days",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.804129728,
+          "minimum": 1.726705244,
+          "maximum": 1.807237603,
+          "trials": [
+            1.807237603,
+            1.804129728,
+            1.726705244
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.785756894,
+          "minimum": 1.785167149,
+          "maximum": 1.800980089,
+          "trials": [
+            1.785756894,
+            1.785167149,
+            1.800980089
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.445203378
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.909389521
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.814739842
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.814971996
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.807237603
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.785756894
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.785167149
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.804129728
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.726705244
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.800980089
+        }
+      ],
+      "log_sha256": "3f6d244cf90cb6aa663e568df3754ac307687347219643203c48f7b04134d6ae"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 4,
+      "parameters": {
+        "operand": "literal",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 1.291187861,
+          "minimum": 1.223276314,
+          "maximum": 1.306443495,
+          "trials": [
+            1.291187861,
+            1.306443495,
+            1.223276314
+          ]
+        },
+        "StreamFusion": {
+          "median": 1.271680772,
+          "minimum": 1.196059084,
+          "maximum": 1.285566843,
+          "trials": [
+            1.285566843,
+            1.271680772,
+            1.196059084
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.897398091
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.5097287
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.355251288
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.316667858
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.291187861
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.285566843
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.271680772
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.306443495
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.223276314
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.196059084
+        }
+      ],
+      "log_sha256": "da2123ef0da70438ec24ce4d38aa217f65aea2ef98a80c6136cbea830c083c36"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 5,
+      "parameters": {
+        "operand": "append",
+        "left": true,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 2000000,
+        "keys": 64,
+        "width": 16
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 3.198690035,
+          "minimum": 3.19713868,
+          "maximum": 3.275155527,
+          "trials": [
+            3.275155527,
+            3.198690035,
+            3.19713868
+          ]
+        },
+        "StreamFusion": {
+          "median": 3.283627831,
+          "minimum": 3.278464256,
+          "maximum": 3.318258824,
+          "trials": [
+            3.318258824,
+            3.283627831,
+            3.278464256
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.956566847
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.403264708
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.289584699
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.26018669
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.275155527
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.318258824
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.283627831
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.198690035
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.19713868
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.278464256
+        }
+      ],
+      "log_sha256": "566abd4e4133d61bb3d2c75d37558609f015bd1c9c28125493d7a088ac074723"
+    },
+    {
+      "phase": "prior",
+      "profile_index": 6,
+      "parameters": {
+        "operand": "identity",
+        "left": false,
+        "grouped": false,
+        "updating": true,
+        "allKinds": true,
+        "rows": 4000000,
+        "keys": 65536,
+        "width": 2
+      },
+      "streamfusion_route": "stock fallback",
+      "summary_seconds": {
+        "Flink": {
+          "median": 0.443718776,
+          "minimum": 0.427356216,
+          "maximum": 0.44472906,
+          "trials": [
+            0.427356216,
+            0.443718776,
+            0.44472906
+          ]
+        },
+        "StreamFusion": {
+          "median": 0.426403096,
+          "minimum": 0.424254317,
+          "maximum": 0.545598258,
+          "trials": [
+            0.426403096,
+            0.545598258,
+            0.424254317
+          ]
+        }
+      },
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.064515025
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.524771854
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.421492833
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.424692863
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.427356216
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.426403096
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.545598258
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.443718776
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.44472906
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.424254317
+        }
+      ],
+      "log_sha256": "5cb9ba8c5d3831d48c2bfaff953af226f494c10c98958cd8421581f5f16c179c"
+    }
+  ],
+  "timed_fixture_sha256": "eb200fa84b89b322aa1f3178e1fbd1852e34e14f3148ab61529e0e03ab93a4a0"
+}

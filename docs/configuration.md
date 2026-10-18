@@ -12,9 +12,14 @@ serialized operator configuration rather than process-global state before a stab
 - **`-Dstreamfusion.operator.<name>.enabled=false`** — keep one operator on the host (e.g. leave a
   lone cheap `filter` on a row source, which can't earn back the transpose round-trip). A switch
   covers every shape that reaches the same native operator — e.g. `groupAggregate` also covers the
-  two-phase global half, `windowRank` also covers window deduplication. All default on.
+  two-phase global half, `windowRank` also covers window deduplication, and `dropUpdateBefore`
+  controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
+- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default false) — opt into a lone
+  row-source changelog filter that loses to stock Flink because of the two Arrow conversions.
+  Filters inside an admitted native pipeline retain ordinary admission. See
+  [drop update-before](operators/drop-update-before.md).
 - **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
   native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
   Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release

@@ -8,6 +8,7 @@ import org.apache.flink.api.common.accumulators.ListAccumulator;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
@@ -22,11 +23,17 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.RowKind;
 import tech.streamfusion.compat.RichSinkFunction;
 import tech.streamfusion.compat.SinkFunctionProvider;
 
-/** Small, checkpointed result sink for the in-process recovery parity tests. */
+/**
+ * Checkpointed result sink for recovery parity tests. The optional drop-update-before mode requests
+ * the same changelog edge as Flink's blackhole sink while capturing each retained event.
+ */
 public final class RecoveryResultTableFactory implements DynamicTableSinkFactory {
+  private static final ConfigOption<Boolean> DROP_UPDATE_BEFORE =
+      ConfigOptions.key("drop-update-before").booleanType().defaultValue(false);
   private static final String RESULTS = "streamfusion-recovery-results";
 
   static List<List<Object>> results(JobExecutionResult job, DataType type) throws Exception {
@@ -54,18 +61,23 @@ public final class RecoveryResultTableFactory implements DynamicTableSinkFactory
   public Set<ConfigOption<?>> requiredOptions() { return Set.of(); }
 
   @Override
-  public Set<ConfigOption<?>> optionalOptions() { return Set.of(); }
+  public Set<ConfigOption<?>> optionalOptions() { return Set.of(DROP_UPDATE_BEFORE); }
 
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
-    return new CaptureSink(context.getPhysicalRowDataType());
+    return new CaptureSink(
+        context.getPhysicalRowDataType(),
+        Boolean.parseBoolean(
+            context.getCatalogTable().getOptions().getOrDefault(DROP_UPDATE_BEFORE.key(), "false")));
   }
 
   private static final class CaptureSink implements DynamicTableSink {
     private final DataType type;
+    private final boolean dropUpdateBefore;
 
-    private CaptureSink(DataType type) {
+    private CaptureSink(DataType type, boolean dropUpdateBefore) {
       this.type = type;
+      this.dropUpdateBefore = dropUpdateBefore;
     }
 
     public DataType type() {
@@ -74,7 +86,12 @@ public final class RecoveryResultTableFactory implements DynamicTableSinkFactory
 
     @Override
     public ChangelogMode getChangelogMode(ChangelogMode requested) {
-      return requested;
+      if (!dropUpdateBefore) return requested;
+      var mode = ChangelogMode.newBuilder();
+      for (var kind : requested.getContainedKinds()) {
+        if (kind != RowKind.UPDATE_BEFORE) mode.addContainedKind(kind);
+      }
+      return mode.build();
     }
 
     @Override
@@ -84,7 +101,7 @@ public final class RecoveryResultTableFactory implements DynamicTableSinkFactory
 
     @Override
     public DynamicTableSink copy() {
-      return new CaptureSink(type);
+      return new CaptureSink(type, dropUpdateBefore);
     }
 
     @Override
@@ -97,13 +114,14 @@ public final class RecoveryResultTableFactory implements DynamicTableSinkFactory
       if (this == other) return true;
       if (other == null || getClass() != other.getClass()) return false;
       CaptureSink that = (CaptureSink) other;
-      return java.util.Objects.equals(type, that.type);
+      return java.util.Objects.equals(type, that.type) && dropUpdateBefore == that.dropUpdateBefore;
     }
 
     @Override
     public int hashCode() {
       int result = 0;
       result = 31 * result + java.util.Objects.hashCode(type);
+      result = 31 * result + Boolean.hashCode(dropUpdateBefore);
       return result;
     }
 

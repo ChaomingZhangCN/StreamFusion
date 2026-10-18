@@ -1,11 +1,13 @@
 //! Production transformations and stateful paths missing from the historical operator suite.
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, Int64Builder, ListBuilder, RecordBatch, StringArray};
+use arrow::array::{
+    ArrayRef, Int64Array, Int64Builder, Int8Array, ListBuilder, RecordBatch, StringArray,
+};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use streamfusion::bench::{
-    decode_ipc, encode_ipc, expand_grouping_sets, unnest, unnest_projected, ArrivalFirstN,
-    Projection, TemporalJoin, TemporalSort,
+    decode_ipc, drop_update_before, encode_ipc, expand_grouping_sets, unnest, unnest_projected,
+    ArrivalFirstN, Projection, TemporalJoin, TemporalSort,
 };
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 
@@ -35,6 +37,56 @@ fn batch(rows: usize, width: usize, keys: usize) -> RecordBatch {
         ),
     ])
     .unwrap()
+}
+
+fn changelog_filtering(c: &mut Criterion) {
+    header();
+    let mut group = c.benchmark_group("engine/drop_update_before");
+    for rows in [16, 1024, 16384] {
+        for width in [8, 264] {
+            for mode in ["no_kind", "retained", "mixed", "removed"] {
+                let input = batch(rows, width, 64);
+                let input = if mode == "no_kind" {
+                    input
+                } else {
+                    let kinds = Int8Array::from_iter_values((0..rows).map(|i| match mode {
+                        "retained" => [0, 2, 3][i % 3],
+                        "mixed" => (i % 4) as i8,
+                        "removed" => 1,
+                        _ => unreachable!(),
+                    }));
+                    let mut fields = input.schema().fields().to_vec();
+                    fields.push(Arc::new(arrow::datatypes::Field::new(
+                        "$row_kind$",
+                        arrow::datatypes::DataType::Int8,
+                        false,
+                    )));
+                    let mut columns = input.columns().to_vec();
+                    columns.push(Arc::new(kinds));
+                    RecordBatch::try_new(Arc::new(arrow::datatypes::Schema::new(fields)), columns)
+                        .unwrap()
+                };
+                let label = format!("{mode}/{rows}/bytes={width}");
+                let (output, allocations) = measure(|| drop_update_before(&input));
+                assert_eq!(
+                    output.num_rows(),
+                    match mode {
+                        "removed" => 0,
+                        "mixed" => rows - rows / 4,
+                        _ => rows,
+                    }
+                );
+                report(&label, input.columns(), output.columns(), allocations);
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| {
+                        std::hint::black_box(drop_update_before(std::hint::black_box(&input)))
+                    })
+                });
+            }
+        }
+    }
+    group.finish();
 }
 
 fn transformations(c: &mut Criterion) {
@@ -273,5 +325,5 @@ fn stateful(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, transformations, stateful);
+criterion_group!(benches, transformations, stateful, changelog_filtering);
 criterion_main!(benches);

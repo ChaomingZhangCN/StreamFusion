@@ -16,6 +16,7 @@ import org.apache.flink.table.api.config.OptimizerConfigOptions;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCalc;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalChangelogNormalize;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate;
+import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalDropUpdateBefore;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalExpand;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalGlobalGroupAggregate;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalGlobalWindowAggregate;
@@ -222,6 +223,15 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
       return root;
     }
+    if (substitutions == previousSubstitutions + 1
+        && !NativeConfig.standaloneDropUpdateBeforeEnabled()
+        && standaloneDropUpdateBefore(substituted)) {
+      substitutions = previousSubstitutions;
+      rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
+      recordFallback(
+          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow conversion overhead");
+      return root;
+    }
     // Pass 2 inserts a row↔columnar transpose at each perimeter edge (rowwise source/sink ↔
     // island).
     // Source sharing follows over every admitted root, after per-root fallbacks are settled.
@@ -295,6 +305,16 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
             .keyedState()
             .matching(GlobalGroupAggregateMatcher::matches)
             .reason(GlobalGroupAggregateMatcher::unsupportedReason)
+            .changelogSafe());
+
+    entries.add(
+        Substitution.of(
+                StreamPhysicalDropUpdateBefore.class,
+                "dropUpdateBefore",
+                (node, ctx) ->
+                    new StreamPhysicalNativeDropUpdateBefore(
+                        node.getCluster(), node.getTraitSet(), node.getInput()))
+            .matching(node -> FilterCalcMatcher.convertibleRow(node.getRowType()))
             .changelogSafe());
 
     // The MiniBatchAssigner emits the mini-batch marker that drives the local aggregate's bundle
@@ -825,6 +845,15 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
           producer.getCluster(), producer.getTraitSet(), producer);
     }
     return producer;
+  }
+
+  private static boolean standaloneDropUpdateBefore(RelNode node) {
+    if (node instanceof StreamPhysicalNativeDropUpdateBefore) {
+      return !emitsColumnar(node.getInput(0));
+    }
+    return !consumesColumnar(node)
+        && node.getInputs().size() == 1
+        && standaloneDropUpdateBefore(node.getInput(0));
   }
 
   /** Whether a rel produces Arrow batches (a native columnar operator, a columnar source, or a transpose). */

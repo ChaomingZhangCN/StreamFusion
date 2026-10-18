@@ -421,6 +421,10 @@ public final class Native {
       long proctimeNowMillis,
       long boundaryOffsetMillis);
 
+  /** Discards UPDATE_BEFORE rows while preserving the full Arrow schema and retained row order. */
+  public static native void dropUpdateBefore(
+      long inArrayAddress, long inSchemaAddress, long outArrayAddress, long outSchemaAddress);
+
   /**
    * Stateless GROUPING SETS / CUBE / ROLLUP expansion: fans each input row out to {@code
    * numExpandRows} output rows, one per grouping set. For output column {@code c} and expand row
