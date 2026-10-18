@@ -1,6 +1,6 @@
 use super::*;
 use arrow::array::{BooleanArray, Date32Array, Time32MillisecondArray};
-use streamfusion_bridge::timestamp::{TimestampValue, timestamp_array};
+use streamfusion_bridge::timestamp::{timestamp_array, TimestampValue};
 
 fn fixture(rows: usize, keys: usize, type_code: i64, width: usize) -> RecordBatch {
     let valid = |row: usize| row % 5 != 0 && (keys == 1 || row % keys != 0);

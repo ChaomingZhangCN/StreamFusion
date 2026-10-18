@@ -31,10 +31,10 @@ pub(crate) mod split_index;
 pub(crate) mod substring;
 pub(crate) mod to_date;
 
+mod array_constructor;
 mod array_distinct;
 pub(crate) mod array_item;
 mod array_slice;
-mod array_constructor;
 mod ascii;
 mod binary_strings;
 mod cardinality;

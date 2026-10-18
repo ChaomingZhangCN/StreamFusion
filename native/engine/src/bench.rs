@@ -1362,7 +1362,12 @@ pub fn unnest(batch: &RecordBatch, left: bool, ordinality: bool) -> RecordBatch 
     crate::flatten::unnest_array(batch, 1, ordinality, left, false)
 }
 
-pub fn unnest_projected(batch: &RecordBatch, left: bool, ordinality: bool, projection: &[usize]) -> RecordBatch {
+pub fn unnest_projected(
+    batch: &RecordBatch,
+    left: bool,
+    ordinality: bool,
+    projection: &[usize],
+) -> RecordBatch {
     crate::flatten::unnest_projected(batch, 1, ordinality, left, false, Some(projection))
 }
 
