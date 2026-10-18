@@ -21,6 +21,7 @@ use streamfusion::bench::{
 mod append_top1;
 mod floating_group;
 mod typed_distinct;
+mod window_counts;
 
 const ROWS: usize = 4096;
 
@@ -1724,6 +1725,7 @@ criterion_group!(
     bench_attached_windows,
     bench_exact_count_panes,
     bench_tumbling_string_extrema,
+    window_counts::bench,
     bench_group_by_string_key,
     bench_group_record_counter,
     bench_group_zero_sum,

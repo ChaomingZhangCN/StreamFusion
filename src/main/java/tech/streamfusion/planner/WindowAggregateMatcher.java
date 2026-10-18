@@ -380,6 +380,10 @@ final class WindowAggregateMatcher {
 
   static boolean supportedAggregateValueType(int kind, SqlTypeName type) {
     return supportedValueType(type)
+        || (kind == KIND_COUNT
+            && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
+                || type == SqlTypeName.DATE || type == SqlTypeName.TIME
+                || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)))
         || ((kind == KIND_MIN || kind == KIND_MAX)
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
                 || GroupAggregateMatcher.isTimestampType(type)));
@@ -838,7 +842,7 @@ final class WindowAggregateMatcher {
     if (!insertOnlyInput(node)) {
       return "window aggregate: retracting input supports only aligned event-time"
           + " TUMBLE/HOP/CUMULATE with grouping-only, numeric SUM/AVG,"
-          + " numeric COUNT(value), or COUNT(*) (optional FILTER)";
+          + " supported scalar COUNT(value), or COUNT(*) (optional FILTER)";
     }
     if (windowing instanceof WindowAttachedWindowingStrategy) {
       if (node instanceof StreamPhysicalWindowAggregate
@@ -867,7 +871,7 @@ final class WindowAggregateMatcher {
       }
     }
     return "window aggregate: requires a supported window/time and grouping-key type, and"
-        + " numeric SUM/MIN/MAX/COUNT/AVG, string/timestamp MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
+        + " numeric SUM/MIN/MAX/AVG, supported scalar COUNT, string/timestamp MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
         + " temporal values (docs/operators/window-aggregate.md)";
   }
 
@@ -899,6 +903,7 @@ final class WindowAggregateMatcher {
       if (call.getArgList().size() != 1) return false;
       SqlTypeName type =
           inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
+      if (kind == KIND_COUNT && supportedAggregateValueType(kind, type)) continue;
       if (kind == KIND_SUM_ZERO
           && !supportedZeroSumValue(inputType.getFieldList().get(call.getArgList().get(0)).getType())) {
         return false;

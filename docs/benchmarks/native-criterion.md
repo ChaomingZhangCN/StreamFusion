@@ -126,6 +126,11 @@ DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16
 They retain membership and widened sum/count work while keeping batch construction outside
 the timed update. SQL comparisons cover the exact changelog and checkpoint contract.
 
+Its `window_count_validity` group adds 36 scalar COUNT fixtures at 128/4096 rows and
+one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timestamps
+retain NULL-only groups and are checked against an independent per-key validity oracle.
+Batch construction stays outside the timed production window update/firing boundary.
+
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
 serialization, a held snapshot, and completion between input and firing. It has 128 fixtures.

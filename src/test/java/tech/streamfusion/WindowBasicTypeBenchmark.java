@@ -50,6 +50,11 @@ class WindowBasicTypeBenchmark {
       case "time": aggregate = "COUNT(DISTINCT clock)"; break;
       case "bigint": aggregate = "COUNT(v), AVG(v), SUM(v)"; break;
       case "decimal": aggregate = "COUNT(d), AVG(d), SUM(d)"; break;
+      case "count_string": aggregate = "COUNT(s)"; break;
+      case "count_timestamp": aggregate = "COUNT(t)"; break;
+      case "count_boolean": aggregate = "COUNT(b)"; break;
+      case "count_time": aggregate = "COUNT(clock)"; break;
+      case "count_date": aggregate = "COUNT(CAST(t AS DATE))"; break;
       default: throw new IllegalArgumentException("Unknown window.cases entry " + value);
     }
     String window;

@@ -57,7 +57,7 @@ class FlinkWindowStringExtremaSqlHarnessTest {
         table.getConfig().set("streamfusion.transpose.batchRows", "3");
         return table;
       };
-      String query = "SELECT k, window_start, window_end, MIN(s), MAX(s), COUNT(*) FROM TABLE("
+      String query = "SELECT k, window_start, window_end, MIN(s), MAX(s), COUNT(s), COUNT(*) FROM TABLE("
           + "HOP(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '1' SECOND, INTERVAL '2' SECOND)) "
           + "GROUP BY k, window_start, window_end";
       var runs = NativeFailureParity.runRecovery(() -> configure.apply(recovery.uninterrupted()),
@@ -97,12 +97,11 @@ class FlinkWindowStringExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void ordinaryStringCountRetainsItsSeparateTypeGate(String phase) {
+  void ordinaryStringCountSharesTheWindowWithStringExtrema(String phase) {
     var runs = NativeFailureParity.run(() -> environment(phase, 2),
         sql("TUMBLE", "MIN(s), MAX(s), COUNT(s)"));
-    runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-    assertTrue(runs.nativeRun().fallbackReasons().stream()
-        .anyMatch(reason -> reason.contains("window aggregate")), runs.toString());
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
   }
 
   @ParameterizedTest

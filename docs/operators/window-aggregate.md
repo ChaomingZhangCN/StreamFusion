@@ -34,7 +34,7 @@ precisions 0 through 9. These are aggregate values, separate from the window's t
 The accumulator owns signed milliseconds and the fractional nanosecond remainder, compares
 that pair without narrowing the date range, ignores NULLs and emits NULL for an all-NULL group.
 Local/global partials and checkpoint state use one nullable component timestamp with the
-original logical precision. Ordinary COUNT(timestamp) retains its separate numeric type gate.
+original logical precision. Ordinary COUNT also admits timestamp values through their validity bitmap.
 Both timestamp kinds can share a window with numeric aggregates, string extrema and COUNT(DISTINCT).
 Mixed string/temporal SQL comparisons cover TUMBLE/HOP/CUMULATE at precision 0/3/6/9
 in both phases. They verify default single-phase string fallback and the explicit native opt-in;
@@ -92,6 +92,68 @@ checkpoint restore and when the late row introduces a new key. TUMBLE drops the 
 its single final window has closed. Tests compare explicit watermarks, mixed ordinary/distinct
 aggregates and both aggregation phases against released Flink.
 
+## COUNT over scalar values
+
+Ordinary `COUNT(value)` accepts character, DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ
+values alongside the existing numeric types. It reads Arrow validity without decoding the
+payload. All-NULL groups report zero. Filtered counts retain group liveness even without a
+companion `COUNT(*)`; groups whose rows have all retracted produce no window result.
+The existing window assignment, filtering and changelog restrictions still apply.
+
+SQL comparisons cover single/local-global TUMBLE, HOP and CUMULATE, NULL-only keys,
+independent filters, and signed input with complete group removal. Recovery covers string
+counts alongside extrema and BOOLEAN/TIME counts across raw checkpoints and canonical
+memory/RocksDB transitions. Thirty-six release Criterion fixtures compare an independent
+validity-by-key oracle at 128/4096 rows, one/64/1024 keys, NULL-only keys, 8/256-byte strings,
+DATE, TIME, BOOLEAN and nanosecond timestamps.
+
+The October 18, 2026 complete-job comparison uses released Flink 2.2.1/JDK 17,
+release+mimalloc, production IPC, a 2 GiB heap, parallelism two, one million runtime rows
+and 64 keys on Intel i7-12650H/Linux WSL2. Two warmups precede three measured jobs per
+engine, alternating engine order. Both transposes, row source, blackhole sink, casts, JNI
+and window state remain included; native plans and profile execution counters are checked.
+
+| Value | Phase | Window | Stock mean (s) | Previous origin (s) | Native mean (s) | Stock/native |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| STRING | Single | TUMBLE | 0.869391 | 0.849825 | 0.673364 | 1.291x |
+| STRING | Single | HOP | 0.860723 | 0.798490 | 0.609107 | 1.413x |
+| STRING | Local/global | TUMBLE | 0.877160 | 0.897436 | 0.542144 | 1.618x |
+| STRING | Local/global | HOP | 0.882599 | 0.856293 | 0.548919 | 1.608x |
+| TIMESTAMP | Single | TUMBLE | 0.748317 | 0.739427 | 0.595948 | 1.256x |
+| TIMESTAMP | Single | HOP | 0.742453 | 0.749904 | 0.601748 | 1.234x |
+| TIMESTAMP | Local/global | TUMBLE | 0.800433 | 0.796118 | 0.550682 | 1.454x |
+| TIMESTAMP | Local/global | HOP | 0.800873 | 0.799912 | 0.563302 | 1.422x |
+| BOOLEAN | Single | TUMBLE | 0.760702 | 0.756317 | 0.584107 | 1.302x |
+| BOOLEAN | Single | HOP | 0.746617 | 0.751287 | 0.591577 | 1.262x |
+| BOOLEAN | Local/global | TUMBLE | 0.865827 | 0.809163 | 0.550993 | 1.571x |
+| BOOLEAN | Local/global | HOP | 0.805551 | 0.810091 | 0.558708 | 1.442x |
+| TIME | Single | TUMBLE | 0.768842 | 0.760456 | 0.583193 | 1.318x |
+| TIME | Single | HOP | 0.729824 | 0.743693 | 0.580932 | 1.256x |
+| TIME | Local/global | TUMBLE | 0.802607 | 0.810159 | 0.552518 | 1.453x |
+| TIME | Local/global | HOP | 0.805824 | 0.819389 | 0.562197 | 1.433x |
+| DATE | Single | TUMBLE | 0.746787 | 0.759608 | 0.614492 | 1.215x |
+| DATE | Single | HOP | 0.747322 | 0.749718 | 0.694767 | 1.076x |
+| DATE | Local/global | TUMBLE | 0.802537 | 0.810491 | 0.574407 | 1.397x |
+| DATE | Local/global | HOP | 0.806350 | 0.808076 | 0.594443 | 1.356x |
+
+TUMBLE uses ten-second windows; HOP uses a two-second slide and ten-second size. The
+source emits five seconds of event time and defers the final watermark. DATE retains its
+cast from a timestamp in the query. Previous-origin controls use identical fixtures with
+native planning enabled and window fallback asserted, in a separate JVM with paired stock
+controls. The [raw artifact](../benchmarks/results/window-count-types-2026-10-18.json)
+retains every warmup and measured trial, ranges, commands and hashes. Startup remains
+included; the small DATE/HOP single-phase advantage is workload-specific.
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
+  -Dtest=WindowBasicTypeBenchmark \
+  -Dwindow.cases=count_string,count_timestamp,count_boolean,count_time,count_date \
+  -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE,HOP \
+  -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.warmup=2 -Dwindow.runs=3 \
+  -Dsf.extraJvmArgs=-Xmx2g
+# Original origin additionally uses window.expectNative=false.
+```
+
 ## String MIN/MAX
 
 Append-only windows admit `MIN` and `MAX` over CHAR and VARCHAR (including SQL STRING).
@@ -123,8 +185,8 @@ supplementary Unicode characters. Native and operator tests retain string partia
 checkpoints and memory/RocksDB backend transitions.
 
 Existing window/time and FILTER restrictions still apply. In particular, MIN/MAX over updating
-input remains unsupported. Ordinary COUNT(string), SUM(string) and AVG(string) are not newly
-admitted by the string-extrema gate.
+input remains unsupported. Ordinary COUNT(string) uses the existing validity-count accumulator;
+SUM(string) and AVG(string) are outside the admitted numeric reductions.
 
 `StringWindowBenchmark` is an opt-in complete-job comparison with a rowwise generated source,
 rowwise blackhole sink and both production transposes. It groups by key and window and emits
@@ -552,8 +614,9 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Legacy processing-time `SESSION`.
 - Key type outside bigint/int/string/boolean/date/timestamp/decimal.
 - A value type/aggregate mismatch.
-  TIMESTAMP/TIMESTAMP_LTZ values are admitted for MIN/MAX and COUNT(DISTINCT),
-  while ordinary COUNT(value) remains numeric.
+  TIMESTAMP/TIMESTAMP_LTZ values are admitted for MIN/MAX and COUNT(DISTINCT).
+  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN and timestamp values;
+  it counts validity without interpreting the payload.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
 - Attached bounds outside append-only event-time TUMBLE/HOP/CUMULATE, or with FILTER.
@@ -569,7 +632,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
 - Retracting input outside aligned event-time TUMBLE/HOP/CUMULATE with grouping-only,
-  numeric SUM/AVG (including shared exact SUM0), numeric COUNT(value), and COUNT(*) with optional FILTER.
+  numeric SUM/AVG (including shared exact SUM0), admitted scalar COUNT(value), and COUNT(*) with optional FILTER.
   DISTINCT, MIN/MAX, processing-time, attached, session
   and legacy windows still fall back on updating input. Admission checks the **input**
   changelog even when final output is append-only.
