@@ -73,6 +73,69 @@ configuration at two million rows. Single-phase DATE/TIME/BOOLEAN Flink/native m
 Flink ranges are 0.470–0.608, 0.438–0.575, 0.432–0.500, 0.580–0.594,
 0.546–0.586 and 0.536–0.609 s. All six measured MIN/MAX cases beat their matched controls.
 
+## Window extrema fold typed row positions and exact panes
+
+DATE, millisecond TIME and BOOLEAN window MIN/MAX keep one nullable integer payload behind
+the existing DataFusion accumulator interface. Each input batch binds typed readers once;
+grouped accumulation reads its row positions directly. It avoids a separate Arrow `take` or
+slice array for every value column and group. Global partials and session merges combine the
+retained payload directly, while the one-field nullable partial remains compatible with the
+previous DataFusion accumulator in both directions. State owns the value and retains no source
+buffers; accumulator sizes remain included in the task off-heap reservation.
+
+For exact HOP/CUMULATE reductions, each slice folds once before its partial merges into the
+still-open final windows. This extends the existing timestamp/count pane strategy. Mixed
+aggregate lists retain their ordinary grouped path, where the typed extrema readers still
+avoid selected-value arrays. Window assignment, late-row checks, filters, checkpoint boundaries
+and Arrow operator boundaries keep their existing contracts.
+
+The initial type-only admission passed the smaller 64-key jobs but exposed a substantial
+single-phase regression at 4,096 keys. Native allocation diagnostics at 4,096 rows/1,024 keys
+show the selection cost removed by this specialization:
+
+| BOOLEAN shape | Allocation requests before / after | Requested bytes before / after |
+| --- | ---: | ---: |
+| TUMBLE | 17,573 / 7,322 | 1,933,154 / 1,408,350 |
+| HOP | 35,001 / 11,471 | 3,790,734 / 2,385,992 |
+| SESSION | 65,691 / 34,955 | 4,796,256 / 3,189,080 |
+
+These are allocation requests, not copied bytes. The 72-fixture `window_scalar_extrema` suite
+also checks independent extrema, all-NULL keys, both integer-backed types, and session merges
+that change retained extrema. A compatibility test transfers state in both directions between
+the specialized and previous DataFusion accumulators.
+
+The first identical-fixture full-job comparison used two million rows, 4,096 keys, a two-second
+slide/ten-second HOP, parallelism two, production IPC, both row/Arrow transposes, a row source
+and a rowwise blackhole sink. Release+mimalloc runs on Intel i7-12650H/Linux WSL2 use released
+Flink 2.2.1/JDK 17, a 2 GiB heap, two warmups and three alternating measurements. Means include
+startup and every measured trial. Paired stock controls and native prototype timings follow:
+
+| Value / phase | Stock before / after (s) | Native before / after (s) |
+| --- | ---: | ---: |
+| BOOLEAN / Single | 1.599150 / 1.544477 | 3.103654 / 1.183716 |
+| TIME / Single | 1.544768 / 1.417022 | 2.239453 / 1.085680 |
+| DATE / Single | 1.518711 / 1.429642 | 2.270363 / 1.159402 |
+| BOOLEAN / Local/global | 1.774519 / 1.760690 | 1.692210 / 1.298323 |
+| TIME / Local/global | 1.742770 / 1.683467 | 1.523706 / 1.224929 |
+| DATE / Local/global | 1.745377 / 1.729330 | 1.589911 / 1.319390 |
+
+These initial fixtures used a constant DATE and TIME values correlated with the key domain.
+The final comparison strengthens per-key variation: DATE spans 31 days and TIME spans 256
+millisecond values within each key. The failed initial profiles and their controls remain in
+the [result artifact](../benchmarks/results/window-scalar-extrema-2026-10-18.json).
+
+With the stronger fixture, all 27 final complete-job profiles beat stock Flink by 1.218–1.649x
+and previous StreamFusion fallback by 1.159–1.633x. The six two-million-row/4,096-key HOP
+profiles span 1.218–1.360x stock. The remaining 21 use one million rows/64 keys across
+TUMBLE/HOP/CUMULATE in both phases and single-phase SESSION. Both conversions and production
+IPC remain included. The [operator page](../operators/window-aggregate.md#date-time-and-boolean-extrema)
+reports final means; the artifact retains every initial and final trial, including slower
+prototypes and the paired controls from separate baseline JVMs.
+
+Validation passes 23 SQL/admission checks on Flink 2.2.1 and 20 applicable checks with three
+SESSION table-function skips on 1.18.1, including independent filters and repeated recovery
+on memory/RocksDB. Native window/session regressions and all 72 Criterion fixtures pass.
+
 ## Immediate changelog output shares the tuple allocation with its cache
 
 For cached results, the immediate aggregate constructs its current tuple to compare with the previous output.

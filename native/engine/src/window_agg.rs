@@ -17,6 +17,10 @@ enum ExactPaneValue {
         minimum: bool,
         value: Option<TimestampValue>,
     },
+    ScalarExtreme {
+        minimum: bool,
+        value: Option<i32>,
+    },
     Count(i64),
 }
 
@@ -370,9 +374,10 @@ impl TumblingAggregator {
             && kinds.iter().zip(&value_types).all(|(kind, value_type)| {
                 *kind == 3
                     || (matches!(*kind, 1 | 2)
-                        && streamfusion_bridge::timestamp::is_timestamp(&value_data_type(
-                            *value_type,
-                        )))
+                        && (matches!(*value_type, 8..=10)
+                            || streamfusion_bridge::timestamp::is_timestamp(&value_data_type(
+                                *value_type,
+                            ))))
             });
         let mut aggregates = build_aggregates(&kinds, &value_types);
         for (aggregate, kind) in aggregates.iter_mut().zip(&kinds) {
@@ -769,6 +774,12 @@ impl TumblingAggregator {
             .zip(values)
             .map(|(aggregate, value)| aggregate.timestamp_column(value))
             .collect::<Result<_, _>>()?;
+        let scalar_columns: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(values)
+            .map(|(aggregate, value)| aggregate.scalar_column(value))
+            .collect();
         let mut positions = ahash::HashMap::default();
         let mut pane_keys = Vec::new();
         let mut slice_ends = Vec::new();
@@ -806,6 +817,12 @@ impl TumblingAggregator {
                                     value: None,
                                 }
                             }
+                            WindowAggregate::ScalarExtreme { minimum, .. } => {
+                                ExactPaneValue::ScalarExtreme {
+                                    minimum: *minimum,
+                                    value: None,
+                                }
+                            }
                             _ => ExactPaneValue::Count(0),
                         })
                         .collect(),
@@ -814,6 +831,19 @@ impl TumblingAggregator {
             });
             for (i, value) in panes[position].iter_mut().enumerate() {
                 match value {
+                    ExactPaneValue::ScalarExtreme { minimum, value } => {
+                        if let Some(next) = scalar_columns[i]
+                            .as_ref()
+                            .expect("scalar pane column")
+                            .value(row)
+                        {
+                            if value
+                                .is_none_or(|old| if *minimum { next < old } else { next > old })
+                            {
+                                *value = Some(next);
+                            }
+                        }
+                    }
                     ExactPaneValue::Count(count) => {
                         if !values[i].is_null(row) {
                             *count += 1;
@@ -879,6 +909,12 @@ impl TumblingAggregator {
                             (accumulator.as_mut() as &mut dyn std::any::Any)
                                 .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()
                                 .expect("timestamp extrema factory")
+                                .merge_value(*value);
+                        }
+                        ExactPaneValue::ScalarExtreme { value, .. } => {
+                            (accumulator.as_mut() as &mut dyn std::any::Any)
+                                .downcast_mut::<crate::aggregates::ScalarExtremeAccumulator>()
+                                .expect("scalar pane factory")
                                 .merge_value(*value);
                         }
                         ExactPaneValue::Count(count) => {
@@ -1000,6 +1036,12 @@ impl TumblingAggregator {
             .zip(values)
             .map(|(aggregate, values)| aggregate.timestamp_column(values))
             .collect::<Result<_, _>>()?;
+        let scalar_columns: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(values)
+            .map(|(aggregate, value)| aggregate.scalar_column(value))
+            .collect();
         let counts = self
             .aggregates
             .iter()
@@ -1034,8 +1076,9 @@ impl TumblingAggregator {
                 .iter()
                 .zip(&timestamps)
                 .zip(&counts)
-                .map(|((value, timestamp), count)| {
-                    if timestamp.is_some() || *count {
+                .zip(&scalar_columns)
+                .map(|(((value, timestamp), count), scalar)| {
+                    if timestamp.is_some() || *count || scalar.is_some() {
                         Ok(None)
                     } else {
                         match slice {
@@ -1079,6 +1122,13 @@ impl TumblingAggregator {
                         .downcast_mut::<crate::aggregates::WindowCountAccumulator>()
                         .expect("window count factory")
                         .merge_count(count);
+                    continue;
+                }
+                if let Some(column) = &scalar_columns[i] {
+                    (accumulator.as_mut() as &mut dyn std::any::Any)
+                        .downcast_mut::<crate::aggregates::ScalarExtremeAccumulator>()
+                        .expect("scalar extrema factory")
+                        .update_rows(column, selected_rows);
                     continue;
                 }
                 if let Some(column) = &timestamps[i] {
@@ -1373,6 +1423,12 @@ impl TumblingAggregator {
             .zip(&partials)
             .map(|(aggregate, fields)| aggregate.timestamp_column(fields[0]))
             .collect::<Result<_, _>>()?;
+        let scalar_columns: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(&partials)
+            .map(|(aggregate, fields)| aggregate.scalar_column(fields[0]))
+            .collect();
         let track = self.tracks_window_state();
         for row in 0..batch.num_rows() {
             let slice_end = slice_ends.value(row);
@@ -1393,6 +1449,13 @@ impl TumblingAggregator {
                 }
                 let accumulators = self.accumulators(start, end, key.clone());
                 for (i, accumulator) in accumulators.iter_mut().enumerate() {
+                    if let Some(column) = &scalar_columns[i] {
+                        (accumulator.as_mut() as &mut dyn std::any::Any)
+                            .downcast_mut::<crate::aggregates::ScalarExtremeAccumulator>()
+                            .expect("scalar extrema factory")
+                            .merge_value(column.value(row));
+                        continue;
+                    }
                     if let Some(column) = &timestamps[i] {
                         (accumulator.as_mut() as &mut dyn std::any::Any)
                             .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()

@@ -50,8 +50,6 @@ class WindowAggregateValueTypeTest {
   void extremaDoNotAdmitUnverifiedTypes() {
     for (var type :
         new SqlTypeName[] {
-          SqlTypeName.BOOLEAN,
-          SqlTypeName.DATE,
           SqlTypeName.BINARY,
           SqlTypeName.ARRAY,
           SqlTypeName.MAP
@@ -62,6 +60,19 @@ class WindowAggregateValueTypeTest {
       assertFalse(
           WindowAggregateMatcher.supportedAggregateValueType(
               WindowAggregateMatcher.KIND_MAX, type));
+    }
+  }
+
+  @Test
+  void dateTimeAndBooleanAdmitExtremaAndCounts() {
+    for (var type : new SqlTypeName[] {SqlTypeName.DATE, SqlTypeName.TIME, SqlTypeName.BOOLEAN}) {
+      for (int kind : new int[] {WindowAggregateMatcher.KIND_MIN, WindowAggregateMatcher.KIND_MAX,
+          WindowAggregateMatcher.KIND_COUNT}) {
+        assertTrue(WindowAggregateMatcher.supportedAggregateValueType(kind, type));
+      }
+      for (int kind : new int[] {WindowAggregateMatcher.KIND_SUM, WindowAggregateMatcher.KIND_AVG}) {
+        assertFalse(WindowAggregateMatcher.supportedAggregateValueType(kind, type));
+      }
     }
   }
 }

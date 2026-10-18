@@ -2,7 +2,9 @@ use crate::*;
 
 mod floating_extreme;
 mod retracting_window;
+mod scalar_extreme;
 mod timestamp_extreme;
+pub(crate) use scalar_extreme::{ScalarExtremeAccumulator, ScalarExtremeColumn};
 mod window_count;
 pub(crate) use window_count::WindowCountAccumulator;
 mod zero_sum;
@@ -665,6 +667,7 @@ pub(crate) enum WindowAggregate {
     DoubleAvg,
     FloatingExtreme { kind: i64, value_type: DataType },
     TimestampExtreme { minimum: bool },
+    ScalarExtreme { minimum: bool, value_type: DataType },
     // Decimal SUM/AVG carry Flink's semantics, which DataFusion's decimal aggregates don't: SUM is
     // an i128 running sum at the input scale reported as DECIMAL(38, s) with overflow → NULL (not an
     // error), and AVG divides that sum by the non-null count with Flink's exact decimal division,
@@ -698,6 +701,13 @@ impl WindowAggregate {
             )),
             _ => Ok(None),
         }
+    }
+
+    pub(crate) fn scalar_column<'a>(
+        &self,
+        values: &'a ArrayRef,
+    ) -> Option<ScalarExtremeColumn<'a>> {
+        matches!(self, Self::ScalarExtreme { .. }).then(|| ScalarExtremeColumn::new(values))
     }
 
     fn new(kind: i64, value_type: &DataType) -> Self {
@@ -738,6 +748,15 @@ impl WindowAggregate {
             (1 | 2, dt) if streamfusion_bridge::timestamp::is_timestamp(dt) => {
                 WindowAggregate::TimestampExtreme { minimum: kind == 1 }
             }
+            (
+                1 | 2,
+                DataType::Date32
+                | DataType::Time32(arrow::datatypes::TimeUnit::Millisecond)
+                | DataType::Boolean,
+            ) => WindowAggregate::ScalarExtreme {
+                minimum: kind == 1,
+                value_type: value_type.clone(),
+            },
             (0..=3 | 7, _) => WindowAggregate::Builtin(build_builtin(kind, value_type)),
             // Float AVG sums in double and narrows to float; double AVG stays double; integer AVG
             // truncates to its type.
@@ -795,6 +814,10 @@ impl WindowAggregate {
             WindowAggregate::FloatingExtreme { kind, value_type } => Box::new(
                 floating_extreme::FloatingExtremeAccumulator::new(*kind, value_type),
             ),
+            WindowAggregate::ScalarExtreme {
+                minimum,
+                value_type,
+            } => Box::new(ScalarExtremeAccumulator::new(*minimum, value_type)),
             WindowAggregate::TimestampExtreme { minimum } => Box::new(
                 timestamp_extreme::TimestampExtremeAccumulator::new(*minimum),
             ),
@@ -839,6 +862,9 @@ impl WindowAggregate {
             WindowAggregate::FloatingExtreme { value_type, .. } => {
                 vec![Field::new("extreme", value_type.clone(), true)]
             }
+            WindowAggregate::ScalarExtreme { value_type, .. } => {
+                vec![Field::new("extreme", value_type.clone(), true)]
+            }
             WindowAggregate::TimestampExtreme { .. } => vec![Field::new(
                 "extreme",
                 streamfusion_bridge::timestamp::timestamp_type(),
@@ -872,6 +898,7 @@ impl WindowAggregate {
             WindowAggregate::FloatSum | WindowAggregate::FloatAvg => DataType::Float32,
             WindowAggregate::DoubleAvg => DataType::Float64,
             WindowAggregate::FloatingExtreme { value_type, .. } => value_type.clone(),
+            WindowAggregate::ScalarExtreme { value_type, .. } => value_type.clone(),
             WindowAggregate::TimestampExtreme { .. } => {
                 streamfusion_bridge::timestamp::timestamp_type()
             }

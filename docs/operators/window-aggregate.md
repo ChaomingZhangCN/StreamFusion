@@ -28,7 +28,7 @@ translates the firing frontier by one millisecond before flushing.
 ## Mixed aggregates and AVG partials
 
 SUM, MIN, MAX, COUNT and AVG can share a window and read the same or different numeric columns.
-String MIN/MAX can share those windows and their local/global partial layout as well.
+String, DATE, TIME and BOOLEAN MIN/MAX can share those windows and their local/global partial layout as well.
 On insert-only input, MIN/MAX also accept TIMESTAMP and TIMESTAMP_LTZ value columns at
 precisions 0 through 9. These are aggregate values, separate from the window's time attribute.
 The accumulator owns signed milliseconds and the fractional nanosecond remainder, compares
@@ -91,6 +91,66 @@ that have not fired, so late partials cannot reopen completed windows. This also
 checkpoint restore and when the late row introduces a new key. TUMBLE drops the partial once
 its single final window has closed. Tests compare explicit watermarks, mixed ordinary/distinct
 aggregates and both aggregation phases against released Flink.
+
+## DATE, TIME and BOOLEAN extrema
+
+Insert-only MIN/MAX admits DATE, TIME and BOOLEAN values in the enclosing window's supported
+single-phase and local/global plans. NULLs are ignored, and all-NULL groups retain a typed NULL.
+Each accumulator owns one fixed-width value. Typed readers borrow the grouped row positions
+without allocating an Arrow selection array for each aggregate and key. Exact HOP/CUMULATE
+partials fold once per slice before merging into open final windows; session merges combine
+retained values directly. Partial and checkpoint state remains one nullable value of the input
+SQL type, compatible with the previous DataFusion accumulator.
+
+SQL comparisons cover TUMBLE/HOP/CUMULATE in both phases, independent filters, nullable keys,
+all-NULL groups, legacy event-time windows, SESSION, admitted attached bounds and processing-time
+admission. HOP/SESSION recovery injects two failures after completed checkpoints on memory and
+RocksDB, then verifies late-row admission and native execution. Released Flink 1.18 passes its
+applicable cases and skips its three unavailable SESSION table-function checks. Existing filtering,
+updating-input, processing-time and attached-window restrictions still apply.
+
+The `window_scalar_extrema` release Criterion target checks 72 fixtures across four window shapes,
+128/4096 rows and one/64/1024 keys, including all-NULL keys and session merges that change extrema.
+Its independent oracle checks typed values before timing; allocation diagnostics retain the
+production memory accounting. A separate compatibility test reads the previous DataFusion MIN/MAX
+state and verifies that the previous accumulator can read the new state.
+
+The October 18, 2026 release+mimalloc comparison uses Flink 2.2.1/JDK 17 on Intel
+i7-12650H/Linux WSL2, a 2 GiB heap and parallelism two. Two warmups precede three alternating
+measured jobs per engine. Twenty-one profiles use one million rows/64 keys across
+TUMBLE/HOP/CUMULATE in both phases and single-phase SESSION. Six larger HOP profiles use
+two million rows/4,096 keys. DATE spans 31 days, TIME varies within each key, and every seventh
+value is NULL. Every query retains both transposes, the row source and blackhole sink, casts,
+JNI, production IPC and state costs. Plans and execution counters require native window work.
+
+Across all 27 profiles, native mean job time is **1.218–1.649x faster than stock Flink** and
+**1.159–1.633x faster than previous-origin fallback**. The larger HOP results follow:
+
+| Value | Phase | Stock mean (s) | Previous origin mean (s) | Native mean (s) | Stock/native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| BOOLEAN | Single | 1.548655 | 1.531089 | 1.222616 | 1.267x |
+| BOOLEAN | Local/global | 1.739300 | 1.723851 | 1.284483 | 1.354x |
+| TIME | Single | 1.514093 | 1.441267 | 1.243303 | 1.218x |
+| TIME | Local/global | 1.735037 | 1.719916 | 1.275368 | 1.360x |
+| DATE | Single | 1.478080 | 1.451693 | 1.199571 | 1.232x |
+| DATE | Local/global | 1.740873 | 1.727981 | 1.355902 | 1.284x |
+
+The [raw artifact](../benchmarks/results/window-scalar-extrema-2026-10-18.json) retains all
+warmup/measured samples, stock controls, source/native hashes, commands and allocation
+diagnostics. It also retains the failed type-only high-cardinality profiles that motivated
+the typed-reader/pane optimization. Previous-origin runs use identical fixtures and native
+planning with fallback asserted, in separate JVMs with paired stock controls. Startup remains
+included, and observed variability is not discarded.
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
+  -Dtest=WindowBasicTypeBenchmark -Dwindow.cases=extrema_boolean,extrema_time,extrema_date \
+  -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE,HOP,CUMULATE,SESSION \
+  -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.warmup=2 -Dwindow.runs=3 \
+  -Dsf.extraJvmArgs=-Xmx2g
+# Larger control: window.rows=2000000 window.keys=4096 window.shapes=HOP.
+# Previous origin additionally uses window.expectNative=false.
+```
 
 ## COUNT over scalar values
 
@@ -615,7 +675,8 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Legacy processing-time `SESSION`.
 - Key type outside bigint/int/string/boolean/date/timestamp/decimal.
 - A value type/aggregate mismatch.
-  TIMESTAMP/TIMESTAMP_LTZ values are admitted for MIN/MAX and COUNT(DISTINCT).
+  DATE/TIME/BOOLEAN and TIMESTAMP/TIMESTAMP_LTZ values are admitted for insert-only MIN/MAX
+  and COUNT(DISTINCT).
   Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN and timestamp values;
   it counts validity without interpreting the payload.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.

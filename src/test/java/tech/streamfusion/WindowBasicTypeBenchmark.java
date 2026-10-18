@@ -28,6 +28,7 @@ class WindowBasicTypeBenchmark {
     for (String value : System.getProperty("window.cases", "boolean,time").split(",")) {
       for (String phase : System.getProperty("window.phases", "ONE_PHASE,TWO_PHASE").split(",")) {
         for (String shape : System.getProperty("window.shapes", "TUMBLE,HOP,CUMULATE").split(",")) {
+          if (shape.equals("SESSION") && phase.equals("TWO_PHASE")) continue;
           measure(value, phase, shape);
         }
       }
@@ -55,6 +56,9 @@ class WindowBasicTypeBenchmark {
       case "count_boolean": aggregate = "COUNT(b)"; break;
       case "count_time": aggregate = "COUNT(clock)"; break;
       case "count_date": aggregate = "COUNT(CAST(t AS DATE))"; break;
+      case "extrema_boolean": aggregate = "MIN(b), MAX(b), COUNT(*)"; break;
+      case "extrema_time": aggregate = "MIN(clock), MAX(clock), COUNT(*)"; break;
+      case "extrema_date": aggregate = "MIN(CAST(t AS DATE)), MAX(CAST(t AS DATE)), COUNT(*)"; break;
       default: throw new IllegalArgumentException("Unknown window.cases entry " + value);
     }
     String window;
@@ -62,11 +66,12 @@ class WindowBasicTypeBenchmark {
       case "TUMBLE": window = "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '10' SECOND)"; break;
       case "HOP": window = "HOP(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)"; break;
       case "CUMULATE": window = "CUMULATE(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '10' SECOND)"; break;
+      case "SESSION": window = "SESSION(TABLE src PARTITION BY k, DESCRIPTOR(rt), INTERVAL '10' SECOND)"; break;
       default: throw new IllegalArgumentException("Unknown window.shapes entry " + shape);
     }
     String sql = "SELECT k, window_start, window_end, " + aggregate + " FROM TABLE("
         + window + ") GROUP BY k, window_start, window_end";
-    String operator = phase.equals("TWO_PHASE")
+    String operator = shape.equals("SESSION") ? "NativeColumnarSessionWindowAggregate" : phase.equals("TWO_PHASE")
         ? "NativeColumnarGlobalWindowAggregate" : "NativeColumnarWindowAggregate";
     try (var metrics = new RecoveryExecutionMetrics()) {
       for (int trial = 0; trial < warmup + runs; trial++) {
@@ -98,9 +103,12 @@ class WindowBasicTypeBenchmark {
             String text = Long.toString(i % 256);
             text = text + "x".repeat(Math.max(0, width - text.length()));
             return Row.of((int) (i % keys), missing ? null : text,
-                missing ? null : LocalDateTime.of(2024, 1, 1, 0, 0).plusNanos(i % 1000000),
+                missing ? null : LocalDateTime.of(2024, 1, 1, 0, 0)
+                    .plusDays(value.equals("extrema_date") ? i / keys % 31 : 0)
+                    .plusNanos(i % 1000000),
                 missing ? null : i % 3 == 0,
-                missing ? null : LocalTime.ofNanoOfDay(i % 256 * 1000000),
+                missing ? null : LocalTime.ofNanoOfDay(
+                    (value.equals("extrema_time") ? i / keys : i) % 256 * 1000000),
                 missing ? null : i % 1000,
                 missing ? null : BigDecimal.valueOf(i % 100000, 2), 1704067200000L + i % 5000);
           }).returns(ExternalTypeInfo.<Row>of(type))

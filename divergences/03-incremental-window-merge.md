@@ -42,6 +42,20 @@ Global merging unions selected sets without re-evaluating filters. There is no n
 state or Arrow ownership protocol. Arroyo's tumbling partial/final implementation was
 consulted before extending admission; its structure remains unchanged here.
 
+## Fixed-width scalar extrema
+
+DATE, millisecond TIME and BOOLEAN extrema retain one nullable integer payload per accumulator.
+Borrowed typed readers fold the selected row positions directly, following the existing timestamp
+extrema path. This avoids materializing an Arrow selection array for every group and aggregate.
+The one-field nullable Arrow partial remains compatible with DataFusion's previous MIN/MAX state;
+readers in both directions use the same value type. Session merges combine the retained values
+without constructing one-row arrays.
+
+HOP and CUMULATE can fold these exact, order-independent values once per slice before merging
+into the still-open final windows. This extends the existing timestamp/count pane strategy within
+our incremental layout. Arroyo's tumbling partial/final and incremental accumulator implementations
+were consulted; the choice to retain bounded accumulator state rather than raw batches is unchanged.
+
 ## Late local slices
 
 Arroyo's sliding operator bins batches and skips a bin preceding its current watermark bin.

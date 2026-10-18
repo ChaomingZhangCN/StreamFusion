@@ -386,6 +386,8 @@ final class WindowAggregateMatcher {
                 || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)))
         || ((kind == KIND_MIN || kind == KIND_MAX)
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
+                || type == SqlTypeName.DATE || type == SqlTypeName.TIME
+                || type == SqlTypeName.BOOLEAN
                 || GroupAggregateMatcher.isTimestampType(type)));
   }
 
