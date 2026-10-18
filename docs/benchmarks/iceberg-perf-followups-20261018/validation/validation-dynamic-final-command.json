@@ -1,0 +1,16 @@
+[
+  "mvn",
+  "-B",
+  "-ntp",
+  "-Piceberg,iceberg-upstream,bench",
+  "-pl",
+  "streamfusion-iceberg",
+  "-am",
+  "-Dtest=IcebergDynamicRecordsTest,IcebergDynamicRoutingTest,IcebergPartitionGroupsTest,NativeIcebergDynamicSinkTest",
+  "-Dsurefire.failIfNoSpecifiedTests=false",
+  "-Dmaven.javadoc.skip=true",
+  "-Dnative.build.skip=true",
+  "-Dnative.resource.directory=repo:/target/iceberg-io/native-a4287d090984ad77",
+  "-Dsf.extraJvmArgs=-Djava.library.path=repo:/target/iceberg-io/native-a4287d090984ad77 -Xmx1g",
+  "test"
+]

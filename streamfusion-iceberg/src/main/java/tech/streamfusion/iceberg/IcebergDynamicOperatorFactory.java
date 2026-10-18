@@ -45,8 +45,7 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
   public <T extends StreamOperator<IcebergDynamicBatch>> T createStreamOperator(
       StreamOperatorParameters<IcebergDynamicBatch> parameters) {
     var routes = new LinkedHashMap<Route, Integer>();
-    var schemas = new java.util.IdentityHashMap<org.apache.iceberg.Schema, String>();
-    var specs = new java.util.IdentityHashMap<org.apache.iceberg.PartitionSpec, String>();
+    var targets = new IcebergDynamicRecords.Targets();
     int[][] labels = new int[1][];
     int[] position = new int[1];
     RowType[] currentType = new RowType[1];
@@ -61,16 +60,20 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
                       throw new IllegalStateException("Host retained a borrowed dynamic row");
                     String side = args.length == 2 ? ((OutputTag<?>) args[0]).getId() : null;
                     Object value = ((StreamRecord<?>) args[args.length - 1]).getValue();
-                    var target = IcebergDynamicRecords.target(value, schemas, specs);
-                    if (!routes.containsKey(new Route(side, target))
-                        && !FlinkSchemaUtil.convert(target.schema()).equals(currentType[0]))
-                      throw new IllegalArgumentException(
-                          "Dynamic Arrow schema conversion is not admitted");
+                    var resolved = targets.resolve(value);
+                    var route = new Route(side, resolved.target());
+                    Integer label = routes.get(route);
+                    if (label == null) {
+                      if (!resolved.rowType().equals(currentType[0]))
+                        throw new IllegalArgumentException(
+                            "Dynamic Arrow schema conversion is not admitted");
+                      label = routes.size();
+                      routes.put(route, label);
+                    }
                     if (labels[0][position[0]] >= 0)
                       throw new IllegalStateException(
                           "Dynamic Arrow routing requires one output per input row");
-                    labels[0][position[0]] =
-                        routes.computeIfAbsent(new Route(side, target), key -> routes.size());
+                    labels[0][position[0]] = label;
                     return null;
                   }
                   return invoke(parameters.getOutput(), method, args);
@@ -98,8 +101,12 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
                   default -> throw new IllegalStateException(method.getName());
                 };
               }
-              if (method.getName().equals("open"))
+              if (method.getName().equals("open")) {
                 NativeAllocator.initializeFor((AbstractStreamOperator<?>) host);
+                Object result = invoke(host, method, args);
+                IcebergDynamicRouting.install(host);
+                return result;
+              }
               if (!method.getName().equals("processElement")) return invoke(host, method, args);
               StreamRecord input = (StreamRecord) args[0];
               IcebergDynamicBatch dynamic =
@@ -110,8 +117,7 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
               currentType[0] = dynamic == null ? inputType : FlinkSchemaUtil.convert(schema);
               ColumnarRecordMetrics.countIngested(host.getMetricGroup(), batch.rowCount());
               routes.clear();
-              schemas.clear();
-              specs.clear();
+              targets.clearBatchMetadata();
               long route;
               try (var root = batch.root()) {
                 labels[0] = new int[root.getRowCount()];
@@ -167,8 +173,7 @@ final class IcebergDynamicOperatorFactory extends AbstractStreamOperatorFactory<
                           });
               IcebergArrowRouting.emit(route, (StreamRecord) input, routed, host.getMetricGroup());
               routes.clear();
-              schemas.clear();
-              specs.clear();
+              targets.clearBatchMetadata();
               return null;
             });
   }

@@ -179,6 +179,7 @@ nav:
       - Identity expression passthroughs: optimizations/identity-expression-passthroughs.md
       - Parquet sink file coalescing: optimizations/parquet-sink-file-coalescing.md
       - Iceberg boundary setup: optimizations/iceberg-boundary-overhead.md
+      - Canonical state installation: optimizations/canonical-state-installation.md
       - Delta batch sink handoff: optimizations/delta-batch-sink-handoff.md
       - Retire dead Delta checkpoint buffers: optimizations/delta-live-buffer-retirement.md
       - Preserve Paimon partition pruning: optimizations/paimon-partition-pruning.md

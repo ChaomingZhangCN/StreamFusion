@@ -115,7 +115,7 @@ def main():
     parser.add_argument('--warmup', type=int, default=2)
     parser.add_argument('--runs', type=int, default=5)
     parser.add_argument('--target-bytes', type=int, default=536870912)
-    parser.add_argument('--cases', default='read,write', help='read,write and optional route,dynamic-route (destination calculation only)')
+    parser.add_argument('--cases', default='read,write', help='read,write and optional route,dynamic-route,dynamic-key (destination calculation only)')
     parser.add_argument('--profile', choices=['itimer', 'alloc', 'wall'], help='Diagnostic profiles, excluded from performance claims')
     parser.add_argument('--profiler', type=Path, help='Released async-profiler profiler.sh')
     parser.add_argument('--baseline', type=Path, help='Previous observations.jsonl; compare native medians')

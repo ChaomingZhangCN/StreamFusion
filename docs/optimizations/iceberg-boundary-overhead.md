@@ -87,3 +87,35 @@ off/on). Direct previous-native/current-native geometric means are 1.03× / 1.19
 changes since the previous complete matrix, with storage/JVM variation and large
 ranges; they do not isolate each edit. q18/q20 memory regressions and state/checkpoint
 follow-up #391 remain. Default-on acceleration is unchanged.
+
+The [performance follow-up](../benchmarks/iceberg-perf-followups-20261018/README.md)
+removes reflection argument arrays with typed handles for the pinned released dynamic
+control-record contract. Sampled metadata-extraction allocations fall from 2.76 to
+0.315 GB (8.78× reduction) in the retained whole-JVM diagnostics; these are allocation
+estimates, not copied bytes or wall-time shares. A bounded task-local cache reuses immutable target metadata
+across rows and batches, using actual schema/spec identity and all destination/key fields.
+It copies equality IDs before insertion and retains no control records or Arrow payloads.
+The original Java callback and metadata refresh still execute per row. Each batch assigns
+route labels with one map lookup instead of two.
+
+The released dynamic selector LRU is decorated when selectors are created. Bucket tuples reuse the exact original selector's writer key when their maximum
+cardinality, including nulls, fits the 1,024-entry partition cache. The host still owns selector invalidation, table salt,
+parallelism, metadata refresh, upsert distribution and eviction. Large or unbounded partition cardinalities and other selector shapes retain the original
+selector, avoiding repeated transform/cache work on nearly every row. The two-second `dynamic-key` fixture
+compares every destination with the released host selector, including Arrow row traversal.
+Final four-bucket medians are 30.19 ms stock and 12.55 ms cached (2.41×).
+The 16,384-bucket diagnostic first exposed cache thrashing (0.60–0.62× stock); after
+bounding admission its medians are 29.45 ms stock and 29.49 ms Arrow traversal (1.00×). This isolates
+key calculation; it excludes host catalog/processor, Rust splitting, shuffle and writing.
+Repeated end-to-end results remain the acceptance boundary for overall dynamic claims.
+
+Source inspiration is the released Iceberg `HashKeyGenerator` selector LRU and target-limited
+writer mapping, together with StreamFusion's existing exact integer-partition cache.
+The adapter inspects only the pinned released partition-selector shape; it does not
+reimplement Iceberg's table hash, equality-key encoding or partition path representation.
+
+Schema/spec JSON encodings and derived Flink row types remain scoped to the current input batch, as in the original
+adapter. Evicting the bounded persistent target cache does not clear those encodings
+mid-batch: cycling through more destinations than the target cache can hold must not
+serialize the same schema/spec or rebuild its row type on every miss. The encodings clear at batch boundaries;
+only the bounded resolved targets survive between batches.

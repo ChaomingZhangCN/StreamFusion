@@ -1,0 +1,15 @@
+{"partitions":4,"runs":5,"width":48,"kind":"method","rows":262144,"settings":{"format-version":"2","write.parquet.row-group-size-bytes":"134217728","write.parquet.compression-level":"3","write.parquet.compression-codec":"zstd","write.parquet.dict-size-bytes":"2097152","write.parquet.page-size-bytes":"1048576"},"warmups":2,"targetBytes":536870912,"batchRows":8192,"stripes":4,"cases":["dynamic-key"],"stockFetchRows":8192,"profileEvent":"none","inputFiles":0}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":true,"native":false,"kind":"measurement","operation":"dynamic-key","trial":-2,"rows":262144,"seconds":0.082099969}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":true,"native":true,"kind":"measurement","operation":"dynamic-key","trial":-2,"rows":262144,"seconds":0.043034093}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":true,"native":true,"kind":"measurement","operation":"dynamic-key","trial":-1,"rows":262144,"seconds":0.015482581}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":true,"native":false,"kind":"measurement","operation":"dynamic-key","trial":-1,"rows":262144,"seconds":0.05887468}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":false,"kind":"measurement","operation":"dynamic-key","trial":0,"rows":262144,"seconds":0.030986237}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":true,"kind":"measurement","operation":"dynamic-key","trial":0,"rows":262144,"seconds":0.013164534}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":true,"kind":"measurement","operation":"dynamic-key","trial":1,"rows":262144,"seconds":0.012550247}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":false,"kind":"measurement","operation":"dynamic-key","trial":1,"rows":262144,"seconds":0.030185616}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":false,"kind":"measurement","operation":"dynamic-key","trial":2,"rows":262144,"seconds":0.02882564}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":true,"kind":"measurement","operation":"dynamic-key","trial":2,"rows":262144,"seconds":0.011756893}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":true,"kind":"measurement","operation":"dynamic-key","trial":3,"rows":262144,"seconds":0.012605775}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":false,"kind":"measurement","operation":"dynamic-key","trial":3,"rows":262144,"seconds":0.029177582}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":false,"kind":"measurement","operation":"dynamic-key","trial":4,"rows":262144,"seconds":0.031259244}
+{"fallbackTasks":0,"nativeTasks":0,"arrowBytes":35749888,"warmup":false,"native":true,"kind":"measurement","operation":"dynamic-key","trial":4,"rows":262144,"seconds":0.012280724}

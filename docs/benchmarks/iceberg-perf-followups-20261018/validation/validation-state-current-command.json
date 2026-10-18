@@ -1,0 +1,16 @@
+[
+  "mvn",
+  "-B",
+  "-ntp",
+  "-Pbench",
+  "-pl",
+  "streamfusion-runtime",
+  "-am",
+  "-Dtest=CanonicalNativeStateTest,AsyncNativeStateSerializerTest,WindowBoundaryStateVersionTest,RocksDBNativeStateBackendOperatorTest",
+  "-Dsurefire.failIfNoSpecifiedTests=false",
+  "-Dmaven.javadoc.skip=true",
+  "-Dnative.build.skip=true",
+  "-Dnative.resource.directory=repo:/target/iceberg-io/native-a4287d090984ad77",
+  "-Dsf.extraJvmArgs=-Djava.library.path=repo:/target/iceberg-io/native-a4287d090984ad77:validation-native-libraries: -Xmx1g",
+  "test"
+]

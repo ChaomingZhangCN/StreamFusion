@@ -1,0 +1,33 @@
+{
+  "baseline": "0a02ecb88f5b9e67f6c022375470ca899a0690c3",
+  "nativeBuild": "release + mimalloc",
+  "nativeLibraries": {
+    "libstreamfusion.so": "8c5e5f3216e18af54e4bf6eab5b67cd7b6c5ff32739f3bf154f3f9a2c0eb5ffc",
+    "libstreamfusion_iceberg.so": "2679b771d93db0022905068ee67533108e1569ba268e39bec388fc4f85a14914"
+  },
+  "java": "openjdk version \"17.0.20.1\" 2026-08-18\nOpenJDK Runtime Environment (build 17.0.20.1+1-1-22.04-Ubuntu)\nOpenJDK 64-Bit Server VM (build 17.0.20.1+1-1-22.04-Ubuntu, mixed mode, sharing)\n",
+  "stateBoundary": "CanonicalNativeState.write into the real Flink heap keyed-state backend; fixture generation, cluster/filesystem/checkpoint serialization and readback excluded",
+  "stateSettings": {
+    "warmups": 2,
+    "runs": 5,
+    "heap": "4g",
+    "groupsByPayloadBytes": {
+      "4096": 128,
+      "2097152": 128,
+      "4194305": 16
+    }
+  },
+  "dynamicProfile": "Whole-JVM CPU+allocation diagnostic, 1 warmup + 1 measured pair, both append and keyed, v2, 2M rows; includes setup/readback and stock trials. Inclusive frame shares overlap. Profiled seconds excluded from primary claims.",
+  "primaryStateComparison": {
+    "rows": 2000000,
+    "parallelism": 4,
+    "inputBuckets": 4,
+    "outputBuckets": 4,
+    "heap": "4g",
+    "warmups": 1,
+    "runs": 3,
+    "miniBatch": false,
+    "stateBackend": "memory",
+    "snapshotCompression": false
+  }
+}
