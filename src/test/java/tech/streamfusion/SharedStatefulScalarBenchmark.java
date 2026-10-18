@@ -49,7 +49,11 @@ class SharedStatefulScalarBenchmark {
                     + type
                     + ") WITH ('connector'='blackhole')");
             table.getConfig().set("streamfusion.native.enabled", Boolean.toString(engine == 1));
-            table.getConfig().set("streamfusion.calc.sharedStatefulUdf.enabled", "true");
+            table
+                .getConfig()
+                .set(
+                    "streamfusion.calc.sharedStatefulUdf.enabled",
+                    System.getProperty("sharedscalar.enabled", "true"));
             var scan = NativePlanner.install(table);
             String plan = table.explainSql(sql);
             if (engine == 1 && EXPECT_NATIVE)
@@ -73,6 +77,10 @@ class SharedStatefulScalarBenchmark {
             System.out.println(
                 "[shared-scalar-trial-end] type=" + type + " engine=" + engine + " trial=" + trial);
             if (engine == 1 && EXPECT_NATIVE) {
+              if (Boolean.getBoolean("sharedscalar.expectDirect"))
+                assertTrue(
+                    metrics.counterValue("directPrimitiveCalcRows") > 0,
+                    "complete Calc did not use the direct columnar evaluation path");
               assertTrue(
                   scan.substitutions() > 0 && scan.fallbackReasons().isEmpty(),
                   scan.explainSummary());

@@ -564,7 +564,49 @@ public final class NativeUdf {
         && Arrays.stream(udf.argTypes).allMatch(type -> type == TYPE_TIMESTAMP_DATA);
   }
 
-  static VectorSchemaRoot evaluateTemporalRowCalc(int id, VectorSchemaRoot in, int[] columns) {
+  static boolean canEvaluatePrimitiveRowCalc(int id) {
+    Registered udf = REGISTRY.get(id);
+    if (udf == null
+        || udf.generated == null
+        || udf.returnType != TYPE_ROW
+        || udf.generated.rowResultType().getFieldCount() == 0) return false;
+    if (!udf.rowSchema
+        .getFields()
+        .get(0)
+        .getChildren()
+        .equals(
+            tech.streamfusion.arrow.ArrowConversion.toArrowSchema(udf.generated.rowResultType())
+                .getFields())) return false;
+    for (int type : udf.argTypes) {
+      if (type != TYPE_INT
+          && type != TYPE_LONG
+          && type != TYPE_BYTE
+          && type != TYPE_SHORT
+          && type != TYPE_FLOAT
+          && type != TYPE_DOUBLE
+          && type != TYPE_BOOLEAN) return false;
+    }
+    return udf.generated.rowResultType().getChildren().stream()
+        .allMatch(
+            type -> {
+              switch (type.getTypeRoot()) {
+                case TINYINT:
+                case SMALLINT:
+                case INTEGER:
+                case BIGINT:
+                case FLOAT:
+                case DOUBLE:
+                case BOOLEAN:
+                case CHAR:
+                case VARCHAR:
+                  return true;
+                default:
+                  return false;
+              }
+            });
+  }
+
+  static VectorSchemaRoot evaluateRowCalc(int id, VectorSchemaRoot in, int[] columns) {
     Registered udf = REGISTRY.get(id);
     List<FieldVector> inputs = new ArrayList<>(columns.length);
     for (int column : columns) inputs.add(in.getVector(column));
@@ -609,7 +651,7 @@ public final class NativeUdf {
     } catch (Throwable failure) {
       out.close();
       if (failure instanceof RuntimeException) throw (RuntimeException) failure;
-      if (failure instanceof Error) throw (Error) failure;
+      if (failure instanceof Error && !canEvaluatePrimitiveRowCalc(id)) throw (Error) failure;
       throw new RuntimeException("UDF invocation failed", failure);
     }
   }

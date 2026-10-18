@@ -17,7 +17,22 @@ Arrow FFI/ownership and allocator work in the redundant native stage. Exact time
 comparison can retain Arrow buffers after every call executes; changed columns materialize their
 prior prefix. This follows Arrow reference ownership and does not infer function purity.
 
-The path remains explicitly experimental and default off: two standalone workloads beat paired
+The temporal path remains explicitly experimental and default off: two standalone workloads beat paired
 stock controls, but identity still trails by about 1% and the prior-correct-fallback repeat is
 outstanding. See docs/operators/calc-filter.md and docs/optimizations/udf-columnar-upcall.md.
-PR #368 remains draft and issue #364 remains open.
+The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368),
+closing #364; [issue #389](https://github.com/datafusion-contrib/StreamFusion/issues/389) tracks
+remaining temporal default-performance admission.
+
+Already-admitted complete programs with primitive numeric/boolean inputs and ordinary
+nonempty numeric/boolean/string outputs also use this direct batch evaluation for insert-only input.
+Their results are independently owned flat Arrow vectors; no timestamp aliases or function-purity
+assumptions are involved. String arguments, represented layouts, binary/decimal/temporal outputs,
+and RowKind-tagged batches retain the existing bridge. The same function binding, row order and
+exception causes remain intact.
+
+This improves the existing shared-stateful opt-in INT/BIGINT/STRING jobs by about 28%/32%/10%, but
+they remain slower than their paired stock controls. Expression admission and the shared-stateful
+option's default do not change. [Issue #398](https://github.com/datafusion-contrib/StreamFusion/issues/398)
+remains open for default performance admission; the current comparison and all samples are in
+[the optimization page](../docs/optimizations/udf-columnar-upcall.md#complete-generated-calcs-with-primitive-inputs).
