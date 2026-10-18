@@ -31,6 +31,8 @@ The normal Flink 2.2 release build stages and packages its own platform native
 library, includes the connector in deployment archives and Maven publication,
 and checks package/JNI isolation. The ordinary optional-module CI matrix runs its
 streaming unit/upstream selection on JDK 17. Flink 1.18 release bundles omit it.
+Javadoc uses the same Iceberg source selection as compilation, so the inherited
+Flink compatibility source directory cannot introduce unrelated connector APIs.
 
 The first implementation boundary is the normal legacy streaming sink. A
 version-gated adapter replaces its task-writer factory before job serialization,
