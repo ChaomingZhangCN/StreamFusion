@@ -118,6 +118,7 @@ class OrderedKeyGroupReassemblerTest {
       Watermark watermark =
           (Watermark) restored.getOutput().stream().skip(1).findFirst().orElseThrow();
       assertEquals(50, watermark.getTimestamp());
+      assertEquals(List.of(0L, 2L), values(restored));
     }
   }
 
