@@ -115,9 +115,9 @@ impl OverResultColumn {
 
     fn cache_array(&self, enabled: bool) -> Option<ArrayRef> {
         match self {
-            Self::Strings { caches, .. } if enabled => Some(string_cache_array(
-                caches.iter().map(|value| value.as_deref()),
-            )),
+            Self::Strings { caches, .. } if enabled || caches.iter().any(Option::is_some) => Some(
+                string_cache_array(caches.iter().map(|value| value.as_deref())),
+            ),
             _ => None,
         }
     }

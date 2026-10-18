@@ -168,6 +168,9 @@ including isolated surrogates, and marks the contiguous non-null child range in 
 Scalar cache sidecars allocate only when a Java cache is present; binary-only columns omit the
 sidecar. Late cache creation fills earlier rows with NULL and retains the original logical field
 index in metadata. Empty Java strings remain present caches, distinct from missing caches.
+Stateful consumers choose their output companions from the selected retained values: an OVER
+winner can still have an original Java cache when the current input batch has no companions.
+The sparse input layout must not suppress that retained representation.
 
 The first two-million-row, four-entry ROW-valued MAP implementation took **4.956 s native versus
 3.828 s stock**. CPU sampling found nested serializer copies and row-reader reconstruction in the

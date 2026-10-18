@@ -164,9 +164,14 @@ view storage and map membership, and cleanup releases both frame and selection o
 Cached Flink strings compare by UTF-16 when both operands have original Java caches, and by
 UTF-8 otherwise. Metadata-marked Arrow List<UInt16> companions can retain the original units,
 including unpaired surrogates with identical replacement bytes. Reads reconstruct the original
-representation. Shuffle and serialized recovery clear caches; RocksDB normalizes proctime views
+representation. An input batch may omit companions when all its strings lack Java caches.
+Results still emit companions for cached values retained from earlier batches, including
+when the current input is NULL. Shuffle and serialized recovery clear caches; RocksDB normalizes proctime views
 between individual rows, including within one Arrow batch. Explicit transport controls and full
 SQL comparisons cover source/computed strings, unpartitioned input, chained OVER and window-to-OVER.
+The [sparse-input regression checks](../benchmarks/results/over-sparse-cache-validation-2026-10-18.json)
+include all 256 typed OVER harness cases on each released Flink line and 32 native fixtures
+for cached winners followed by ordinary string/NULL batches across all four rowtime frames.
 
 Decimal RANGE folds and cached string views also retain the backend's expired-timestamp-group
 order. Heap membership includes pending groups and follows JDK insertion, tree splitting and
