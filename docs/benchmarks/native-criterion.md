@@ -11,6 +11,11 @@ all nine batch/null/Unicode fixture profiles without pretending UUID consumes th
 Direct Calc regressions separately cover zero-column pruning, repeated batches, empty and
 all-filtered batches, independent call sites and preserved changelog tags.
 
+The scalar registry also exercises the production CARDINALITY and TYPEOF selections
+(167/168). TYPEOF receives an evaluated nullable collection and Flink's resolved string;
+it returns that string without inspecting the collection's values. Collection benchmarks
+verify array/map cardinalities over sliced batches, NULL containers and empty maps.
+
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise
 inside a native island. They complement release-mode Flink comparisons; they cannot establish an
@@ -245,7 +250,7 @@ Some historical suites use
 | Persistent window join | `persistent_state` | INNER join with unique UTF-8 keys; right arrival, partial firing, checkpoint and aligned/rebuilt single-source recovery; independent multiset/schema oracle, pre-replay arrivals, post-replay late rejection and continued processing |
 | Persistent group aggregation | `persistent_state`, `persistent_group` | Mini-batch COUNT(*), nullable Int64 SUM and Int64 MIN/MAX with UTF-8 keys; ingestion/flush, checkpoint and aligned/rebuilt single-source restore; independent continued-changelog oracle and per-key row-kind order checks; half/all-row retractions with deletion and reinsertion oracles |
 | Matched memory window ranking | `persistent_state` | Ingestion, populated-state updates and firing over the same sliced, nullable, wide-payload shapes as the disk-backed ranker; independent row-index output oracle |
-| Collection expression kernels | `collection_expressions` | ARRAY_DISTINCT over Boolean, integer and string arrays; sliced/null input, short/large lists, unique/repeated values and wide UTF-8; expected outputs asserted |
+| Collection expression kernels | `collection_expressions` | ARRAY_DISTINCT over Boolean, integer and string arrays; CARDINALITY over arrays and maps; ARRAY_REVERSE/ARRAY_SLICE over structs carrying string caches and row kinds; sliced/null input, empty/short/large containers, unique/repeated values and wide UTF-8; expected outputs asserted |
 | Exact scalar JNI upcalls | `jvm_truncate` | Production Rust Calc/C Data export, Java reflection/generated row evaluation and Arrow result import; bounded DOUBLE TRUNCATE shortcut versus released Flink; nullable sliced input and fallback profiles |
 | Registered Flink scalar functions | `scalar_registry` | Every registered numeric opcode; completeness assertion requires a fixture for new registrations; ASCII/null/Unicode profiles |
 | Parameterized scalar kernels | `scalar_registry` | Decimal cast/round/truncate/arithmetic/float conversion, integer parse/format/divide, FROM_UNIXTIME, array item, literal/dynamic map lookup, random, clock, float comparison |
