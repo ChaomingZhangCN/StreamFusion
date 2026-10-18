@@ -1,0 +1,5172 @@
+{
+  "method": {
+    "flink": "2.2.1",
+    "jdk": "11",
+    "rows": 5000000,
+    "parallelism": 1,
+    "warmups": 2,
+    "measured_runs": 3,
+    "heap": "8g",
+    "native_task_off_heap": "48g",
+    "source": "bounded runtime Row source",
+    "sink": "rowwise blackhole",
+    "timezone": "UTC",
+    "rowtime": "TIMESTAMP(3)",
+    "watermark": "rt - 1 second",
+    "timestamp_step": "10ms per 1024 rows",
+    "keys": "nullable INT; NULL every 11th row",
+    "shuffle": "production Arrow IPC; zeroCopyLocal=false",
+    "measured_boundary": "executeSql through await; includes planning at submission, startup, processing, JNI, both transposes, state and completion",
+    "native_proof": "plan requires native windows and both transposes; consumed native windows >= 2 and one recordsIn equals input rows",
+    "source_base": "3679d312 (initial matrix); 0a02ecb8 (rebased matched confirmation)",
+    "candidate_engine_sha256": "25b323005f91559658ef5aed02339f35e092e2698f8a7b52811198e9bd062eee",
+    "candidate_dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+    "candidate_store_sha256": "793c6045658efd971ee7bde27b20b6fc21600720aeaafbf4fa7fbfbdf5fb4102",
+    "baseline_dso_sha256": "8cd060d2af131fdc78efb7b39054905f8d8e7eadbbb4f8fffc00d2728fca3319",
+    "hardware": {
+      "cpu": "Apple M4 Pro",
+      "logical_cpus": 14,
+      "memory_bytes": 25769803776,
+      "os": "macOS 26.5",
+      "arch": "aarch64"
+    },
+    "jdk_build": "Oracle HotSpot 11.0.27+8-LTS-232",
+    "metadata_scope": "Method applies to the matched final and baseline mimalloc runs. Earlier system-allocator diagnostics are labeled per run and are not production before/after evidence.",
+    "final_default_admission": "Fixed-grid attached ONE_PHASE over ordinary COUNT-only upstream windows, size at most five slides/steps; no regional calendar callback. Wider overlap remains fallback unless the existing override is true.",
+    "candidate_planner_sha256": "362541539a9636f6513732d941b38b05eb179a241aa0da886d8baf0ec6232a9c",
+    "candidate_dso_source_base": "0a02ecb8",
+    "baseline_rebased_dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117"
+  },
+  "runs": [
+    {
+      "measured_runs": 3,
+      "stage": "after-rocks-hop",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "d58f4c9c50d6e004af384a401971adc7862a09d63ceeea9e3356e784033c8e72",
+      "note": "Earlier COUNT bundle wrote all pending groups at each watermark; retained intermediate comparison.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "true",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=true native_route=true stock_trials=[9.003565583, 8.562645125, 8.625965083] enabled_trials=[8.340056834, 8.138766458, 7.815864833]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 10.299401042
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 9.0296945
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.1081985
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.832826542
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 9.003565583
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.340056834
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.138766458
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.562645125
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.625965083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 7.815864833
+        }
+      ],
+      "medians": {
+        "stock": 8.625965083,
+        "native_enabled": 8.138766458
+      },
+      "stock_over_enabled": 1.059861482389768
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-default-cumulate-rocks1-keys64-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with native enabled uses complete-query fallback; substitutions are asserted zero.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "true",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "false"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=true keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=false stock_trials=[1.363942916, 1.369881333, 1.371726208] enabled_trials=[1.3638955, 1.358961333, 1.375856916]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.786660542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.506045625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.434770333
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.386123042
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.363942916
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.3638955
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.358961333
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.369881333
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.371726208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.375856916
+        }
+      ],
+      "medians": {
+        "stock": 1.369881333,
+        "native_enabled": 1.3638955
+      },
+      "stock_over_enabled": 1.0043887768527722
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-default-hop-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with native enabled uses complete-query fallback; substitutions are asserted zero.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "false"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=false stock_trials=[1.504912375, 1.400864375, 1.396208542] enabled_trials=[1.3962325, 1.400393417, 1.413333125]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.062869
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.578450875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.518980708
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.490980959
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.504912375
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.3962325
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.400393417
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.400864375
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.396208542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.413333125
+        }
+      ],
+      "medians": {
+        "stock": 1.400864375,
+        "native_enabled": 1.400393417
+      },
+      "stock_over_enabled": 1.0003363040659023
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-default-hop-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with native enabled uses complete-query fallback; substitutions are asserted zero.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "false"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=false stock_trials=[8.647276417, 8.072797, 8.923292] enabled_trials=[8.418738792, 8.689880667, 9.056932333]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 10.881066083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 8.917249167
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 9.423055375
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.857210875
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.647276417
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.418738792
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.689880667
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.072797
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.923292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 9.056932333
+        }
+      ],
+      "medians": {
+        "stock": 8.647276417,
+        "native_enabled": 8.689880667
+      },
+      "stock_over_enabled": 0.9950972571853846
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-default-tumble-rocks0-keys64-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with native enabled uses complete-query fallback; substitutions are asserted zero.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "false",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "false"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=false keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=false stock_trials=[1.262519667, 1.204368417, 1.199449875] enabled_trials=[1.260968, 1.225130833, 1.203595375]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.971955667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.314457958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.32416175
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.269098417
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.262519667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.260968
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.225130833
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.204368417
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.199449875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.203595375
+        }
+      ],
+      "medians": {
+        "stock": 1.204368417,
+        "native_enabled": 1.225130833
+      },
+      "stock_over_enabled": 0.9830528989714848
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-optin-hop-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with the existing experimental override enabled; native execution is asserted.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "true",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=true native_route=true stock_trials=[1.43523025, 1.444543042, 1.407641583] enabled_trials=[1.087269167, 1.105260875, 1.075291166]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.136345875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.506269625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.183333417
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.544031208
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.43523025
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.087269167
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.105260875
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.444543042
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.407641583
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.075291166
+        }
+      ],
+      "medians": {
+        "stock": 1.43523025,
+        "native_enabled": 1.087269167
+      },
+      "stock_over_enabled": 1.3200321443494036
+    },
+    {
+      "measured_runs": 3,
+      "stage": "baseline-rebased-optin-hop-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "c3607a334f0834060574f0b3ced16f96bbfc8b91919473517486c9335ab3d117",
+      "note": "Previous main with the existing experimental override enabled; native execution is asserted.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "true",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=true native_route=true stock_trials=[8.373748833, 8.650327292, 8.760097708] enabled_trials=[27.072303667, 27.011424042, 27.204152333]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 9.973499541
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 27.509168083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 27.240008417
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.508497166
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.373748833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 27.072303667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 27.011424042
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.650327292
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.760097708
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 27.204152333
+        }
+      ],
+      "medians": {
+        "stock": 8.650327292,
+        "native_enabled": 27.072303667
+      },
+      "stock_over_enabled": 0.3195268270629066
+    },
+    {
+      "measured_runs": 5,
+      "stage": "before-memory-hop",
+      "source_base": "ffa34c9a",
+      "allocator": "system (diagnostic only)",
+      "dso_sha256": null,
+      "note": "Earlier system-allocator diagnostic; not the matched production mimalloc comparison. The memory diagnostic has five measured trials.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 native_route=true stock_trials=[1.497548959, 1.402774541, 1.405455875, 1.404524, 1.358259709] enabled_trials=[1.344405125, 1.311874458, 1.15749275, 1.154961084, 1.144400042]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.056904667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.675566208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.375584041
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.522234083
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.497548959
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.344405125
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.311874458
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.402774541
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.405455875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.15749275
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.154961084
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.404524
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.358259709
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.144400042
+        }
+      ],
+      "medians": {
+        "stock": 1.404524,
+        "native_enabled": 1.15749275
+      },
+      "stock_over_enabled": 1.2134192633172
+    },
+    {
+      "measured_runs": 3,
+      "stage": "before-rocks-hop",
+      "source_base": "ffa34c9a",
+      "allocator": "system (diagnostic only)",
+      "dso_sha256": null,
+      "note": "Earlier system-allocator diagnostic; not the matched production mimalloc comparison. The memory diagnostic has five measured trials.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 native_route=true stock_trials=[8.680230666, 8.485159083, 8.901050792] enabled_trials=[31.055599875, 30.386638583, 30.969403375]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 9.746487333
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 30.682758083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 31.977218542
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.502428083
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.680230666
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 31.055599875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 30.386638583
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.485159083
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.901050792
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 30.969403375
+        }
+      ],
+      "medians": {
+        "stock": 8.680230666,
+        "native_enabled": 30.969403375
+      },
+      "stock_over_enabled": 0.28028407783299764
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-cumulate-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.544703209, 1.445336167, 1.414004542] enabled_trials=[0.916526333, 0.8820235, 0.888566334]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.076025625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.260270584
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.986041834
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.578197041
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.544703209
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.916526333
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.8820235
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.445336167
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.414004542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.888566334
+        }
+      ],
+      "medians": {
+        "stock": 1.445336167,
+        "native_enabled": 0.888566334
+      },
+      "stock_over_enabled": 1.6265934367484152
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-cumulate-rocks0-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "false",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=false keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.312711625, 1.260066458, 1.257389542] enabled_trials=[0.567099, 0.539971541, 0.547657084]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.925109958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.972879125
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.612414583
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.482270583
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.312711625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.567099
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.539971541
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.260066458
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.257389542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.547657084
+        }
+      ],
+      "medians": {
+        "stock": 1.260066458,
+        "native_enabled": 0.547657084
+      },
+      "stock_over_enabled": 2.3008311127771335
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-cumulate-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[6.125611541, 5.856447375, 6.059966708] enabled_trials=[2.458197083, 2.469221208, 2.476166875]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 7.821977625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.91322225
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.562961709
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 5.95449475
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 6.125611541
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.458197083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.469221208
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 5.856447375
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 6.059966708
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.476166875
+        }
+      ],
+      "medians": {
+        "stock": 6.059966708,
+        "native_enabled": 2.469221208
+      },
+      "stock_over_enabled": 2.454201627770889
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-cumulate-rocks1-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "true",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=true keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.420271458, 1.359697459, 1.386984709] enabled_trials=[0.5569675, 0.551546083, 0.653671833]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.8685125
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.222182958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.654303333
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.440277042
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.420271458
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.5569675
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.551546083
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.359697459
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.386984709
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.653671833
+        }
+      ],
+      "medians": {
+        "stock": 1.386984709,
+        "native_enabled": 0.5569675
+      },
+      "stock_over_enabled": 2.490243522288105
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.526097542, 1.591177459, 1.555681292] enabled_trials=[1.089657833, 1.140926334, 1.1000755]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.276984875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.540392292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.285328292
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.58476575
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.526097542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.089657833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.140926334
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.591177459
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.555681292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.1000755
+        }
+      ],
+      "medians": {
+        "stock": 1.555681292,
+        "native_enabled": 1.1000755
+      },
+      "stock_over_enabled": 1.4141586572921587
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks0-keys4096-size10-mixed1-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "true",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=true opt_in=false native_route=true stock_trials=[1.588603, 1.501209917, 1.506021667] enabled_trials=[1.301647375, 1.122158667, 1.099842458]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.235114
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.578006208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.304784834
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.575061625
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.588603
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.301647375
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.122158667
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.501209917
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.506021667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.099842458
+        }
+      ],
+      "medians": {
+        "stock": 1.506021667,
+        "native_enabled": 1.122158667
+      },
+      "stock_over_enabled": 1.342075511501619
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks0-keys4096-size30-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Native measurement before narrowing default admission to at most five overlaps. This wider layout remains fallback by default in the final planner.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "30",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=30 mixed=false opt_in=false native_route=true stock_trials=[1.699666792, 1.648625, 1.667616666] enabled_trials=[2.753434209, 2.498962584, 2.47603825]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.338061875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.067220583
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.611102708
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.754530708
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.699666792
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.753434209
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.498962584
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.648625
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.667616666
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.47603825
+        }
+      ],
+      "medians": {
+        "stock": 1.667616666,
+        "native_enabled": 2.498962584
+      },
+      "stock_over_enabled": 0.6673235832649825
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks0-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.339592166, 1.214823875, 1.223626917] enabled_trials=[0.542305625, 0.515355958, 0.5085145]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.939984625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.034054542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.601354333
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.320674792
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.339592166
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.542305625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.515355958
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.214823875
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.223626917
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.5085145
+        }
+      ],
+      "medians": {
+        "stock": 1.223626917,
+        "native_enabled": 0.515355958
+      },
+      "stock_over_enabled": 2.3743335029028616
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[8.6800495, 8.369376, 9.073803125] enabled_trials=[3.286014042, 3.255520334, 3.064227209]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 9.96500225
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.750618584
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.375558084
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 9.030523709
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.6800495
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.286014042
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.255520334
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.369376
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 9.073803125
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.064227209
+        }
+      ],
+      "medians": {
+        "stock": 8.6800495,
+        "native_enabled": 3.255520334
+      },
+      "stock_over_enabled": 2.6662556548479546
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-hop-rocks1-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.441752041, 1.424748917, 1.399648083] enabled_trials=[0.564765667, 0.507095958, 0.516411958]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.704059542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.011317458
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.608285292
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.46967475
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.441752041
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.564765667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.507095958
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.424748917
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.399648083
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.516411958
+        }
+      ],
+      "medians": {
+        "stock": 1.424748917,
+        "native_enabled": 0.516411958
+      },
+      "stock_over_enabled": 2.7589386630741037
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-tumble-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.326017458, 1.337199125, 1.321925542] enabled_trials=[0.699230167, 0.714823542, 0.684673917]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.0375145
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.082398417
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.812168
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.528401042
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.326017458
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.699230167
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.714823542
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.337199125
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.321925542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.684673917
+        }
+      ],
+      "medians": {
+        "stock": 1.326017458,
+        "native_enabled": 0.699230167
+      },
+      "stock_over_enabled": 1.896396237721248
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-tumble-rocks0-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "false",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=false keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.268410875, 1.336768833, 1.27442175] enabled_trials=[0.590847292, 0.595136209, 0.585064583]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.188982541
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.982586709
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.674110792
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.393060042
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.268410875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.590847292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.595136209
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.336768833
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.27442175
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.585064583
+        }
+      ],
+      "medians": {
+        "stock": 1.27442175,
+        "native_enabled": 0.590847292
+      },
+      "stock_over_enabled": 2.1569393094552765
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-tumble-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[2.705510709, 2.75346875, 2.694435875] enabled_trials=[0.938347166, 0.928464917, 0.938734041]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.858118833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.274470666
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.953815291
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.592920625
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.705510709
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.938347166
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.928464917
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.75346875
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.694435875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.938734041
+        }
+      ],
+      "medians": {
+        "stock": 2.705510709,
+        "native_enabled": 0.938347166
+      },
+      "stock_over_enabled": 2.8832726383488643
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-default-tumble-rocks1-keys64-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "true",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=true keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.471814375, 1.351582333, 1.308915208] enabled_trials=[0.525159958, 0.507260583, 0.510557125]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.509257875
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.854720708
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.600565833
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.439941667
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.471814375
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.525159958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.507260583
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.351582333
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.308915208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.510557125
+        }
+      ],
+      "medians": {
+        "stock": 1.351582333,
+        "native_enabled": 0.510557125
+      },
+      "stock_over_enabled": 2.6472695548025116
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-final-hop-rocks0-keys4096-size10-mixed0-two_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "TWO_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=TWO_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.341913417, 1.365163208, 1.37557425] enabled_trials=[1.052739833, 1.056413292, 1.064152042]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.976578792
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.301556208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.101861917
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.406523625
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.341913417
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.052739833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.056413292
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.365163208
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.37557425
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.064152042
+        }
+      ],
+      "medians": {
+        "stock": 1.365163208,
+        "native_enabled": 1.056413292
+      },
+      "stock_over_enabled": 1.2922624301853256
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-final-hop-rocks0-keys4096-size10-mixed1-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "true",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=true opt_in=false native_route=true stock_trials=[1.530153, 1.485888208, 1.415585375] enabled_trials=[1.071115167, 1.081056417, 1.086946583]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.122874334
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.432878667
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.179095667
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.531122666
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.530153
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.071115167
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.081056417
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.485888208
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.415585375
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.086946583
+        }
+      ],
+      "medians": {
+        "stock": 1.485888208,
+        "native_enabled": 1.081056417
+      },
+      "stock_over_enabled": 1.3744779501179354
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-final-hop-rocks0-keys4096-size30-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Final engine/store implementation with production IPC and both perimeter conversions.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "30",
+        "mixed": "false",
+        "opt_in": "true",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=30 mixed=false opt_in=true native_route=true stock_trials=[1.689263709, 1.61222525, 1.5903705] enabled_trials=[2.345055417, 2.372886417, 2.355027375]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.25662475
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.881498125
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.588022791
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.672417125
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.689263709
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.345055417
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.372886417
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.61222525
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.5903705
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.355027375
+        }
+      ],
+      "medians": {
+        "stock": 1.61222525,
+        "native_enabled": 2.355027375
+      },
+      "stock_over_enabled": 0.6845887513303321
+    },
+    {
+      "measured_runs": 0,
+      "stage": "candidate-final-hop-rocks1-keys4096-size30-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "Wide persistent diagnostic stopped after the completed first pair of warmups (stock 19.136574208s, native 77.438716458s). The second native warmup was sampled and interrupted; no measured-trial median exists for this profile.",
+      "configuration": {},
+      "summary": [],
+      "completed": false,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 19.136574208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 77.438716458
+        }
+      ],
+      "medians": {},
+      "stock_over_enabled": null
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-cumulate-rocks1-keys64-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "CUMULATE",
+        "rocks": "true",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=CUMULATE rocks=true keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.358265291, 1.34850975, 1.32346525] enabled_trials=[0.558450167, 0.576878542, 0.546058833]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.566243583
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.945038
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.597671417
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.451058875
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.358265291
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.558450167
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.576878542
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.34850975
+        },
+        {
+          "engine": "stock",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.32346525
+        },
+        {
+          "engine": "native_enabled",
+          "window": "CUMULATE",
+          "rocks": true,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.546058833
+        }
+      ],
+      "medians": {
+        "stock": 1.34850975,
+        "native_enabled": 0.558450167
+      },
+      "stock_over_enabled": 2.4147360493134205
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-fallback-hop-rocks0-keys4096-size30-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Final default planner retains complete-query fallback for wider overlap; substitutions are asserted zero.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "30",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "false"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=30 mixed=false opt_in=false native_route=false stock_trials=[1.656580292, 1.581268125, 1.581751833] enabled_trials=[1.584940791, 1.576560042, 1.585735666]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.260182833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.732784417
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.726368916
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.581662
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.656580292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.584940791
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.576560042
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.581268125
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.581751833
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.585735666
+        }
+      ],
+      "medians": {
+        "stock": 1.581751833,
+        "native_enabled": 1.584940791
+      },
+      "stock_over_enabled": 0.9979879639554309
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-hop-rocks0-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "false",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=false keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.478455542, 1.493760416, 1.480938459] enabled_trials=[1.079833583, 1.088662042, 1.087490333]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.272398666
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.425446
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.192442334
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.57955375
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.478455542
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.079833583
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.088662042
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.493760416
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.480938459
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.087490333
+        }
+      ],
+      "medians": {
+        "stock": 1.480938459,
+        "native_enabled": 1.087490333
+      },
+      "stock_over_enabled": 1.361794596292747
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-hop-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[8.832958, 8.751857709, 8.9625565] enabled_trials=[3.084603834, 3.077450416, 3.055205]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 9.801941917
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.484023
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.187928792
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 8.9508755
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 8.832958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.084603834
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.077450416
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.751857709
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.9625565
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.055205
+        }
+      ],
+      "medians": {
+        "stock": 8.832958,
+        "native_enabled": 3.077450416
+      },
+      "stock_over_enabled": 2.8702194368677683
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-hop-rocks1-keys4096-size10-mixed0-two_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "TWO_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=TWO_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[15.527605625, 15.731125459, 15.986779292] enabled_trials=[1.912230042, 1.927822458, 1.907493167]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 16.731107666
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.20474825
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.927287125
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 15.506712458
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 15.527605625
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.912230042
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.927822458
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 15.731125459
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 15.986779292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.907493167
+        }
+      ],
+      "medians": {
+        "stock": 15.731125459,
+        "native_enabled": 1.912230042
+      },
+      "stock_over_enabled": 8.226586296357329
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-hop-rocks1-keys4096-size10-mixed1-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "HOP",
+        "rocks": "true",
+        "keys": "4096",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "true",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=HOP rocks=true keys=4096 phase=ONE_PHASE size_seconds=10 mixed=true opt_in=false native_route=true stock_trials=[9.160633917, 8.848790459, 8.869783208] enabled_trials=[3.13130575, 3.125868833, 3.056904125]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 10.239144042
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.552756292
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.198641333
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 9.0066075
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 9.160633917
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 3.13130575
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 3.125868833
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 8.848790459
+        },
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 8.869783208
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.056904125
+        }
+      ],
+      "medians": {
+        "stock": 8.869783208,
+        "native_enabled": 3.125868833
+      },
+      "stock_over_enabled": 2.8375417145982333
+    },
+    {
+      "measured_runs": 3,
+      "stage": "candidate-rebased-tumble-rocks0-keys64-size10-mixed0-one_phase",
+      "source_base": "0a02ecb8",
+      "allocator": "mimalloc",
+      "dso_sha256": "e825c4bf7ccb94d862c7532f02723671ff00d9b6b3fe7aa48f1976589de4ceb2",
+      "note": "Matched release/mimalloc run after rebasing onto the latest main; window algorithms are unchanged by the intervening optional connector merge.",
+      "configuration": {
+        "rows": "5000000",
+        "window": "TUMBLE",
+        "rocks": "false",
+        "keys": "64",
+        "phase": "ONE_PHASE",
+        "size_seconds": "10",
+        "mixed": "false",
+        "opt_in": "false",
+        "native_route": "true"
+      },
+      "summary": [
+        "[attached] rows=5000000 window=TUMBLE rocks=false keys=64 phase=ONE_PHASE size_seconds=10 mixed=false opt_in=false native_route=true stock_trials=[1.246716958, 1.227079167, 1.250235708] enabled_trials=[0.49814175, 0.498921875, 0.508983625]"
+      ],
+      "completed": true,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.859723834
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.94878475
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.573838125
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.368357958
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.246716958
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.49814175
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.498921875
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.227079167
+        },
+        {
+          "engine": "stock",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.250235708
+        },
+        {
+          "engine": "native_enabled",
+          "window": "TUMBLE",
+          "rocks": false,
+          "keys": 64,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.508983625
+        }
+      ],
+      "medians": {
+        "stock": 1.246716958,
+        "native_enabled": 0.498921875
+      },
+      "stock_over_enabled": 2.4988220009395254
+    },
+    {
+      "measured_runs": 0,
+      "stage": "candidate-selective-hop-rocks1-keys4096-size10-mixed0-one_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "43edc2755b7d172e77635ee50a1546bfde3b217c66b7b12695b6a29031e12d09",
+      "note": "Rejected selective-close revision without an iterator upper bound. Only completed warmups are retained; the next instrumented native warmup was interrupted.",
+      "configuration": {},
+      "summary": [],
+      "completed": false,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 10.231883917
+        },
+        {
+          "engine": "native_enabled",
+          "window": "HOP",
+          "rocks": true,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 53.390428791
+        }
+      ],
+      "medians": {},
+      "stock_over_enabled": null
+    },
+    {
+      "measured_runs": 0,
+      "stage": "harness-rejected-hop-rocks0-keys4096-size10-mixed0-two_phase",
+      "source_base": "3679d312",
+      "allocator": "mimalloc",
+      "dso_sha256": "ae05e92ebe3f009a476f5dbec03f29f6c808df82e555a042f5a7badc98457f42",
+      "note": "TWO_PHASE benchmark stopped before native execution because the plan assertion recognized only the single-phase operator name. Superseded by the corrected final fixture; excluded from comparisons.",
+      "configuration": {},
+      "summary": [],
+      "completed": false,
+      "trials": [
+        {
+          "engine": "stock",
+          "window": "HOP",
+          "rocks": false,
+          "keys": 4096,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.957053292
+        }
+      ],
+      "medians": {},
+      "stock_over_enabled": null
+    }
+  ],
+  "profiles": [
+    {
+      "revision": "candidate-selective",
+      "warmup": 1,
+      "duration_seconds": 5,
+      "sampling_interval_ms": 10,
+      "task_thread_samples": 432,
+      "flush_samples": 413,
+      "rocksdb_iterator_seek_samples": 412,
+      "note": "Instrumented second warmup was interrupted; completed first native warmup took 53.390428791 seconds before profiling. Iterator seek traversed deleted keys beyond each key-group prefix."
+    },
+    {
+      "revision": "candidate-final",
+      "window": "HOP",
+      "window_seconds": 30,
+      "slide_seconds": 2,
+      "rocks": true,
+      "keys": 4096,
+      "warmup": 1,
+      "duration_seconds": 5,
+      "sampling_interval_ms": 10,
+      "task_thread_samples": 404,
+      "hydrate_store_groups_samples": 277,
+      "write_store_groups_samples": 105,
+      "note": "Separate diagnostic during second native warmup, interrupted afterward. The completed first uninstrumented native warmup took 77.438716458s. Inclusive frames under each named method are counted once per stack; nested RocksDB frames must not be summed again. Wider overlap remains outside default admission and is tracked in #394."
+    }
+  ],
+  "validation": {
+    "flink_2_2_1_jdk_11": {
+      "checks": 800,
+      "passed": 800,
+      "skipped": 0,
+      "note": "One new host three-stage TWO_PHASE/RocksDB fixture initially lacked managed memory; all 44 new cases pass after assigning 256 MiB to both engines.",
+      "source_base": "3679d312"
+    },
+    "flink_1_18_1_jdk_11": {
+      "checks": 800,
+      "passed": 793,
+      "skipped": 7,
+      "source_base": "3679d312"
+    },
+    "rust_release": {
+      "passed": 753,
+      "ignored": 2,
+      "source_base": "0a02ecb8"
+    },
+    "rust_release_no_default_features": {
+      "passed": 629,
+      "source_base": "3679d312"
+    },
+    "summary_routing_tests": {
+      "passed": 25
+    },
+    "criterion_fixture_profiles_per_revision": 72,
+    "rebased_flink_2_2_1_jdk_11": {
+      "source_base": "0a02ecb8",
+      "checks": 98,
+      "passed": 98,
+      "skipped": 0
+    },
+    "rebased_flink_1_18_1_jdk_11": {
+      "source_base": "0a02ecb8",
+      "checks": 98,
+      "passed": 97,
+      "skipped": 1
+    }
+  },
+  "criterion": {
+    "source_base": "0a02ecb8",
+    "allocator": "CountingAllocator delegates to System; separate from the mimalloc whole-job measurements",
+    "profile": "release",
+    "sample_size": 10,
+    "warmup_seconds": 0.1,
+    "requested_measurement_seconds": 0.3,
+    "boundary": "Four update/non-closing-watermark pairs (0, 100, 200, 300), then final firing; database/input construction outside timing. Every deferred write is included. Allocation requests are from a separate untimed call, exclude native C/C++ allocations, and do not measure copied bytes or RSS.",
+    "cases": [
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/cumulate/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 281176.87583333335,
+              "upper_bound": 292314.9464776786
+            },
+            "point_estimate": 286732.1775198413,
+            "standard_error": 2843.8240439966626
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 278916.8125,
+              "upper_bound": 294421.22222222225
+            },
+            "point_estimate": 287619.56875,
+            "standard_error": 3461.884561728215
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 1423.7923809726879,
+              "upper_bound": 16323.99404019117
+            },
+            "point_estimate": 9794.714359442427,
+            "standard_error": 3683.221783683338
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 287406.0708215297,
+              "upper_bound": 293921.9251993143
+            },
+            "point_estimate": 290423.4194805195,
+            "standard_error": 1663.515934692029
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 5124.203875988759,
+              "upper_bound": 12222.315737367559
+            },
+            "point_estimate": 9500.607795110176,
+            "standard_error": 1824.6524102179637
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            2.0,
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0
+          ],
+          "times": [
+            543250.0,
+            1099752.0,
+            1687250.0,
+            2263165.0,
+            3032291.0,
+            3534042.0,
+            4049666.0,
+            4597459.0,
+            5299582.0,
+            5757959.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 2988,
+          "requested_bytes": 489558,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 1670
+        }
+      },
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/cumulate/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 237449550.0,
+              "upper_bound": 264853954.3
+            },
+            "point_estimate": 248607270.9,
+            "standard_error": 7415533.071133532
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 235031604.0,
+              "upper_bound": 253189896.0
+            },
+            "point_estimate": 239978104.0,
+            "standard_error": 4624942.985549743
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 291885.3872179985,
+              "upper_bound": 20995993.7176466
+            },
+            "point_estimate": 8297370.752692223,
+            "standard_error": 5249317.013089481
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 4482162.728903289,
+              "upper_bound": 36988441.17640858
+            },
+            "point_estimate": 24757699.642538585,
+            "standard_error": 10164669.202092312
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            242826750.0,
+            237129458.0,
+            244508250.0,
+            246859792.0,
+            314549458.0,
+            231522417.0,
+            233315250.0,
+            236747958.0,
+            236741834.0,
+            261871542.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1411502,
+          "requested_bytes": 412859090,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 8608569
+        }
+      },
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/hop/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 347376.9733333334,
+              "upper_bound": 364927.4581150794
+            },
+            "point_estimate": 355697.4662698413,
+            "standard_error": 4491.00182990444
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 344763.6666666667,
+              "upper_bound": 366462.8888888889
+            },
+            "point_estimate": 352866.9,
+            "standard_error": 5896.4034927634175
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 2553.432514667505,
+              "upper_bound": 25890.659813682163
+            },
+            "point_estimate": 13069.217607975026,
+            "standard_error": 5424.06356231465
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 350538.7429718876,
+              "upper_bound": 369291.26611486945
+            },
+            "point_estimate": 360036.7792207792,
+            "standard_error": 4703.117677461952
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 7498.989913686317,
+              "upper_bound": 19823.615108173828
+            },
+            "point_estimate": 14974.182457818026,
+            "standard_error": 3328.8131341132726
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            9.0,
+            10.0
+          ],
+          "times": [
+            349167.0,
+            735416.0,
+            1034291.0,
+            1340416.0,
+            1741041.0,
+            2060040.0,
+            2705667.0,
+            2873042.0,
+            3298166.0,
+            3565668.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 3884,
+          "requested_bytes": 607786,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 2336
+        }
+      },
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/hop/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 304007074.26750004,
+              "upper_bound": 332435479.4
+            },
+            "point_estimate": 317492479.3,
+            "standard_error": 7290262.90786858
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 296627375.0,
+              "upper_bound": 340106667.0
+            },
+            "point_estimate": 309455479.0,
+            "standard_error": 10962144.847132599
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 3019933.09058547,
+              "upper_bound": 40728288.158628345
+            },
+            "point_estimate": 22124345.701414347,
+            "standard_error": 9954310.121445801
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 12066941.45393804,
+              "upper_bound": 29663512.505387027
+            },
+            "point_estimate": 24341749.4313543,
+            "standard_error": 4422880.907613527
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            358983500.0,
+            308814916.0,
+            326468459.0,
+            332171292.0,
+            290698250.0,
+            296627375.0,
+            296623125.0,
+            353744875.0,
+            310096042.0,
+            300696959.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1759236,
+          "requested_bytes": 526914268,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 10760731
+        }
+      },
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/tumble/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 224849.09373214288,
+              "upper_bound": 236388.99113095234
+            },
+            "point_estimate": 230260.94523809524,
+            "standard_error": 2941.959531553989
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 223614.75,
+              "upper_bound": 234235.2857142857
+            },
+            "point_estimate": 230386.4,
+            "standard_error": 3194.1965897730583
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 1108.8259303144016,
+              "upper_bound": 15718.95734593273
+            },
+            "point_estimate": 6072.348252194274,
+            "standard_error": 3744.9197071999392
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 220222.96692701502,
+              "upper_bound": 231334.4306122449
+            },
+            "point_estimate": 225003.54545454544,
+            "standard_error": 2892.022986953914
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 4368.936750843249,
+              "upper_bound": 13615.005951140665
+            },
+            "point_estimate": 9829.185335277569,
+            "standard_error": 2546.3881984972863
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            2.0,
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0
+          ],
+          "times": [
+            469458.0,
+            930958.0,
+            1511543.0,
+            1865456.0,
+            2280333.0,
+            2647916.0,
+            3279294.0,
+            3577836.0,
+            4092834.0,
+            4322249.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 2523,
+          "requested_bytes": 382859,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 1004
+        }
+      },
+      {
+        "variant": "baseline",
+        "case": "engine/rocksdb/window_count/count/tumble/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "cdf594b04868444668e57efe9182f23ad05cd0c2c0529711400d7fc348f44f8c",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 46783691.6,
+              "upper_bound": 48405804.5
+            },
+            "point_estimate": 47567683.4,
+            "standard_error": 415578.8349992758
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 46465292.0,
+              "upper_bound": 48650271.0
+            },
+            "point_estimate": 47265604.0,
+            "standard_error": 649243.4067867494
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 360703.9714962244,
+              "upper_bound": 2311898.1993556023
+            },
+            "point_estimate": 1562969.4943517447,
+            "standard_error": 502253.7376649577
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 803653.3279348513,
+              "upper_bound": 1734471.6490554952
+            },
+            "point_estimate": 1384858.8960281357,
+            "standard_error": 242343.83183500194
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            48574084.0,
+            46465292.0,
+            50070583.0,
+            48972709.0,
+            45715875.0,
+            47579333.0,
+            46799834.0,
+            46951875.0,
+            48327833.0,
+            46219416.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 410652,
+          "requested_bytes": 113873850,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 2152195
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/cumulate/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 175816.8722222222,
+              "upper_bound": 184398.05081845238
+            },
+            "point_estimate": 180254.48650793653,
+            "standard_error": 2184.975160865475
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 174933.0625,
+              "upper_bound": 186228.2916666667
+            },
+            "point_estimate": 181015.34920634923,
+            "standard_error": 2303.0759686608644
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 1210.4134451775235,
+              "upper_bound": 13260.528602078564
+            },
+            "point_estimate": 4465.930883213885,
+            "standard_error": 3132.9538880007467
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 176228.38676729417,
+              "upper_bound": 182907.27272727274
+            },
+            "point_estimate": 180237.3922077922,
+            "standard_error": 1775.0601170984426
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 3570.9502116195476,
+              "upper_bound": 9421.028655487258
+            },
+            "point_estimate": 7248.101374823678,
+            "standard_error": 1518.2896525116794
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            2.0,
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0
+          ],
+          "times": [
+            333000.0,
+            759251.0,
+            1135751.0,
+            1423417.0,
+            1784625.0,
+            2207419.0,
+            2528500.0,
+            2742458.0,
+            3265624.0,
+            3663295.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1729,
+          "requested_bytes": 330215,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 1670
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/cumulate/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 246263218.36499998,
+              "upper_bound": 250986824.8
+            },
+            "point_estimate": 248423562.4,
+            "standard_error": 1219019.491856884
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 245395167.0,
+              "upper_bound": 251920791.5
+            },
+            "point_estimate": 246898833.0,
+            "standard_error": 1440266.3052681156
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 599556.7576557398,
+              "upper_bound": 5984700.118750334
+            },
+            "point_estimate": 2629175.335022807,
+            "standard_error": 1372285.5369615143
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 1354964.645116736,
+              "upper_bound": 5094918.096642231
+            },
+            "point_estimate": 4055628.6299169236,
+            "standard_error": 981010.5016309954
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            247544833.0,
+            246252833.0,
+            245208291.0,
+            246203958.0,
+            245395167.0,
+            244645042.0,
+            255086583.0,
+            256101250.0,
+            248755000.0,
+            249042667.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1411548,
+          "requested_bytes": 419533614,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 8608569
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/hop/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 196401.3,
+              "upper_bound": 216732.3666666667
+            },
+            "point_estimate": 204345.7375,
+            "standard_error": 5579.136863305652
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 194862.9166666667,
+              "upper_bound": 205159.83333333334
+            },
+            "point_estimate": 197381.0,
+            "standard_error": 3000.160438192165
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 76.94076113402124,
+              "upper_bound": 12750.545098632596
+            },
+            "point_estimate": 5496.0598774254395,
+            "standard_error": 3363.2102882571444
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 196925.93344709897,
+              "upper_bound": 235570.91542998856
+            },
+            "point_estimate": 214172.94935064935,
+            "standard_error": 11427.508916948176
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 3050.0952545842006,
+              "upper_bound": 28186.74614343309
+            },
+            "point_estimate": 18548.54909112359,
+            "standard_error": 8252.465399199267
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            2.0,
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0
+          ],
+          "times": [
+            396791.0,
+            773501.0,
+            1230959.0,
+            1540376.0,
+            1963665.0,
+            2356207.0,
+            2927792.0,
+            3140458.0,
+            3614208.0,
+            5101335.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 2172,
+          "requested_bytes": 384141,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 2336
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/hop/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 317925129.5,
+              "upper_bound": 343054318.91999996
+            },
+            "point_estimate": 329631500.2,
+            "standard_error": 6464245.423217263
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 313109417.0,
+              "upper_bound": 349301375.0
+            },
+            "point_estimate": 320349021.0,
+            "standard_error": 9079847.88893177
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 2720940.8603936434,
+              "upper_bound": 33191613.506931067
+            },
+            "point_estimate": 13675502.157211304,
+            "standard_error": 8182278.599087973
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 7664170.869811384,
+              "upper_bound": 26723039.439291622
+            },
+            "point_estimate": 21568162.844202068,
+            "standard_error": 4365300.559863144
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            370418417.0,
+            357093958.0,
+            349301375.0,
+            309921750.0,
+            309680334.0,
+            318512292.0,
+            317721959.0,
+            328369750.0,
+            322185750.0,
+            313109417.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1759282,
+          "requested_bytes": 535257368,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 10760731
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/tumble/1024/domain=8/bytes=8/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 150430.75601190474,
+              "upper_bound": 153866.27833333332
+            },
+            "point_estimate": 152200.78436507937,
+            "standard_error": 885.6704672734247
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 149927.0,
+              "upper_bound": 155022.9
+            },
+            "point_estimate": 152397.90277777778,
+            "standard_error": 1195.2704134261546
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 700.4172925651117,
+              "upper_bound": 4927.915212512009
+            },
+            "point_estimate": 3777.5906029343564,
+            "standard_error": 1174.4768247905263
+          },
+          "slope": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 151377.49551569507,
+              "upper_bound": 154554.245014245
+            },
+            "point_estimate": 153255.2961038961,
+            "standard_error": 811.8209445734401
+          },
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 1605.8904605275313,
+              "upper_bound": 3646.2804276674196
+            },
+            "point_estimate": 2941.3276693526964,
+            "standard_error": 513.0469717991334
+          }
+        },
+        "sample": {
+          "sampling_mode": "Linear",
+          "iters": [
+            2.0,
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0
+          ],
+          "times": [
+            294417.0,
+            599708.0,
+            936791.0,
+            1222126.0,
+            1518209.0,
+            1782166.0,
+            2147958.0,
+            2482584.0,
+            2736541.0,
+            3100458.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 1728,
+          "requested_bytes": 291722,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 1004
+        }
+      },
+      {
+        "variant": "candidate",
+        "case": "engine/rocksdb/window_count/count/tumble/8192/domain=8192/bytes=256/nulls=true",
+        "binary_sha256": "9679746ae9810ade49c71ca84226fc64fa0e52b3b3565a1d639a964ddbd357de",
+        "estimates_nanoseconds": {
+          "mean": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 18755712.4,
+              "upper_bound": 19281250.0
+            },
+            "point_estimate": 19022095.8,
+            "standard_error": 135426.24992186346
+          },
+          "median": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 18460708.0,
+              "upper_bound": 19474625.0
+            },
+            "point_estimate": 19048188.0,
+            "standard_error": 242872.43300125928
+          },
+          "median_abs_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 26007.027438282967,
+              "upper_bound": 781453.2419264317
+            },
+            "point_estimate": 668960.9689235687,
+            "standard_error": 214161.15999877726
+          },
+          "slope": null,
+          "std_dev": {
+            "confidence_interval": {
+              "confidence_level": 0.95,
+              "lower_bound": 267869.6885921806,
+              "upper_bound": 523399.6501814311
+            },
+            "point_estimate": 451078.9468610665,
+            "standard_error": 62135.57755447678
+          }
+        },
+        "sample": {
+          "sampling_mode": "Flat",
+          "iters": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "times": [
+            19474625.0,
+            19345625.0,
+            18436917.0,
+            19533541.0,
+            19103959.0,
+            19524167.0,
+            18449416.0,
+            18899583.0,
+            18992417.0,
+            18460708.0
+          ]
+        },
+        "allocations": {
+          "allocation_calls": 231521,
+          "requested_bytes": 68190132,
+          "shared_output_buffer_bytes": 0,
+          "new_output_buffer_bytes": 2152195
+        }
+      }
+    ],
+    "baseline_validated_count_fixtures": 72,
+    "candidate_validated_count_fixtures": 72
+  }
+}

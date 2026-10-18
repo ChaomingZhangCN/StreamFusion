@@ -68,6 +68,16 @@ overflow, so substituting DataFusion's ordinary nullable SUM would change all-NU
 overflowed partials. Local slices, global merging, signed updates and snapshots retain that buffer
 contract; the host planner's outer COUNT correction and exact division remain unchanged.
 
+## Bounded persistent COUNT updates
+
+Ordinary persistent COUNT-only windows retain a bounded decoded accumulator bundle across input
+batches. Updates coalesce in memory, while the existing RocksDB accumulator representation remains
+the checkpoint source. Watermarks commit only closing groups; checkpoint/canonical boundaries
+commit all pending groups. Payload and routing keys share the task off-heap reservation, and a
+denied reservation flushes the bundle. Regional shared slices and other aggregates retain their
+existing state lifecycle. This extends the host's bounded combining approach instead of retaining
+Arroyo-style raw inputs; Comet's pool reservation pattern remains the memory authority.
+
 ## Why
 Every aggregate we support (`SUM`/`MIN`/`MAX`/`COUNT`, and integer `AVG`) has
 associative, commutative, mergeable partial state, so merging accumulators yields

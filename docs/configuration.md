@@ -99,13 +99,16 @@ against Flink in the complete-job comparison, so stock Flink remains the default
 string aggregates. Two-phase local/global string extrema do not require this option. See
 [Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
 
-`streamfusion.window.attached.single-phase.enabled` also defaults to `false`. Set it to `true`
-in table configuration to admit verified append-only event-time TUMBLE/HOP/CUMULATE
-re-aggregation over attached window bounds in ONE_PHASE plans. Default stock execution
-preserves the measured HOP/high-cardinality and persistent COUNT performance limitations;
-the existing AUTO/TWO_PHASE attached route retains its admission. See
-[Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
-for exact coverage and retained performance results.
+Single-phase attached-window re-aggregation over a fixed grid now runs natively by default when
+its upstream native window contains only ordinary COUNT aggregates and the size is at most five
+slides/steps. This includes the verified
+COUNT-to-MAX and mixed outer SUM/MIN/MAX/AVG cascades. Regional calendar callbacks and other
+upstream aggregate layouts and wider overlap retain stock execution by default; existing AUTO/TWO_PHASE admission
+is unchanged. The optional `streamfusion.window.attached.single-phase.enabled` setting overrides
+this choice: `false` forces the single-phase attached path to stock, while `true` opts into all
+otherwise supported attached layouts, including the experimental persistent/regional paths.
+See [Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
+for coverage and the complete-job performance matrix.
 
 ## Diagnostics
 

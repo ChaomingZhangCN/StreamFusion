@@ -109,6 +109,12 @@ public class StreamPhysicalNativeColumnarWindowAggregate extends StreamPhysicalN
     return !proctime; // proctime windows fire on a processing-time timer, not a watermark
   }
 
+  boolean countOnly() {
+    return aggregateKinds.length > 0
+        && java.util.Arrays.stream(aggregateKinds)
+            .allMatch(kind -> kind == WindowAggregateMatcher.KIND_COUNT);
+  }
+
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new StreamPhysicalNativeColumnarWindowAggregate(

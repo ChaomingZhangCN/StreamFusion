@@ -39,7 +39,7 @@ final class WindowAggregateMatcher {
   static final org.apache.flink.configuration.ConfigOption<Boolean> ATTACHED_SINGLE_PHASE =
       ConfigOptions.key("streamfusion.window.attached.single-phase.enabled")
           .booleanType()
-          .defaultValue(false);
+          .noDefaultValue();
 
   static final int KIND_SUM = 0;
   /** MIN/MAX (the Rust GroupAggState routes these to the Extremes multiset). */
@@ -69,7 +69,7 @@ final class WindowAggregateMatcher {
     }
     if (windowing instanceof WindowAttachedWindowingStrategy) {
       WindowSpec attached = windowing.getWindow();
-      return ShortcutUtils.unwrapTableConfig(node).get(ATTACHED_SINGLE_PHASE)
+      return admitsAttachedSinglePhase(node, windowing)
           && (attached instanceof TumblingWindowSpec
               || attached instanceof HoppingWindowSpec
               || attached instanceof CumulativeWindowSpec)
@@ -107,6 +107,36 @@ final class WindowAggregateMatcher {
           && supportedAggregates(grouping, aggCalls, inputType);
     }
     return aligned && supportedAggregation(windowing, grouping, aggCalls, inputType);
+  }
+
+  private static boolean admitsAttachedSinglePhase(RelNode node, WindowingStrategy windowing) {
+    var override = ShortcutUtils.unwrapTableConfig(node).getOptional(ATTACHED_SINGLE_PHASE);
+    if (override.isPresent()) return override.get();
+    if (WindowZoneGate.calendarZoneId(node, windowing) != null) return false;
+    WindowSpec spec = windowing.getWindow();
+    if (!(spec instanceof TumblingWindowSpec
+        || spec instanceof HoppingWindowSpec
+        || spec instanceof CumulativeWindowSpec)) return false;
+    long size = windowSize(windowing);
+    long slide = windowSlide(windowing);
+    // Wider overlap still loses to Flink in the complete-job in-memory comparison.
+    if (size <= 0 || slide <= 0 || (size - 1) / slide >= 5) return false;
+    RelNode input = node.getInput(0);
+    while (input.getInputs().size() == 1) {
+      if (input instanceof StreamPhysicalNativeColumnarWindowAggregate)
+        return ((StreamPhysicalNativeColumnarWindowAggregate) input).countOnly();
+      if (input instanceof StreamPhysicalWindowAggregate) {
+        var calls = ((StreamPhysicalWindowAggregate) input).aggCalls();
+        if (calls.isEmpty()) return false;
+        for (int i = 0; i < calls.size(); i++) {
+          if (calls.apply(i).getAggregation().getKind() != SqlKind.COUNT
+              || calls.apply(i).isDistinct()) return false;
+        }
+        return true;
+      }
+      input = input.getInput(0);
+    }
+    return false;
   }
 
   /** Whether the window orders by processing time (fired by a clock timer rather than a watermark). */
@@ -812,12 +842,13 @@ final class WindowAggregateMatcher {
     }
     if (windowing instanceof WindowAttachedWindowingStrategy) {
       if (node instanceof StreamPhysicalWindowAggregate
-          && !ShortcutUtils.unwrapTableConfig(node).get(ATTACHED_SINGLE_PHASE)) {
-        return "attached-window aggregation requires two-phase execution by default;"
-            + " single-phase attached windows require "
+          && !admitsAttachedSinglePhase(node, windowing)) {
+        return "attached-window aggregation requires two-phase execution outside the default"
+            + " fixed-grid COUNT-only whitelist (at most five overlapping windows) or with an"
+            + " explicit false override. Enable "
             + ATTACHED_SINGLE_PHASE.key()
-            + "=true; measured HOP/high-cardinality and persistent COUNT paths remain slower than"
-            + " Flink";
+            + "=true to opt into other supported attached windows, whose persistent/regional"
+            + " paths retain their measured performance limitations";
       }
       return "window aggregate: attached bounds require append-only event-time input, no FILTER,"
             + " and supported aggregate/key types";

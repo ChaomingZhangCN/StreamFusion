@@ -341,9 +341,8 @@ pub(crate) struct TumblingAggregator {
     // rescanning all state) and resized against the reservation after every state change.
     pub(crate) memory: OperatorMemory,
     key_timestamp_precisions: Vec<i32>,
-    /// Persistent-state mode: committed (window, key) rows live in the persistent store; the decoded
-    /// `windows` map holds only the current bundle's touched state (hydrated on first touch, written
-    /// through at the bundle boundary, then dropped — the map stays empty between bundles).
+    /// Persistent-state mode: decoded COUNT updates may coalesce in a bounded bundle, which is
+    /// drained before firing, canonical scans or checkpoints. Other aggregates write each batch.
     #[cfg(feature = "rocksdb-state")]
     store: Option<crate::state::RocksWindowAggStore>,
     /// The bundle's touched (window end, key) groups and their Flink key groups — exactly the
@@ -495,6 +494,7 @@ impl TumblingAggregator {
         timer_deadline: i64,
         snapshot_dir: &str,
     ) -> Result<crate::state::RocksCheckpointManifest, DataFusionError> {
+        self.write_through_store()?;
         let watermark = self.current_watermark;
         self.store
             .as_mut()
@@ -538,7 +538,8 @@ impl TumblingAggregator {
     /// `state_bytes` tracks. Used once when a budget attaches to restored state (and by tests to
     /// assert the incremental tracking does not drift).
     pub(crate) fn computed_state_bytes(&self) -> usize {
-        self.windows
+        let bytes = self
+            .windows
             .values()
             .map(|window| {
                 window
@@ -555,7 +556,16 @@ impl TumblingAggregator {
                 .values()
                 .flat_map(|keys| keys.keys())
                 .map(|key| owned_row_bytes(key) + std::mem::size_of::<(i64, i32)>())
-                .sum::<usize>()
+                .sum::<usize>();
+        #[cfg(feature = "rocksdb-state")]
+        let bytes = bytes
+            + self
+                .store_groups
+                .keys()
+                .filter(|_| self.buffers_store_updates())
+                .map(|(_, key)| owned_row_bytes(key) + std::mem::size_of::<(i64, i32)>())
+                .sum::<usize>();
+        bytes
     }
 
     /// Removes a dropped group's footprint from the tracked state size (a flush closing its window).
@@ -840,7 +850,7 @@ impl TumblingAggregator {
             }
             self.hydrate_store_groups(batch, &touched)?;
         }
-        let track = self.memory.tracking();
+        let track = self.tracks_window_state();
         for ((pane, key), windows) in panes.iter().zip(pane_keys).zip(pane_windows) {
             let key = key.owned();
             for (start, end) in windows {
@@ -881,9 +891,11 @@ impl TumblingAggregator {
                 }
             }
         }
-        self.memory.account()?;
+        if !self.buffers_store_updates() {
+            self.memory.account()?;
+        }
         #[cfg(feature = "rocksdb-state")]
-        self.write_through_store()?;
+        self.finish_store_bundle(false)?;
         Ok(())
     }
 
@@ -966,7 +978,7 @@ impl TumblingAggregator {
                 .collect();
             self.hydrate_store_groups(batch, &touched)?;
             self.accumulate_grouped(grouped, values, batch.column_by_name(ROW_KIND_COLUMN))?;
-            return self.write_through_store_with_timers(self.shared_slices);
+            return self.finish_store_bundle(self.shared_slices);
         }
         self.accumulate_grouped(grouped, values, batch.column_by_name(ROW_KIND_COLUMN))
     }
@@ -981,7 +993,7 @@ impl TumblingAggregator {
         values: &[&ArrayRef],
         changes: Option<&ArrayRef>,
     ) -> Result<(), DataFusionError> {
-        let track = self.memory.tracking();
+        let track = self.tracks_window_state();
         let timestamps: Vec<_> = self
             .aggregates
             .iter()
@@ -1087,7 +1099,11 @@ impl TumblingAggregator {
                 self.memory.record(delta);
             }
         }
-        self.memory.account()
+        if self.buffers_store_updates() {
+            Ok(())
+        } else {
+            self.memory.account()
+        }
     }
 
     /// Finalizes and removes closed windows, emitting
@@ -1140,6 +1156,11 @@ impl TumblingAggregator {
     /// a closed window can never re-fire after a restore.
     #[cfg(feature = "rocksdb-state")]
     fn flush_store(&mut self, watermark: i64) -> Result<RecordBatch, DataFusionError> {
+        if self.buffers_store_updates() {
+            self.write_store_groups(false, Some(watermark))?;
+        } else {
+            self.write_through_store()?;
+        }
         let fired = self
             .store
             .as_mut()
@@ -1352,7 +1373,7 @@ impl TumblingAggregator {
             .zip(&partials)
             .map(|(aggregate, fields)| aggregate.timestamp_column(fields[0]))
             .collect::<Result<_, _>>()?;
-        let track = self.memory.tracking();
+        let track = self.tracks_window_state();
         for row in 0..batch.num_rows() {
             let slice_end = slice_ends.value(row);
             let key = keys_encoded.row(row).owned();
@@ -1445,6 +1466,7 @@ impl TumblingAggregator {
         if touched.is_empty() {
             return Ok(());
         }
+        let track = self.tracks_window_state();
         let key_columns = key_column_indices(batch);
         let mut encoder =
             BinaryRowBatchEncoder::new(batch, &key_columns, &self.key_timestamp_precisions);
@@ -1459,6 +1481,11 @@ impl TumblingAggregator {
             let key_group = store.key_group(encoder.hash(row as usize));
             db_keys.push(store.db_key(key_group, end, key.data()));
             self.store_groups.insert(group.clone(), key_group);
+            if self.buffers_store_updates() {
+                self.memory.record(
+                    (owned_row_bytes(&group.1) + std::mem::size_of::<(i64, i32)>()) as isize,
+                );
+            }
             probes.push(group);
         }
         if probes.is_empty() {
@@ -1469,7 +1496,6 @@ impl TumblingAggregator {
             .as_ref()
             .expect("window-aggregate rocksdb store")
             .get(&db_keys)?;
-        let track = self.memory.tracking();
         for ((end, key), stored) in probes.into_iter().zip(fetched) {
             let Some((start, state)) = stored else {
                 continue;
@@ -1488,12 +1514,44 @@ impl TumblingAggregator {
                 .keys
                 .insert(key, accumulators);
         }
-        self.memory.account()
+        if self.buffers_store_updates() {
+            Ok(())
+        } else {
+            self.memory.account()
+        }
     }
 
-    /// Persistent-state bundle boundary: writes every touched (window, key) group's accumulator
-    /// state through in one columnar encode, then drops the resident entries — the map stays empty
-    /// between bundles and RocksDB owns durability and memory.
+    fn buffers_store_updates(&self) -> bool {
+        #[cfg(feature = "rocksdb-state")]
+        return self.store.is_some()
+            && !self.shared_slices
+            && self.calendar.is_none()
+            && !self.aggregates.is_empty()
+            && self
+                .aggregates
+                .iter()
+                .all(|aggregate| matches!(aggregate, WindowAggregate::Count));
+        #[cfg(not(feature = "rocksdb-state"))]
+        false
+    }
+
+    fn tracks_window_state(&self) -> bool {
+        self.memory.tracking() || self.buffers_store_updates()
+    }
+
+    #[cfg(feature = "rocksdb-state")]
+    fn finish_store_bundle(&mut self, persist_timers: bool) -> Result<(), DataFusionError> {
+        const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
+        if self.buffers_store_updates()
+            && self.memory.state_bytes <= MAX_PENDING_BYTES
+            && self.memory.account().is_ok()
+        {
+            return Ok(());
+        }
+        self.write_through_store_with_timers(persist_timers)
+    }
+
+    /// Writes and evicts all pending groups at a checkpoint or when the decoded buffer fills.
     #[cfg(feature = "rocksdb-state")]
     fn write_through_store(&mut self) -> Result<(), DataFusionError> {
         self.write_through_store_with_timers(false)
@@ -1504,15 +1562,34 @@ impl TumblingAggregator {
         &mut self,
         persist_timers: bool,
     ) -> Result<(), DataFusionError> {
+        self.write_store_groups(persist_timers, None)
+    }
+
+    #[cfg(feature = "rocksdb-state")]
+    fn write_store_groups(
+        &mut self,
+        persist_timers: bool,
+        through_watermark: Option<i64>,
+    ) -> Result<(), DataFusionError> {
         if self.store.is_none() {
             return Ok(());
         }
-        let track = self.memory.tracking();
-        let store_groups = std::mem::take(&mut self.store_groups);
+        let track = self.tracks_window_state();
+        let store_groups: Vec<_> = match through_watermark {
+            Some(watermark) => self
+                .store_groups
+                .extract_if(|(end, _), _| *end <= watermark)
+                .collect(),
+            None => std::mem::take(&mut self.store_groups).into_iter().collect(),
+        };
         let mut entries: Vec<(Vec<u8>, i64)> = Vec::with_capacity(store_groups.len());
         let mut state_columns: Vec<Vec<ScalarValue>> =
             vec![Vec::with_capacity(store_groups.len()); self.store_state_types.len()];
         for ((end, key), key_group) in store_groups {
+            if self.buffers_store_updates() {
+                self.memory
+                    .forget(owned_row_bytes(&key) + std::mem::size_of::<(i64, i32)>());
+            }
             let window = self.windows.get_mut(&end).expect("touched window resident");
             let start = window.start;
             let mut accumulators = window.keys.remove(&key).expect("touched group resident");
@@ -1535,7 +1612,7 @@ impl TumblingAggregator {
                     .forget(owned_row_bytes(&key) + accumulators_bytes(&accumulators));
             }
         }
-        self.windows.clear();
+        self.windows.retain(|_, window| !window.keys.is_empty());
         let arrays: Vec<ArrayRef> = state_columns
             .into_iter()
             .zip(&self.store_state_types)
@@ -1602,6 +1679,7 @@ impl TumblingAggregator {
         max_parallelism: usize,
         timestamp_precisions: &[i32],
     ) -> Result<BTreeMap<i32, Vec<u8>>, DataFusionError> {
+        self.write_through_store()?;
         if self.shared_slices {
             return self.shared_canonical_partitions(max_parallelism, timestamp_precisions);
         }
