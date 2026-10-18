@@ -2325,7 +2325,17 @@ reads and writes. Repeated-state values are independently checked at both firing
 request reporting. The measurement excludes fixture/database setup.
 
 Set `SF_NATIVE_PERSISTENT_WINDOW_ONLY=true` when invoking the `persistent_state` suite to
-register only its existing tumbling-window fixtures, including `read_modify_write`. This avoids
+register its tumbling-window fixtures and `engine/rocksdb/window_count`. The COUNT fixtures cover
+TUMBLE/HOP/CUMULATE with 16/1024/8192 rows, low/unique cardinality, string keys with
+8/256-byte padding after the key ID, and
+nullable keys/values. Four input batches, non-closing watermarks and final firing are timed
+together, including deferred state writes; database/input setup remains outside timing. Each
+fixture compares final output with the memory implementation and checks no second emission.
+The [bounded COUNT comparison](../optimizations/shared-window-state.md#bounded-persistent-count-updates)
+retains six timed profiles, allocation requests and the high-cardinality/wide-key cases that
+do not establish a gain. Its [artifact](results/attached-window-count-2026-10-18.json) includes
+raw Criterion samples and confidence intervals separately from release/mimalloc job timings.
+`read_modify_write` retains its previous SUM boundary. This avoids
 unrelated suites' untimed fixture validation while retaining the same production code, inputs,
 assertions, allocation reporting and measured boundary. Without the option, every existing
 suite remains registered. Criterion's normal name filter selects cases within this window suite.

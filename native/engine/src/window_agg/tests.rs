@@ -1,5 +1,267 @@
 use super::*;
 
+#[cfg(feature = "rocksdb-state")]
+mod buffered_count {
+    use super::*;
+
+    fn config(path: &std::path::Path) -> crate::state::RocksStoreConfig {
+        crate::state::RocksStoreConfig {
+            table_dir: path.to_str().unwrap().into(),
+            max_parallelism: 128,
+            options_json: include_str!("../../benches/fixtures/rocks-options.json").into(),
+            ttl_ms: 0,
+            shared_resources: 0,
+        }
+    }
+
+    fn input(rows: usize, offset: usize, keys: usize) -> RecordBatch {
+        RecordBatch::try_from_iter(vec![
+            (
+                "key0",
+                Arc::new(StringArray::from_iter(
+                    (offset..offset + rows)
+                        .map(|i| (i % 11 != 0).then(|| format!("k{}", i % keys))),
+                )) as ArrayRef,
+            ),
+            (
+                "value0",
+                Arc::new(Int64Array::from_iter(
+                    (offset..offset + rows).map(|i| (i % 7 != 0).then_some(i as i64)),
+                )) as ArrayRef,
+            ),
+            (
+                "ts",
+                Arc::new(Int64Array::from_iter_values(
+                    (offset..offset + rows).map(|i| (i % 3) as i64 * 1000 + 100),
+                )) as ArrayRef,
+            ),
+        ])
+        .unwrap()
+    }
+
+    fn memory(size: i64, cumulative: bool) -> TumblingAggregator {
+        TumblingAggregator::new(size, 1000, cumulative, vec![0], vec![3])
+            .with_key_timestamp_precisions(vec![-1])
+    }
+
+    fn persistent(path: &std::path::Path, size: i64, cumulative: bool) -> TumblingAggregator {
+        let store =
+            crate::state::RocksWindowAggStore::create(config(path), &[DataType::Int64], 0..=127)
+                .unwrap();
+        memory(size, cumulative).with_store(store, vec![DataType::Utf8])
+    }
+
+    fn rows(batch: RecordBatch) -> Vec<(Option<String>, i64, i64, i64)> {
+        let key = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let ints = (1..4)
+            .map(|i| {
+                batch
+                    .column(i)
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        (0..batch.num_rows())
+            .map(|i| {
+                (
+                    (!key.is_null(i)).then(|| key.value(i).to_owned()),
+                    ints[0].value(i),
+                    ints[1].value(i),
+                    ints[2].value(i),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn pending_counts_are_reserved_and_survive_checkpoint_rescale_and_late_rows() {
+        for (size, cumulative) in [(1000, false), (5000, false), (5000, true)] {
+            let directory = tempfile::tempdir().unwrap();
+            let pool: Arc<dyn MemoryPool> = Arc::new(GreedyMemoryPool::new(8 * 1024 * 1024));
+            let mut expected = memory(size, cumulative);
+            let mut operator = persistent(&directory.path().join("db"), size, cumulative)
+                .with_memory_pool(&pool)
+                .unwrap();
+            for offset in [0, 1024, 2048] {
+                let batch = input(1024, offset, 64);
+                expected.update(&batch).unwrap();
+                operator.update(&batch).unwrap();
+                assert!(operator
+                    .store
+                    .as_ref()
+                    .unwrap()
+                    .scan_all()
+                    .unwrap()
+                    .is_empty());
+                assert_eq!(operator.memory.state_bytes, operator.computed_state_bytes());
+                assert_eq!(pool.reserved(), operator.memory.state_bytes);
+                assert!(pool.reserved() > 0);
+            }
+            let checkpoint = directory.path().join("checkpoint");
+            let manifest = operator
+                .checkpoint_store(9876, checkpoint.to_str().unwrap())
+                .unwrap();
+            assert_eq!(pool.reserved(), 0);
+            assert!(operator.windows.is_empty());
+            assert!(!operator
+                .store
+                .as_ref()
+                .unwrap()
+                .scan_all()
+                .unwrap()
+                .is_empty());
+            drop(operator);
+            let mut actual = Vec::new();
+            for (index, groups) in [(0, 0..=63), (1, 64..=127)] {
+                let store = crate::state::RocksWindowAggStore::open_merged(
+                    config(&directory.path().join(format!("restored-{index}"))),
+                    &[DataType::Int64],
+                    groups,
+                    &[(checkpoint.to_str().unwrap().into(), manifest.snapshot_id)],
+                    false,
+                )
+                .unwrap();
+                let mut restored = memory(size, cumulative).with_store(store, vec![DataType::Utf8]);
+                assert_eq!(restored.store_timer_deadline(), 9876);
+                actual.extend(rows(restored.flush(2000).unwrap()));
+                let old_watermark = restored.current_watermark;
+                assert_eq!(old_watermark, 2000);
+                actual.extend(rows(restored.flush(i64::MAX).unwrap()));
+                let late = input(32, 0, 64);
+                restored.update(&late).unwrap();
+                assert_eq!(restored.late_drops, 32);
+                assert_eq!(restored.flush(i64::MAX).unwrap().num_rows(), 0);
+            }
+            let mut wanted = rows(expected.flush(i64::MAX).unwrap());
+            wanted.sort();
+            actual.sort();
+            assert_eq!(actual, wanted);
+        }
+    }
+
+    #[test]
+    fn canonical_export_commits_pending_counts_and_watermark_firing_never_reemits() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut expected = memory(5000, false);
+        let mut operator = persistent(&directory.path().join("db"), 5000, false);
+        let batch = input(1024, 0, 64);
+        expected.update(&batch).unwrap();
+        operator.update(&batch).unwrap();
+        let parts = operator.canonical_partitions(128, &[-1]).unwrap();
+        let mut restored = TumblingAggregator::restore_partitions(
+            5000,
+            1000,
+            false,
+            vec![0],
+            vec![3],
+            &parts.into_values().collect::<Vec<_>>(),
+        );
+        let first = expected.flush(2000).unwrap();
+        assert_eq!(first, operator.flush(2000).unwrap());
+        assert_eq!(first, restored.flush(2000).unwrap());
+        operator.update(&batch).unwrap();
+        expected.update(&batch).unwrap();
+        restored.update(&batch).unwrap();
+        let rest = expected.flush(i64::MAX).unwrap();
+        assert_eq!(rest, operator.flush(i64::MAX).unwrap());
+        assert_eq!(rest, restored.flush(i64::MAX).unwrap());
+        assert!(operator.windows.is_empty());
+        assert!(operator.store_groups.is_empty());
+        assert_eq!(operator.memory.state_bytes, 0);
+        assert_eq!(operator.flush(i64::MAX).unwrap().num_rows(), 0);
+    }
+
+    #[test]
+    fn watermarks_keep_unfired_counts_resident_until_a_durable_boundary() {
+        for (size, cumulative) in [(1000, false), (5000, false), (5000, true)] {
+            let directory = tempfile::tempdir().unwrap();
+            let pool: Arc<dyn MemoryPool> = Arc::new(GreedyMemoryPool::new(8 * 1024 * 1024));
+            let mut expected = memory(size, cumulative);
+            let mut operator = persistent(&directory.path().join("db"), size, cumulative)
+                .with_memory_pool(&pool)
+                .unwrap();
+            let batch = input(1024, 0, 64);
+            expected.update(&batch).unwrap();
+            operator.update(&batch).unwrap();
+            assert_eq!(expected.flush(99).unwrap(), operator.flush(99).unwrap());
+            assert!(operator
+                .store
+                .as_ref()
+                .unwrap()
+                .scan_all()
+                .unwrap()
+                .is_empty());
+            assert!(pool.reserved() > 0);
+            assert_eq!(expected.flush(999).unwrap(), operator.flush(999).unwrap());
+            assert!(operator.store_groups.keys().all(|(end, _)| *end > 999));
+            assert!(!operator.store_groups.is_empty());
+            assert_eq!(pool.reserved(), operator.computed_state_bytes());
+
+            let checkpoint = directory.path().join("checkpoint");
+            let manifest = operator
+                .checkpoint_store(1234, checkpoint.to_str().unwrap())
+                .unwrap();
+            assert_eq!(pool.reserved(), 0);
+            drop(operator);
+            let store = crate::state::RocksWindowAggStore::open_merged(
+                config(&directory.path().join("restored")),
+                &[DataType::Int64],
+                0..=127,
+                &[(checkpoint.to_str().unwrap().into(), manifest.snapshot_id)],
+                false,
+            )
+            .unwrap();
+            let mut restored = memory(size, cumulative).with_store(store, vec![DataType::Utf8]);
+            assert_eq!(restored.current_watermark, 999);
+            expected.update(&batch).unwrap();
+            restored.update(&batch).unwrap();
+            assert_eq!(
+                expected.flush(i64::MAX).unwrap(),
+                restored.flush(i64::MAX).unwrap()
+            );
+            assert_eq!(expected.late_drops, restored.late_drops);
+            assert_eq!(restored.flush(i64::MAX).unwrap().num_rows(), 0);
+        }
+    }
+
+    #[test]
+    fn denied_cache_growth_and_bundle_limit_flush_without_losing_updates() {
+        for budget in [32 * 1024, 32 * 1024 * 1024] {
+            let directory = tempfile::tempdir().unwrap();
+            let pool: Arc<dyn MemoryPool> = Arc::new(GreedyMemoryPool::new(budget));
+            let mut expected = memory(5000, false);
+            let mut operator = persistent(&directory.path().join("db"), 5000, false)
+                .with_memory_pool(&pool)
+                .unwrap();
+            for offset in (0..100_000).step_by(1024) {
+                let batch = input(1024, offset, 100_000);
+                expected.update(&batch).unwrap();
+                operator.update(&batch).unwrap();
+                assert_eq!(operator.memory.state_bytes, operator.computed_state_bytes());
+                assert_eq!(operator.memory.state_bytes, pool.reserved());
+                assert!(pool.reserved() <= budget.min(8 * 1024 * 1024));
+            }
+            assert!(!operator
+                .store
+                .as_ref()
+                .unwrap()
+                .scan_all()
+                .unwrap()
+                .is_empty());
+            assert_eq!(
+                expected.flush(i64::MAX).unwrap(),
+                operator.flush(i64::MAX).unwrap()
+            );
+            assert_eq!(pool.reserved(), 0);
+        }
+    }
+}
+
 #[test]
 fn timestamp_panes_match_direct_windows_across_boundaries_late_rows_and_restore() {
     let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();

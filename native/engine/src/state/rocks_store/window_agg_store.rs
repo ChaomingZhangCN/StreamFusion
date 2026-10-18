@@ -4,7 +4,7 @@ use super::{
 };
 use crate::*;
 use arrow::row::{RowConverter, SortField};
-use rocksdb::{Cache, Direction, IteratorMode, Options, DB};
+use rocksdb::{Cache, Direction, IteratorMode, Options, ReadOptions, DB};
 use std::sync::Arc;
 
 /// `[key_group i32 BE][window_end i64 BE, sign-flipped][group key arrow-row bytes]` — the layout of
@@ -368,9 +368,13 @@ impl RocksWindowAggStore {
         let mut writes = FlinkWriteBatch::new(&self.db, self.write_batch_size);
         for key_group in self.key_groups.clone() {
             let prefix = key_group.to_be_bytes();
+            let mut read = ReadOptions::default();
+            if let Some(next) = key_group.checked_add(1) {
+                read.set_iterate_upper_bound(next.to_be_bytes());
+            }
             for row in self
                 .db
-                .iterator(IteratorMode::From(&prefix, Direction::Forward))
+                .iterator_opt(IteratorMode::From(&prefix, Direction::Forward), read)
             {
                 let (key, value) = row.map_err(re)?;
                 if key.len() < KEY_PREFIX_LEN || key[..4] != prefix {
@@ -685,6 +689,33 @@ mod tests {
 
     // The scan is key-group-major; the fired set must come back window-end-major, then in the
     // group keys' memcomparable order — the memory path's emission order.
+    #[test]
+    fn repeated_firing_keeps_sparse_key_group_boundaries_after_deletions() {
+        let mut store = store("sparse-deletions");
+        put_groups(
+            &mut store,
+            &[
+                (0, -100, -200, 1, 10),
+                (1, -100, -200, 2, 20),
+                (126, -100, -200, 3, 30),
+                (127, -100, -200, 4, 40),
+                (0, 200, 100, 1, 50),
+                (127, 300, 200, 4, 60),
+            ],
+        );
+        assert_eq!(
+            sums(&store.take_closed(-100).unwrap()),
+            vec![10, 20, 30, 40]
+        );
+        for watermark in [-99, 0, 99] {
+            assert!(store.take_closed(watermark).unwrap().is_empty());
+        }
+        assert_eq!(sums(&store.take_closed(200).unwrap()), vec![50]);
+        assert!(store.take_closed(200).unwrap().is_empty());
+        assert_eq!(sums(&store.take_closed(i64::MAX).unwrap()), vec![60]);
+        assert!(store.take_closed(i64::MAX).unwrap().is_empty());
+    }
+
     #[test]
     fn firing_resorts_to_window_end_then_key_order_and_keeps_pending() {
         let mut store = store("order");

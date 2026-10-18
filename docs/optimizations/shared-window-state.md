@@ -121,14 +121,89 @@ single-key inputs avoid the permutation allocation. Window-state writes also fol
 key order while indexing each row's original state. Pins remain borrowed only through decode;
 no state/checkpoint format or durability boundary changes.
 
-The attached-window COUNT→MAX comparison improves the 1M/4096-key in-memory HOP native
-median from 0.812 to 0.402s after these changes, but the paired final five-million-row case
-remains slower than stock (1.786 versus 1.357s). Persistent cases still lose substantially.
+That revision's attached-window COUNT→MAX comparison improved the 1M/4096-key in-memory HOP
+native median from 0.812 to 0.402s, but its paired final five-million-row case remained slower
+than stock (1.786 versus 1.357s). Its persistent cases also lost substantially.
 The individual optimizations were not independently timed, so this is a combined revision
 result. A 10-second CPU diagnostic attributed 4,338 of 11,097 inclusive samples to MultiGet
-and 2,637 to writes; state I/O remains the bottleneck. The new assigned-bound route is opt-in
-and defaults off. See the [full trial matrix](../benchmarks/results/attached-windows-2026-10-14.json)
+and 2,637 to writes; state I/O remained the bottleneck in that revision. Its assigned-bound
+route remained opt-in until the bounded COUNT work below. See the [full trial matrix](../benchmarks/results/attached-windows-2026-10-14.json)
 and [window operator page](../operators/window-aggregate.md#assigned-bound-one_phase-release-measurements)
 for the measured scope, variability and retained losses. Native checks cover original-order
 pinned reads with misses, duplicates, empty values, compaction and reopen; release fixtures
 cover exact COUNT panes and repeated persistent read/modify/write with allocation reporting.
+
+## Bounded persistent COUNT updates
+
+Ordinary fixed-grid COUNT-only windows retain decoded updates across Arrow batches instead of
+reading, decoding, writing and dropping every touched group on every batch. The pending map
+includes its key-group routing keys in task off-heap accounting. At most 8 MiB of tracked payload
+remains after an input batch; reaching that limit or being denied a larger reservation writes
+the current bundle through and releases its reservation. A batch can temporarily exceed the
+threshold while it is being folded, just as on the previous per-batch path.
+
+Watermarks write only pending groups whose windows close, then use the existing persistent firing
+and removal path. Future windows remain resident, avoiding repeated writes when a periodic
+watermark advances within their lifetime. Checkpoints and canonical exports first write every
+pending group. The serialized accumulator, key-group placement, snapshot format, firing order
+and late-row cutoff remain unchanged. Regional calendar callbacks, shared regional slices and
+mixed aggregate lists retain per-batch writes.
+
+Persistent firing bounds each iterator at the next key-group prefix. Checking the prefix only
+after RocksDB returns a live record permits an iterator to cross other groups while skipping
+deletion markers. This matters especially when COUNT groups are written only as they close,
+then immediately deleted. A rejected unbounded-scan revision took 53.390s in its first native
+warmup. A separate five-second capture during its next warmup placed 412 of 432 task-thread
+samples in iterator seek; that instrumented run was interrupted and is not a comparison result.
+The release artifact retains the completed unfavorable warmup and capture counts.
+
+Release tests cover reservation denial and bundle overflow, nullable COUNT, TUMBLE/HOP/CUMULATE,
+watermarks before and at firing, native checkpoints, canonical backend migration, split key-group
+restores and late input after recovery. SQL checks compare typed rows and RowKinds through both
+aggregation phases and state backends, including two completed checkpoints before failures.
+
+The matched five-million-row ONE_PHASE COUNT-to-MAX matrix on main `3679d312` uses
+release/mimalloc, Flink 2.2.1, JDK 11, both row/Arrow transposes and production IPC. At
+ten-second windows/two-second slides, all twelve TUMBLE/HOP/CUMULATE, memory/RocksDB and
+64/4,096-key profiles accelerate: 1.41–2.88× stock by three-trial medians after two warmups.
+The original HOP/RocksDB/4,096-key case is 8.680s stock versus 3.256s native; native trials
+range from 3.064 to 3.286s. The [operator comparison](../operators/window-aggregate.md#bounded-count-and-default-attached-execution)
+and [raw trials](../benchmarks/results/attached-window-count-2026-10-18.json) retain all samples.
+
+Rebuilt confirmation on main `0a02ecb8` measures 8.833s stock, 8.690s previous default fallback,
+27.072s previous opt-in native and 3.077s new native for that persistent profile. Native trials
+are 27.011–27.204s before and 3.055–3.085s after: about 8.80× faster than the previous native
+implementation and 2.87× its current paired stock control. The in-memory HOP native medians
+remain 1.087s before/after; its benefit here is default admission of the already-fast path.
+
+The matched release Criterion comparison calls production Rust state operations on the same
+base, using the system-backed counting allocator rather than the whole-job mimalloc library.
+Four update/non-closing-watermark pairs and final firing include every deferred write, with
+input/database setup outside timing. Each version validates all 72 fixtures; six are timed
+with ten samples, 100 ms warmup and a requested 300 ms measurement window (Criterion lengthens
+the large cases to collect its minimum samples). Values below are mean point estimates:
+
+| Shape | Rows/batch | Key domain | Key padding bytes | Previous (ms) | New (ms) |
+|---|---:|---:|---:|---:|---:|
+| TUMBLE | 1,024 | 8 | 8 | 0.2303 | 0.1522 |
+| HOP | 1,024 | 8 | 8 | 0.3557 | 0.2043 |
+| CUMULATE | 1,024 | 8 | 8 | 0.2867 | 0.1803 |
+| TUMBLE | 8,192 | 8,192 | 256 | 47.568 | 19.022 |
+| HOP | 8,192 | 8,192 | 256 | 317.492 | 329.632 |
+| CUMULATE | 8,192 | 8,192 | 256 | 248.607 | 248.424 |
+
+All fixtures have nullable keys/values. Large wide-key HOP/CUMULATE exceed the retained-payload
+limit and still write through each batch, so no improvement is established there. The wide HOP
+point estimate is 3.8% higher; its 95% mean intervals overlap (304.0–332.4ms before,
+317.9–343.1ms after). The separate allocation probe retains the extra requests: 526,914,268
+versus 535,257,368 bytes for that case. Low-domain HOP reduces allocation calls from 3,884 to
+2,172 and requested bytes from 607,786 to 384,141. These are Rust allocation requests, not
+copied bytes, peak memory or C/C++ allocation traffic. Raw samples and confidence intervals
+remain in the artifact; isolated state timings do not replace the complete-job comparison.
+
+Wider overlap is still outside default ONE_PHASE admission: thirty-second HOP/two-second slide
+with 4,096 keys and memory state measures 1.612s stock versus 2.355s native in the final opt-in
+comparison. That loss is retained and tracked in
+[#394](https://github.com/datafusion-contrib/StreamFusion/issues/394). Regional calendars,
+non-COUNT upstream layouts and explicitly disabled attached windows retain their fallback;
+the separate calendar investigation remains [#350](https://github.com/datafusion-contrib/StreamFusion/issues/350).
