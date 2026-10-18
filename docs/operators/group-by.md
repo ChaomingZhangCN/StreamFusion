@@ -44,7 +44,7 @@ at that value; a retraction after overflow starts it at the negated value. NULL 
 the accumulator unchanged. This rule also applies after restore and to filtered SUMs.
 Decimal AVG has a separate accumulator whose overflow stays NULL.
 
-Single-phase `AVG(DISTINCT)` admits TINYINT, SMALLINT, INT, BIGINT and DECIMAL. A value folds
+Single-phase `AVG(DISTINCT)` admits TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE and DECIMAL. A value folds
 into the existing widened AVG accumulator only on its first occurrence and retracts only
 when its last occurrence leaves the distinct set. The denominator counts distinct non-NULL
 values. Integer results retain their input width and truncate toward zero; decimal results
@@ -52,8 +52,9 @@ retain Flink's DECIMAL(38, max(6, input-scale)) type and rounding. FILTER, chang
 empty/all-NULL groups, state TTL, and checkpoint restoration use the existing grouped path.
 The running sum and distinct count are checkpointed directly alongside membership so restore
 does not refold an overflow-sensitive decimal sum in map order. Both memory and typed RocksDB
-state retain this contract, including migrations between the two. Floating AVG DISTINCT
-still falls back. Insert-only two-phase AVG DISTINCT supports integers and DECIMAL precision
+state retain this contract, including migrations between the two. Floating averages accumulate
+in DOUBLE and retain the input result width; DISTINCT uses Java boxed equality, canonicalizing
+NaNs and distinguishing opposite zero signs. Insert-only two-phase AVG DISTINCT supports integers and DECIMAL precision
 up to 38, as described below.
 
 `TINYINT` and `SMALLINT` `SUM`/`MIN`/`MAX` retain their input width, including the local
@@ -525,7 +526,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 - LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
-- `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
+- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
   over types other than STRING/VARCHAR.
   (`COUNT(DISTINCT x)` keeps a per-key
   value set; `SUM(DISTINCT x)` adds a running sum folded as values enter/leave it; `MIN`/`MAX
@@ -828,6 +829,44 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
   -Dtest=DistinctAggregateBenchmark -Ddistinct.average=true \
   -Ddistinct.rows=2000000 -Ddistinct.warmup=2 -Ddistinct.runs=5 \
   -Dsf.extraJvmArgs=-Xmx2g
+```
+
+#### Floating DISTINCT average comparison
+
+Single-phase FLOAT/DOUBLE DISTINCT averages reuse the typed membership set and widened
+sum/count state. Eighteen SQL checks on each released Flink line cover duplicates, filters,
+retractions, group recreation, global/empty output, NaN payloads, infinities, signed zero,
+and two completed-checkpoint restores on memory and RocksDB. Sixteen Criterion fixtures
+exercise the production floating DISTINCT average at 256/4096 rows, one/64 keys and
+nullable/non-null input.
+
+The October 18, 2026 release+mimalloc comparison uses Flink 2.2.1, JDK 17, a 2 GiB heap,
+parallelism one and two million runtime rows on an Intel i7-12650H/Linux WSL2. One query
+computes FLOAT and DOUBLE DISTINCT averages; NULLs occur every seventh row. The source
+generates byte/long inputs, with both casts retained in the measured SQL. Each engine gets
+two warmups and five measured jobs, alternating engine order. Native jobs assert both
+transposes and consumed native group-aggregate records. The row source, blackhole sink,
+JNI, membership and changelog costs remain included.
+
+| Keys | Stock median (s) | Previous origin (s) | Native median (s) | Stock/native | Origin/native |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 64 | 0.894357 | 0.871940 | 0.787801 | 1.135x | 1.107x |
+| 4,096 | 2.909029 | 2.744675 | 1.674566 | 1.737x | 1.639x |
+
+At 64 keys, stock samples range 0.867606–1.024014 s and native samples
+0.775587–0.884581 s. At 4,096 keys they range 2.733308–3.095016 s and
+1.634739–1.715133 s respectively. Original-origin measurements use the identical fixture
+with native planning enabled and its aggregate fallback asserted. Their separate JVM has
+paired stock controls, retained alongside every warmup/sample in the
+[raw artifact](../benchmarks/results/floating-distinct-avg-2026-10-18.json). These are
+complete jobs including startup; the smaller difference at 64 keys is workload-specific.
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
+  -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true \
+  -Ddistinct.rows=2000000 -Ddistinct.keys=64 -Ddistinct.warmup=2 \
+  -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g
+# Repeat with distinct.keys=4096. Original origin additionally uses distinct.expectNative=false.
 ```
 
 ### Two-phase DISTINCT averages

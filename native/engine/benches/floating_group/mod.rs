@@ -52,6 +52,7 @@ pub fn bench_floating_group(c: &mut Criterion) {
                     for (shape, kinds) in [
                         ("append_reductions", vec![0, 10, 11]),
                         ("distinct_sum", vec![9]),
+                        ("distinct_avg", vec![17]),
                         ("append_ordered", vec![12, 13]),
                         ("single_value", vec![14]),
                         ("retract", vec![0, 1, 2, 15, 16]),

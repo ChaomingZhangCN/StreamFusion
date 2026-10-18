@@ -49,12 +49,84 @@ class FlinkDistinctAverageSqlHarnessTest {
     NativeParity.assertOrderedKindedParity(source, sql);
   }
 
-  @org.junit.jupiter.api.Test
-  void floatingDistinctAverageRetainsFallback() throws Exception {
-    NativeParity.assertFallbackReasonContains(
-        () -> environment(false),
-        "SELECT k, AVG(DISTINCT CAST(b AS DOUBLE)) FROM src GROUP BY k",
-        "AVG(DISTINCT) requires an integer or DECIMAL");
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void floatingAveragesPreserveDuplicatesFiltersAndRetractions(boolean retract) throws Exception {
+    compare(
+        retract,
+        "SELECT k, AVG(DISTINCT CAST(b AS DOUBLE)), AVG(DISTINCT CAST(b AS FLOAT)),"
+            + " AVG(DISTINCT CAST(t AS FLOAT)) FILTER (WHERE keep), COUNT(*) FROM src GROUP BY k");
+    compare(
+        retract,
+        "SELECT AVG(DISTINCT CAST(b AS DOUBLE)), AVG(DISTINCT CAST(b AS FLOAT)) FROM src");
+    compare(
+        retract,
+        "SELECT AVG(DISTINCT CAST(b AS DOUBLE)), AVG(DISTINCT CAST(b AS FLOAT)) FROM src WHERE k < 0");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void floatingMembershipKeepsNanPayloadsAndSignedZeros(boolean retract) throws Exception {
+    java.util.function.Supplier<TableEnvironment> setup =
+        () -> {
+          var env = StreamExecutionEnvironment.getExecutionEnvironment();
+          env.setParallelism(1);
+          var table = StreamTableEnvironment.create(env);
+          table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+          long[] bits = {
+            Double.doubleToRawLongBits(-0.0), Double.doubleToRawLongBits(0.0),
+            Double.doubleToRawLongBits(-0.0), Double.doubleToRawLongBits(3.5),
+            0x7ff8000000000001L, 0xfff8000000000002L,
+            Double.doubleToRawLongBits(Double.POSITIVE_INFINITY),
+            Double.doubleToRawLongBits(Double.NEGATIVE_INFINITY)
+          };
+          int count = retract ? bits.length * 2 + 1 : bits.length;
+          var stream = env.fromSequence(0, count - 1).map(index -> {
+            int slot = (int) (index % bits.length);
+            boolean deletion = index >= bits.length && index < bits.length * 2;
+            double value = Double.longBitsToDouble(bits[slot]);
+            return Row.ofKind(deletion ? RowKind.DELETE : RowKind.INSERT,
+                slot < 4 ? 1 : 2, (float) value, value);
+          }).returns(Types.ROW_NAMED(new String[] {"k", "f", "d"},
+              Types.INT, Types.FLOAT, Types.DOUBLE));
+          var schema = Schema.newBuilder().column("k", INT()).column("f", FLOAT())
+              .column("d", DOUBLE()).build();
+          table.createTemporaryView("special", retract
+              ? table.fromChangelogStream(stream, schema) : table.fromDataStream(stream, schema));
+          return table;
+        };
+    String sql = "SELECT k, AVG(DISTINCT f), AVG(DISTINCT d), COUNT(DISTINCT f), "
+        + "COUNT(DISTINCT d) FROM special GROUP BY k";
+    assertTrue(NativePlanner.explain(setup.get(), sql).contains("NativeColumnarGroupAggregate"));
+    NativeParity.assertOrderedKindedParity(setup, sql);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"hashmap", "tech.streamfusion.state.RocksDBNativeStateBackendFactory"})
+  void floatingMembershipAndRawSumsSurviveRepeatedRecovery(String backend) {
+    var type = ROW(FIELD("k", INT()), FIELD("f", FLOAT()), FIELD("d", DOUBLE()));
+    List<Row> input = new ArrayList<>();
+    for (int row = 0; row < 32; row++) {
+      Double value = row % 7 == 0 ? null : new double[] {-0.0, 0.0, 3.5, -2.25}[row % 4];
+      input.add(Row.of(row % 3, value == null ? null : value.floatValue(), value));
+    }
+    try (var recovery = new PortableSqlRecovery(backend, input,
+        org.apache.flink.table.runtime.typeutils.ExternalTypeInfo.<Row>of(type),
+        Schema.newBuilder().fromRowDataType(type).build(), false, 8, 24).withExecutionMetrics()) {
+      java.util.function.UnaryOperator<TableEnvironment> configure = table -> {
+        table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+        return table;
+      };
+      var result = NativeFailureParity.runRecovery(
+          () -> configure.apply(recovery.uninterrupted()),
+          () -> configure.apply(recovery.get()),
+          "SELECT k, AVG(DISTINCT f), AVG(DISTINCT d), COUNT(*) FROM recovery_input GROUP BY k");
+      result.assertSuccess(NativeFailureParity.Route.NATIVE);
+      org.junit.jupiter.api.Assertions.assertEquals(result.host().resultTypes(),
+          result.nativeRun().resultTypes());
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeColumnarGroupAggregate");
+    }
   }
 
   @ParameterizedTest

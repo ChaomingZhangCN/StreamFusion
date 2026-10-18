@@ -171,9 +171,6 @@ final class GroupAggregateMatcher {
           // and the result casts back to the input type; for DECIMAL(p, s), the sum is SUM's
           // DECIMAL(38, s) accumulator and the emit divides with Flink's exact decimal division,
           // reporting DECIMAL(38, max(6, s)) — findAvgAggType's derivation.
-          if (call.isDistinct() && !isIntegerType(valueType) && valueType != SqlTypeName.DECIMAL) {
-            return "GROUP BY: AVG(DISTINCT) requires an integer or DECIMAL value";
-          }
           if (!isAvgType(valueType) && valueType != SqlTypeName.DECIMAL) {
             return "GROUP BY: AVG over an unsupported value type";
           }

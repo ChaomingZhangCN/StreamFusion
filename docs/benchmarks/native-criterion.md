@@ -121,6 +121,11 @@ The DATE/TIME/BOOLEAN COUNT additions contribute 84 fixtures across 64/4096 rows
 keys, four event-time frames and three processing-time frames. Each checks an independent
 validity-and-frame oracle before timing the production push/flush path.
 
+The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
+DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).
+They retain membership and widened sum/count work while keeping batch construction outside
+the timed update. SQL comparisons cover the exact changelog and checkpoint contract.
+
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
 serialization, a held snapshot, and completion between input and firing. It has 128 fixtures.
