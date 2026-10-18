@@ -1,0 +1,17 @@
+cohort,kind,frame,inclusive,allJvm
+baseline,alloc,IcebergDynamicRecords.target,2760900608,59116786560
+baseline,alloc,IcebergDynamicRecords.record,893386752,59116786560
+baseline,alloc,IcebergDynamicOperatorFactory,12814647584,59116786560
+baseline,alloc,IcebergPartitionGroups.getKey,0,59116786560
+baseline,cpu,IcebergDynamicRecords.target,94,8998
+baseline,cpu,IcebergDynamicRecords.record,18,8998
+baseline,cpu,IcebergDynamicOperatorFactory,701,8998
+baseline,cpu,IcebergPartitionGroups.getKey,0,8998
+bounded,alloc,IcebergDynamicRecords$Targets.resolve,314572800,54582692088
+bounded,alloc,IcebergDynamicRecords.record,372244480,54582692088
+bounded,alloc,IcebergDynamicOperatorFactory,8494514432,54582692088
+bounded,alloc,IcebergPartitionGroups.getKey,141557760,54582692088
+bounded,cpu,IcebergDynamicRecords$Targets.resolve,57,12245
+bounded,cpu,IcebergDynamicRecords.record,5,12245
+bounded,cpu,IcebergDynamicOperatorFactory,750,12245
+bounded,cpu,IcebergPartitionGroups.getKey,41,12245
