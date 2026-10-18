@@ -120,7 +120,7 @@ public final class IcebergIoBenchmark implements AutoCloseable {
     prepareRecords();
     var cases = List.of(env("CASES", "read,write").split(","));
     for (String name : cases) {
-      if (!List.of("read", "write", "route", "dynamic-route").contains(name))
+      if (!List.of("read", "write", "route", "dynamic-route", "dynamic-key").contains(name))
         throw new IllegalArgumentException("Unknown case: " + name);
     }
     if (cases.contains("read")) prepareInput();
@@ -178,13 +178,22 @@ public final class IcebergIoBenchmark implements AutoCloseable {
               assertEquals(tasks.size(), nativeTasks);
               assertEquals(0, fallbackTasks);
             }
-          } else if (name.equals("route") || name.equals("dynamic-route")) {
+          } else if (name.equals("route")
+              || name.equals("dynamic-route")
+              || name.equals("dynamic-key")) {
             profile("start", name, nativeMode, trial);
             long start = System.nanoTime();
-            int[] actual = name.equals("route") ? route(nativeMode) : dynamicRoute(nativeMode);
+            int[] actual =
+                name.equals("dynamic-route")
+                    ? dynamicRoute(nativeMode)
+                    : route(nativeMode, name.equals("dynamic-key"));
             nanos = System.nanoTime() - start;
             profile("stop", name, nativeMode, trial);
-            assertArrayEquals(name.equals("route") ? route(false) : dynamicRoute(false), actual);
+            assertArrayEquals(
+                name.equals("dynamic-route")
+                    ? dynamicRoute(false)
+                    : route(false, name.equals("dynamic-key")),
+                actual);
           } else {
             // Retaining fixture views models owned input batches, outside the file-write timer.
             var owned = new ArrayList<ArrowBatch>();
@@ -370,13 +379,16 @@ public final class IcebergIoBenchmark implements AutoCloseable {
   }
 
   @SuppressWarnings("unchecked")
-  private int[] route(boolean nativeMode) throws Exception {
+  private int[] route(boolean nativeMode, boolean dynamic) throws Exception {
     var stock = new org.apache.iceberg.flink.sink.PartitionKeySelector(spec, SCHEMA, TYPE);
     org.apache.flink.api.java.functions.KeySelector<RowData, Integer> groups =
         row ->
             org.apache.flink.runtime.state.KeyGroupRangeAssignment.assignToKeyGroup(
                 stock.getKey(row), 128);
-    if (nativeMode) {
+    if (dynamic) {
+      groups = dynamicKeySelector();
+      if (nativeMode) groups = IcebergDynamicRouting.memoize(groups);
+    } else if (nativeMode) {
       try {
         var method =
             IcebergHashRouter.class.getDeclaredMethod(
@@ -399,6 +411,33 @@ public final class IcebergIoBenchmark implements AutoCloseable {
       }
     } else for (var record : records) destinations[position++] = groups.getKey(record);
     return destinations;
+  }
+
+  @SuppressWarnings("unchecked")
+  private org.apache.flink.api.java.functions.KeySelector<RowData, Integer> dynamicKeySelector()
+      throws Exception {
+    Class<?> type = Class.forName("org.apache.iceberg.flink.sink.dynamic.HashKeyGenerator");
+    var constructor = type.getDeclaredConstructor(int.class, int.class);
+    constructor.setAccessible(true);
+    var method =
+        type.getDeclaredMethod(
+            "getKeySelector",
+            String.class,
+            Schema.class,
+            PartitionSpec.class,
+            org.apache.iceberg.DistributionMode.class,
+            java.util.Set.class,
+            int.class);
+    method.setAccessible(true);
+    return (org.apache.flink.api.java.functions.KeySelector<RowData, Integer>)
+        method.invoke(
+            constructor.newInstance(1, 128),
+            "bench.t",
+            SCHEMA,
+            spec,
+            org.apache.iceberg.DistributionMode.HASH,
+            java.util.Set.of(),
+            4);
   }
 
   private RowDataTaskWriterFactory factory(Table table) {

@@ -60,6 +60,14 @@ checks every table/branch destination and excludes the host processor, catalog,
 shuffle and file writing. [Candidate results](iceberg-boundary-round2-20261017/README.md)
 retain gains, inconclusive writer timings and rejected prototypes.
 
+The optional `--cases dynamic-key` isolates the released dynamic sink's partitioned
+writer-key selector. It compares original Java selection with bounded exact-result reuse
+for bucket combinations whose maximum cardinality, including nulls, fits 1,024 entries,
+including borrowed Arrow row traversal on the native side, and checks every selected key.
+It retains the host table salt and writer-parallelism mapping. This is separate from
+`dynamic-route` (the user's generator): neither case includes catalog updates, the full
+processor, shuffle, file encoding, checkpoints or commits.
+
 For CPU, allocation or wall profiles, use a released async-profiler installation:
 
 ```sh

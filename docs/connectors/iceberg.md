@@ -52,8 +52,10 @@ Integer partition tuples also cache their exact Java-selected key groups, avoidi
 repeated bucket-path formatting. Other key selectors remain unchanged. Java retains
 the partition/hash semantics and controls every rolling check. The Rust encoder
 consumes the existing selection allocation for sparse indices and skips index
-construction for contiguous slices. Dynamic generators reuse only bounded parsed
-table identifiers; destination metadata and payload views remain fresh per row.
+construction for contiguous slices. Dynamic generators reuse bounded parsed table
+identifiers. The original Java router and metadata processor still execute for every
+row; the adapter reuses only immutable resolved target metadata, with bounded caches
+and fresh checks after schema/spec refresh.
 
 Append range distribution retains the released statistics operator, coordinator,
 union state, checkpoint events and range partitioner. Java observes borrowed Arrow
@@ -74,6 +76,16 @@ batches. The normal Sink V2 writers, pre-commit union/aggregator and committer r
 A wrapper around the original LRU cache decorates each new task-writer factory before
 initialization or file creation, changing only data-file encoding. Java writes all deletes.
 `nativeDynamicFactories`/`stockDynamicFactories` report target-factory admission.
+
+Dynamic controls use typed handles for the pinned released record contract. A task-local
+cache holds at most 1,024 immutable resolved targets, keyed by actual schema/spec identity,
+table, branch, writer key, upsert mode and copied equality IDs. It retains no payload
+views. Route labels use one lookup per row. The host selector LRU also keeps its original
+capacity and metadata invalidation: only bucket selectors whose maximum tuple cardinality (including nulls) fits
+1,024 entries gain bounded exact-result reuse. Cache misses call the original writer-key selector;
+round-robin, equality-only, unbounded and large-cardinality selectors remain unchanged. Java still applies
+the original partition transforms to every row. Catalog refresh and the user's callback
+are never cached away.
 
 Resolved target layouts must match the input field names, order, types and nullability;
 ID reassignment is allowed. Reordering, widening or filling payload columns requires a
