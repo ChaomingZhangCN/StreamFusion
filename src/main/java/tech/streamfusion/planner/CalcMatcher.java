@@ -20,6 +20,7 @@ final class CalcMatcher {
   private CalcMatcher() {}
 
   static boolean matches(Calc calc) {
+    if (CollectionValueIdentity.unverifiedInput(calc)) return false;
     RexProgram program = calc.getProgram();
     // A condition with an all-column-reference projection is the filter path's case; leave it
     // there.
@@ -72,8 +73,7 @@ final class CalcMatcher {
     // and remap the calc's top-level column references to the compacted positions. The transpose
     // then converts only the read fields of each wide source row to Arrow. (A columnar producer is
     // left alone — its batch is already built; nested access stays by name, so it needs no remap.)
-    CalcProjectionPruner.Pruned pruned =
-        CalcProjectionPruner.compute(calc, encoded.requiresWholeStructInputs());
+    CalcProjectionPruner.Pruned pruned = CalcProjectionPruner.compute(calc, encoded);
     if (pruned != null && input instanceof ProjectableNativeSource) {
       // The native decode is itself a (Rust) row→Arrow transpose: pushing the projection into it
       // makes the decoder build only the read columns/fields straight from the bytes, so a wide
@@ -95,7 +95,12 @@ final class CalcMatcher {
               && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) input);
       RelNode prunedTranspose =
           new StreamPhysicalRowDataToArrow(
-              input.getCluster(), input.getTraitSet(), input, carryRowKind, pruned.inputType);
+              input.getCluster(),
+              input.getTraitSet(),
+              input,
+              carryRowKind,
+              pruned.inputType,
+              encoded.requiresCollectionRepresentation());
       return new StreamPhysicalNativeCalc(
           calc.getCluster(),
           calc.getTraitSet(),
@@ -116,7 +121,12 @@ final class CalcMatcher {
                 && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) below);
         RelNode prunedTranspose =
             new StreamPhysicalRowDataToArrow(
-                below.getCluster(), below.getTraitSet(), below, carryRowKind, pruned.inputType);
+                below.getCluster(),
+                below.getTraitSet(),
+                below,
+                carryRowKind,
+                pruned.inputType,
+                encoded.requiresCollectionRepresentation());
         return new StreamPhysicalNativeCalc(
             calc.getCluster(),
             calc.getTraitSet(),
@@ -173,6 +183,8 @@ final class CalcMatcher {
   }
 
   private static String reason(Calc calc) {
+    if (CollectionValueIdentity.unverifiedInput(calc))
+      return "collection input representation is unverified for this columnar producer";
     if (!FilterCalcMatcher.convertibleRow(calc.getInput().getRowType())) {
       return "unsupported input column type";
     }

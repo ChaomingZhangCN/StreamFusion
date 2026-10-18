@@ -18,12 +18,15 @@
 
 package tech.streamfusion.arrow.writers;
 
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
-
-import org.apache.arrow.vector.complex.StructVector;
+import org.apache.flink.table.data.binary.BinaryArrayData;
+import org.apache.flink.table.data.binary.BinaryRowData;
+import tech.streamfusion.arrow.NestedRepresentation;
 
 /** {@link ArrowFieldWriter} for Row. */
 @Internal
@@ -43,11 +46,13 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
 
     protected final ArrowFieldWriter<RowData>[] fieldsWriters;
     private final GenericRowData nullRow;
+    private final TinyIntVector kinds;
 
     private RowWriter(StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
         super(structVector);
         this.fieldsWriters = fieldsWriters;
         this.nullRow = new GenericRowData(fieldsWriters.length);
+        kinds = NestedRepresentation.kinds(structVector);
     }
 
     abstract boolean isNullAt(T in, int ordinal);
@@ -67,6 +72,12 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
         for (int i = 0; i < fieldsWriters.length; i++) {
             fieldsWriters[i].write(row, i);
         }
+        if (kinds != null)
+            kinds.setSafe(
+                    getCount(),
+                    row.getRowKind().toByteValue()
+                            | (row instanceof BinaryRowData ? NestedRepresentation.BINARY_ROW : 0)
+                            | (in instanceof BinaryArrayData ? NestedRepresentation.BINARY_ARRAY : 0));
     }
 
     @Override
@@ -75,6 +86,7 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
         for (ArrowFieldWriter<?> fieldsWriter : fieldsWriters) {
             fieldsWriter.finish();
         }
+        if (kinds != null) kinds.setValueCount(getCount());
     }
 
     @Override

@@ -68,6 +68,7 @@ public final class FlinkExpressionFunction extends ScalarFunction
   private final LogicalType[] argumentTypes;
   private final List<ScalarFunction> functions;
   private final RowType rowResultType;
+  private final byte[] arrowResultSchema;
   private transient ProcessingTimeService processingTimeService;
   private transient Evaluator evaluator;
   private transient GenericRowData input;
@@ -108,11 +109,23 @@ public final class FlinkExpressionFunction extends ScalarFunction
       RowType resultType,
       ReadableConfig config,
       ClassLoader classLoader) {
+    this(projections, condition, argumentTypes, resultType, config, classLoader, false);
+  }
+
+  FlinkExpressionFunction(
+      List<RexNode> projections,
+      RexNode condition,
+      LogicalType[] argumentTypes,
+      RowType resultType,
+      ReadableConfig config,
+      ClassLoader classLoader,
+      boolean preserveCollections) {
     this(
         rowBody(projections, condition, argumentTypes, resultType, config, classLoader),
         argumentTypes,
         config,
-        classLoader);
+        classLoader,
+        preserveCollections);
     rowFilter = condition != null;
   }
 
@@ -371,6 +384,15 @@ public final class FlinkExpressionFunction extends ScalarFunction
 
   private FlinkExpressionFunction(
       Body body, LogicalType[] argumentTypes, ReadableConfig config, ClassLoader classLoader) {
+    this(body, argumentTypes, config, classLoader, false);
+  }
+
+  private FlinkExpressionFunction(
+      Body body,
+      LogicalType[] argumentTypes,
+      ReadableConfig config,
+      ClassLoader classLoader,
+      boolean preserveCollections) {
     this.argumentTypes = argumentTypes;
     // Logical NOT NULL is enforced by Flink's sink; generated expressions can still overflow to NULL.
     this.rowResultType = body.rowType() == null ? null : new RowType(
@@ -379,6 +401,12 @@ public final class FlinkExpressionFunction extends ScalarFunction
             .map(field -> new RowType.RowField(field.getName(), field.getType().copy(true)))
             .collect(tech.streamfusion.compat.ListCollectors.toList()));
     var context = body.context();
+    this.arrowResultSchema =
+        this.rowResultType == null
+            ? null
+            : tech.streamfusion.arrow.ArrowConversion.toArrowRowResultSchema(
+                    this.rowResultType, preserveCollections)
+                .serializeAsMessage();
     functions = List.copyOf(context.functionInstances.values());
     String className = tech.streamfusion.compat.FlinkCompat.expressionClassName(context);
     String code =
@@ -440,6 +468,12 @@ public final class FlinkExpressionFunction extends ScalarFunction
   @Override
   public RowType rowResultType() {
     return rowResultType;
+  }
+
+  @Override
+  public org.apache.arrow.vector.types.pojo.Schema arrowResultSchema() {
+    return org.apache.arrow.vector.types.pojo.Schema.deserializeMessage(
+        java.nio.ByteBuffer.wrap(arrowResultSchema));
   }
 
   @Override

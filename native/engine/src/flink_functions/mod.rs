@@ -33,8 +33,10 @@ pub(crate) mod to_date;
 
 mod array_distinct;
 pub(crate) mod array_item;
+mod array_slice;
 mod ascii;
 mod binary_strings;
+mod cardinality;
 mod charset;
 mod chr;
 mod hash_code;
@@ -57,6 +59,7 @@ mod sign;
 mod string_to_boolean;
 mod temporal_round;
 mod timestamp_millis;
+mod type_of;
 
 const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -188,6 +191,12 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         162 => hash_code::function(),
         165 => array_distinct::function(),
         166 => datafusion::functions::string::uuid().as_ref().clone(),
+        167 => cardinality::function(),
+        168 => type_of::function(),
+        169 => datafusion::functions_nested::reverse::array_reverse_udf()
+            .as_ref()
+            .clone(),
+        170 => array_slice::function(arity),
         _ => return None,
     })
 }

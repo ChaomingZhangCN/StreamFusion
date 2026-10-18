@@ -28,10 +28,11 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
 
   private final boolean carryRowKind;
   private final RelDataType prunedType;
+  private final boolean preserveCollections;
 
   public StreamPhysicalRowDataToArrow(
       RelOptCluster cluster, RelTraitSet traitSet, RelNode input, boolean carryRowKind) {
-    this(cluster, traitSet, input, carryRowKind, null);
+    this(cluster, traitSet, input, carryRowKind, null, false);
   }
 
   public StreamPhysicalRowDataToArrow(
@@ -40,9 +41,24 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
       RelNode input,
       boolean carryRowKind,
       RelDataType prunedType) {
+    this(cluster, traitSet, input, carryRowKind, prunedType, false);
+  }
+
+  public StreamPhysicalRowDataToArrow(
+      RelOptCluster cluster,
+      RelTraitSet traitSet,
+      RelNode input,
+      boolean carryRowKind,
+      RelDataType prunedType,
+      boolean preserveCollections) {
     super(cluster, traitSet, input);
     this.carryRowKind = carryRowKind;
     this.prunedType = prunedType;
+    this.preserveCollections = preserveCollections;
+  }
+
+  boolean preservesCollections() {
+    return preserveCollections;
   }
 
   @Override
@@ -58,7 +74,7 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new StreamPhysicalRowDataToArrow(
-        getCluster(), traitSet, inputs.get(0), carryRowKind, prunedType);
+        getCluster(), traitSet, inputs.get(0), carryRowKind, prunedType, preserveCollections);
   }
 
   @Override
@@ -71,7 +87,8 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
         carryRowKind,
         prunedType == null
             ? null
-            : FlinkTypeFactory$.MODULE$.toLogicalRowType(getInput().getRowType()));
+            : FlinkTypeFactory$.MODULE$.toLogicalRowType(getInput().getRowType()),
+        preserveCollections);
   }
 
   @Override
@@ -79,6 +96,7 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
     // The rendered field count makes pruning visible in an explain ("why is my transpose wide?");
     // display-only — the digest already carries the full row type.
     return super.explainTerms(pw)
+        .itemIf("collectionRepresentation", true, preserveCollections)
         .itemIf(
             "fields",
             getRowType().getFieldCount(),

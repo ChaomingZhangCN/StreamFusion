@@ -1,9 +1,5 @@
 package tech.streamfusion.planner;
 
-import tech.streamfusion.operator.ArrowBatch;
-import tech.streamfusion.operator.ArrowBatchTypeInformation;
-import tech.streamfusion.operator.RowDataToArrowOperator;
-import tech.streamfusion.operator.SynchronousArrowInput;
 import java.util.Collections;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
@@ -17,6 +13,10 @@ import org.apache.flink.table.planner.plan.nodes.exec.SingleTransformationTransl
 import org.apache.flink.table.planner.plan.nodes.exec.stream.StreamExecNode;
 import org.apache.flink.table.planner.plan.nodes.exec.utils.ExecNodeUtil;
 import org.apache.flink.table.types.logical.RowType;
+import tech.streamfusion.operator.ArrowBatch;
+import tech.streamfusion.operator.ArrowBatchTypeInformation;
+import tech.streamfusion.operator.RowDataToArrowOperator;
+import tech.streamfusion.operator.SynchronousArrowInput;
 
 /** Wraps the row→Arrow transpose operator into the plan, producing the columnar batch stream. */
 public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
@@ -29,6 +29,7 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
   private final RowType rowType;
   private final boolean carryRowKind;
   private final RowType sourceType;
+  private final byte[] arrowSchema;
 
   public RowDataToArrowExecNode(
       ReadableConfig tableConfig,
@@ -37,6 +38,17 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
       String description,
       boolean carryRowKind,
       RowType sourceType) {
+    this(tableConfig, inputProperty, rowType, description, carryRowKind, sourceType, false);
+  }
+
+  public RowDataToArrowExecNode(
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType rowType,
+      String description,
+      boolean carryRowKind,
+      RowType sourceType,
+      boolean preserveCollections) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-row-to-arrow_1"),
@@ -48,6 +60,9 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
     this.rowType = rowType;
     this.carryRowKind = carryRowKind;
     this.sourceType = sourceType;
+    this.arrowSchema =
+        tech.streamfusion.arrow.ArrowConversion.toArrowInputSchema(rowType, preserveCollections)
+            .serializeAsMessage();
   }
 
   @Override
@@ -59,7 +74,8 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
     return ExecNodeUtil.createOneInputTransformation(
         SynchronousArrowInput.forTranspose(input, sourceType == null ? rowType : sourceType),
         createTransformationMeta(TRANSFORMATION, config),
-        new RowDataToArrowOperator(rowType, batchRows, carryRowKind, sourceType),
+        new RowDataToArrowOperator(
+            rowType, batchRows, carryRowKind, sourceType, false, arrowSchema),
         ArrowBatchTypeInformation.INSTANCE,
         input.getParallelism(),
         false);

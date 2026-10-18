@@ -37,6 +37,8 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
   private final boolean carryRowKind;
   private final RowType sourceType;
   private final boolean preserveStringCaches;
+  private final byte[] arrowSchema;
+  private transient org.apache.arrow.vector.types.pojo.Schema inputSchema;
   private transient StringCacheColumns.Writer stringCaches;
 
   private transient boolean writeRowKind;
@@ -57,9 +59,30 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
     this(rowType, batchSize, carryRowKind, sourceType, false);
   }
 
-  public RowDataToArrowOperator(RowType rowType, int batchSize, boolean carryRowKind,
-      RowType sourceType, boolean preserveStringCaches) {
+  public RowDataToArrowOperator(
+      RowType rowType,
+      int batchSize,
+      boolean carryRowKind,
+      RowType sourceType,
+      boolean preserveStringCaches) {
+    this(
+        rowType,
+        batchSize,
+        carryRowKind,
+        sourceType,
+        preserveStringCaches,
+        ArrowConversion.toArrowSchema(rowType).serializeAsMessage());
+  }
+
+  public RowDataToArrowOperator(
+      RowType rowType,
+      int batchSize,
+      boolean carryRowKind,
+      RowType sourceType,
+      boolean preserveStringCaches,
+      byte[] arrowSchema) {
     this.preserveStringCaches = preserveStringCaches;
+    this.arrowSchema = arrowSchema.clone();
     this.rowType = rowType;
     this.batchSize = batchSize;
     this.carryRowKind = carryRowKind;
@@ -71,6 +94,9 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
     super.open();
     NativeAllocator.initializeFor(this);
     allocator = NativeAllocator.SHARED;
+    inputSchema =
+        org.apache.arrow.vector.types.pojo.Schema.deserializeMessage(
+            java.nio.ByteBuffer.wrap(arrowSchema));
     writeRowKind = carryRowKind;
     flushLatencyMs = NativeConfig.transposeFlushLatencyMs();
     flushDeadline = Long.MIN_VALUE;
@@ -93,7 +119,7 @@ public class RowDataToArrowOperator extends FlinkStreamOperator<ArrowBatch>
     long started = timed ? System.nanoTime() : 0;
     try {
       if (pendingRoot == null) {
-        pendingRoot = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(rowType), allocator);
+        pendingRoot = VectorSchemaRoot.create(inputSchema, allocator);
         writer = ArrowConversion.createRowDataArrowWriter(pendingRoot, rowType, batchSize);
         if (preserveStringCaches) stringCaches = new StringCacheColumns.Writer(rowType, allocator);
       }

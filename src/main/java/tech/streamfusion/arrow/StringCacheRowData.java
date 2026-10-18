@@ -13,11 +13,14 @@ import org.apache.flink.types.RowKind;
 /** Reusable boundary row preserving explicit Java string caches over borrowed Arrow buffers. */
 final class StringCacheRowData extends tech.streamfusion.compat.ProjectedRowDataCompat {
   private final ListVector[] caches;
+  private final org.apache.flink.table.data.columnar.vector.ColumnVector[] vectors;
   private RowData row;
   private int rowIndex;
 
-  StringCacheRowData(ListVector[] caches) {
+  StringCacheRowData(
+      ListVector[] caches, org.apache.flink.table.data.columnar.vector.ColumnVector[] vectors) {
     this.caches = caches;
+    this.vectors = vectors;
   }
 
   RowData replace(RowData row, int rowIndex) {
@@ -28,6 +31,9 @@ final class StringCacheRowData extends tech.streamfusion.compat.ProjectedRowData
 
   @Override
   public RowData getRow(int pos, int fields) {
+    if (vectors[pos] instanceof tech.streamfusion.arrow.vectors.ArrowRowColumnVector)
+      return ((tech.streamfusion.arrow.vectors.ArrowRowColumnVector) vectors[pos])
+          .getRowData(rowIndex);
     return row.getRow(pos, fields);
   }
 
@@ -88,8 +94,10 @@ final class StringCacheRowData extends tech.streamfusion.compat.ProjectedRowData
 
   @Override
   public StringData getString(int pos) {
+    if (vectors[pos] instanceof NestedStringColumnVector)
+      return ((NestedStringColumnVector) vectors[pos]).getString(rowIndex);
     var binary = (org.apache.flink.table.data.binary.BinaryStringData) row.getString(pos);
-    var restored = StringCacheColumns.read(caches[pos], rowIndex, binary);
+    var restored = StringCacheColumns.read(caches == null ? null : caches[pos], rowIndex, binary);
     return restored == null ? binary : restored;
   }
 

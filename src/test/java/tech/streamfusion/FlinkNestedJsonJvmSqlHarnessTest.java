@@ -97,24 +97,33 @@ class FlinkNestedJsonJvmSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"JSON_STRING(m)", "m, JSON_QUERY(s, '$')", "ROW(m), JSON_QUERY(s, '$')"})
+  @ValueSource(strings = {"JSON_STRING(m)", "m, JSON_QUERY(s, '$')"})
   void mapBoundariesRemainExplicitFallback(String projection) throws Exception {
     NativeParity.assertFallbackReasonContains(
-        () -> {
-          var env = StreamExecutionEnvironment.getExecutionEnvironment();
-          env.setParallelism(1);
-          var table = StreamTableEnvironment.create(env);
-          table.createTemporaryView(
-              "inputs",
-              fromData(
-                  env,
-                  List.of(Row.of(Map.of("a", 1), "{}")),
-                  Types.ROW_NAMED(
-                      new String[] {"m", "s"}, Types.MAP(Types.STRING, Types.INT), Types.STRING)));
-          return table;
-        },
+        FlinkNestedJsonJvmSqlHarnessTest::mapEnvironment,
         "SELECT " + projection + " FROM inputs",
         "row-fused UDF");
+  }
+
+  @Test
+  void rowConstructorAdmitsTheVerifiedMapBoundary() throws Exception {
+    BuiltinFunctionParity.assertParity(
+        FlinkNestedJsonJvmSqlHarnessTest::mapEnvironment,
+        "SELECT ROW(m), JSON_QUERY(s, '$') FROM inputs");
+  }
+
+  private static TableEnvironment mapEnvironment() {
+    var env = StreamExecutionEnvironment.getExecutionEnvironment();
+    env.setParallelism(1);
+    var table = StreamTableEnvironment.create(env);
+    table.createTemporaryView(
+        "inputs",
+        fromData(
+            env,
+            List.of(Row.of(Map.of("a", 1), "{}")),
+            Types.ROW_NAMED(
+                new String[] {"m", "s"}, Types.MAP(Types.STRING, Types.INT), Types.STRING)));
+    return table;
   }
 
   private static String compatibleQuery(String sql, boolean changelog) {

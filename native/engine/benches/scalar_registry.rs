@@ -69,6 +69,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         }
         list.append(valid(row));
     }
+    let lists = array(list.finish(), rows);
     let mut cases = vec![
         (
             65,
@@ -168,8 +169,12 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         (160, vec![string("invalid")]),
         (161, vec![string(&text), literal("alpha"), int(1), int(1)]),
         (162, vec![string(&text)]),
-        (165, vec![array(list.finish(), rows)]),
+        (165, vec![lists.clone()]),
         (166, vec![]),
+        (167, vec![lists.clone()]),
+        (169, vec![lists.clone()]),
+        (170, vec![lists.clone(), int(-2), int(-1)]),
+        (168, vec![lists, literal("ARRAY<BIGINT>")]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

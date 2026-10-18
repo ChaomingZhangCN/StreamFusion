@@ -14,6 +14,14 @@ structs passed as arguments. That code uses the original positional row serializ
 members would change their arity. Unused top-level columns are still pruned; native field-by-name
 expressions retain nested-field pruning.
 
+Type-only expressions follow the encoded program's actual input references. For example, TYPEOF
+on a direct array reference produces its resolved type constant without materializing the array.
+Pruning intersects the original Rex dependencies with the encoded references, retaining nested
+field rules and complete inputs for generated programs. A zero-field transpose still carries its
+row count. This removes unnecessary conversion work; it does not establish a standalone metadata
+speedup. The [metadata measurements](../benchmarks/scalar-functions.md#extended-function-coverage)
+include the remaining exit cost and the aggregate-pipeline gain.
+
 The entry transpose applies this projection **before writing into the owned Arrow batch**.
 Only selected fields are read and copied into Arrow; no intermediate deep-copied RowData list
 is retained. The reusable projection view releases its source and nested-row references

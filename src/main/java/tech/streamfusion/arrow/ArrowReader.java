@@ -36,6 +36,7 @@ public final class ArrowReader {
 
     /** Reusable row used to hold the deserialized result. */
     private final ColumnarRowData reuseRow;
+
     private final StringCacheRowData cachedRow;
 
     public ArrowReader(ColumnVector[] columnVectors) {
@@ -43,7 +44,10 @@ public final class ArrowReader {
     }
 
     ArrowReader(ColumnVector[] columnVectors, org.apache.arrow.vector.complex.ListVector[] caches) {
-        this.cachedRow = caches == null ? null : new StringCacheRowData(caches);
+        boolean represented =
+                java.util.Arrays.stream(columnVectors).anyMatch(NestedRepresentation::requiresView);
+        this.cachedRow =
+                caches == null && !represented ? null : new StringCacheRowData(caches, columnVectors);
         this.columnVectors = Preconditions.checkNotNull(columnVectors);
         this.reuseRow = new ColumnarRowData();
         this.reuseRow.setVectorizedColumnBatch(new VectorizedColumnBatch(columnVectors));

@@ -71,6 +71,10 @@ public final class NativeUdf {
   /** A complete generated Calc returns one row after all of its call sites have run. */
   public interface RowResult {
     org.apache.flink.table.types.logical.RowType rowResultType();
+
+    default org.apache.arrow.vector.types.pojo.Schema arrowResultSchema() {
+      return tech.streamfusion.arrow.ArrowConversion.toArrowRowResultSchema(rowResultType());
+    }
   }
 
   public interface InternalArguments {
@@ -122,12 +126,17 @@ public final class NativeUdf {
     final int fixedArity;
     final Class<?> varArgComponent;
     final FlinkExpressionFunction generated;
+    final Schema rowSchema;
 
     Registered(ScalarFunction function, Method eval, int[] argTypes, int returnType) {
       this.function = function;
       this.eval = eval;
       this.argTypes = argTypes;
       this.returnType = returnType;
+      this.rowSchema =
+          returnType == TYPE_ROW && function instanceof RowResult
+              ? ((RowResult) function).arrowResultSchema()
+              : null;
       Class<?>[] params = eval.getParameterTypes();
       this.generated =
           function instanceof FlinkExpressionFunction
@@ -150,7 +159,9 @@ public final class NativeUdf {
   private static final AtomicInteger NEXT_ID = new AtomicInteger();
   private static final ThreadLocal<Throwable> UPCALL_FAILURE = new ThreadLocal<>();
 
-  /** Restores the exception thrown by Flink's function after the native frame reports its JNI error. */
+  /**
+   * Restores the exception thrown by Flink's function after the native frame reports its JNI error.
+   */
   static RuntimeException propagateUpcallFailure(RuntimeException nativeFailure) {
     Throwable failure = UPCALL_FAILURE.get();
     UPCALL_FAILURE.remove();
@@ -665,13 +676,7 @@ public final class NativeUdf {
   private static VectorSchemaRoot resultRoot(Registered udf, int rows) {
     int returnType = udf.returnType;
     if (returnType == TYPE_ROW) {
-      var rowType =
-          org.apache.flink.table.types.logical.RowType.of(
-              ((RowResult) udf.function).rowResultType().copy(true));
-      var root =
-          VectorSchemaRoot.create(
-              tech.streamfusion.arrow.ArrowConversion.toArrowSchema(rowType),
-              NativeAllocator.SHARED);
+      var root = VectorSchemaRoot.create(udf.rowSchema, NativeAllocator.SHARED);
       root.getVector(0).setInitialCapacity(rows);
       return root;
     }
@@ -733,6 +738,17 @@ public final class NativeUdf {
     switch (code) {
       case TYPE_STRING:
         {
+          if (tech.streamfusion.arrow.NestedRepresentation.isString(vector.getField())) {
+            var strings =
+                new tech.streamfusion.arrow.NestedStringColumnVector(
+                    (org.apache.arrow.vector.complex.StructVector) vector);
+            for (int r = 0; r < rows; r++)
+              if (!strings.isNullAt(r)) {
+                var value = strings.getString(r);
+                out[r] = asStringData ? value : value.toString();
+              }
+            return out;
+          }
           // A byte-capable eval gets the column's UTF-8 bytes wrapped as BinaryStringData — no
           // UTF-16 decode; only a String-typed eval pays the materialization.
           VarCharVector v = (VarCharVector) vector;
