@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -57,7 +59,8 @@ class FlinkOverBasicCountsSqlHarnessTest {
 
   private static String sql(String order, String frame) {
     return "SELECT id, k, COUNT(*) OVER w, COUNT(d) OVER w, COUNT(s) OVER w, "
-        + "COUNT(t) OVER w, COUNT(instant_value) OVER w, MIN(n) OVER w, "
+        + "COUNT(t) OVER w, COUNT(instant_value) OVER w, COUNT(day_value) OVER w, "
+        + "COUNT(time_value) OVER w, COUNT(flag) OVER w, MIN(n) OVER w, "
         + "COUNT(CAST(NULL AS VARCHAR)) OVER w FROM src "
         + "WINDOW w AS (PARTITION BY k ORDER BY "
         + order
@@ -87,11 +90,17 @@ class FlinkOverBasicCountsSqlHarnessTest {
                       missing ? null : time,
                       missing ? null : time.toInstant(ZoneOffset.UTC),
                       missing ? null : id,
-                      1000L + id / 8);
+                      1000L + id / 8,
+                      missing ? null : LocalDate.of(2024, 1, 1).plusDays(id % 31),
+                      missing ? null : LocalTime.of(12, 34, 56, 123000000),
+                      missing ? null : id % 2 == 0);
                 })
             .returns(
                 Types.ROW_NAMED(
-                    new String[] {"id", "k", "d", "s", "t", "instant_value", "n", "ts"},
+                    new String[] {
+                      "id", "k", "d", "s", "t", "instant_value", "n", "ts",
+                      "day_value", "time_value", "flag"
+                    },
                     Types.LONG,
                     Types.INT,
                     Types.BIG_DEC,
@@ -99,7 +108,10 @@ class FlinkOverBasicCountsSqlHarnessTest {
                     Types.LOCAL_DATE_TIME,
                     Types.INSTANT,
                     Types.LONG,
-                    Types.LONG))
+                    Types.LONG,
+                    Types.LOCAL_DATE,
+                    Types.LOCAL_TIME,
+                    Types.BOOLEAN))
             .assignTimestampsAndWatermarks(
                 WatermarkStrategy.<Row>forBoundedOutOfOrderness(Duration.ofDays(1))
                     .withTimestampAssigner((row, previous) -> (Long) row.getField(7)));
@@ -115,6 +127,9 @@ class FlinkOverBasicCountsSqlHarnessTest {
             .column("instant_value", DataTypes.TIMESTAMP_LTZ(9))
             .column("n", DataTypes.BIGINT())
             .column("ts", DataTypes.BIGINT())
+            .column("day_value", DataTypes.DATE())
+            .column("time_value", DataTypes.TIME(3))
+            .column("flag", DataTypes.BOOLEAN())
             .columnByMetadata("rt", DataTypes.TIMESTAMP_LTZ(3), "rowtime")
             .watermark("rt", "SOURCE_WATERMARK()")
             .columnByExpression("pt", "PROCTIME()")

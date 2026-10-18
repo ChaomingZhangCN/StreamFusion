@@ -110,13 +110,16 @@ wrapper retains the shared native resource until the store closes. See
 [Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
 
 The `over_basic_values` target isolates the four production OVER frame shapes without
-initializing unrelated persistent operator fixtures. Its 2,236 release fixture checks cover
-validity-only counts; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
+initializing unrelated persistent operator fixtures. Its release fixture checks cover
+validity-only counts, including DATE, millisecond TIME and BOOLEAN; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
 FIRST/LAST; cached/binary strings, malformed-surrogate recovery collisions, timestamp-group
 retraction order, pending rows and counted-value tree-bin retirement. Fixtures cover small/full batches, one/64 keys, NULLs,
 wide strings, decimal precision 38 and full-range fractional timestamps. The tests validate
 results before timing; setup is outside the measured fold, eviction, output and state-codec
 boundary. Smoke checks establish fixture correctness, without producing timing estimates.
+The DATE/TIME/BOOLEAN COUNT additions contribute 84 fixtures across 64/4096 rows, one/64
+keys, four event-time frames and three processing-time frames. Each checks an independent
+validity-and-frame oracle before timing the production push/flush path.
 
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed

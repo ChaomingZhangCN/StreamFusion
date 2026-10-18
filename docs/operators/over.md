@@ -151,10 +151,10 @@ one non-null BIGINT constant for row counting and reuses the existing aggregate 
 state, TTL and checkpoint paths. This works for all four admitted frame shapes, including
 mixed aggregates, nullable partition keys and unpartitioned input.
 
-Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP and
-TIMESTAMP_LTZ values. It reads the Arrow validity bitmap, without converting these values to
-numbers or inspecting decimal precision and temporal fractions. Bounded frames retain NULL
-membership with the declared column type through snapshots and memory/RocksDB transitions;
+Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP,
+TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
+converting these values to numbers or inspecting decimal precision and temporal fractions.
+Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
 running COUNT state remains a BIGINT. DISTINCT retains the numeric value whitelist.
 
 ### Bounded `ROWS BETWEEN n PRECEDING AND CURRENT ROW`
@@ -195,8 +195,10 @@ per-batch timestamp, a wall-clock-interval frame has no meaningful definition.
 The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
-- A non-numeric value column outside DECIMAL, CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ.
-  These basic types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
+- A non-numeric value column outside DECIMAL, CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ,
+  except ordinary COUNT over DATE, TIME and BOOLEAN.
+  DECIMAL, character and timestamp values admit ordinary COUNT and typed
+  MIN/MAX/FIRST_VALUE/LAST_VALUE; DATE/TIME/BOOLEAN currently admit ordinary COUNT.
   DECIMAL also admits SUM/SUM0/AVG. DISTINCT retains its numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
@@ -259,6 +261,41 @@ speedup. Keeping OVER columnar also lets it compose with adjacent native operato
 ```bash
 SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench -Dtest=RunningRowsBenchmark
 ```
+
+## DATE, TIME and BOOLEAN COUNT measurements
+
+Release+mimalloc comparisons on Linux x86-64 (Intel i7-12650H), JDK 17 and released
+Flink 2.2.1 use one million runtime rows, 64 keys, parallelism one, a 2 GiB heap and
+1,024-row transposes. The row source, row blackhole sink, production IPC, JNI and state
+work stay in the complete-job measurement. Two warmups precede three interleaved
+measurements of stock Flink, native execution and forced OVER fallback. Every native
+trial asserts both transposes and consumed native OVER records. NULLs occur every
+seventh row; one partition contains only NULLs.
+
+| Value | ROWS frame | Stock median (s) | Previous origin (s) | Native median (s) | Stock/native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| DATE | Unbounded preceding | 1.414398 | 1.421788 | 0.540089 | 2.619x |
+| DATE | 16 preceding | 5.254846 | 5.150412 | 0.639251 | 8.220x |
+| TIME | Unbounded preceding | 1.424072 | 1.465953 | 0.573401 | 2.484x |
+| TIME | 16 preceding | 5.050802 | 5.372921 | 0.678752 | 7.441x |
+| BOOLEAN | Unbounded preceding | 1.427646 | 1.386028 | 0.539139 | 2.648x |
+| BOOLEAN | 16 preceding | 5.148383 | 5.336134 | 0.640806 | 8.034x |
+
+The unchanged-origin control runs the identical fixture with native planning enabled
+and verifies its previous OVER fallback. Its separate JVM has its own paired stock
+controls; cross-run comparisons must retain that control drift. The
+[raw artifact](../benchmarks/results/over-count-basic-types-2026-10-18.json) retains all
+warmups and measured trials, library and fixture hashes, forced fallback and original
+origin controls. Startup remains included; these are complete-job comparisons.
+
+Reproduce with `OverBasicValuesBenchmark` under `-Pbench`, `SF_BENCHMARK=true`,
+`-Dover.values.types=date,time,boolean -Dover.values.frames=3,1
+-Dover.values.countOnly=true -Dover.values.rows=1000000 -Dover.values.keys=64
+-Dover.values.warmups=2 -Dover.values.runs=3 -Dsf.extraJvmArgs=-Xmx2g`.
+The original-origin fixture additionally sets `-Dover.values.expectNative=false`.
+SQL parity and memory/RocksDB restoration cover all four event-time and three
+processing-time frames on both released Flink lines; Criterion adds 84 typed-count
+fixtures to the existing 168 validity-count controls.
 
 ## Basic-value complete-job comparisons
 

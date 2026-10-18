@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Locale;
@@ -57,12 +59,15 @@ class OverBasicValuesBenchmark {
     }
     if (rows < 1 || keys < 1 || warmups < 1 || runs < 3)
       throw new IllegalArgumentException("Invalid fixture");
-    String reductions = "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
-    if (!(type.equals("timestamp") || type.equals("ltz"))
-        || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
+    boolean countOnly = Boolean.getBoolean("over.values.countOnly");
+    boolean expectNative =
+        Boolean.parseBoolean(System.getProperty("over.values.expectNative", "true"));
+    String reductions = countOnly ? "COUNT(v) OVER w" : "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
+    if (!countOnly && (!(type.equals("timestamp") || type.equals("ltz"))
+        || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast())) {
       reductions += ", FIRST_VALUE(v) OVER w, LAST_VALUE(v) OVER w";
     }
-    if (type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
+    if (!countOnly && type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
     String query =
         "SELECT k, "
             + reductions
@@ -85,19 +90,20 @@ class OverBasicValuesBenchmark {
                   .build());
           String insert = "INSERT INTO sink " + query;
           String plan = table.explainSql(insert);
-          if (engine == 1)
+          if (engine == 1 && expectNative)
             assertTrue(
                 plan.contains("NativeOverAggregate")
                     && plan.contains("RowDataToArrow")
                     && plan.contains("ArrowToRowData"),
                 plan);
-          if (engine == 2) assertTrue(!plan.contains("NativeOverAggregate"), plan);
+          if (engine == 2 || engine == 1 && !expectNative)
+            assertTrue(!plan.contains("NativeOverAggregate"), plan);
           long start = System.nanoTime();
           var result = table.executeSql(insert);
           String jobId = result.getJobClient().orElseThrow().getJobID().toString();
           result.await();
           double seconds = (System.nanoTime() - start) / 1e9;
-          if (engine == 1) {
+          if (engine == 1 && expectNative) {
             assertTrue(scan.substitutions() > 0, scan.explainSummary());
             RecoveryExecutionMetrics.assertConsumed(
                 metrics.nativeOperators().stream()
@@ -164,6 +170,15 @@ class OverBasicValuesBenchmark {
       case "ltz":
         valueType = DataTypes.TIMESTAMP_LTZ(9);
         break;
+      case "date":
+        valueType = DataTypes.DATE();
+        break;
+      case "time":
+        valueType = DataTypes.TIME(3);
+        break;
+      case "boolean":
+        valueType = DataTypes.BOOLEAN();
+        break;
       default:
         throw new IllegalArgumentException("Unknown value type " + type);
     }
@@ -186,6 +201,15 @@ class OverBasicValuesBenchmark {
                         value =
                             new String[] {"😀", "\ue000", "", "é", "abcdefghijk"}
                                 [(int) (id / keys % 5)];
+                        break;
+                      case "date":
+                        value = LocalDate.of(2024, 1, 1).plusDays(id % 31);
+                        break;
+                      case "time":
+                        value = LocalTime.of(12, 34, 56, (int) (id % 1000) * 1000000);
+                        break;
+                      case "boolean":
+                        value = id % 2 == 0;
                         break;
                       default:
                         var time =

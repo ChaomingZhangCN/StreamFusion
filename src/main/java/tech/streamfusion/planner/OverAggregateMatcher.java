@@ -283,6 +283,10 @@ final class OverAggregateMatcher {
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
     if (distinct) return false;
+    if (kind == WindowAggregateMatcher.KIND_COUNT
+        && (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN)) {
+      return true;
+    }
     if (type == SqlTypeName.DECIMAL) {
       return kind == WindowAggregateMatcher.KIND_SUM
           || kind == WindowAggregateMatcher.KIND_SUM_ZERO
