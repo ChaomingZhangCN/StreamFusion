@@ -27,6 +27,10 @@ The optional `streamfusion-iceberg` module targets the published Iceberg 1.12.0
 Flink 2.2 runtime and requires Java 17 or later. Build it with `-Piceberg`.
 It is separate from connector-neutral core and uses the published `iceberg`
 Rust crate 0.10.1 with Arrow/Parquet 58. No sibling Iceberg build is required.
+The normal Flink 2.2 release build stages and packages its own platform native
+library, includes the connector in deployment archives and Maven publication,
+and checks package/JNI isolation. The ordinary optional-module CI matrix runs its
+streaming unit/upstream selection on JDK 17. Flink 1.18 release bundles omit it.
 
 The first implementation boundary is the normal legacy streaming sink. A
 version-gated adapter replaces its task-writer factory before job serialization,

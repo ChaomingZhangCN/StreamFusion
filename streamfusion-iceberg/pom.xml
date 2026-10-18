@@ -81,6 +81,19 @@
         </plugins>
     </build>
     <profiles>
+        <profile>
+            <id>universal</id>
+            <build><resources>
+                <resource>
+                    <directory>${project.basedir}/../native/target/universal/iceberg</directory>
+                    <targetPath>${native.resource.path}</targetPath>
+                    <includes>
+                        <include>**/libstreamfusion_iceberg.so</include>
+                        <include>**/libstreamfusion_iceberg.dylib</include>
+                    </includes>
+                </resource>
+            </resources></build>
+        </profile>
         <profile><id>iceberg-nexmark</id><dependencies>
             <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-kafka${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><scope>test</scope></dependency>
             <dependency><groupId>tech.streamfusion</groupId><artifactId>streamfusion-json${streamfusion.artifact.suffix}</artifactId><version>${project.version}</version><scope>test</scope></dependency>

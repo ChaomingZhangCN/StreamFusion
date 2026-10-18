@@ -56,7 +56,7 @@ uses 512 MiB. This resource limit differs from the usual 8 GiB test fork because
 that setting exhausted this host. The 48 GiB task-off-heap value is an accounting
 ceiling, not reserved or measured physical memory. JDK 17.0.20.1, Rust 1.94.0,
 Flink 2.2.1, Java Iceberg 1.12.0 and released iceberg-rust 0.10.1 are used, with
-release Rust and mimalloc. The [Kafka headline](../../../readme.md) was measured on
+release Rust and mimalloc. The [Kafka headline](https://github.com/datafusion-contrib/StreamFusion/blob/main/readme.md) was measured on
 an Apple M1 Max with a bounded Kafka completion protocol; these ratios are not
 a controlled estimate of changing only the connector on that machine.
 
