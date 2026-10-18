@@ -1500,7 +1500,10 @@ those leaves. Nested arguments use Flink internal views over the imported Arrow 
 results are copied into owned Arrow output vectors before that batch closes. The callback still
 crosses JNI once per batch, including multi-column results and filtering.
 MAPs with character keys and character values are also admitted, including inside ARRAY/ROW.
-Other MAP and MULTISET boundary types remain explicit fallback.
+Other MAP and MULTISET boundary types remain explicit fallback for this JSON route.
+Programs containing admitted collection functions or runtime constructors can instead use the
+broader [generated collection route](#collection-expressions), including `ROW(m)` with a typed MAP.
+Its representation and boundary gates apply to the complete program.
 Constructing containers internally is allowed when the resulting boundary types are
 admitted. Unsupported host code generation
 and UDF signatures retain explicit fallback. Flink 2.2.1 rejects dynamic JSON_EXISTS paths;
