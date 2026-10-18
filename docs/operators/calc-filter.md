@@ -2220,7 +2220,8 @@ for the later accepted large-domain optimization.
 Boolean ARRAY_DISTINCT, and DOUBLE TRUNCATE including consumer evaluation and exception behavior. It requires native
 Calc and both transposes without starting a job. Plan checks supplement, rather than replace,
 runtime parity and performance checks. The admitted plans run on each released Flink line.
-Binary ELT and STRING ARRAY_DISTINCT now have runtime fallback witnesses. Seven in-process Arrow/JNI ownership tests and three DOUBLE TRUNCATE
+Binary ELT retains runtime fallback witnesses; STRING ARRAY_DISTINCT now has default-enabled
+generated-program parity coverage under the accepted collection performance tradeoff. Seven in-process Arrow/JNI ownership tests and three DOUBLE TRUNCATE
 helper/admission tests pass on each line.
 Two generated-evaluator checks additionally validate omitted and dynamic scales, NULLs, bits
 and errors on each released line. Exception-message correctness runs retain
@@ -2231,6 +2232,7 @@ Nonfinite DOUBLE TRUNCATE consumer checks compare independent released Flink and
 The recovered release revision passes the complete 54-check selected suite on Flink 1.18.1
 with four unavailable-ELT checks skipped, and the corresponding Flink 2.2.1 checks pass.
 Eleven DOUBLE TRUNCATE runtime checks and nine Boolean/string ARRAY_DISTINCT checks pass on
-both released lines. These are historical correctness results. Binary ELT and STRING ARRAY_DISTINCT remain
-on stock execution pending performance admission; fixed binary casts, Boolean ARRAY_DISTINCT,
+both released lines. These are historical correctness results. Binary ELT remains
+on stock execution pending performance admission. STRING ARRAY_DISTINCT uses the verified
+generated collection route described above; fixed binary casts, Boolean ARRAY_DISTINCT,
 and the bounded DOUBLE TRUNCATE helper remain admitted.
