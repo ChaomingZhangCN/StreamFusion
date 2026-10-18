@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FlinkCollectionCardinalitySqlHarnessTest {
   @ParameterizedTest
   @ValueSource(strings = {"CARDINALITY(a)", "CARDINALITY(m)"})
-  void cardinalityRemainsOptIn(String expression) throws Exception {
+  void collectionExtensionCanBeDisabled(String expression) throws Exception {
     NativeParity.assertFallback(
         () -> {
           var table = environment();
@@ -70,7 +70,6 @@ class FlinkCollectionCardinalitySqlHarnessTest {
                 Row.of(1, new Integer[] {}, new Integer[][] {}, Map.of()),
                 Row.of(2, null, null, null),
                 Row.of(3, new Integer[] {null}, new Integer[][] {null, {}}, map)));
-    table.getConfig().set("streamfusion.experimental.collectionExpressions", "true");
     return table;
   }
 }

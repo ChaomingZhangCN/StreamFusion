@@ -32,8 +32,9 @@ Rows are two million except width-64 sort at 500,000.
 | ROW constructor | 0.507912 | 0.884793 | 0.499804 | 0.801584 |
 
 The reduction is 5–11% of the initial StreamFusion time in these runs. None of these isolated
-jobs beats Flink; both collection and metadata extensions remain off by default.
-[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks the remaining admission work. These results do
+jobs beats Flink. Both collection and metadata extensions are enabled by default under the
+maintainer's explicit acceptance of the measured regressions on 2026-10-17.
+[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks the remaining performance work. These results do
 not establish a sustained-throughput gain. Full comparisons against previous StreamFusion,
 longer workloads, reproducible commands and every trial belong in the
 [scalar benchmark ledger](../benchmarks/scalar-functions.md#extended-function-coverage).

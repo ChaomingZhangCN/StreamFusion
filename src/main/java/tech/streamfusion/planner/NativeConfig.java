@@ -89,14 +89,14 @@ public final class NativeConfig {
     return booleanValue("streamfusion.calc.temporalUdf.enabled", false);
   }
 
-  /** Collection kernels remain opt-in until their complete-job performance is verified. */
+  /** Verified collection coverage is enabled with the accepted standalone performance tradeoff. */
   public static boolean collectionExpressionsEnabled() {
-    return booleanValue("streamfusion.experimental.collectionExpressions", false);
+    return booleanValue("streamfusion.experimental.collectionExpressions", true);
   }
 
   /** Metadata kernels win in aggregate pipelines but still lose in standalone row-source jobs. */
   public static boolean metadataExpressionsEnabled() {
-    return booleanValue("streamfusion.experimental.metadataExpressions", false);
+    return booleanValue("streamfusion.experimental.metadataExpressions", true);
   }
 
   /** Diagnostic escape hatch for comparing the legacy synchronous memory-checkpoint path. */

@@ -41,7 +41,8 @@ generated collection readers/writers. This does not admit Arrow map comparison o
 over those extended results. Tests cover nullable keys at fourteen released bridge types/nullability combinations, nested
 values, empty/NULL maps and runtime constructors.
 
-The switch defaults off because full row-source jobs can lose to Flink.
-[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance admission. Coverage, restrictions and
+The switch defaults on under the maintainer's explicit acceptance on 2026-10-17, despite slower
+full row-source jobs. Setting it false restores host execution for the extension.
+[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance improvements. Coverage, restrictions and
 performance evidence belong in [Calc/filter](../docs/operators/calc-filter.md#collection-expressions)
 and the [scalar benchmark page](../docs/benchmarks/scalar-functions.md#extended-function-coverage).

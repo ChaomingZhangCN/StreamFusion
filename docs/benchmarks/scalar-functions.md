@@ -25,7 +25,8 @@ See [Calc / filter](../operators/calc-filter.md) for the complete argument gates
 ## Extended function coverage
 
 These measurements were recorded on 2026-10-17. The collection and metadata extensions are
-experimental and default off. Native Calc coverage
+enabled by default under the maintainer's explicit acceptance of the measured regressions on
+2026-10-17. Native Calc coverage
 includes both Rust kernels and complete Flink-generated programs through the JVM batch bridge;
 these are separate execution engines. Runtime UUID already uses the ordinary admitted path and
 is unchanged by this extension. See [coverage and type gates](../operators/calc-filter.md#collection-expressions).
@@ -88,9 +89,9 @@ input index. Inline object update projects its integer field so the sink has an 
 The ten-million-row cases show that reverse and row construction still lose beyond the shorter
 runs. The 1.03x map-cardinality observation is small relative to control drift and does not establish
 performance admission. All other standalone collection/constructor cases are slower than stock.
-[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance admission.
-The flags remain false; default-off groundwork requires explicit maintainer acceptance under the
-repository's performance policy. The [conversion optimization](../optimizations/collection-representation-work.md)
+[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance improvements.
+The maintainer explicitly accepted merging these slower paths enabled by default on 2026-10-17.
+Both switches can be set false to restore host execution for these extensions. The [conversion optimization](../optimizations/collection-representation-work.md)
 removes measured overhead but does not make these workloads faster than Flink.
 
 The CSV labels `candidate`, `previous` and `candidate_initial` distinguish final code, previous

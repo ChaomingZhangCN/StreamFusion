@@ -272,8 +272,9 @@ without claiming a standalone speedup. Reproduce with the `bench` profile and
 
 ## Type and database metadata
 
-`streamfusion.experimental.metadataExpressions=true` enables these functions. It defaults
-false because standalone row-source projections remain slower than stock Flink; the
+These functions are enabled by default; set
+`streamfusion.experimental.metadataExpressions=false` to disable them. The maintainer accepted
+the slower standalone row-source projections on 2026-10-17; the
 [release comparison](../benchmarks/scalar-functions.md#extended-function-coverage) includes both
 standalone projections and aggregate pipelines.
 
@@ -1894,10 +1895,11 @@ and [per-function benchmarks](../benchmarks/scalar-functions.md).
 
 ### Collection expressions
 
-`streamfusion.experimental.collectionExpressions=true` enables the following extensions.
-The option defaults false while [complete-job performance admission](https://github.com/datafusion-contrib/StreamFusion/issues/392)
-is unresolved. Existing
-admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retain their ordinary default.
+The following extensions are enabled by default. Set
+`streamfusion.experimental.collectionExpressions=false` to disable them. The maintainer accepted
+the measured standalone regressions on 2026-10-17;
+[issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance improvements.
+Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retain their ordinary paths.
 
 | Functions | Execution inside NativeCalc |
 | --- | --- |
@@ -1948,7 +1950,8 @@ both supported releases; absent functions are explicitly N/A, not counted as nat
 Earlier direct extrema and map-projection experiments were slower than Flink and remain
 recorded in the [extrema investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)
 and [map investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-map-array-projections.md).
-The generated route does not revive their default admission or establish standalone acceleration.
+Those direct native prototypes remain unused. The generated route is enabled under the accepted
+performance tradeoff and does not establish standalone acceleration.
 [Issue #234](https://github.com/datafusion-contrib/StreamFusion/issues/234) also tracks remaining
 collection aggregate and cast work outside this extension.
 
@@ -1961,8 +1964,8 @@ collision-checked fingerprint, and larger arrays use a reusable hash set. The fi
 including one NULL element. NULL containers remain NULL and empty arrays remain
 empty. The result preserves the element width, field metadata, and nullability. Boolean equality
 compares values; string equality compares UTF-8 bytes without trimming or Unicode normalization.
-VARCHAR/STRING, CHAR, floating, decimal, temporal, binary, and nested element types retain explicit fallback
-by default; the experimental collection route above uses Flink generation for verified bridge types.
+VARCHAR/STRING, CHAR, floating, decimal, temporal, binary, and nested element types use the
+generated collection route above for verified bridge types; other signatures retain planning fallback.
 Runtime SQL parity checks pass against released Flink 2.2.1.
 [Whole-job measurements](../benchmarks/scalar-functions.md#integer-array_distinct-2026-09-28)
 show large-array gains and small-array sensitivity to run-to-run variation. With

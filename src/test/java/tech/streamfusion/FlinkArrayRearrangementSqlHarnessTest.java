@@ -116,7 +116,7 @@ class FlinkArrayRearrangementSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ARRAY_REVERSE(a)", "ARRAY_SLICE(a,start_pos,end_pos)"})
-  void defaultAdmissionKeepsTheUnmeasuredCasesOnTheHost(String expression) throws Exception {
+  void disabledExtensionKeepsRearrangementsOnTheHost(String expression) throws Exception {
     requireHost(expression);
     NativeParity.assertFallback(() -> integers(false), "SELECT " + expression + " FROM src");
   }

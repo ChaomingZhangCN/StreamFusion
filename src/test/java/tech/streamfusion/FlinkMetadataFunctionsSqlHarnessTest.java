@@ -55,7 +55,6 @@ class FlinkMetadataFunctionsSqlHarnessTest {
         BuiltinFunctionParity.environment(
             ROW(FIELD("r", ROW(FIELD(database ? "value" : name, INT())))),
             List.of(Row.of(Row.of(1))));
-    table.getConfig().set("streamfusion.experimental.metadataExpressions", "true");
     table.getConfig().set("streamfusion.experimental.collectionExpressions", "false");
     if (database) {
       table.executeSql("CREATE DATABASE `" + name + "`");
@@ -135,7 +134,7 @@ class FlinkMetadataFunctionsSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"TYPEOF(id)", "CURRENT_DATABASE()"})
-  void metadataRemainsOptIn(String expression) throws Exception {
+  void metadataExtensionCanBeDisabled(String expression) throws Exception {
     NativeParity.assertFallback(
         () -> {
           var table = environment();
@@ -203,8 +202,6 @@ class FlinkMetadataFunctionsSqlHarnessTest {
                     new java.math.BigDecimal("1.234567890"),
                     java.time.Instant.EPOCH),
                 Row.of(1, null, null, null, null)));
-    table.getConfig().set("streamfusion.experimental.metadataExpressions", "true");
-    table.getConfig().set("streamfusion.experimental.collectionExpressions", "true");
     return table;
   }
 }
