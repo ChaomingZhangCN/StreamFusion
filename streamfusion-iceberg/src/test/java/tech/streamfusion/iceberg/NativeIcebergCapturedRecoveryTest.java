@@ -44,6 +44,9 @@ class NativeIcebergCapturedRecoveryTest {
   private static final int MAX = 257;
   private static final AtomicBoolean FAILED = new AtomicBoolean();
   private static final AtomicBoolean PAST_END = new AtomicBoolean();
+  private static java.util.concurrent.CountDownLatch startInput;
+  private static Path checkpointDirectory;
+  private static volatile Path capturedCheckpoint;
   private static final java.util.concurrent.atomic.AtomicLong RECEIVED =
       new java.util.concurrent.atomic.AtomicLong();
   private static final Map<Long, Map<Integer, Integer>> CHECKPOINTED =
@@ -72,6 +75,7 @@ class NativeIcebergCapturedRecoveryTest {
   void restoresCapturedArrowExchangeAndCommittedRows(
       int before, int after, boolean keyed, boolean dynamic) throws Exception {
     FAILED.set(false);
+    capturedCheckpoint = null;
     RECEIVED.set(0);
     CHECKPOINTED.clear();
     var schema =
@@ -98,17 +102,7 @@ class NativeIcebergCapturedRecoveryTest {
           FAILED.get(), "first job failed before the intentional checkpoint failure: " + expected);
     }
     assertTrue(FAILED.get());
-    Path retained;
-    try (var paths = Files.walk(temp.resolve("checkpoints"))) {
-      retained =
-          paths
-              .filter(path -> path.getFileName().toString().equals("_metadata"))
-              .map(Path::getParent)
-              .max(
-                  java.util.Comparator.comparingLong(
-                      path -> Long.parseLong(path.getFileName().toString().substring(4))))
-              .orElseThrow();
-    }
+    Path retained = java.util.Objects.requireNonNull(capturedCheckpoint);
     var metadata = org.apache.flink.test.util.TestUtils.loadCheckpointMetadata(retained.toString());
     assertTrue(
         metadata.getOperatorStates().stream()
@@ -154,6 +148,7 @@ class NativeIcebergCapturedRecoveryTest {
     config.set(
         CheckpointingOptions.EXTERNALIZED_CHECKPOINT_RETENTION,
         ExternalizedCheckpointRetention.RETAIN_ON_CANCELLATION);
+    config.set(CheckpointingOptions.MAX_RETAINED_CHECKPOINTS, 2);
     if (restore != null)
       config.set(StateRecoveryOptions.SAVEPOINT_PATH, restore.toUri().toString());
     var env = StreamExecutionEnvironment.getExecutionEnvironment(config);
@@ -161,12 +156,14 @@ class NativeIcebergCapturedRecoveryTest {
     env.setMaxParallelism(MAX);
     env.enableCheckpointing(50);
     env.getCheckpointConfig().enableUnalignedCheckpoints();
+    startInput = new java.util.concurrent.CountDownLatch(1);
     var input =
         env.fromSequence(0, 1000000)
             .setParallelism(1)
             .uid("source")
             .flatMap(
                 (Long index, org.apache.flink.util.Collector<ArrowBatch> out) -> {
+                  startInput.await();
                   if (index >= ROWS / 64) {
                     PAST_END.set(true);
                     java.util.concurrent.locks.LockSupport.parkNanos(5_000_000);
@@ -296,8 +293,16 @@ class NativeIcebergCapturedRecoveryTest {
     if (dynamic) assertEquals(1, wrapped);
     PAST_END.set(false);
     var job = env.executeAsync(graph);
+    checkpointDirectory = temp.resolve("checkpoints").resolve(job.getJobID().toString());
     var jobResult = job.getJobExecutionResult();
     try {
+      long startupDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+      while (!allTasksRunning(job) && System.nanoTime() < startupDeadline) {
+        if (job.getJobStatus().get().isGloballyTerminalState()) jobResult.get();
+        Thread.sleep(10);
+      }
+      assertTrue(allTasksRunning(job), "all tasks must run before releasing Arrow input");
+      startInput.countDown();
       if (restore == null) {
         jobResult.get(90, java.util.concurrent.TimeUnit.SECONDS);
       } else {
@@ -335,6 +340,24 @@ class NativeIcebergCapturedRecoveryTest {
         job.cancel().get(30, java.util.concurrent.TimeUnit.SECONDS);
         jobResult.handle((result, failure) -> null).get(30, java.util.concurrent.TimeUnit.SECONDS);
       }
+    }
+  }
+
+  private static void failAfterCapturedCheckpoint(long checkpointId, int rows) throws Exception {
+    if (rows < 1000 || FAILED.get()) return;
+    Path checkpoint = checkpointDirectory.resolve("chk-" + checkpointId);
+    var metadata = org.apache.flink.test.util.TestUtils.loadCheckpointMetadata(checkpoint.toString());
+    boolean captured =
+        metadata.getOperatorStates().stream()
+            .filter(operator -> CHANNEL_OPERATORS.contains(operator.getOperatorID()))
+            .flatMap(operator -> operator.getStates().stream())
+            .anyMatch(
+                state ->
+                    !state.getInputChannelState().isEmpty()
+                        || !state.getResultSubpartitionState().isEmpty());
+    if (captured && FAILED.compareAndSet(false, true)) {
+      capturedCheckpoint = checkpoint;
+      throw new RuntimeException("intentional failure after captured checkpoint " + checkpointId);
     }
   }
 
@@ -378,9 +401,8 @@ class NativeIcebergCapturedRecoveryTest {
     }
 
     @Override
-    public void notifyCheckpointComplete(long checkpointId) {
-      if (rows >= 1000 && FAILED.compareAndSet(false, true))
-        throw new RuntimeException("intentional failure after captured checkpoint " + checkpointId);
+    public void notifyCheckpointComplete(long checkpointId) throws Exception {
+      failAfterCapturedCheckpoint(checkpointId, rows);
     }
   }
 
@@ -435,11 +457,8 @@ class NativeIcebergCapturedRecoveryTest {
                               .getTaskInfo()
                               .getIndexOfThisSubtask(),
                           rows[0]);
-                if (method.getName().equals("notifyCheckpointComplete")
-                    && rows[0] >= 1000
-                    && FAILED.compareAndSet(false, true))
-                  throw new RuntimeException(
-                      "intentional failure after dynamic captured checkpoint " + args[0]);
+                if (method.getName().equals("notifyCheckpointComplete"))
+                  failAfterCapturedCheckpoint((long) args[0], rows[0]);
                 try {
                   return method.invoke(host, args);
                 } catch (java.lang.reflect.InvocationTargetException failure) {

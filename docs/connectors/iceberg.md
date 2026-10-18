@@ -94,7 +94,11 @@ source/dynamic-sink 2→3 savepoint restore with aligned and unaligned checkpoin
 configurations. Captured-channel fixtures cover 2→3 and 3→2 append/keyed recovery
 for both sink APIs and 1↔2 for the normal sink. They keep the source live, inject a
 failure after a completed checkpoint with actual retained Arrow channel state, then
-verify changing values and exact committed readback after rescaling. An explicit
+verify changing values and exact committed readback after rescaling. A
+startup gate waits for every task before releasing input; failure injection verifies
+the completed checkpoint's channel handles and restores that exact checkpoint,
+rather than assuming the newest checkpoint necessarily buffered records. The fixture
+retains two checkpoints while completion callbacks select the restore input. An explicit
 non-draining savepoint separates completed streaming writes from the terminal flush.
 Published Java dynamic
 sink/processor/writer/cache/serializer/aggregation/committer tests retain all 97 cases
