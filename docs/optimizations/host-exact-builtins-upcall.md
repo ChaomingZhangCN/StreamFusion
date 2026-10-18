@@ -82,9 +82,10 @@ substantially over the previous native implementation, while direct timestamps p
 existing speedup. These fixed fixtures do not establish a speedup for every temporal spelling.
 Unrecognized and malformed text still use released parsing.
 
-Boolean remains a performance blocker. A separate 20M-row length-dispatch experiment measured
+Boolean was still a performance blocker in that September 27 diagnostic. A separate 20M-row length-dispatch experiment measured
 3.497s native versus 3.402s Flink; control drift did not establish an improvement, so that kernel
-change was removed. The PR remains draft pending its remaining performance blockers.
+change was removed. Coverage later shipped in [PR #263](https://github.com/datafusion-contrib/StreamFusion/pull/263);
+these September 27 measurements do not establish current Boolean performance.
 
 Fixtures alternate `2000-2-29` / `1969-1-2` for unpadded dates,
 `12:34:56.1` / `23:59:59.12` for short fractions, and

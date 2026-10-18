@@ -1,0 +1,400 @@
+{
+  "date": "2026-10-18",
+  "base_commit": "4222bc0c6d96c86759cf40c95b44c2165fc47b94",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": "11.0.27 runtime; headline candidate and baseline compiled with javac 11.0.27; diagnostic compiler differences are labeled per cohort",
+    "host": "Apple M4 Pro ARM64",
+    "allocator": "release/mimalloc",
+    "heap": "2 GiB",
+    "parallelism": 1,
+    "warmups": 2,
+    "measured_pairs": 5,
+    "batch_rows": 1024,
+    "measurement": "executeSql(insert).await(); includes source map, both transposes and rowwise blackhole sink; explain and environment construction are outside clock",
+    "ordering": "serial separate-JVM cohorts; alternating stock/native within each cohort; no other build/test job launched during these cohorts"
+  },
+  "native_library_sha256": "921f81bb580fd094019cd48ef29298167d2acce19b91abf4929be7da881e40ca",
+  "results": [
+    {
+      "cohort": "398-main-optin",
+      "rows": 5000000,
+      "type": "INT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.419470833,
+        0.42694025,
+        0.4391585,
+        0.441961083,
+        0.433012458
+      ],
+      "enabled_trials_s": [
+        0.720997208,
+        0.723515042,
+        0.765810417,
+        0.755993625,
+        0.736596125
+      ],
+      "stock_median_s": 0.433012458,
+      "enabled_median_s": 0.736596125,
+      "stock_over_enabled": 0.5878560086098742,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-main-optin",
+      "rows": 5000000,
+      "type": "BIGINT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.474975416,
+        0.457552875,
+        0.457787625,
+        0.481547042,
+        0.456664708
+      ],
+      "enabled_trials_s": [
+        0.766776666,
+        0.767269417,
+        0.76515,
+        0.760448917,
+        0.752109542
+      ],
+      "stock_median_s": 0.457787625,
+      "enabled_median_s": 0.76515,
+      "stock_over_enabled": 0.5982978827680847,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-main-optin",
+      "rows": 5000000,
+      "type": "STRING",
+      "native_route": true,
+      "stock_trials_s": [
+        1.018368541,
+        0.99671575,
+        1.001929875,
+        1.004103208,
+        1.003320459
+      ],
+      "enabled_trials_s": [
+        1.594285416,
+        1.576038542,
+        1.57867925,
+        1.575594334,
+        1.577065416
+      ],
+      "stock_median_s": 1.003320459,
+      "enabled_median_s": 1.577065416,
+      "stock_over_enabled": 0.6361945730474379,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-main-default",
+      "rows": 5000000,
+      "type": "INT",
+      "native_route": false,
+      "stock_trials_s": [
+        0.416162333,
+        0.406263292,
+        0.412138375,
+        0.408126292,
+        0.413726042
+      ],
+      "enabled_trials_s": [
+        0.399063667,
+        0.407534791,
+        0.4003025,
+        0.41917525,
+        0.410817792
+      ],
+      "stock_median_s": 0.412138375,
+      "enabled_median_s": 0.407534791,
+      "stock_over_enabled": 1.0112961742203748,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-main-default",
+      "rows": 5000000,
+      "type": "BIGINT",
+      "native_route": false,
+      "stock_trials_s": [
+        0.438200708,
+        0.444053542,
+        0.455556042,
+        0.483737833,
+        0.445503042
+      ],
+      "enabled_trials_s": [
+        0.455291667,
+        0.463450959,
+        0.447062917,
+        0.443122541,
+        0.445382083
+      ],
+      "stock_median_s": 0.445503042,
+      "enabled_median_s": 0.447062917,
+      "stock_over_enabled": 0.9965108378693821,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-main-default",
+      "rows": 5000000,
+      "type": "STRING",
+      "native_route": false,
+      "stock_trials_s": [
+        0.840333625,
+        0.873363667,
+        0.85408625,
+        0.849324041,
+        0.837557834
+      ],
+      "enabled_trials_s": [
+        0.882664208,
+        0.85114475,
+        0.845754,
+        0.857264459,
+        0.844833834
+      ],
+      "stock_median_s": 0.849324041,
+      "enabled_median_s": 0.85114475,
+      "stock_over_enabled": 0.9978608703161242,
+      "compiler": "javac 11.0.27"
+    },
+    {
+      "cohort": "398-candidate-initial-diagnostic",
+      "rows": 5000000,
+      "type": "INT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.409906459,
+        0.41627425,
+        0.422767875,
+        0.42594125,
+        0.439034375
+      ],
+      "enabled_trials_s": [
+        0.59240225,
+        0.544926208,
+        0.521537,
+        0.533482875,
+        0.546096792
+      ],
+      "stock_median_s": 0.422767875,
+      "enabled_median_s": 0.544926208,
+      "stock_over_enabled": 0.7758259169652564,
+      "role": "Earlier candidate iteration; retained for transparency, not the headline."
+    },
+    {
+      "cohort": "398-candidate-initial-diagnostic",
+      "rows": 5000000,
+      "type": "BIGINT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.451718583,
+        0.4594465,
+        0.484754709,
+        0.472042709,
+        0.494034708
+      ],
+      "enabled_trials_s": [
+        0.544376125,
+        0.540944333,
+        0.553090209,
+        0.559362125,
+        0.534998875
+      ],
+      "stock_median_s": 0.472042709,
+      "enabled_median_s": 0.544376125,
+      "stock_over_enabled": 0.8671260316568806,
+      "role": "Earlier candidate iteration; retained for transparency, not the headline."
+    },
+    {
+      "cohort": "398-candidate-initial-diagnostic",
+      "rows": 5000000,
+      "type": "STRING",
+      "native_route": true,
+      "stock_trials_s": [
+        1.009698542,
+        0.992855,
+        0.991659917,
+        0.999034083,
+        0.990743083
+      ],
+      "enabled_trials_s": [
+        1.43295775,
+        1.448260125,
+        1.421974,
+        1.459551291,
+        1.439054916
+      ],
+      "stock_median_s": 0.992855,
+      "enabled_median_s": 1.439054916,
+      "stock_over_enabled": 0.6899354492737094,
+      "role": "Earlier candidate iteration; retained for transparency, not the headline."
+    },
+    {
+      "cohort": "398-candidate-final-javac17-diagnostic",
+      "compiler": "javac 17, --release 11",
+      "role": "Final source, different compiler; retained diagnostic, not headline.",
+      "rows": 5000000,
+      "type": "INT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.439514042,
+        0.431640125,
+        0.414383417,
+        0.453465333,
+        0.441684417
+      ],
+      "enabled_trials_s": [
+        0.54230925,
+        0.535162625,
+        0.544796292,
+        0.544922,
+        0.539573459
+      ],
+      "stock_median_s": 0.439514042,
+      "enabled_median_s": 0.54230925,
+      "stock_over_enabled": 0.8104490970788347
+    },
+    {
+      "cohort": "398-candidate-final-javac17-diagnostic",
+      "compiler": "javac 17, --release 11",
+      "role": "Final source, different compiler; retained diagnostic, not headline.",
+      "rows": 5000000,
+      "type": "BIGINT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.450020333,
+        0.460524958,
+        0.501797125,
+        0.516745458,
+        0.458520333
+      ],
+      "enabled_trials_s": [
+        0.551833333,
+        0.546767833,
+        0.561672125,
+        0.562657,
+        0.567503167
+      ],
+      "stock_median_s": 0.460524958,
+      "enabled_median_s": 0.561672125,
+      "stock_over_enabled": 0.8199177732026491
+    },
+    {
+      "cohort": "398-candidate-final-javac17-diagnostic",
+      "compiler": "javac 17, --release 11",
+      "role": "Final source, different compiler; retained diagnostic, not headline.",
+      "rows": 5000000,
+      "type": "STRING",
+      "native_route": true,
+      "stock_trials_s": [
+        1.036289792,
+        1.025005542,
+        1.001578791,
+        1.014515042,
+        1.007683125
+      ],
+      "enabled_trials_s": [
+        1.473004334,
+        1.483246583,
+        1.48323525,
+        1.491586791,
+        1.494820042
+      ],
+      "stock_median_s": 1.014515042,
+      "enabled_median_s": 1.483246583,
+      "stock_over_enabled": 0.6839827265592292
+    },
+    {
+      "cohort": "398-candidate-final",
+      "compiler": "javac 11.0.27",
+      "role": "Final source and same JDK 11 compiler/runtime as the baseline; headline candidate.",
+      "rows": 5000000,
+      "type": "INT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.403506791,
+        0.39433625,
+        0.433259333,
+        0.406961041,
+        0.401385458
+      ],
+      "enabled_trials_s": [
+        0.556025792,
+        0.520616,
+        0.527482958,
+        0.53053525,
+        0.515929333
+      ],
+      "stock_median_s": 0.403506791,
+      "enabled_median_s": 0.527482958,
+      "stock_over_enabled": 0.7649664977422834
+    },
+    {
+      "cohort": "398-candidate-final",
+      "compiler": "javac 11.0.27",
+      "role": "Final source and same JDK 11 compiler/runtime as the baseline; headline candidate.",
+      "rows": 5000000,
+      "type": "BIGINT",
+      "native_route": true,
+      "stock_trials_s": [
+        0.446856792,
+        0.43240225,
+        0.464104542,
+        0.437025,
+        0.457658
+      ],
+      "enabled_trials_s": [
+        0.521563958,
+        0.523923291,
+        0.539935666,
+        0.5322375,
+        0.523843708
+      ],
+      "stock_median_s": 0.446856792,
+      "enabled_median_s": 0.523923291,
+      "stock_over_enabled": 0.8529049952085448
+    },
+    {
+      "cohort": "398-candidate-final",
+      "compiler": "javac 11.0.27",
+      "role": "Final source and same JDK 11 compiler/runtime as the baseline; headline candidate.",
+      "rows": 5000000,
+      "type": "STRING",
+      "native_route": true,
+      "stock_trials_s": [
+        0.969287,
+        0.95355675,
+        0.952919834,
+        0.967787375,
+        0.9571185
+      ],
+      "enabled_trials_s": [
+        1.38912625,
+        1.40680325,
+        1.41618175,
+        1.427131125,
+        1.432868625
+      ],
+      "stock_median_s": 0.9571185,
+      "enabled_median_s": 1.41618175,
+      "stock_over_enabled": 0.6758443963848566
+    }
+  ],
+  "issue": 398,
+  "limitations": [
+    "Only the existing opt-in path is optimized; default admission remains off.",
+    "Separate JVM cohorts and stock control drift limit precise attribution. Stock default STRING timings drift more than the other cohorts; every sample is retained.",
+    "Earlier diagnostic runs overlapped compilation/tests and are excluded from the reported isolated cohorts; their logs remain local.",
+    "No Rust operational path changes; no new native Criterion fixture is required.",
+    "Initial candidate and final-source javac 17 diagnostics are retained but are not used in the headline comparison."
+  ],
+  "source_sha256": {
+    "src/main/java/tech/streamfusion/operator/NativeCalcOperator.java": "4de3d6293b5965503113523554e5aff4736b1210ed0022bffda329069b40dbb7",
+    "src/main/java/tech/streamfusion/operator/NativeUdf.java": "261f12b728acf411149fdce7c6f39fb4c25c07797c431889003fadc1ac86e96f",
+    "src/test/java/tech/streamfusion/SharedStatefulScalarBenchmark.java": "8e901654ced45d542ea332d9e732ec7ec55583b42b318e39898150026588f6e7"
+  },
+  "headline_candidate_cohort": "398-candidate-final"
+}
