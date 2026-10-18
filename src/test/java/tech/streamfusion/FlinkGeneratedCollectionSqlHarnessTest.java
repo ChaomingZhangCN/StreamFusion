@@ -143,7 +143,6 @@ class FlinkGeneratedCollectionSqlHarnessTest {
             "DATE",
             "TIME",
             "BOOLEAN",
-            "VARBINARY",
             "INT_NOT_NULL",
             "STRING_NOT_NULL")
         .flatMap(
@@ -264,10 +263,6 @@ class FlinkGeneratedCollectionSqlHarnessTest {
       case "BOOLEAN":
         keyType = BOOLEAN();
         key = true;
-        break;
-      case "VARBINARY":
-        keyType = BYTES();
-        key = new byte[] {0, -1, 3};
         break;
       default:
         keyType = STRING();

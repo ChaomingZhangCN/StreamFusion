@@ -1946,6 +1946,9 @@ values and repeated keys. MULTISET retains released Flink's validation/code-gene
 Flink 1.18.1 lacks ARRAY_APPEND, ARRAY_PREPEND, ARRAY_SORT, ARRAY_EXCEPT, ARRAY_INTERSECT,
 ARRAY_MIN, MAP_UNION, OBJECT_OF and OBJECT_UPDATE. The remaining signatures are checked on
 both supported releases; absent functions are explicitly N/A, not counted as native coverage.
+Binary-key map projection checks use ordered internal input: external Java byte-array keys have
+identity hashes, so independently deserialized external maps can have different iteration orders
+before either engine evaluates the function. The checks compare the resulting arrays in order.
 
 Earlier direct extrema and map-projection experiments were slower than Flink and remain
 recorded in the [extrema investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)

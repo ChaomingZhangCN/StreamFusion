@@ -65,6 +65,16 @@ public class FlinkCollectionRepresentationSqlHarnessTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"MAP_KEYS", "MAP_VALUES", "MAP_ENTRIES"})
+  void binaryMapKeysPreserveTheInputEntryOrder(String function) {
+    tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
+    NativeFailureParity.run(
+            FlinkCollectionRepresentationSqlHarnessTest::environment,
+            "SELECT id," + function + "(m) FROM src")
+        .assertSuccess(NativeFailureParity.Route.NATIVE);
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"ARRAY_MIN", "ARRAY_MAX", "ARRAY_SORT"})
   void releasedRowOrderingRejectionsRemainPlanningErrors(String function) {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
@@ -151,7 +161,8 @@ public class FlinkCollectionRepresentationSqlHarnessTest {
     table.getConfig().set("streamfusion.experimental.collectionExpressions", "true");
     table.getConfig().set("streamfusion.transpose.batchRows", "2");
     table.executeSql(
-        "CREATE TABLE src (id BIGINT,t ARRAY<STRING>,r ARRAY<ROW<n INT>>,nn ARRAY<INT NOT NULL>)"
+        "CREATE TABLE src (id BIGINT,t ARRAY<STRING>,r ARRAY<ROW<n INT>>,nn ARRAY<INT NOT NULL>,"
+            + "m MAP<BYTES,ARRAY<INT>>)"
             + " WITH ('connector'='collection-representation','changelog'='"
             + changelog
             + "')");
@@ -237,6 +248,11 @@ public class FlinkCollectionRepresentationSqlHarnessTest {
                     nested.setRowKind(org.apache.flink.types.RowKind.values()[(int) (id % 4)]);
                     var other = GenericRowData.of((int) (long) id + 100);
                     other.setRowKind(org.apache.flink.types.RowKind.values()[(int) ((id + 1) % 4)]);
+                    // External byte[] map keys have identity hashes. Use ordered internal input
+                    // so separate source executions cannot change map iteration order.
+                    var entries = new java.util.LinkedHashMap<Object, Object>();
+                    entries.put(new byte[] {0, -1, 3}, new GenericArrayData(new Integer[] {1, null, 3}));
+                    entries.put(null, null);
                     var row =
                         GenericRowData.of(
                             id,
@@ -261,7 +277,8 @@ public class FlinkCollectionRepresentationSqlHarnessTest {
                                 new GenericArrayData(new Integer[] {null, -1}),
                                 org.apache.flink.table.api.DataTypes.INT()
                                     .notNull()
-                                    .getLogicalType()));
+                                    .getLogicalType()),
+                            new org.apache.flink.table.data.GenericMapData(entries));
                     if (kinds)
                       row.setRowKind(org.apache.flink.types.RowKind.values()[(int) (id % 4)]);
                     return (RowData) row;
