@@ -31,6 +31,7 @@ class CanonicalNativeStateTest {
       throws Exception {
     var harness =
         new KeyedOneInputStreamOperatorTestHarness<>(op, value -> value, Types.INT, 128, 1, 0);
+    harness.setStateBackend(new org.apache.flink.runtime.state.hashmap.HashMapStateBackend());
     harness.setCheckpointStorage(
         new org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage(32 * 1024 * 1024));
     return harness;

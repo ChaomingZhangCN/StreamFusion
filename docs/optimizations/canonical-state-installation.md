@@ -29,6 +29,11 @@ SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am \
   -Dsf.extraJvmArgs=-Xmx4g test
 ```
 
+The fixture explicitly selects Flink's heap backend before configuring checkpoint storage.
+Flink 1.18's legacy default backend also owns storage and ignores a separate storage
+configuration; selecting the heap backend keeps large boundary snapshots equivalent across
+both supported Flink lines.
+
 The benchmark excludes native operator snapshot encoding, asynchronous checkpoint serialization,
 filesystem I/O and table commits. Its speedup must not be substituted for whole-job timings.
 Boundary and restore tests cover empty payloads, exact chunk boundaries, multiple chunks,
