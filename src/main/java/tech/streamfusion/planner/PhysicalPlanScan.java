@@ -177,6 +177,11 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
   }
 
   private RelNode substitute(RelNode root, Set<String> repeatedSources, boolean finalOutput) {
+    if (CollectionValueIdentity.crossesBoundary(root, finalOutput)) {
+      recordFallback(
+          "collection value representation requires a final projection or fused consumer");
+      return root;
+    }
     if (LegacyBinaryResults.crossesBoundary(root, finalOutput)) {
       recordFallback(
           "legacy binary variable bytes require a final projection or fused scalar consumer");
@@ -770,19 +775,30 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
 
   /** Inserts transpose rels at every columnar↔rowwise edge of the (already substituted) tree. */
   private RelNode insertTransitions(RelNode node) {
+    return insertTransitions(node, false);
+  }
+
+  private RelNode insertTransitions(RelNode node, boolean preserveCollections) {
+    boolean preserve =
+        node instanceof StreamPhysicalNativeCalc
+                && ((StreamPhysicalNativeCalc) node).preservesCollections()
+            || preserveCollections && node instanceof StreamPhysicalNativeMiniBatchAssigner;
     List<RelNode> inputs = new ArrayList<>(node.getInputs().size());
     boolean changed = false;
     for (RelNode input : node.getInputs()) {
-      RelNode transitioned = insertTransitions(input);
-      RelNode adapted = adapt(node, transitioned);
+      RelNode transitioned = insertTransitions(input, preserve);
+      RelNode adapted = adapt(node, transitioned, preserve);
       inputs.add(adapted);
       changed |= adapted != input;
     }
     return changed ? node.copy(node.getTraitSet(), inputs) : node;
   }
 
-  /** Wraps {@code producer} in a transpose if its output carrier differs from what {@code consumer} expects. */
-  private RelNode adapt(RelNode consumer, RelNode producer) {
+  /**
+   * Wraps {@code producer} in a transpose if its output carrier differs from what {@code consumer}
+   * expects.
+   */
+  private RelNode adapt(RelNode consumer, RelNode producer, boolean preserveCollections) {
     boolean consumerWantsColumnar = consumesColumnar(consumer);
     boolean producerEmitsColumnar = emitsColumnar(producer);
     if (consumerWantsColumnar && !producerEmitsColumnar) {
@@ -794,7 +810,12 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
               || (producer instanceof StreamPhysicalRel
                   && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) producer));
       return new StreamPhysicalRowDataToArrow(
-          producer.getCluster(), producer.getTraitSet(), producer, carryRowKind);
+          producer.getCluster(),
+          producer.getTraitSet(),
+          producer,
+          carryRowKind,
+          null,
+          preserveCollections);
     }
     if (!consumerWantsColumnar && producerEmitsColumnar) {
       return new StreamPhysicalArrowToRowData(

@@ -270,6 +270,32 @@ These isolated projections are slower than Flink; the same integer-source identi
 without claiming a standalone speedup. Reproduce with the `bench` profile and
 `ScalarFunctionBenchmark#individualFunctions`, selecting `RAND_LITERAL,RAND_DYNAMIC,RAND_INTEGER_LITERAL`.
 
+## Type and database metadata
+
+`streamfusion.experimental.metadataExpressions=true` enables these functions. It defaults
+false because standalone row-source projections remain slower than stock Flink; the
+[release comparison](../benchmarks/scalar-functions.md#extended-function-coverage) includes both
+standalone projections and aggregate pipelines.
+
+`TYPEOF(value[, force_serializable])` admits Flink's resolved type strings, including
+nullability and nested types. References and literals become a native string constant;
+computed arguments remain evaluated before selecting the constant, so errors, volatile calls
+and UDF invocations are still evaluated. Summary and serialization spelling come from the running
+Flink logical type. A registered user function named TYPEOF keeps its own implementation.
+The entry transpose follows the encoded expression's actual dependencies, so a type-only
+reference does not materialize the referenced value. Generated JVM expressions still retain
+every argument they evaluate.
+
+`CURRENT_DATABASE()` captures Flink's query-level database context as a native string
+constant. Changing the current database affects subsequent queries. A bare expression
+without that context falls back rather than assuming a default database.
+
+Runtime-source SQL checks compare stock/native values, result schemas, quoted database
+names, nested types, registered functions and failing TYPEOF arguments. Native metadata constants
+require identifiers that can be represented as valid UTF-8; an unpaired UTF-16 surrogate in a type
+field name or database name keeps the complete Calc on Flink. Metadata ordering consumers retain
+the existing Java/serialized string-order gate.
+
 ## User scalar functions
 
 Table API plans that retain an `AS` wrapper around a scalar expression currently fall back with
@@ -1866,16 +1892,65 @@ token/depth limits. Deep legacy nesting grows the native stack as needed.
 See the [SQL/JSON parser note](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/32-sql-json-definite-paths.md)
 and [per-function benchmarks](../benchmarks/scalar-functions.md).
 
-### ARRAY_MIN / ARRAY_MAX
+### Collection expressions
 
-These functions remain on Flink. Integer-only native prototypes preserved
-values and schemas but regressed whole-job performance on short arrays, including
-a twenty-million-row run. See the
-[rejected extrema experiment](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)
-and [measurements](../benchmarks/scalar-functions.md#array-extrema-admission-experiment-2026-09-28).
-`ARRAY_MIN` is absent from the released Flink 1.18.1 SQL catalog; `ARRAY_MAX`
-is available on both supported Flink lines. The broader work remains in
-[#234](https://github.com/datafusion-contrib/StreamFusion/issues/234).
+`streamfusion.experimental.collectionExpressions=true` enables the following extensions.
+The option defaults false while [complete-job performance admission](https://github.com/datafusion-contrib/StreamFusion/issues/392)
+is unresolved. Existing
+admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retain their ordinary default.
+
+| Functions | Execution inside NativeCalc |
+| --- | --- |
+| ARRAY_REVERSE, ARRAY_SLICE | Rust kernels for nullable primitive elements; generated Flink program for STRING/ROW/MAP-bearing or NOT NULL-element arrays and consumers requiring Java value semantics |
+| CARDINALITY on ARRAY/MAP | Rust outer-offset count, returning INT; NULL container produces NULL |
+| ARRAY_APPEND, ARRAY_PREPEND, ARRAY_CONTAINS, ARRAY_POSITION, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
+| MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
+| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
+
+The generated route evaluates the complete filter and projection together, preserving failure
+order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
+It retains Arrow batch inputs/outputs and production JNI costs. A NativeCalc containing these
+functions does **not** imply that its scalar work executes in Rust; the function-engine diagnostic
+reports the assignment, including ARRAY/MAP/ROW constructors. Programs with user scalar
+functions retain their existing admission gates.
+
+Primitive bridge types and recursively supported ARRAY/MAP/ROW values are admitted, including
+nullable typed map keys, decimal and timestamp values. Fixed BINARY leaves inside generated
+containers and unpaired UTF-16 field names remain excluded. STRUCTURED results from inline OBJECT_OF/OBJECT_UPDATE are supported;
+external STRUCTURED inputs retain fallback. Unsupported host signatures or generated programs
+fall back during planning.
+
+Nested strings carry their UTF-8 bytes and optional original Java UTF-16 cache. Nested ROW values
+carry a marked change-kind child outside their SQL ordinals. These preserve supplementary/BMP
+ordering, isolated surrogates and non-INSERT nested rows. Represented arrays first pass through the released serializer and record its generic/binary copy
+category. Readers restore that category, including whether repeated string getters share Java
+caches. NOT NULL elements use an explicit carrier so a NULL first slot cannot hide that category.
+The extended schemas belong only to generated collection programs and are serialized to tasks.
+Other operators and connector schemas keep their ordinary layouts.
+
+String/ROW/MAP-bearing and NOT NULL-element array results currently require a final projection or a fused consumer.
+They fall back before stateful, ordering or exchange boundaries that have not verified this
+representation. Sensitive inputs from other columnar producers also retain fallback until their
+cache/kind contract is verified, including an ordinary native Calc or transpose without the
+explicit representation layout. Arrays of nullable primitive elements can continue through ordinary native
+operators. These are representation gates even when the experimental option is enabled.
+
+ARRAY_SLICE uses inclusive, one-based Flink bounds. Negative positions count from the end;
+zero normalizes to the first element. NULL containers or bounds produce NULL. Whole slices retain
+the original arrays; partial slices copy contiguous child ranges. CARDINALITY counts outer array
+elements, including NULL entries, rather than flattening nested arrays; map entries include NULL
+values and repeated keys. MULTISET retains released Flink's validation/code-generation behavior.
+
+Flink 1.18.1 lacks ARRAY_APPEND, ARRAY_PREPEND, ARRAY_SORT, ARRAY_EXCEPT, ARRAY_INTERSECT,
+ARRAY_MIN, MAP_UNION, OBJECT_OF and OBJECT_UPDATE. The remaining signatures are checked on
+both supported releases; absent functions are explicitly N/A, not counted as native coverage.
+
+Earlier direct extrema and map-projection experiments were slower than Flink and remain
+recorded in the [extrema investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)
+and [map investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-map-array-projections.md).
+The generated route does not revive their default admission or establish standalone acceleration.
+[Issue #234](https://github.com/datafusion-contrib/StreamFusion/issues/234) also tracks remaining
+collection aggregate and cast work outside this extension.
 
 ### ARRAY_DISTINCT
 
@@ -1886,20 +1961,14 @@ collision-checked fingerprint, and larger arrays use a reusable hash set. The fi
 including one NULL element. NULL containers remain NULL and empty arrays remain
 empty. The result preserves the element width, field metadata, and nullability. Boolean equality
 compares values; string equality compares UTF-8 bytes without trimming or Unicode normalization.
-VARCHAR/STRING, CHAR, floating, decimal, temporal, binary, and nested element types retain explicit fallback.
+VARCHAR/STRING, CHAR, floating, decimal, temporal, binary, and nested element types retain explicit fallback
+by default; the experimental collection route above uses Flink generation for verified bridge types.
 Runtime SQL parity checks pass against released Flink 2.2.1.
 [Whole-job measurements](../benchmarks/scalar-functions.md#integer-array_distinct-2026-09-28)
 show large-array gains and small-array sensitivity to run-to-run variation. With
 [synchronous entry borrowing](../optimizations/projection-pruning-transpose.md#borrowing-at-the-synchronous-consumer),
 the nullable width-eight Boolean diagnostic also beats stock and previous production in two
 ten-million-row candidate runs; STRING performance admission remains unresolved, so its tested native kernel is not enabled by the planner.
-
-`MAP_KEYS` and `MAP_VALUES` remain on Flink: a zero-copy native prototype passed
-parity but regressed whole-job performance with row sources and sinks. See the
-[rejected map projection experiment](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-map-array-projections.md).
-`CARDINALITY` over ordinary collection inputs also remains a fallback. The other
-collection-function and aggregate gaps remain tracked in
-[#234](https://github.com/datafusion-contrib/StreamFusion/issues/234).
 
 ### SPLIT
 

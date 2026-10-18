@@ -25,6 +25,14 @@ serialized operator configuration rather than process-global state before a stab
   arguments/results. Standalone row-source projections remain slower than stock Flink in release
   measurements. The default preserves host execution; builtin temporal functions retain their
   existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.experimental.collectionExpressions`** (default false) — opt into the
+  collection kernels and generated collection/constructor programs described in
+  [Calc/filter coverage](operators/calc-filter.md#collection-expressions). The planner serializes
+  the required Java string-cache and nested row-kind layout into the entry transpose and generated
+  result schema. This is a performance experiment; standalone row-source queries can be slower.
+- **`streamfusion.experimental.metadataExpressions`** (default false) — opt into `TYPEOF` and
+  `CURRENT_DATABASE`. Aggregate pipelines improve in the measured workloads, while standalone
+  projections still lose to stock Flink. See [metadata coverage](operators/calc-filter.md#type-and-database-metadata).
 - **`-Dstreamfusion.fluss.enabled=false`** — disable the optional Fluss extension’s source/sink
   substitutions. This JVM property defaults to true when `streamfusion-fluss` is installed;
   only the verified combinations in [Fluss](connectors/fluss.md) accelerate.

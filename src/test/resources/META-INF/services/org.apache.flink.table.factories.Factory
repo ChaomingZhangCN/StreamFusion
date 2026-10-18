@@ -5,3 +5,4 @@ tech.streamfusion.KindCapturingUpsertTableFactory
 tech.streamfusion.ChangelogParquetTableFactory
 tech.streamfusion.PrunedTransposeBenchmark$Factory
 tech.streamfusion.RecoveryResultTableFactory
+tech.streamfusion.FlinkCollectionRepresentationSqlHarnessTest$Factory

@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import org.apache.calcite.rel.core.Calc;
 import org.apache.calcite.rel.type.RelDataType;
@@ -51,13 +52,19 @@ final class CalcProjectionPruner {
   }
 
   static Pruned compute(Calc calc) {
-    return compute(calc, false);
+    return compute(calc, false, null);
   }
 
-  static Pruned compute(Calc calc, boolean wholeStructInputs) {
+  static Pruned compute(Calc calc, RexExpression encoded) {
+    return compute(calc, encoded.requiresWholeStructInputs(), encoded.referencedInputs());
+  }
+
+  private static Pruned compute(
+      Calc calc, boolean wholeStructInputs, Set<Integer> referencedInputs) {
     RexProgram program = calc.getProgram();
     RelDataType source = program.getInputRowType();
     Use root = collectUses(program, wholeStructInputs);
+    if (referencedInputs != null) root.children.keySet().retainAll(referencedInputs);
     // Only beneficial if at least one top-level column is dropped or some struct is partially read.
     RelDataType pruned = prunedType(source, root, calc.getCluster().getTypeFactory());
     if (sameLeafCount(source, pruned)) {

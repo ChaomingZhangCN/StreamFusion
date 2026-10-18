@@ -23,17 +23,25 @@ arrays return fresh values. Row headers also retain their generic/binary categor
 keep the existing columnar views. SQL checks include generic, binary and independent proxy arrays,
 repeated string consumers, NULLs in declared NOT NULL elements and every nested row kind.
 
-Represented nested-row vectors reuse
+Programs containing only nullable primitive collection types keep ordinary layouts and avoid
+serializer snapshots that preserve no additional identity. Represented nested-row vectors reuse
 their reader for the lifetime of the batch; each returned row is still copied before that reader
 can move to another index.
 
-Entry transposes capture an explicit serialized schema before task execution; JVM result
-registration also freezes its schema for the task lifetime. Ordinary schema conversion remains
-unchanged. The extended layout is selected through an explicit API, not task JVM configuration.
+The planner captures the entry and generated-result Arrow schemas in serialized operator/function
+specifications. Task JVM properties cannot change those layouts after planning. Connector schemas
+retain their ordinary layouts. Representation-sensitive inputs from other columnar producers and
+string/ROW/MAP-bearing or NOT NULL-element array results crossing unverified operator boundaries
+keep the host route. These schemas are scoped to generated collection programs; merely enabling
+the experimental switch does not change other operators' schemas.
 
-Arrow Java 18.3 requires a non-nullable map-key field declaration. The declaration remains,
-while the verified readers and writers retain actual NULL-key validity. This layout does not
-admit Arrow map comparison or state operations over those values.
+Arrow Java 18.3 requires a non-nullable map-key field declaration. The existing declaration stays,
+while Flink's logical key nullability and actual vector validity preserve NULL keys in the verified
+generated collection readers/writers. This does not admit Arrow map comparison or state operations
+over those extended results. Tests cover nullable keys at fourteen released bridge types/nullability combinations, nested
+values, empty/NULL maps and runtime constructors.
 
-This foundation adds no SQL admission. The [Calc/filter page](../docs/operators/calc-filter.md)
-remains the source of truth for available functions and boundaries.
+The switch defaults off because full row-source jobs can lose to Flink.
+[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance admission. Coverage, restrictions and
+performance evidence belong in [Calc/filter](../docs/operators/calc-filter.md#collection-expressions)
+and the [scalar benchmark page](../docs/benchmarks/scalar-functions.md#extended-function-coverage).

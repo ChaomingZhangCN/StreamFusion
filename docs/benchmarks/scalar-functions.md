@@ -22,6 +22,117 @@ TO_TIMESTAMP and temporal FLOOR/CEIL/CEILING were outside that measurement's cov
 subsequent implementation is measured in the [temporal diagnostic below](#temporal-coverage-diagnostic-2026-09-15).
 See [Calc / filter](../operators/calc-filter.md) for the complete argument gates.
 
+## Extended function coverage
+
+These measurements were recorded on 2026-10-17. The collection and metadata extensions are
+experimental and default off. Native Calc coverage
+includes both Rust kernels and complete Flink-generated programs through the JVM batch bridge;
+these are separate execution engines. Runtime UUID already uses the ordinary admitted path and
+is unchanged by this extension. See [coverage and type gates](../operators/calc-filter.md#collection-expressions).
+
+Measurements use Linux x86-64 on an Intel Core i7-12650H, JDK 17, Flink 2.2.1, release/mimalloc,
+parallelism 1 and a 2 GiB test heap. Each case alternates stock Flink and StreamFusion, with two
+warmups and five measured trials per engine. Both row/Arrow transposes, planning, row source and
+blackhole sink remain in the elapsed time. Independent JVMs measure the candidate and previous
+planner `3679d312`. The previous planner rejects these newly supported functions and executes the
+host fallback. It shares the candidate's release DSO, but those fallback jobs do not call the new
+kernels. No other tests or benchmarks run concurrently.
+
+These are whole-job timings, including startup and planning; subsecond cases do not establish
+sustained throughput. Paired stock controls and identity controls are retained without subtraction.
+Stock medians can drift between JVMs, so previous/candidate differences are not a precise isolated
+optimization measurement. The [raw trials](extended-functions-2026-10-17.csv) retain all five samples
+and both paired stock controls.
+
+The metadata workload uses `ScalarFunctionBenchmark`: two million rows, 264-byte payload budget,
+`TYPEOF(n)` or `CURRENT_DATABASE()` alone, and `SUM(n)` grouped by the same expression. Pruning
+removes the unused input from the standalone metadata constant, retaining row counts. Metadata
+aggregates improve substantially, while standalone projections remain below Flink.
+
+| Metadata case | Paired Flink (s) | Candidate (s) | Previous StreamFusion (s) | Flink / candidate |
+| --- | ---: | ---: | ---: | ---: |
+| Integer identity | 0.235114 | 0.287956 | 0.325156 | 0.816x |
+| BIGINT identity | 0.245273 | 0.274623 | 0.291892 | 0.893x |
+| TYPEOF | 0.315037 | 0.353870 | 0.280670 | 0.890x |
+| CURRENT_DATABASE | 0.305233 | 0.351782 | 0.274232 | 0.868x |
+| TYPEOF with aggregate | 0.676733 | 0.349822 | 0.672136 | 1.935x |
+| CURRENT_DATABASE with aggregate | 0.689099 | 0.347060 | 0.642492 | 1.986x |
+
+Collection fixtures use `DynamicCollectionBenchmark`: nullable BIGINT arrays at widths 8/64,
+NULL containers every eight rows and NULL elements every seven positions. STRING join uses width
+8, a 64-byte suffix and 200,000 rows; map fixtures contain three STRING/BIGINT entries. Other
+cases use two million rows except width-64 sort at 500,000, plus separate ten-million-row
+reverse and ROW-constructor cases. Runtime constructors use the nullable
+input index. Inline object update projects its integer field so the sink has an ordinary SQL type.
+
+| Collection case | Paired Flink (s) | Candidate (s) | Previous StreamFusion (s) | Flink / candidate |
+| --- | ---: | ---: | ---: | ---: |
+| CARDINALITY, array width 64 | 0.900079 | 1.084205 | 0.915184 | 0.830x |
+| CARDINALITY, array width 8 | 0.374140 | 0.418935 | 0.362862 | 0.893x |
+| CARDINALITY, map width 3 | 0.951833 | 0.923917 | 0.900526 | 1.030x |
+| Append, width 8 | 0.488629 | 0.771157 | 0.456011 | 0.634x |
+| ARRAY constructor | 0.506142 | 0.611204 | 0.408114 | 0.828x |
+| Join strings, width 8 | 0.245785 | 0.406909 | 0.254226 | 0.604x |
+| MAP constructor | 0.538187 | 0.782705 | 0.431044 | 0.688x |
+| Map entries, width 3 | 1.291837 | 3.225086 | 1.177803 | 0.401x |
+| Map keys, width 3 | 0.939283 | 2.051847 | 0.903832 | 0.458x |
+| Inline object update, integer field | 0.388066 | 0.476386 | 0.371599 | 0.815x |
+| Reverse, width 64 | 1.260770 | 1.646519 | 1.309363 | 0.766x |
+| Reverse, width 8 | 0.469198 | 0.510902 | 0.431597 | 0.918x |
+| Reverse, width 8, 10M rows | 2.138881 | 2.248478 | 1.820855 | 0.951x |
+| ROW constructor | 0.499804 | 0.801584 | 0.423589 | 0.624x |
+| ROW constructor, 10M rows | 2.285629 | 3.726311 | 1.829078 | 0.613x |
+| Slice last two, width 64 | 0.951815 | 1.097785 | 0.926048 | 0.867x |
+| Sort, width 64 | 1.342123 | 1.631030 | 1.349329 | 0.823x |
+
+The ten-million-row cases show that reverse and row construction still lose beyond the shorter
+runs. The 1.03x map-cardinality observation is small relative to control drift and does not establish
+performance admission. All other standalone collection/constructor cases are slower than stock.
+[Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance admission.
+The flags remain false; default-off groundwork requires explicit maintainer acceptance under the
+repository's performance policy. The [conversion optimization](../optimizations/collection-representation-work.md)
+removes measured overhead but does not make these workloads faster than Flink.
+
+The CSV labels `candidate`, `previous` and `candidate_initial` distinguish final code, previous
+production fallback and the five cases rerun after optimization. Profiled runs are excluded.
+The release DSO SHA-256 is `991cc2c091cf4e32ea6eb92be5d1114970bda791905ddcddabe09b973c467f26`.
+
+| Case | `collection.expression` |
+| --- | --- |
+| Reverse | `ARRAY_REVERSE(arr)` |
+| Slice | `ARRAY_SLICE(arr,-2,-1)` |
+| Append | `ARRAY_APPEND(arr,CAST(idx AS BIGINT))` |
+| Sort | `ARRAY_SORT(arr)` |
+| Join | `ARRAY_JOIN(arr,'|','?')` |
+| Map keys / entries | `MAP_KEYS(m)` / `MAP_ENTRIES(m)` |
+| Array constructor | `ARRAY[CAST(idx AS BIGINT),CAST(NULL AS BIGINT)]` |
+| Map constructor | `MAP[CAST(idx AS BIGINT),CAST(idx AS BIGINT)]` |
+| Row constructor | `ROW(idx,idx+1)` |
+| Cardinality | `CARDINALITY(arr)` / `CARDINALITY(m)` |
+
+The object expression is `(OBJECT_UPDATE(OBJECT_OF('tech.streamfusion.FlinkObjectFunctionsSqlHarnessTest$Item',
+'a',idx,'b',CAST(idx AS STRING)),'a',idx+1)).a`; the fixture class is included in the test sources.
+Use `collection.map=true` for map-source cases, `collection.type=STRING` and `collection.bytes=64`
+for join, and the row counts/widths stated above. Other source cases use `collection.map=false`.
+
+
+Reproduce an individual collection case after building the release library:
+
+```bash
+SF_BENCHMARK=true mvn -Pbench -pl :streamfusion-runtime -am test \
+  -Dnative.build.skip=true -Dtest=DynamicCollectionBenchmark \
+  -Dsurefire.failIfNoSpecifiedTests=false -Dsf.extraJvmArgs=-Xmx2g \
+  -Dstreamfusion.experimental.collectionExpressions=true \
+  '-Dcollection.expression=ARRAY_REVERSE(arr)' -Dcollection.map=false \
+  -Dcollection.type=BIGINT -Dcollection.width=8 -Dcollection.rows=2000000 \
+  -Dcollection.warmup=2 -Dcollection.runs=5
+```
+
+For previous-planner controls, use the same harness/library with `-Dcollection.native=false`.
+For metadata, use `-Dtest=ScalarFunctionBenchmark#individualFunctions`,
+`-Dstreamfusion.experimental.metadataExpressions=true` and
+`-Dscalar.functions=BASELINE_integer,BASELINE_bigint,TYPEOF,CURRENT_DATABASE,TYPEOF_GROUP,CURRENT_DATABASE_GROUP`.
+
 ## SQL/JSON native-first routing (2026-09-18)
 
 The production admission policy tries the existing native encoding first, then generates
