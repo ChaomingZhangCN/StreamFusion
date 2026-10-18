@@ -181,3 +181,11 @@ harness = false
 [[bench]]
 name = "window_scalar_extrema"
 harness = false
+
+[[bench]]
+name = "typed_group_values"
+harness = false
+
+[[bench]]
+name = "local_single_values"
+harness = false

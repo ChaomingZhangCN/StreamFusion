@@ -904,6 +904,14 @@ pub fn split_by_key(
 pub struct GroupBy(GroupAggregator);
 
 impl GroupBy {
+    pub fn single_value_partials(value_type: i64) -> Self {
+        Self(
+            GroupAggregator::new(vec![14], vec![value_type], vec![1], vec![0], true)
+                .with_count_columns(vec![2])
+                .with_mini_batch(),
+        )
+    }
+
     pub fn new(
         kinds: Vec<i64>,
         value_types: Vec<i64>,

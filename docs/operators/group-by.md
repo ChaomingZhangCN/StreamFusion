@@ -326,7 +326,8 @@ stock, previous fallback and native comparison, raw trials, workload limits and 
 
 The one-argument forms run natively in the single-phase plan over TINYINT, SMALLINT,
 INT, BIGINT, FLOAT, DOUBLE, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP and
-TIMESTAMP_LTZ. Each preserves the input value's type and precision. FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
+TIMESTAMP_LTZ. Results follow Flink's declared type, precision and value semantics.
+FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
 Flink 1.18.1 cannot plan CHAR or temporal FIRST_VALUE/LAST_VALUE and fails a type assertion for
 SINGLE_VALUE over TIME(0), including string casts to TIME(3) that resolve to TIME(0);
 those host limitations remain unavailable on that release. Typed TIME(3) input is supported.
@@ -485,12 +486,13 @@ state used by single-phase AVG DISTINCT; it does not add the local sums/counts, 
 count values appearing in several bundles more than once. Decimal sum fields must retain
 precision 38 and the input scale, and the result type must match Flink's AVG type.
 
-Insert-only two-phase `SINGLE_VALUE` over STRING/VARCHAR, FLOAT and DOUBLE retains a typed
+Insert-only two-phase `SINGLE_VALUE` over the single-phase scalar value types retains a typed
 value and an INT count in each local bundle. NULL increments the count. Both local accumulation and global merging
 raise Flink's cardinality exception on a second element; global checkpoints preserve that
 count even when the value is NULL. The global consumes the count partial, rather than
 counting bundles. The declared value partial must match the input type, and its count must
-be INT. Other value types and retracting SINGLE_VALUE splits remain on Flink.
+be INT. Flink may declare a TIME(3) partial for TIME(0) input; both use millisecond storage
+and preserve the input value. Retracting SINGLE_VALUE splits remain on Flink.
 Local execution failures use the same Flink exception mapping as global aggregation, after
 releasing imported Arrow input, so cardinality failures are not reported as memory limits.
 
@@ -634,7 +636,8 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Local group aggregate (two-phase local half) only:**
 
-- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over STRING/VARCHAR/FLOAT/DOUBLE.
+- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over the
+  supported single-phase scalar value types.
 - A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/float/double/decimal (MIN/MAX also admit
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
   bigint/int/smallint/tinyint/float/double/decimal.
@@ -650,8 +653,8 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 **Global group aggregate (two-phase merge) only:**
 
 - Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or the typed SINGLE_VALUE split described above.
-- A partial column outside bigint/int/smallint/tinyint/float/double/decimal (strings, DATE, TIME, BOOLEAN and timestamps
-  allowed under MIN/MAX).
+- A partial column outside bigint/int/smallint/tinyint/float/double/decimal, except the typed
+  MIN/MAX and SINGLE_VALUE partials described above.
 - An AVG whose partial pair isn't `(bigint, bigint)` for an integer average, `(double, bigint)` for
   float/double, or `(decimal(38, s), bigint)` for decimal.
 - A distinct merge outside the local half's `COUNT`/`SUM(DISTINCT)` scope.
@@ -1041,6 +1044,29 @@ release+mimalloc measured 200,000 rows/keys with one-eighth NULLs: median **0.37
 and 0.327 s for native (1.144x)**. Flink trials ranged from 0.370–0.483 s; native trials ranged
 from 0.293–0.444 s. The ranges overlap, so this short workload establishes coverage with a
 modestly faster observed median, not a general speedup. The unsupported baseline uses Flink.
+
+### Scalar SINGLE_VALUE partials
+
+Insert-only splits also admit the single-phase scalar value types. Pure local groups
+retain Arrow key/value rows and compact counts; fresh singleton global partials reuse
+their Arrow columns for output while keeping the existing keyed checkpoint state.
+Mixed groups retain the general accumulator. Timestamp state uses an exact inline
+nanosecond carrier internally while Arrow and checkpoint fields keep their declared types.
+
+The selected SQL/operator matrix passes 148 checks on Flink 2.2.1 and 129 with 19 host
+planning skips on 1.18.1. It includes NULL/composite keys, physical splits, local/global
+cardinality failures, two memory/RocksDB restores, mixed aggregates and direct runtime
+TIME(3) values on both releases. Native coverage includes 104 group regressions and
+218 release Criterion fixtures.
+
+`GroupedValueBenchmark` accepts `-Dgrouped.value.mixed=true` with SINGLE_VALUE to add
+AVG and COUNT DISTINCT, and `-Dgrouped.value.types=DECIMAL_WIDE` for actual 20-digit
+DECIMAL(20,3) values. Two-million-row scalar jobs improve 1.30–1.53x over stock Flink
+and 1.35–1.47x over the preceding StreamFusion revision in the measured configurations.
+The [partial-buffer optimization](../optimizations/aggregate-specialization-fast-paths.md#single_value-partials-retain-arrow-rows-through-split-aggregation)
+records mixed/scalar/released-1.18 comparisons, variability, the initial INT slowdown and
+its longer confirmation, retained intermediate losses, ownership and checkpoint contracts.
+Both transposes and the runtime row source/blackhole sink remain measured.
 
 ### Retracting SUM partial validation and release comparison
 

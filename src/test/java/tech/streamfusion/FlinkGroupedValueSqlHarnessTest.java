@@ -234,6 +234,106 @@ class FlinkGroupedValueSqlHarnessTest {
     return table;
   }
 
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL(20,3)", "CHAR(8)",
+        "DATE", "TIME(0)", "TIME(3)", "BOOLEAN", "TIMESTAMP(9)", "TIMESTAMP_LTZ(3)"
+      })
+  void splitSingleValueKeepsTypedPartialsNullsAndCardinalityErrors(String type) throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeTrue(
+        !type.startsWith("TIME(")
+            || tech.streamfusion.compat.FlinkTestCapabilities.CAST_TIME_SINGLE_VALUE);
+    for (int bundle : new int[] {1, 5}) {
+      Supplier<TableEnvironment> setup =
+          () -> {
+            var table = environment(type, false);
+            table.getConfig().set("table.optimizer.agg-phase-strategy", "TWO_PHASE");
+            table.getConfig().set("table.exec.mini-batch.enabled", "true");
+            table.getConfig().set("table.exec.mini-batch.size", Integer.toString(bundle));
+            table.getConfig().set("table.exec.mini-batch.allow-latency", "100 ms");
+            return table;
+          };
+      String sql = "SELECT id, AVG(k), SINGLE_VALUE(v), COUNT(DISTINCT k) FROM src GROUP BY id";
+      String plan = NativePlanner.explain(setup.get(), sql);
+      assertTrue(plan.contains("NativeColumnarLocalGroupAggregate"), plan);
+      assertTrue(plan.contains("NativeColumnarGroupAggregate"), plan);
+      NativeParity.assertChangelogParity(setup, sql);
+      NativeFailureParity.run(setup, "SELECT k, SINGLE_VALUE(v) FROM src GROUP BY k")
+          .assertFailure(
+              RuntimeException.class,
+              "SingleValueAggFunction received more than one element.",
+              ROW_EVALUATION,
+              NATIVE);
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+    "hashmap,BIGINT",
+    "hashmap,'DECIMAL(20,3)'",
+    "hashmap,DATE",
+    "hashmap,TIME(3)",
+    "hashmap,BOOLEAN",
+    "hashmap,TIMESTAMP(9)",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,BIGINT",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,'DECIMAL(20,3)'",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,DATE",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,TIME(3)",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,BOOLEAN",
+    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,TIMESTAMP(9)"
+  })
+  void splitSingleValueRestoresNullCardinalityBeforeRejectingADuplicate(
+      String backend, String type) {
+    org.junit.jupiter.api.Assumptions.assumeTrue(
+        !type.startsWith("TIME(")
+            || tech.streamfusion.compat.FlinkTestCapabilities.CAST_TIME_SINGLE_VALUE);
+    List<Row> input = new ArrayList<>();
+    for (int id = 0; id < 96; id++)
+      input.add(Row.of(id, id % 7 == 0 ? null : value(type, 10 + 10 * (id % 3))));
+    input.add(Row.of(0, value(type, 20)));
+    try (var recovery =
+        new PortableSqlRecovery(
+                backend,
+                input,
+                Types.ROW_NAMED(new String[] {"id", "raw_value"}, Types.INT, Types.STRING),
+                org.apache.flink.table.api.Schema.newBuilder()
+                    .column("id", org.apache.flink.table.api.DataTypes.INT())
+                    .column("raw_value", org.apache.flink.table.api.DataTypes.STRING())
+                    .build(),
+                false,
+                24,
+                63)
+            .withExecutionMetrics()) {
+      java.util.function.UnaryOperator<TableEnvironment> configure =
+          table -> {
+            table.getConfig().set("table.optimizer.agg-phase-strategy", "TWO_PHASE");
+            table.getConfig().set("table.exec.mini-batch.enabled", "true");
+            table.getConfig().set("table.exec.mini-batch.size", "13");
+            table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
+            table.getConfig().set("streamfusion.transpose.batchRows", "7");
+            return table;
+          };
+      var result =
+          NativeFailureParity.runRecovery(
+              () -> configure.apply(recovery.uninterrupted()),
+              () -> configure.apply(recovery.get()),
+              "SELECT id, SINGLE_VALUE(CAST(raw_value AS "
+                  + type
+                  + ")) FROM recovery_input GROUP BY id");
+      result.assertFailure(
+          RuntimeException.class,
+          "SingleValueAggFunction received more than one element.",
+          ROW_EVALUATION,
+          NATIVE);
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(
+          recovery.nativeExecution(), "NativeColumnarGroupAggregate");
+      RecoveryExecutionMetrics.assertConsumed(
+          recovery.nativeExecution(), "NativeColumnarLocalGroupAggregate");
+    }
+  }
+
   private static void compare(Supplier<TableEnvironment> environment, String sql) throws Exception {
     String plan = NativePlanner.explain(environment.get(), sql);
     assertTrue(plan.contains("NativeColumnarGroupAggregate"), plan);

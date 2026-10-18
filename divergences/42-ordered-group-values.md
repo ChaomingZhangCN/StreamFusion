@@ -32,7 +32,32 @@ Ordered occurrences checkpoint through the existing Arrow side-batch framing, pr
 per-key occurrence order. These new accumulator kinds use the raw keyed snapshot fallback
 on RocksDB rather than treating a value multiset as an ordered table. A direct persistent
 representation needs explicit order keys before it can replace that fallback. Local/global
-partial schemas remain gated until their merge semantics are implemented.
+admission verifies each aggregate's declared partial schema and merge semantics.
+
+Pure, unfiltered local SINGLE_VALUE partials retain owned Arrow key/value columns and
+compact per-key counts and row positions. NULL is still an element, and a second
+element fails during accumulation. Flush gathers values from the retained batches;
+an unchanged single batch shares its key/value buffers. Mixed aggregates and FILTER
+continue through the general local accumulator. Retained input buffers and container
+capacity participate in the existing shared reservation, following Comet's owned C Data
+import and task-shared pool lifetime. Imported columns may share a producer release
+callback with unused siblings, so the reservation includes the complete input batch's
+buffer estimate until flush, rather than only the selected columns.
+
+The global split SINGLE_VALUE path likewise retains fresh-key partials as owned Arrow
+batches when every INT count is one. State still uses the existing keyed accumulator
+and checkpoint codec. Flush forwards one batch's columns or concatenates physical
+batches in arrival order, emitting INSERTs. An existing key or any other partial shape
+first promotes the pending fresh rows into the ordinary first-preimage tracker, then
+uses the existing merge. This preserves duplicate failures, zero/negative counts,
+changelog handling and TTL expiry without building per-key change maps and temporary
+result tuples for the successful fresh-key case.
+
+Ordered timestamp cells retain exact nanoseconds in an inline Decimal128 carrier.
+This is an internal scalar representation: Arrow output and checkpoint columns retain
+the declared timestamp struct. Column readers bind once per batch, and restore accepts
+the existing struct encoding. This avoids constructing a one-row Arrow struct for each
+value and NULL accumulator.
 
 LISTAGG follows the same per-key arrival-order decision. Arroyo's incremental aggregate
 uses DataFusion accumulators; its batch fallback recomputes an unordered input multiset,

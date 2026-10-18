@@ -194,7 +194,7 @@ final class GroupAggregateMatcher {
     return null;
   }
 
-  private static boolean orderedValueType(SqlTypeName type) {
+  static boolean orderedValueType(SqlTypeName type) {
     switch (type) {
       case TINYINT:
       case SMALLINT:

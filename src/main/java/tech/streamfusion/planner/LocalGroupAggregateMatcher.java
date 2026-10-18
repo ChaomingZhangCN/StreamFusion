@@ -69,10 +69,11 @@ final class LocalGroupAggregateMatcher {
   static boolean supportedSinglePartials(
       RelDataType value, RelDataType partial, RelDataType count) {
     SqlTypeName type = value.getSqlTypeName();
-    return (type == SqlTypeName.VARCHAR
-            || type == SqlTypeName.FLOAT
-            || type == SqlTypeName.DOUBLE)
-        && org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(value, partial)
+    return GroupAggregateMatcher.orderedValueType(type)
+        && (org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(value, partial)
+            // Flink's TIME single-value buffer may declare TIME(3) for a TIME(0) input.
+            // Both use the same millisecond Arrow storage, preserving the input exactly.
+            || type == SqlTypeName.TIME && partial.getSqlTypeName() == SqlTypeName.TIME)
         && count.getSqlTypeName() == SqlTypeName.INTEGER;
   }
 
@@ -600,7 +601,7 @@ final class LocalGroupAggregateMatcher {
     }
     return "local group aggregate: needs SUM/MIN/MAX/COUNT over integer/float/double/decimal values with"
         + " no widening of the partial, MIN/MAX over string/date/time/boolean/timestamp, AVG"
-        + " over any AvgAggFunction numeric, or insert-only SINGLE_VALUE over string/float/double, and"
+        + " over any AvgAggFunction numeric, or insert-only SINGLE_VALUE over supported scalar values, and"
         + " bigint/int/string/boolean/date/timestamp/decimal grouping keys";
   }
 }

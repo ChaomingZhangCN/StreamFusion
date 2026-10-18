@@ -119,7 +119,7 @@ final class GlobalGroupAggregateMatcher {
                 result,
                 inputType.getFieldList().get(offset).getType(),
                 inputType.getFieldList().get(offset + 1).getType())) {
-          return "global group aggregate: SINGLE_VALUE expects matching string/float/double and INT count"
+          return "global group aggregate: SINGLE_VALUE expects matching scalar value and INT count"
               + " partials";
         }
         offset += 2;

@@ -1,7 +1,8 @@
 # Aggregate specialization fast paths
 
 **Applies to:** insert-only numeric, DATE, TIME and BOOLEAN MIN/MAX; deleted retracting MIN/MAX groups; grouped-value state and
-immediate changelog output; and mini-batch group-aggregate `DISTINCT` (q15/q16/q17-shaped queries)
+immediate changelog output; scalar SINGLE_VALUE partials; and mini-batch group-aggregate
+`DISTINCT` (q15/q16/q17-shaped queries)
 
 Two of the local aggregate's hot leaves were paying for generality their actual input doesn't need:
 an insert-only MIN/MAX carrying full retraction support, and a `DISTINCT` accumulator boxing every
@@ -550,7 +551,7 @@ one-element tuple vector and a duplicate cached result per live group. A later t
 reconstructs the preceding tuple from the accumulator before applying the row. NULL counting,
 cardinality errors, deletes, TTL and snapshot encoding are unchanged. Mixed aggregates and
 filtered SINGLE_VALUE keep the existing cache; filtered groups can receive many rows that
-do not contribute to their result. Mini-batch handling is unchanged.
+do not contribute to their result. Split output uses the partial-buffer optimization below.
 
 The high-cardinality CPU profile identified state creation/destruction and allocator work.
 On the measured 64-bit build, removing the cached scalar avoids 64 bytes per live group
@@ -853,3 +854,78 @@ See the [complete benchmark evidence](../benchmarks/native-criterion.md#deleted-
 for all measured trials, raw samples, configuration and limits. These results
 cover the tested immediate-emission COUNT/MIN/MAX shape; other aggregate types,
 TTL, rescaling and mini-batch performance are not established by this workload.
+
+## SINGLE_VALUE partials retain Arrow rows through split aggregation
+
+A successful SINGLE_VALUE group contains exactly one element, including NULL. The local
+half can retain its owned Arrow key/value columns and dense per-key counts and row
+positions instead of allocating a general accumulator tuple per key. A second element
+still fails during accumulation. Flush shares an unchanged physical batch's columns or
+gathers the retained rows. The reservation includes the complete imported input batch's
+buffer estimate because selected columns may share a producer release callback with
+unused columns. Container capacity stays accounted after flush.
+
+For a global merge containing one unfiltered SINGLE_VALUE, fresh-key partials whose INT
+counts are all one retain their Arrow batches until flush. The ordinary keyed state is
+still updated, preserving its exact checkpoint format. Output forwards or concatenates
+the key/value columns and emits INSERTs. Existing keys, row kinds and other partial shapes
+promote pending rows into the ordinary first-preimage tracker before using the general
+merge. This avoids change-map entries, cached results and temporary scalar tuples for
+fresh singleton groups while retaining NULL cardinality, zero/negative-count semantics,
+TTL expiry and recovery. Mixed aggregates continue through the general accumulator.
+
+Ordered timestamp cells also use an inline nanosecond carrier internally, with typed
+column readers bound once per input batch. Arrow output and snapshots keep the declared
+timestamp struct. These representation changes preserve released Flink behavior; the
+[architectural note](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/42-ordered-group-values.md) explains their ownership
+and state contracts.
+
+The local-only prototype still lost on four of six complete-job cases. Its CPU diagnostic
+found 1,361 samples under global update and 731 under global flush, versus 116/43 under
+local update/flush, within 2,487 Rust group-operator samples. These are inclusive counts
+from a whole-JVM profile containing both engines and startup, not wall-time shares. The
+fresh-key global buffer addresses those state-tracking and output costs.
+
+Release+mimalloc measurements use Flink 2.2.1, JDK 17, Linux/WSL on i7-12650H, parallelism
+one, a 2 GiB heap, America/New_York, 1,024-row bundles, unique INT keys and one-eighth NULL
+values. Runtime row sources, both Arrow transposes, production IPC, JNI, keyed state and
+the rowwise blackhole sink remain measured. Plans and execution metrics require both
+native aggregate stages. Two warmups precede three alternating measured pairs. Each
+StreamFusion revision has its own paired stock control. The table gives medians in seconds;
+all trial arrays and ranges are retained in the linked artifacts.
+
+| Two million rows/keys | Native | Stock Flink | Preceding StreamFusion |
+|---|---:|---:|---:|
+| BIGINT | 1.391 | 1.844 | 1.932 |
+| DATE | 1.274 | 1.799 | 1.716 |
+| TIME(3) | 1.337 | 1.739 | 1.888 |
+| BOOLEAN | 1.296 | 1.764 | 1.771 |
+| DECIMAL(20,3), 20-digit values | 1.510 | 2.316 | 2.226 |
+| TIMESTAMP(9) | 1.487 | 2.094 | 2.005 |
+
+These six cases improve 1.30–1.53x over stock and 1.35–1.47x over the preceding native
+behavior/fallback. Six 500k-row mixed SINGLE_VALUE/AVG/COUNT DISTINCT cases improve
+1.30–1.87x over stock and 1.24–1.80x over the preceding revision. Additional 500k-row cases
+cover narrow integers, FLOAT/DOUBLE controls, CHAR, TIMESTAMP_LTZ and STRING. The initial
+INT case lost to stock (0.458 versus 0.421 s) with broad overlapping ranges. Its retained
+repeat uses three warmups/seven measurements: 0.349 s native versus 0.507 s stock and
+0.476 s preceding. At two million rows, two warmups/five measurements give 1.365 s versus
+1.932/1.922 s. Both repeats have separated native/stock trial ranges. These results resolve
+the short-run slowdown without discarding it or implying a universal throughput guarantee.
+
+On Flink 1.18.1, direct runtime TIME(3) input measures 0.362/1.350 s at 500k/2M rows versus
+stock 0.531/1.843 s and preceding 0.573/1.880 s. Direct-source parity covers pure and mixed
+groups with subsecond values, NULLs and 1/7/128-row physical batches on both released lines.
+Cast-based TIME tests retain that release's documented planning skips.
+
+The actual preceding commit `61e5bb80` is the formatting-only successor to `a29e097e`.
+Rebuilding it produces the exact same native library bytes as the original baseline;
+Java production code is unchanged. The candidate's rebuilt library likewise matches the
+frozen measured candidate. The [full results](../benchmarks/results/global-single-partials-prototype-2026-10-18.json)
+retain 888 complete benchmark jobs, including original type-only, compact-timestamp and
+prebound-column losses, the 540-job matrix, 40 released-1.18 jobs and 68 INT confirmations.
+The separate [local-only results](../benchmarks/results/local-single-partials-prototype-2026-10-18.json)
+retain another 120 jobs and the CPU diagnostic. Native correctness covers 104 group tests;
+Criterion validates 108 local/global partial fixtures and 110 typed-state fixtures, with
+allocation and buffer-sharing reports for the partial paths. Allocation requests are not
+copied-byte measurements.
