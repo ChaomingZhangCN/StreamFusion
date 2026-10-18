@@ -7,6 +7,7 @@
 //! for a whole bundle's working set in one columnar conversion; a state-TTL value carries its
 //! last-write timestamp as a fixed 8-byte prefix so the compaction filter never parses the row.
 
+mod decoded_cache;
 pub(crate) mod interval_buffer;
 #[cfg(test)]
 mod join_record_tests;
@@ -93,6 +94,9 @@ pub(crate) trait RocksStateCodec {
         unreachable!("not a columnar codec")
     }
     fn value_bytes(&self, value: &Self::Value) -> usize;
+    fn resident_bytes(&self, value: &Self::Value) -> usize {
+        std::mem::size_of::<Self::Value>() + self.value_bytes(value)
+    }
     fn write_ms(&self, _value: &Self::Value) -> i64 {
         0
     }
@@ -366,6 +370,7 @@ pub(crate) struct RocksStore<C: RocksStateCodec> {
     write_batch_size: usize,
     working: ahash::HashMap<ByteKey, Slot<C::Value>>,
     footprint: isize,
+    decoded_cache: Option<decoded_cache::DecodedCache<C::Value>>,
 }
 
 const PAIR_FIRST_TABLE: u8 = 0;
@@ -439,8 +444,9 @@ fn open_shared_db(
 }
 
 /// Borrow keys and pin returned blocks through decoding, avoiding the legacy MultiGet binding's
-/// key/value copies. Input order is arbitrary; RocksDB sorts its lookup context and returns
-/// results in the original order. Pins must not escape into the operator's resident state.
+/// key/value copies. Sort the bytewise keys before the batch read, then restore caller order;
+/// RocksDB can skip sorting through its virtual comparator and thread-local lookup context.
+/// Pins must not escape into the operator's resident state.
 fn multi_get_pinned<'db>(
     db: &'db DB,
     keys: &[Vec<u8>],
@@ -448,10 +454,29 @@ fn multi_get_pinned<'db>(
     let cf = db
         .cf_handle("default")
         .expect("registered default column family");
-    db.batched_multi_get_cf(cf, keys, false)
+    if keys.windows(2).all(|pair| pair[0] <= pair[1]) {
+        return db.batched_multi_get_cf(cf, keys, true);
+    }
+    let mut order: Vec<usize> = (0..keys.len()).collect();
+    order.sort_unstable_by(|&a, &b| keys[a].cmp(&keys[b]));
+    let fetched = db.batched_multi_get_cf(cf, order.iter().map(|&i| &keys[i]), true);
+    let mut original_order: Vec<_> = (0..keys.len()).map(|_| None).collect();
+    for (index, value) in order.into_iter().zip(fetched) {
+        original_order[index] = Some(value);
+    }
+    original_order
+        .into_iter()
+        .map(|value| value.expect("every key probed"))
+        .collect()
 }
 
 impl<C: RocksStateCodec> RocksStore<C> {
+    pub(crate) fn decoded_cache_stats(&self) -> [i64; 4] {
+        self.decoded_cache
+            .as_ref()
+            .map_or([0; 4], |cache| cache.stats())
+    }
+
     const SLOT_OVERHEAD: usize = std::mem::size_of::<Slot<C::Value>>() + GROUP_ENTRY_OVERHEAD;
 
     pub(crate) fn create(config: RocksStoreConfig, codec: C) -> Result<Self, DataFusionError> {
@@ -658,6 +683,7 @@ impl<C: RocksStateCodec> RocksStore<C> {
             write_batch_size: opened.write_batch_size,
             working: ahash::HashMap::default(),
             footprint: 0,
+            decoded_cache: None,
         })
     }
 
@@ -1015,6 +1041,9 @@ impl<C: RocksStateCodec> RocksStore<C> {
         snapshot_dir: &str,
     ) -> Result<RocksCheckpointManifest, DataFusionError> {
         self.write_dirty()?;
+        if let Some(cache) = &mut self.decoded_cache {
+            cache.clear();
+        }
         self.working.clear();
         self.probed_multiset_keys.clear();
         if snapshot_dir.is_empty() {
@@ -1068,6 +1097,13 @@ impl<C: RocksStateCodec> RocksStore<C> {
 }
 
 impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
+    fn enable_resident_cache(&mut self, limit: usize, reservation: Option<MemoryReservation>) {
+        assert!(
+            self.multisets.is_empty(),
+            "decoded cache requires self-contained values"
+        );
+        self.decoded_cache = Some(decoded_cache::DecodedCache::new(limit, reservation));
+    }
     fn contains(&self, key: &[u8]) -> bool {
         matches!(self.working.get(key), Some(Slot::Present { .. }))
     }
@@ -1082,6 +1118,23 @@ impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
             Some(Slot::Present { state, dirty }) => {
                 *dirty = true;
                 Some(state)
+            }
+            _ => None,
+        }
+    }
+    fn get_mut_if<F: FnOnce(&C::Value) -> bool>(
+        &mut self,
+        key: &[u8],
+        admit: F,
+    ) -> Option<&mut C::Value> {
+        match self.working.get_mut(key) {
+            Some(Slot::Present { state, dirty }) => {
+                if admit(state) {
+                    *dirty = true;
+                    Some(state)
+                } else {
+                    None
+                }
             }
             _ => None,
         }
@@ -1162,7 +1215,21 @@ impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
         for row in 0..batch.num_rows() {
             let key = ByteKey::from(encoder.encode(row));
             if !self.working.contains_key(&key) && seen.insert(key.clone()) {
-                missing.push(key);
+                if let Some(value) = self
+                    .decoded_cache
+                    .as_mut()
+                    .and_then(|cache| cache.take(&key.0))
+                {
+                    self.working.insert(
+                        key,
+                        Slot::Present {
+                            state: value,
+                            dirty: false,
+                        },
+                    );
+                } else {
+                    missing.push(key);
+                }
             }
         }
         if missing.is_empty() {
@@ -1202,6 +1269,9 @@ impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
         for (key, state) in hit_keys.into_iter().zip(decoded) {
             let slot = match state {
                 Some(state) => {
+                    if let Some(cache) = &mut self.decoded_cache {
+                        cache.admit_existing(&key);
+                    }
                     if !self.multisets.is_empty() {
                         hydrate.push(key.clone());
                     }
@@ -1232,7 +1302,11 @@ impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
     }
     fn end_bundle(&mut self) -> Result<(), DataFusionError> {
         self.write_dirty()?;
-        self.working.clear();
+        if let Some(cache) = &mut self.decoded_cache {
+            cache.complete(&mut self.working, &self.codec);
+        } else {
+            self.working.clear();
+        }
         self.probed_multiset_keys.clear();
         Ok(())
     }

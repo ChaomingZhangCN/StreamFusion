@@ -36,8 +36,14 @@ public final class ArrowReader {
 
     /** Reusable row used to hold the deserialized result. */
     private final ColumnarRowData reuseRow;
+    private final StringCacheRowData cachedRow;
 
     public ArrowReader(ColumnVector[] columnVectors) {
+        this(columnVectors, null);
+    }
+
+    ArrowReader(ColumnVector[] columnVectors, org.apache.arrow.vector.complex.ListVector[] caches) {
+        this.cachedRow = caches == null ? null : new StringCacheRowData(caches);
         this.columnVectors = Preconditions.checkNotNull(columnVectors);
         this.reuseRow = new ColumnarRowData();
         this.reuseRow.setVectorizedColumnBatch(new VectorizedColumnBatch(columnVectors));
@@ -51,6 +57,6 @@ public final class ArrowReader {
     /** Read the specified row from underlying Arrow format data. */
     public RowData read(int rowId) {
         reuseRow.setRowId(rowId);
-        return reuseRow;
+        return cachedRow == null ? reuseRow : cachedRow.replace(reuseRow, rowId);
     }
 }

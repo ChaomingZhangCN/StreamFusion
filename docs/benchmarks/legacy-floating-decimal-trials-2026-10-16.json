@@ -1,0 +1,216 @@
+{
+  "date": "2026-10-16",
+  "baseline_commit": "b170a474d5658330ed7e92e9b8bcc54117c8d287",
+  "machine": "Apple M4 Pro, 24 GiB RAM, macOS 26.5",
+  "jdk": "17",
+  "flink": "2.2.1 (released)",
+  "native_profile": "release, default features, system allocator",
+  "heap": "8 GiB",
+  "parallelism": 1,
+  "warmup": 2,
+  "measured_runs": 5,
+  "null_every": 7,
+  "mini_batch_rows": 1024,
+  "mini_batch_latency": "1 h",
+  "shuffle": "Arrow IPC (bench profile)",
+  "measured_boundary": "Complete row-source/blackhole job; submission, conversion, JNI, native state, output and completion included. MiniCluster creation excluded.",
+  "ordering": "Alternating engine order per trial",
+  "baseline": "Unmodified baseline planner; native-enabled runs assert zero substitutions; identical benchmark source and release native payload",
+  "records": [
+    {
+      "stage": "executor-prototype",
+      "case": "CAST(f AS DECIMAL(10,1))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.44615,
+      "streamfusion_median_seconds": 0.510154,
+      "stock_trials_seconds": [
+        0.437172375,
+        0.4461495,
+        0.447293125,
+        0.446633459,
+        0.442732542
+      ],
+      "streamfusion_trials_seconds": [
+        0.506424334,
+        0.510153625,
+        0.510542917,
+        0.510567041,
+        0.504457708
+      ]
+    },
+    {
+      "stage": "executor-prototype",
+      "case": "CAST(x AS DECIMAL(15,4))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.367563,
+      "streamfusion_median_seconds": 0.452275,
+      "stock_trials_seconds": [
+        0.357886417,
+        0.3553615,
+        0.367563083,
+        0.368916417,
+        0.371741208
+      ],
+      "streamfusion_trials_seconds": [
+        0.447430084,
+        0.452274833,
+        0.450986417,
+        0.458514042,
+        0.458626417
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "CAST(f AS DECIMAL(10,1))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.441861,
+      "streamfusion_median_seconds": 0.432456,
+      "stock_trials_seconds": [
+        0.430763875,
+        0.444827209,
+        0.446187333,
+        0.441861208,
+        0.441809958
+      ],
+      "streamfusion_trials_seconds": [
+        0.431330209,
+        0.432456375,
+        0.443445083,
+        0.432174,
+        0.440102709
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "CAST(x AS DECIMAL(15,4))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.352148,
+      "streamfusion_median_seconds": 0.35138,
+      "stock_trials_seconds": [
+        0.364517625,
+        0.347946334,
+        0.354124083,
+        0.348850042,
+        0.352148417
+      ],
+      "streamfusion_trials_seconds": [
+        0.35581225,
+        0.350561333,
+        0.35138025,
+        0.358243125,
+        0.34795975
+      ]
+    },
+    {
+      "stage": "borrowed-generated-prototype",
+      "case": "CAST(f AS DECIMAL(10,1))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.441688,
+      "streamfusion_median_seconds": 0.478,
+      "stock_trials_seconds": [
+        0.443363875,
+        0.473051,
+        0.435392625,
+        0.439558334,
+        0.441688
+      ],
+      "streamfusion_trials_seconds": [
+        0.49579525,
+        0.478000333,
+        0.478615542,
+        0.475151375,
+        0.476686875
+      ]
+    },
+    {
+      "stage": "borrowed-generated-prototype",
+      "case": "CAST(x AS DECIMAL(15,4))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.362734,
+      "streamfusion_median_seconds": 0.456151,
+      "stock_trials_seconds": [
+        0.365411375,
+        0.358824791,
+        0.393999208,
+        0.361567458,
+        0.362733792
+      ],
+      "streamfusion_trials_seconds": [
+        0.457056292,
+        0.447810333,
+        0.456150625,
+        0.469991291,
+        0.453137084
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "CAST(f AS DECIMAL(10,1))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.44052,
+      "streamfusion_median_seconds": 0.493179,
+      "stock_trials_seconds": [
+        0.467767417,
+        0.435313625,
+        0.440519542,
+        0.436558833,
+        0.443743417
+      ],
+      "streamfusion_trials_seconds": [
+        0.500006292,
+        0.489958625,
+        0.4905795,
+        0.493178958,
+        0.494651125
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "CAST(x AS DECIMAL(15,4))",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.360404,
+      "streamfusion_median_seconds": 0.448349,
+      "stock_trials_seconds": [
+        0.359440833,
+        0.363457625,
+        0.360403834,
+        0.356889792,
+        0.365514291
+      ],
+      "streamfusion_trials_seconds": [
+        0.450254542,
+        0.448348583,
+        0.446770917,
+        0.446438875,
+        0.460113291
+      ]
+    }
+  ],
+  "candidate_configuration": "table.exec.legacy-cast-behaviour=ENABLED; streamfusion.calc.legacyNumericCasts.enabled=true (default false)",
+  "admission": "Opt-in compatibility groundwork; standalone regression prevents default admission.",
+  "off_heap_accounting_budget": "48 GiB in the shared fixture for both engines; not a reservation or measured resident usage"
+}

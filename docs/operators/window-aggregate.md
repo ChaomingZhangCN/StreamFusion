@@ -22,6 +22,31 @@ translates the firing frontier by one millisecond before flushing.
 
 SUM, MIN, MAX, COUNT and AVG can share a window and read the same or different numeric columns.
 String MIN/MAX can share those windows and their local/global partial layout as well.
+On insert-only input, MIN/MAX also accept TIMESTAMP and TIMESTAMP_LTZ value columns at
+precisions 0 through 9. These are aggregate values, separate from the window's time attribute.
+The accumulator owns signed milliseconds and the fractional nanosecond remainder, compares
+that pair without narrowing the date range, ignores NULLs and emits NULL for an all-NULL group.
+Local/global partials and checkpoint state use one nullable component timestamp with the
+original logical precision. Ordinary COUNT(timestamp) retains its separate numeric type gate.
+Both timestamp kinds can share a window with numeric aggregates, string extrema and COUNT(DISTINCT).
+Mixed string/temporal SQL comparisons cover TUMBLE/HOP/CUMULATE at precision 0/3/6/9
+in both phases. They verify default single-phase string fallback and the explicit native opt-in;
+adding temporal extrema does not bypass the [string admission gate](#string-minmax).
+
+Temporal extrema are enabled for single-phase and local/global TUMBLE/HOP/CUMULATE,
+event-time SESSION, admitted attached windows and legacy HOP. Processing-time fixed windows
+retain the same typed value state and timer contract. The ordinary filtering, input-changelog,
+attached-window and LTZ assignment gates still apply.
+
+SQL comparisons cover precision 0/3/6/9, years 0001 through 9999, pre-epoch fractions,
+nanosecond differences within one millisecond, independent filters, both aggregation phases,
+legacy/session shapes and empty input. TIMESTAMP_LTZ **values** retain instant ordering in
+UTC, Asia/Shanghai and America/New_York; these tests use a plain TIMESTAMP rowtime so the
+separate historical-offset gate on LTZ **window assignment** remains unchanged. TUMBLE/HOP/SESSION recovery
+injects two failures after completed checkpoints on memory and RocksDB and requires work
+from every native stage. Controlled-clock processing-time tests verify value state, NULL-only
+groups and timer firing after restore on both backends.
+
 AVG supports INT/BIGINT, SMALLINT/TINYINT, FLOAT/DOUBLE and DECIMAL in single-phase execution
 and the event-time two-phase split for TUMBLE, HOP, CUMULATE and admitted attached windows.
 
@@ -144,12 +169,123 @@ verify extrema, NULL-only groups and timer firing after restore on both backends
 SQL and recovery coverage explicitly enables the experimental switch; default admission stays
 as documented above.
 
+## Temporal extrema benchmarks
+
+The pre-integration October 13, 2026 comparison uses main `49ebe3cf` as its base, released Flink 2.2.1,
+JDK 17 on an Apple M4 Pro, UTC, parallelism two, and a release+mimalloc native library.
+Local exchanges use Arrow IPC. Every complete job retains its runtime row source, both
+transposes, JNI, state and collecting row sink. Two warmups precede five measured trials;
+stock, native and forced-window-fallback runs rotate order. All output fields and RowKinds
+are compared, and current-job counters must show work from every intended native stage.
+Forced window fallback represents the previous planner behavior for these value types.
+
+The author’s pre-integration production-path measurements below use precision 9. Times are median complete-job
+seconds. Startup and scheduling remain included; the 20-million-row cases also exercise
+sustained processing. No timing samples are discarded.
+
+| Window / phase | Rows / keys | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| TUMBLE / one | 2M / 1 | TIMESTAMP | 0.758354 | 0.662719 | 0.633011 | 1.198x |
+| TUMBLE / one | 2M / 1 | TIMESTAMP_LTZ | 0.755901 | 0.757004 | 0.638541 | 1.184x |
+| TUMBLE / one | 20M / 4096 | TIMESTAMP | 5.627059 | 5.745932 | 4.215417 | 1.335x |
+| TUMBLE / one | 20M / 4096 | TIMESTAMP_LTZ | 6.229142 | 6.139699 | 4.731588 | 1.317x |
+| HOP / two | 2M / 4096 | TIMESTAMP | 1.143439 | 1.146968 | 0.763992 | 1.497x |
+| HOP / two | 2M / 4096 | TIMESTAMP_LTZ | 1.202599 | 1.108017 | 0.862292 | 1.395x |
+| CUMULATE / two | 2M / 4096 | TIMESTAMP | 1.119121 | 1.108795 | 0.757615 | 1.477x |
+| CUMULATE / two | 2M / 4096 | TIMESTAMP_LTZ | 1.122305 | 1.094508 | 0.853236 | 1.315x |
+| SESSION / one | 2M / 4096 | TIMESTAMP | 1.086465 | 1.093417 | 0.645294 | 1.684x |
+| SESSION / one | 2M / 4096 | TIMESTAMP_LTZ | 1.080101 | 1.080380 | 0.638098 | 1.693x |
+
+Earlier candidate comparisons are retained as well. Two-million-row TUMBLE sweeps exercise
+precision 3/9, both phases and 64/4096 keys. Their source precedes the final session merge and
+selection-index ownership optimization, so those samples are not labeled final-head results.
+Session merging originally took 1.873077/1.840005 seconds for TIMESTAMP/LTZ at 4096 keys,
+before borrowing selected timestamps and merging owned extrema directly. Those separate
+process runs have drifting stock controls; they do not isolate each optimization's causal gain.
+
+The pre-integration single-phase overlapping candidate was rejected: at 4096 keys,
+HOP took 1.009755/0.991080 seconds against stock 0.806110/0.895012, or
+0.798x/0.903x for TIMESTAMP/LTZ. CUMULATE took 0.775960/0.772689 against
+0.794308/0.926869. Those historical observations remain in the original artifact.
+
+The integrated implementation reduces timestamp extrema and ordinary counts once per
+input slice, then merges scalar states into each open window. It accounts fixed-size
+state only when a group is created. Compact extrema use millisecond input vectors;
+COUNT copies argument validity rather than unused values. Full-precision extrema retain
+both timestamp components. The final Linux/JDK 17 comparison uses released Flink 2.2.1,
+UTC, parallelism two, release+mimalloc, IPC exchanges, runtime row inputs and a collecting
+row sink with both transposes. Two warmups precede three measured trials per engine;
+stock, native and forced previous-window-fallback jobs rotate execution order.
+
+At two million rows and 4096 keys, final precision-3 single-phase medians are:
+
+| Window | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| HOP | TIMESTAMP | 0.988690 | 1.451889 | 0.863396 | 1.145x |
+| CUMULATE | TIMESTAMP | 0.996699 | 0.994038 | 0.754463 | 1.321x |
+| HOP | TIMESTAMP_LTZ | 0.857069 | 0.983879 | 0.772530 | 1.109x |
+| CUMULATE | TIMESTAMP_LTZ | 0.963046 | 0.950239 | 0.747960 | 1.288x |
+
+Final precision-9 single-phase medians with the same data and resources are:
+
+| Window | Value | Stock Flink | Previous fallback | Native | Stock / native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| HOP | TIMESTAMP | 1.012819 | 1.033396 | 0.882862 | 1.147x |
+| CUMULATE | TIMESTAMP | 0.875389 | 0.880503 | 0.769802 | 1.137x |
+| HOP | TIMESTAMP_LTZ | 0.868805 | 0.965907 | 0.751604 | 1.156x |
+| CUMULATE | TIMESTAMP_LTZ | 0.858336 | 0.866395 | 0.743625 | 1.154x |
+
+The eight final local/global HOP/CUMULATE comparisons at precision 3/9, including
+both timestamp kinds and 4096 keys, are 1.058–1.245× faster than stock and also
+beat their matched forced-fallback medians. Their samples are retained in the same artifact.
+
+At 64 keys, the four final TIMESTAMP overlap cases span 1.018–1.183× stock.
+The precision-3 medians are close: HOP is 0.749551 seconds versus stock 0.771266,
+and CUMULATE is 0.739467 versus 0.753017. This startup-inclusive comparison
+establishes a modest improvement in those cases, rather than a large throughput gain.
+
+Final TIMESTAMP TUMBLE controls at precision 3/9 are 1.184/1.189× stock;
+SESSION controls are 1.554/1.667×. These use two million rows and 4096 keys with
+the same release library and full production boundary. The precision-3 high-cardinality
+overlap samples above preceded removal of the planner guard; their native implementation
+is identical to the final admitted build. Both released Flink lines then passed
+188 Java checks (four existing capability skips on 1.18), alongside 686 native tests
+and 48 release Criterion fixture checks.
+
+Every trial compares all output values and RowKinds; current-job counters establish execution
+of every intended native aggregate stage. Startup and scheduling remain included. Native HOP
+TIMESTAMP samples range from 0.855970 to 0.969962 seconds; its fallback observations include
+1.128929, 1.451889 and 2.215375 seconds. The
+[integration artifact](../benchmarks/results/window-temporal-overlap-integration-2026-10-13.json)
+retains every warmup, measured sample, unfavorable intermediate candidate, source fingerprint
+and library hash. Earlier direct folding, temporary Arrow partials and compact-vector-only
+candidates were slower and were superseded by the fixed-state-accounting implementation.
+
+The 48 Rust release fixtures cover accounted TUMBLE/HOP/CUMULATE update/flush and SESSION update/merge/flush
+at 256/4096 rows, one/64/all-distinct keys, NULLs and precision 3/9. The historical pre-integration precision-9
+TUMBLE estimates are 65.21/73.92/809.31 microseconds for 4096 rows and one/64/4096 keys.
+SESSION estimates are 218.11/282.93/3871.35 microseconds, including two input batches and
+state merging. Setup stays outside timing; grouping, accumulation, output and disposal remain
+inside. Native timing and allocation probes use the counting System allocator, separately
+from the mimalloc complete jobs. The
+[raw artifact](../benchmarks/results/window-temporal-extrema-2026-10-13.json)
+retains every sample, estimate interval, allocation probe, source fingerprint and validation
+record, including negative and intermediate candidates.
+
+Reproduce complete-job comparisons with `SF_BENCHMARK=true mvn -Pbench
+-pl streamfusion-runtime -am test -Dtest=WindowTemporalExtremaBenchmark
+-Dsf.testForks=1 -Dsurefire.failIfNoSpecifiedTests=false`. Fixture properties are
+`window.temporal.rows`, `window.temporal.groups`, `window.temporal.precisions`,
+`window.temporal.phases`, `window.temporal.ltz`, `window.temporal.shapes`,
+`window.temporal.warmup` and `window.temporal.runs`. SESSION uses ONE_PHASE;
+HOP/CUMULATE support ONE_PHASE and TWO_PHASE under production admission.
+
 ## Filtered MIN/MAX on append-only input
 
 Aligned event-time TUMBLE/HOP/CUMULATE admit `MIN(value) FILTER (WHERE predicate)` and
-`MAX(value) FILTER (WHERE predicate)` for the existing numeric value types: integer widths,
-FLOAT/DOUBLE and DECIMAL, and for CHAR/VARCHAR. Both single-phase and local/global execution
-apply each predicate independently. FALSE or NULL masks the aggregate value, while the row still establishes its
+`MAX(value) FILTER (WHERE predicate)` for integer widths, FLOAT/DOUBLE, DECIMAL, CHAR/VARCHAR,
+TIMESTAMP and TIMESTAMP_LTZ. Both single-phase and local/global execution apply each predicate
+independently. FALSE or NULL masks the aggregate value, while the row still establishes its
 window and group. A group with no selected non-NULL values emits NULL extrema.
 
 The existing Arrow validity-mask preparation and extrema accumulators are reused. Local
@@ -249,10 +385,14 @@ state transfer. Updating DISTINCT and other remaining forms stay on Flink.
 ## Window COUNT(DISTINCT)
 
 Unfiltered `COUNT(DISTINCT value)` is native for integer, DECIMAL, CHAR/VARCHAR, DATE,
-TIMESTAMP and TIMESTAMP_LTZ values. It ignores NULLs and counts each value once per key/window.
+BOOLEAN, TIME, TIMESTAMP and TIMESTAMP_LTZ values. It ignores NULLs and counts each value once per key/window.
 TUMBLE, HOP and CUMULATE support single-phase and local/global execution; attached window
 results use the existing two-phase path. SESSION and admitted legacy group windows reuse the
 same distinct accumulator. Processing-time windows retain their timer-driven lifetime.
+
+BOOLEAN and TIME sets use typed partial values and ignore NULLs. TIME retains the internal
+millisecond value even under a resolved TIME(0) declaration. Recovery checks continue
+duplicate membership across raw and canonical memory/RocksDB state transitions.
 
 Each local partial carries an Arrow list of distinct values. The global unions those lists,
 so duplicates split across tasks or checkpoint barriers count once. Ordinary aggregates and
@@ -350,10 +490,13 @@ covered by runtime SQL parity tests. TUMBLE and HOP with an explicit nonzero off
 matching the existing aggregate and CUMULATE restriction.
 
 The TVF emits `window_start`/`window_end` as local wall-clock TIMESTAMP values, while
-`window_time` stays an instant for LTZ input. The fixed session-zone offset participates in
-assignment itself, so projections, filters, joins and ranking observe the same boundary values
-as Flink. Window rank and join translate their clock threshold into this local domain and close
-at `window_end - 1` millisecond, including processing-time timers and restored state.
+`window_time` stays an instant for LTZ input. Fixed offsets, including offsets not aligned with
+the window slide, participate in assignment on the local grid. Regional zones use batched
+released-Flink calendar conversion, including DST gaps, overlaps and historical offsets.
+TVF, single/two-phase aggregates, joins and rank/dedup share the same local bounds. Stateful
+consumers convert each local end to its released-Flink epoch timer deadline and fire at the
+last millisecond, including after restoration. SESSION connectivity is computed in the local
+assignment domain and uses the same deadline conversion.
 
 Assignment reads Flink's millisecond component without changing the original timestamp payload.
 In particular, `1969-12-31 23:59:59.999999999` belongs to the window before the epoch, just like
@@ -399,28 +542,20 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - A legacy group window over retracting or updating input.
 - Legacy proctime `HOP` when the slide does not divide the size. Event-time legacy `HOP` supports
   non-dividing and gapped windows.
-- Fixed-grid windows (TVF **and** legacy, event-time or proctime) over `TIMESTAMP_LTZ` unless the
-  session zone has one fixed offset for the entire timestamp range that is an integral multiple of the window slide
-  (the max size for `CUMULATE`). Flink assigns and fires on a DST-aware local-time grid while the
-  native operators bucket on the epoch grid; the two coincide exactly under that condition. The gate
-  applies uniformly to every consumer of the assignment — the windowing TVF, single- and two-phase
-  window aggregates, window join, and window Top-N/dedup — so a whole window pipeline falls back
-  together rather than mixing host-assigned and native-assigned bounds.
-- `SESSION` windows (TVF and legacy) over `TIMESTAMP_LTZ` when the session zone has any historical
-  or recurring transition; changing offsets can alter gap connectivity and session merges. A fixed offset cancels
-  out of the gap arithmetic, so fixed-offset zones stay native with no alignment requirement.
-- Region zones with only pre-1970 transitions also fall back: their earlier offsets may change
-  assignment and firing for negative epochs. Use a fixed zone such as `GMT+05:30` when fixed-offset
-  semantics are intended; it is not equivalent to `Asia/Kolkata` over the full timestamp range.
 - Legacy processing-time `SESSION`.
 - Key type outside bigint/int/string/boolean/date/timestamp/decimal.
 - A value type/aggregate mismatch.
+  TIMESTAMP/TIMESTAMP_LTZ values are admitted for MIN/MAX and COUNT(DISTINCT),
+  while ordinary COUNT(value) remains numeric.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
-- Single-phase aggregation over attached window bounds. Attached windows are native through
-  the two-phase local/global path.
+- Attached bounds outside append-only event-time TUMBLE/HOP/CUMULATE, or with FILTER.
+  Admitted attached bounds support opt-in single-phase and existing local/global execution.
+- Single-phase attached bounds without `streamfusion.window.attached.single-phase.enabled=true`.
+  The default-off gate preserves stock execution for profiled HOP/high-cardinality and
+  persistent COUNT cases that remain slower.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:
-  SUM/AVG DISTINCT, FLOAT/DOUBLE, BOOLEAN, TIME and complex values.
+  SUM/AVG DISTINCT, FLOAT/DOUBLE and complex values.
   Non-windowed DISTINCT has separate coverage; see [GROUP BY](group-by.md).
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
@@ -860,3 +995,142 @@ The [new result artifact](../benchmarks/results/window-string-extrema-main336-20
 retains all complete-job samples, library hashes and six matching Criterion cases with raw
 samples and confidence intervals. The [optimization ledger](../optimizations/string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges)
 records the native gains and the noncontiguous control's small regression.
+
+### BOOLEAN/TIME DISTINCT performance
+
+Released Flink 2.2.1/JDK 17, release/mimalloc, 2 million rows, 64 keys, parallelism
+two, two warmups and three alternating measured jobs per engine. The complete job
+includes startup, runtime row generation, both transposes, Arrow IPC and the row
+blackhole sink. Split-distinct is disabled. Previous StreamFusion falls back for
+these types; the same harness asserts that absence of native window aggregation.
+
+| Value | Phase | Window | Stock mean seconds | Previous SF seconds | Native mean seconds | Stock/native |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| boolean | ONE_PHASE | TUMBLE | 1.581753 | 1.559476 | 1.206371 | 1.31× |
+| boolean | ONE_PHASE | HOP | 1.638337 | 1.655612 | 1.155592 | 1.42× |
+| boolean | ONE_PHASE | CUMULATE | 1.463504 | 1.462124 | 1.117949 | 1.31× |
+| boolean | TWO_PHASE | TUMBLE | 1.742704 | 1.642221 | 1.117088 | 1.56× |
+| boolean | TWO_PHASE | HOP | 1.736487 | 1.649931 | 1.144570 | 1.52× |
+| boolean | TWO_PHASE | CUMULATE | 1.671661 | 1.649290 | 1.095747 | 1.53× |
+| time | ONE_PHASE | TUMBLE | 1.471052 | 1.448388 | 1.142120 | 1.29× |
+| time | ONE_PHASE | HOP | 1.543498 | 1.491625 | 1.146777 | 1.35× |
+| time | ONE_PHASE | CUMULATE | 1.456913 | 1.434737 | 1.127920 | 1.29× |
+| time | TWO_PHASE | TUMBLE | 1.699655 | 1.650318 | 1.092664 | 1.56× |
+| time | TWO_PHASE | HOP | 1.721434 | 1.679724 | 1.127246 | 1.53× |
+| time | TWO_PHASE | CUMULATE | 1.720180 | 1.666371 | 1.097980 | 1.57× |
+
+All 12 measured forms outperform stock and the previous fallback on this workload.
+[Raw trials, source/library hashes and configuration](../benchmarks/results/window-basic-distinct-2026-10-13.json)
+retain every sample. These elapsed-time means include startup and are separate from
+the sustained-throughput method used for Top-1. Other workloads may differ.
+The 20 native fixtures cover 64/4,096 rows, one/64/all-row keys, NULLs and both
+single-phase updates and local-partial/global unions. Cross-line SQL/recovery checks
+passed 57 cases on 2.2 and 56 plus one existing capability skip on 1.18.
+
+## Calendar window validation
+
+Nonaligned fixed offsets and regional LTZ calendars use the released SDK for local assignment,
+visible window time and timer conversion. The runtime tests compare DST gaps/overlaps, historical
+offsets, negative epochs, shared slices and SESSION connectivity against independent stock
+operators, including heap/RocksDB restore and backend transitions. SQL controls cover TVF,
+single/two-phase aggregation, join, rank and deduplication; completed-checkpoint controls verify
+restored windows still fire and drop late rows correctly. The final regression selection passes
+155 checks on each released Flink line, including SESSION connectivity, processing-time planner
+coverage, mixed built-in/string DISTINCT shared windows, joins, ranks and late-slice controls.
+
+The release fixture suites contain 1,496 cases, including persistent timestamp payloads. Complete-job comparisons use
+`CalendarWindowBenchmark` with a row source, row blackhole sink, both transposes, Arrow IPC and
+production state. Stock and the previous fallback are separate controls; all warmups and measured
+trials are retained in [the calendar artifact](../benchmarks/results/calendar-windows-2026-10-14.json).
+The original 36-profile matrix, SESSION jobs, all nine wide-key profiles and the
+additional persistent consumers are retained by revision. The final regional TVF
+recheck averages about 1.07× stock for TUMBLE, HOP and CUMULATE. Persistent HOP/CUMULATE
+rank uses 200,000 rows and 64 keys; its means are about 20.4×/16.6× stock. The
+100,000-row, 4,096-key regional HOP join averages 1.65× stock, and the million-row
+regional CUMULATE dedup averages 1.18× stock. These comparisons include the rowwise
+source/sink, IPC, JNI and state work. Stock rank/join variability remains visible.
+
+Two persistent aggregate cases remain slower: with one million rows and 64 keys,
+HOP averages 0.690s native versus 0.651s stock, and CUMULATE 0.644s versus 0.590s.
+Improvement over an earlier native revision does not establish acceleration; these
+limits require a maintainer decision before this candidate ships. No trial is
+discarded, including the earlier fallback outlier. The candidate remains under
+review in [PR #341](https://github.com/datafusion-contrib/StreamFusion/pull/341).
+
+
+### Single-phase aggregation over attached bounds
+
+Append-only event-time results from TUMBLE/HOP/CUMULATE can be re-aggregated natively in
+ONE_PHASE plans over their attached `window_start`/`window_end` with
+`streamfusion.window.attached.single-phase.enabled=true`. The option defaults off: the first
+release comparison found slower high-cardinality HOP and persistent COUNT pipelines. The outer operator folds each
+row into the one window it names, using the existing accumulator, Arrow output and keyed
+checkpoint/store representation. It does not assign another set of overlapping windows or
+reconstruct a start from a slice end. The normal numeric/COUNT(DISTINCT)/timestamp aggregate,
+key-type and single-phase string-extrema admission rules remain in force. FILTER and retracting
+attached input remain stock; attached sessions are outside this fixed-window whitelist.
+
+With the option disabled, fallback diagnostics retain the existing "attached-window aggregation
+requires two-phase execution" prefix and explain the single-phase opt-in requirement.
+
+The final attached operator owns its firing watermark. End-minus-one closes a window;
+subsequent rows naming that closed window are dropped and counted, including after restoring
+memory or native RocksDB state. Local attached partials continue to defer late admission to
+their global merge. The calendar retains session-local bounds for regional LTZ input and
+converts only firing deadlines; fixed offsets retain the existing epoch carriage/rendering.
+A tumbling-shaped state handle avoids re-expanding already assigned HOP/CUMULATE bounds.
+
+SQL tests cover uneven group counts, nullable keys/values, all aggregate NULL behavior,
+resolved types and complete insert changelogs, empty input, multiple Arrow batches and consumed
+rows in both inner and outer native windows. ONE_PHASE runs TUMBLE/HOP/CUMULATE across UTC,
+Shanghai and Los Angeles (including the DST boundary); AUTO TUMBLE/HOP controls retain their
+native path. Controlled source watermarks prove exact-boundary firing and late rows. State
+checks retain open and closed bounds across memory/RocksDB restore and backend migration in
+UTC, GMT+08:00 and Los Angeles, then drain with the final watermark without re-emission.
+
+
+### Assigned-bound ONE_PHASE release measurements
+
+`AttachedWindowOnePhaseBenchmark` executes the issue's COUNT→MAX cascade with a rowwise
+runtime source and rowwise blackhole sink. Actual metrics require both native windows to
+consume rows, and the native plan retains both transposes. The final five-million-row matrix
+uses released Flink 2.2.1/JDK17, release/mimalloc, ONE_PHASE, parallelism 1, 64/4096 keys,
+nullable INT keys, TIMESTAMP(3) rowtime, memory/native RocksDB state, an 8g Java heap and 48g
+task off-heap reservation. Each profile has two warmups and three alternating measured trials.
+Setup/explain are excluded; startup, execution, JNI, conversions, state and completion are included.
+
+| Window / state / keys | Stock median (range), s | Native median (range), s | Stock/native |
+| --- | ---: | ---: | ---: |
+| TUMBLE / memory / 64 | 1.200 (1.171–1.280) | 0.659 (0.632–0.679) | 1.82× |
+| TUMBLE / memory / 4096 | 1.183 (1.171–1.190) | 0.963 (0.955–0.969) | 1.23× |
+| TUMBLE / RocksDB / 64 | 1.014 (1.010–1.028) | 1.321 (1.312–1.322) | 0.77× |
+| TUMBLE / RocksDB / 4096 | 2.951 (2.874–3.119) | 8.125 (8.054–8.141) | 0.36× |
+| HOP / memory / 64 | 1.070 (1.069–1.072) | 0.565 (0.561–0.568) | 1.89× |
+| HOP / memory / 4096 | 1.357 (1.356–1.372) | 1.786 (1.753–1.792) | 0.76× |
+| HOP / RocksDB / 64 | 1.342 (1.249–1.349) | 3.565 (3.556–3.679) | 0.38× |
+| HOP / RocksDB / 4096 | 7.992 (7.473–8.425) | 38.294 (38.112–38.502) | 0.21× |
+
+Previous canonical `74822fd4` executes the same query/data/resources through its explicit
+whole-island fallback with zero native substitutions. Its eight paired stock/enabled medians
+range from 0.94 to 1.01× stock/enabled, remaining near stock. Independent invocation
+times vary and are not a direct before/after ratio. The retained artifact includes all 320
+completed jobs across initial/optimized 1M runs and final/prior 5M runs, including warmups.
+
+The native route therefore remains **default off**. Low-cardinality memory workloads accelerate;
+high-cardinality HOP and persistent COUNT cases retain substantial losses. Enabling the option
+is an explicit experimental choice and does not promise acceleration for those cases. Further
+persistent-window work is linked to [#350](https://github.com/datafusion-contrib/StreamFusion/issues/350);
+its existing calendar/count investigation covers the same read/write machinery, while the
+matrix here also records ordinary UTC windows and higher cardinality.
+
+The initial native-only 20M HOP/4096/Rocks CPU capture has 11,097 samples; 4,338 include bulk
+reads, 2,637 include DB writes, and 9,705 include the inner window push. These are inclusive
+stacks that can overlap. The diagnostic was deliberately stopped after capture and its
+instrumented timings are not comparison results. Exact COUNT panes and sorted bulk state I/O
+subsequently reduce the 1M high-cardinality memory HOP native median from 0.812 to 0.402s;
+that profile still loses its paired stock control. Complete-job measurements retain those
+limits and all initial/revised unfavorable trials. The
+[trial artifact](../benchmarks/results/attached-windows-2026-10-14.json) and
+[CPU capture](../benchmarks/results/attached-windows-2026-10-14-cpu.collapsed.gz) retain the evidence.
+The final release DSO SHA256 is
+`d09c0f6c60b1cc9aaae634af63b154dfbb33c130aeba54cd2550de6f94a7b3db`.

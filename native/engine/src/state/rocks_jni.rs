@@ -3066,6 +3066,7 @@ pub extern "system" fn Java_tech_streamfusion_Native_rocksdbOverAggregatorSuppor
                     rocks_row_supported(&state_types)
                         && rocks_row_supported(&rocks_over_frame_value_types(
                             &value_types,
+                            &kinds,
                             frame_kind as i64,
                         ))
                         && rocks_row_supported(&rocks_over_distinct_element_types(
@@ -3185,7 +3186,7 @@ pub extern "system" fn Java_tech_streamfusion_Native_createRocksDBOverAggregator
                     &mut env,
                     config,
                     &state_types,
-                    &rocks_over_frame_value_types(&value_types, frame_kind as i64),
+                    &rocks_over_frame_value_types(&value_types, &kinds, frame_kind as i64),
                     &rocks_over_distinct_element_types(&value_types, &kinds, frame_kind as i64),
                     schema,
                     &source_directories,
@@ -3603,6 +3604,21 @@ pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerStateBytes
         unsafe { &*(handle as *const RocksTopNHandle) }.state_bytes() as jlong
     })
 }
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerCacheStats<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jni::sys::jlongArray {
+    crate::bridge::jni_guard(env, move |env| {
+        let stats = unsafe { &*(handle as *const RocksTopNHandle) }.cache_stats();
+        let output = env.new_long_array(4).expect("top-1 cache stats array");
+        env.set_long_array_region(&output, 0, &stats)
+            .expect("top-1 cache stats values");
+        output.into_raw()
+    })
+}
+
 #[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_Native_rocksdbTopNRankerStagingBytes<'local>(
     env: JNIEnv<'local>,

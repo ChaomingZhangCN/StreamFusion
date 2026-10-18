@@ -21,7 +21,8 @@ import tech.streamfusion.state.RocksDBNativeStateSupport;
  * Append-only streaming Top-N, fed Arrow batches and emitting Arrow batches. The changelog flows
  * Arrow with no per-operator transpose; each partitioned shuffle stays columnar where the input is a
  * columnar producer, and the row↔Arrow conversion happens only at the host edges. The output batch
- * carries the changelog kind on its {@code $row_kind$} column.
+ * carries the changelog kind on its {@code $row_kind$} column. Unbounded non-time ROW_NUMBER
+ * retains every row and selects row-identity update pairs after handle creation/restoration.
  */
 public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<ArrowBatch>
     implements OneInputStreamOperator<ArrowBatch, ArrowBatch> {
@@ -35,6 +36,7 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   private final long limit;
   private final int rankEndColumn;
   private final boolean firstBound;
+  private final boolean nonTimeRowNumber;
   private final boolean outputRankNumber;
   private final boolean retracting;
   // Update-fast mode (Flink's UpdatableTopNFunction shape): the unique-key columns identifying the
@@ -50,6 +52,8 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   private transient MiniBatchMetrics miniBatchMetrics;
   private transient BatchCoalescer coalescer;
   private transient long cacheSize;
+  private transient double cacheHitRate;
+  private transient long cacheBytes;
   private transient Counter invalidTopSize;
 
   public NativeColumnarTopNOperator(
@@ -137,6 +141,50 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
       int maxParallelism,
       int rankEndColumn,
       boolean firstBound) {
+    this(
+        partitionColumns,
+        keyTimestampPrecisions,
+        rowType,
+        sortIndices,
+        sortAscending,
+        sortNullsFirst,
+        offset,
+        limit,
+        outputRankNumber,
+        retracting,
+        rowKeyColumns,
+        rowKeyTimestampPrecisions,
+        generateUpdateBefore,
+        netDiff,
+        miniBatchSize,
+        stateTtlMillis,
+        maxParallelism,
+        rankEndColumn,
+        firstBound,
+        false);
+  }
+
+  public NativeColumnarTopNOperator(
+      int[] partitionColumns,
+      int[] keyTimestampPrecisions,
+      RowType rowType,
+      int[] sortIndices,
+      int[] sortAscending,
+      int[] sortNullsFirst,
+      long offset,
+      long limit,
+      boolean outputRankNumber,
+      boolean retracting,
+      int[] rowKeyColumns,
+      int[] rowKeyTimestampPrecisions,
+      boolean generateUpdateBefore,
+      boolean netDiff,
+      long miniBatchSize,
+      long stateTtlMillis,
+      int maxParallelism,
+      int rankEndColumn,
+      boolean firstBound,
+      boolean nonTimeRowNumber) {
     super("top-n", keyTimestampPrecisions, maxParallelism);
     this.partitionColumns = partitionColumns;
     this.rowType = rowType;
@@ -152,14 +200,29 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
     if (firstBound && rowKeyColumns != null && stateTtlMillis > 0) {
       throw new IllegalArgumentException("changing update-fast bounds require disabled state TTL");
     }
+    if (nonTimeRowNumber
+        && (offset != 0
+            || limit != Long.MAX_VALUE
+            || rankEndColumn != -1
+            || !outputRankNumber
+            || retracting
+            || rowKeyColumns != null
+            || !generateUpdateBefore
+            || netDiff
+            || firstBound
+            || stateTtlMillis > 0)) {
+      throw new IllegalArgumentException(
+          "non-time ROW_NUMBER requires unbounded insert-only state without TTL or net diff");
+    }
     this.rankEndColumn = rankEndColumn;
     this.firstBound = firstBound;
+    this.nonTimeRowNumber = nonTimeRowNumber;
     this.outputRankNumber = outputRankNumber;
     this.retracting = retracting;
     this.rowKeyColumns = rowKeyColumns;
     this.rowKeyTimestampPrecisions = rowKeyTimestampPrecisions;
     this.generateUpdateBefore = generateUpdateBefore;
-    this.netDiff = netDiff && !firstBound;
+    this.netDiff = netDiff && !firstBound && !nonTimeRowNumber;
     this.miniBatchSize = miniBatchSize;
     this.stateTtlMillis = stateTtlMillis;
   }
@@ -334,10 +397,13 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   @Override
   public void open() throws Exception {
     super.open();
+    if (nonTimeRowNumber) Native.enableNonTimeRowNumber(handle, directRocksDBState());
     if (firstBound) Native.enableTopNFirstBound(handle, directRocksDBState(), generateUpdateBefore);
     invalidTopSize = getMetricGroup().counter("topn.invalidTopSize");
     if (!retracting) {
-      getMetricGroup().gauge("topn.cache.hitRate", () -> 1.0);
+      cacheHitRate = directRocksDBState() ? 0.0 : 1.0;
+      getMetricGroup().gauge("topn.cache.hitRate", () -> cacheHitRate);
+      if (directRocksDBState()) getMetricGroup().gauge("topn.cache.bytes", () -> cacheBytes);
       getMetricGroup().gauge("topn.cache.size", () -> cacheSize);
       publishCacheSize();
     }
@@ -406,8 +472,13 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
   }
 
   private void publishCacheSize() {
-    // The direct RocksDB rankers keep no resident cache between bundles; the gauge stays zero.
-    if (!retracting && handle != 0 && !directRocksDBState()) {
+    if (retracting || handle == 0) return;
+    if (directRocksDBState()) {
+      long[] stats = Native.rocksdbTopNRankerCacheStats(handle);
+      cacheSize = stats[0];
+      cacheHitRate = stats[1] + stats[2] == 0 ? 0.0 : (double) stats[1] / (stats[1] + stats[2]);
+      cacheBytes = stats[3];
+    } else {
       cacheSize = Native.topNRankerCacheSize(handle);
     }
   }

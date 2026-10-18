@@ -193,6 +193,13 @@ This fixture change does not fix or expand admission for the released SDK defect
 deployments reading affected local INT96 files still inherit it. UTC timestamp
 encoding is a separate contract. See [#332](https://github.com/datafusion-contrib/StreamFusion/issues/332).
 
+Issue #332 remains closed: StreamFusion preserves released-host behavior rather than adding
+its own timestamp correction. A follow-up comparison using the actual native encoder and
+released Flink 2.2.1 matched INT96 bytes and stock-reader outcomes across 24 configurations
+(UTC, Asia/Shanghai and America/Los_Angeles; UTC/local encoding; precision 3/9; dictionary
+on/off), with 240 input values and 24 complete file-read comparisons. This includes the
+host's exceptions and silent epoch-boundary corruption; closure does not claim an upstream fix.
+
 The validation matrix runs the 45 window/join/watermark/shuffle cases plus ten
 Parquet timestamp controls on released Flink 1.18.1 and 2.2.1 with JDK 17, under
 UTC and Asia/Shanghai. Flink 1.18 retains its two existing unavailable-session

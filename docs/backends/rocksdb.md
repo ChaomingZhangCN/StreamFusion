@@ -18,6 +18,11 @@ backend is retained for ordinary Flink operators. Incremental checkpointing, loc
 predefined options, previously configured RocksDB options and programmatic memory settings keep
 Flink's precedence; legacy checkpoint storage keeps its precedence too. Custom backend subclasses,
 options factories and memory factories retain the stock backend and cause keyed SQL to fall back.
+Configuration supplied through `EnvironmentSettings` participates in this selection, including
+RocksDB options in the table's root configuration. After successful selection, the application
+table configuration's backend selector is consumed so Flink's later pipeline reconfiguration
+retains the resolved native backend and its configured host delegate. Custom root configurations
+that cannot be copied retain the stock backend and cause keyed SQL to fall back.
 Disabled native acceleration leaves the original backend selection alone. Flink 2.2 still requires
 the explicit StreamFusion factory above to select the Rust-owned RocksDB backend.
 
@@ -39,7 +44,10 @@ filter reads one integer per entry.
 Point reads use RocksDB's optimized batched MultiGet API on the default column family. The Rust
 binding borrows the batch's key bytes and returns pinned values, which remain valid through the
 batch decode and are then released. Operator state owns its decoded values; it does not retain
-RocksDB cache pins across bundles. This changes the read path without changing persisted keys,
+RocksDB cache pins across bundles. Constant AppendFast Top-1 can retain clean,
+owned decoded winners in a bounded cache governed by task off-heap reservations;
+[the Top-N page](../operators/top-n.md) describes its admission, metrics and
+checkpoint behavior. This changes the read path without changing persisted keys,
 value encodings, or checkpoint files. Range-oriented state continues to use iterators.
 
 The group-aggregate codec builds primitive Arrow columns directly from its accumulators and
@@ -52,7 +60,13 @@ shared block cache and write-buffer manager per slot — sized by `memory.fixed-
 else the slot's managed-memory share (`memory.managed`, on by default), else `memory.fixed-per-tm`
 at TaskManager scope — with memtables charged against the cache under Flink's
 `memory.write-buffer-ratio` split. With none of these configured, each store falls back to its own
-per-instance write buffers and block cache from the translated options.
+per-instance write buffers and block cache from the translated options. A shared store sizes its
+memtable arena quantum from one eighth of the smaller of the configured write
+buffer and the shared write-buffer-manager capacity, rounded to RocksDB's 4 KiB
+minimum alignment. This prevents an oversized configured buffer from allocating
+an entire small slot budget at once and evicting cached reads. The configured
+write-buffer size and total shared memory budget are unchanged.
+
 
 Aligned same-range recovery opens a local copy of the checkpoint database. Rescaling reads only the
 key groups assigned to the recovering subtask and writes a new local database. This preserves

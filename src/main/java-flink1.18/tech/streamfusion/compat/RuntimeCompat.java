@@ -9,6 +9,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public final class RuntimeCompat {
   private RuntimeCompat() {}
 
+  public static boolean supportsTemporalOverFirstLast() {
+    return false;
+  }
+
+  public static boolean windowTvfPreservesRowKinds() {
+    return false;
+  }
+
   public static org.apache.flink.table.data.RowData copyRow(
       org.apache.flink.table.runtime.typeutils.RowDataSerializer serializer,
       org.apache.flink.table.data.RowData row) {
@@ -26,6 +34,10 @@ public final class RuntimeCompat {
 
   public static int parallelism(RuntimeContext context) {
     return context.getNumberOfParallelSubtasks();
+  }
+
+  public static int maxParallelism(RuntimeContext context) {
+    return context.getMaxNumberOfParallelSubtasks();
   }
 
   public static int subtask(RuntimeContext context) {

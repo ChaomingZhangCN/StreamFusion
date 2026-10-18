@@ -15,7 +15,8 @@ import org.apache.flink.table.planner.utils.ShortcutUtils;
  * ColumnarOutput}), substituted when the ranker's partitioned input is kept columnar across the
  * exchange. The emitted changelog carries its kind on the batch's {@code $row_kind$} column.
  * {@code retracting} selects the changelog-input ranker (keeps the full buffer to promote on delete)
- * over the append-only one.
+ * over the append-only one. Non-time ROW_NUMBER uses the append-only state without a bound and
+ * selects row-identity updates instead of rank-slot replacements.
  */
 public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingleRel
     implements ColumnarInput, ColumnarOutput {
@@ -28,6 +29,7 @@ public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingle
   private final long limit;
   private final int rankEndColumn;
   private final boolean firstBound;
+  private final boolean nonTimeRowNumber;
   private final boolean outputRankNumber;
   private final boolean retracting;
   // Update-fast mode: the unique-key columns identifying the row a record replaces (null otherwise).
@@ -86,6 +88,44 @@ public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingle
       int[] rowKeyColumns,
       boolean generateUpdateBefore,
       boolean firstBound) {
+    this(
+        cluster,
+        traitSet,
+        input,
+        outputRowType,
+        partitionColumns,
+        sortIndices,
+        sortAscending,
+        sortNullsFirst,
+        offset,
+        limit,
+        rankEndColumn,
+        outputRankNumber,
+        retracting,
+        rowKeyColumns,
+        generateUpdateBefore,
+        firstBound,
+        false);
+  }
+
+  public StreamPhysicalNativeColumnarTopN(
+      RelOptCluster cluster,
+      RelTraitSet traitSet,
+      RelNode input,
+      RelDataType outputRowType,
+      int[] partitionColumns,
+      int[] sortIndices,
+      int[] sortAscending,
+      int[] sortNullsFirst,
+      long offset,
+      long limit,
+      int rankEndColumn,
+      boolean outputRankNumber,
+      boolean retracting,
+      int[] rowKeyColumns,
+      boolean generateUpdateBefore,
+      boolean firstBound,
+      boolean nonTimeRowNumber) {
     super(cluster, traitSet, input, outputRowType);
     this.partitionColumns = partitionColumns;
     this.sortIndices = sortIndices;
@@ -95,6 +135,7 @@ public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingle
     this.limit = limit;
     this.rankEndColumn = rankEndColumn;
     this.firstBound = firstBound;
+    this.nonTimeRowNumber = nonTimeRowNumber;
     this.outputRankNumber = outputRankNumber;
     this.retracting = retracting;
     this.rowKeyColumns = rowKeyColumns;
@@ -124,7 +165,8 @@ public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingle
         retracting,
         rowKeyColumns,
         generateUpdateBefore,
-        firstBound);
+        firstBound,
+        nonTimeRowNumber);
   }
 
   @Override
@@ -149,6 +191,7 @@ public class StreamPhysicalNativeColumnarTopN extends StreamPhysicalNativeSingle
             ? null
             : FlinkKeyGroupUtils.timestampPrecisions(getInput().getRowType(), rowKeyColumns),
         FlinkKeyGroupUtils.timestampPrecisions(getInput().getRowType(), partitionColumns),
-        firstBound);
+        firstBound,
+        nonTimeRowNumber);
   }
 }

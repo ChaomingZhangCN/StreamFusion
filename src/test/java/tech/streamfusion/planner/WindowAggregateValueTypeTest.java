@@ -29,12 +29,27 @@ class WindowAggregateValueTypeTest {
   }
 
   @Test
+  void timestampTypesAreAdmittedOnlyForExtrema() {
+    for (var type :
+        new SqlTypeName[] {SqlTypeName.TIMESTAMP, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE}) {
+      assertTrue(WindowAggregateMatcher.supportedAggregateValueType(
+          WindowAggregateMatcher.KIND_MIN, type));
+      assertTrue(WindowAggregateMatcher.supportedAggregateValueType(
+          WindowAggregateMatcher.KIND_MAX, type));
+      for (int kind : new int[] {WindowAggregateMatcher.KIND_SUM,
+          WindowAggregateMatcher.KIND_SUM_ZERO, WindowAggregateMatcher.KIND_AVG,
+          WindowAggregateMatcher.KIND_COUNT}) {
+        assertFalse(WindowAggregateMatcher.supportedAggregateValueType(kind, type));
+      }
+    }
+  }
+
+  @Test
   void extremaDoNotAdmitUnverifiedTypes() {
     for (var type :
         new SqlTypeName[] {
           SqlTypeName.BOOLEAN,
           SqlTypeName.DATE,
-          SqlTypeName.TIMESTAMP,
           SqlTypeName.BINARY,
           SqlTypeName.ARRAY,
           SqlTypeName.MAP

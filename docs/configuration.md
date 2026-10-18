@@ -15,6 +15,16 @@ serialized operator configuration rather than process-global state before a stab
   two-phase global half, `windowRank` also covers window deduplication. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
+- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
+  native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
+  Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
+  measurements. Existing admitted binary/generated shapes are unaffected. See
+  [Calc/filter](operators/calc-filter.md) for the scope and results.
+- **`streamfusion.calc.temporalUdf.enabled`** (default false) — opt into complete-row generated
+  Calc evaluation for scalar UDFs using `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ
+  arguments/results. Standalone row-source projections remain slower than stock Flink in release
+  measurements. The default preserves host execution; builtin temporal functions retain their
+  existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
 - **`-Dstreamfusion.fluss.enabled=false`** — disable the optional Fluss extension’s source/sink
   substitutions. This JVM property defaults to true when `streamfusion-fluss` is installed;
   only the verified combinations in [Fluss](connectors/fluss.md) accelerate.
@@ -88,6 +98,14 @@ processing-time, session and legacy windows. High-cardinality single-phase CUMUL
 against Flink in the complete-job comparison, so stock Flink remains the default for these
 string aggregates. Two-phase local/global string extrema do not require this option. See
 [Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+
+`streamfusion.window.attached.single-phase.enabled` also defaults to `false`. Set it to `true`
+in table configuration to admit verified append-only event-time TUMBLE/HOP/CUMULATE
+re-aggregation over attached window bounds in ONE_PHASE plans. Default stock execution
+preserves the measured HOP/high-cardinality and persistent COUNT performance limitations;
+the existing AUTO/TWO_PHASE attached route retains its admission. See
+[Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
+for exact coverage and retained performance results.
 
 ## Diagnostics
 

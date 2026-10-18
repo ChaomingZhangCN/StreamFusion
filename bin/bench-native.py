@@ -61,11 +61,11 @@ def main():
         "commands": [], "environment": {key: os.environ[key] for key in ("RUSTFLAGS", "CARGO_BUILD_JOBS", "JAVA_HOME") if key in os.environ},
     }
     environment = os.environ.copy()
-    if any(bench in {"scalar_registry", "jvm_truncate", "parquet_host_reader"} for _, bench in selected):
+    if any(bench in {"scalar_registry", "jvm_truncate", "parquet_host_reader", "over_heap_snapshot", "fixed_window_calendar", "session_calendar", "window_tvf_calendar", "window_consumers_calendar"} for _, bench in selected):
         classpath = environment.get("SF_NATIVE_BENCH_CLASSPATH")
         if not classpath:
             classpath_file = (output / "java-classpath.txt").resolve()
-            java_phase = "test-compile" if any(bench in {"jvm_truncate", "parquet_host_reader"} for _, bench in selected) else "compile"
+            java_phase = "test-compile" if any(bench in {"jvm_truncate", "parquet_host_reader", "over_heap_snapshot"} for _, bench in selected) else "compile"
             command = ["mvn", "-B", "-ntp", "-pl", "streamfusion-runtime", "-am", java_phase,
                        "org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath",
                        "-Dnative.build.skip=true", f"-Dmdep.outputFile={classpath_file}"]

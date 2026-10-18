@@ -19,6 +19,17 @@ final class PlanContext {
   private final Set<String> repeatedSources;
   private final Map<RelNode, RelNode> originals = new IdentityHashMap<>();
 
+  private final Map<RelNode, Map<Substitution<?>, String>> probeFailures = new IdentityHashMap<>();
+
+  void probeFailed(Substitution<?> entry, RelNode node, String reason) {
+    probeFailures.computeIfAbsent(node, ignored -> new IdentityHashMap<>()).put(entry, reason);
+  }
+
+  String probeFailure(Substitution<?> entry, RelNode node) {
+    Map<Substitution<?>, String> failures = probeFailures.get(node);
+    return failures == null ? null : failures.get(entry);
+  }
+
   PlanContext(PhysicalPlanScan scan, Set<String> repeatedSources) {
     this.scan = scan;
     this.repeatedSources = repeatedSources;
@@ -62,13 +73,19 @@ final class PlanContext {
    * when it is columnar no transpose is needed. A non-exchange input is returned unchanged.
    */
   RelNode columnarInput(RelNode input, int[] keyColumns) {
+    return columnarInput(input, keyColumns, false);
+  }
+
+  /** Some SINGLETON consumers keep their state in a fixed one-key-group namespace. */
+  RelNode columnarInput(RelNode input, int[] keyColumns, boolean singleKeyGroup) {
     if (input instanceof StreamPhysicalExchange) {
       return new StreamPhysicalNativeColumnarExchange(
           input.getCluster(),
           input.getTraitSet(),
           input.getInputs().get(0),
           input.getRowType(),
-          keyColumns);
+          keyColumns,
+          singleKeyGroup);
     }
     return input;
   }

@@ -35,6 +35,10 @@ final class RocksDBBackendSelection {
     Configuration config = new Configuration();
     if (tableConfig instanceof TableConfig) {
       TableConfig table = ((TableConfig) tableConfig);
+      if (!(table.getRootConfiguration() instanceof Configuration)) {
+        return "state backend: cannot preserve a custom table root configuration";
+      }
+      config.addAll((Configuration) table.getRootConfiguration());
       config.addAll(table.getConfiguration());
     }
     config.addAll((Configuration) environment.getConfiguration());
@@ -94,6 +98,13 @@ final class RocksDBBackendSelection {
       RocksDBNativeStateBackend replacement = new RocksDBNativeStateBackend(nativeConfig, delegate);
       if (storage != null) environment.getCheckpointConfig().setCheckpointStorage(storage);
       environment.setStateBackend(replacement);
+      if (tableConfig instanceof TableConfig) {
+        // DefaultExecutor configures the environment again after translation. The resolved
+        // backend now owns this selection; reloading the stock factory would discard it.
+        ((TableConfig) tableConfig)
+            .getConfiguration()
+            .removeConfig(StateBackendOptions.STATE_BACKEND);
+      }
       return null;
     } catch (ReflectiveOperationException | ClassCastException | SecurityException failure) {
       return "state backend: cannot preserve the configured Flink 1.18 RocksDB backend ("

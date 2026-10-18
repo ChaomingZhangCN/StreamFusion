@@ -4,6 +4,9 @@ import org.junit.jupiter.api.Assumptions;
 
 /** Explicit N/A checks for syntax or host operations absent from the selected released line. */
 public final class FlinkTestCapabilities {
+  public static final boolean MINIBATCH_JOIN = true;
+  public static final boolean NON_TIME_OVER = true;
+
   public static final boolean CHAR_EXTREMA = true;
   public static final boolean TIME_TRY_CAST_REJECTS_OUT_OF_RANGE = true;
   public static final boolean CAST_TIME_SINGLE_VALUE = true;

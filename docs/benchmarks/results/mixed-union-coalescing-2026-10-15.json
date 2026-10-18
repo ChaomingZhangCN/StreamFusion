@@ -1,0 +1,995 @@
+{
+  "date": "2026-10-15",
+  "issue": 365,
+  "source_base": "35b54e57771f92de9dfc649d8800f797b907fbd2",
+  "production_source_sha256": {
+    "native/engine/src/exchange.rs": "eb1caa45ff2486c81d6b42cd245a3fd0f7fa9ba6425236eff614fbdada3ce3c1",
+    "native/engine/src/exchange/coalesce.rs": "967bb95dd3f6834e896ec53abf72e3abb706d3f15263fcf8e045d4a9a4856e27",
+    "src/main/java/tech/streamfusion/operator/BatchCoalescer.java": "7fb66e354756e1a0dc6b7c9a20eb4f49b29aad70459675f5566879245e33fc3e"
+  },
+  "native_library_sha256": {
+    "baseline": "598e5373cd81e459a749e27a0fb2734e6ed40e3d6def8c093a935e13ca40cfb8",
+    "fixed": "24cef157092f0564f6f6c70a1d0f3d92169dd4a4c6b6fffede564cc566e96e0c"
+  },
+  "environment": {
+    "flink": "2.2.1",
+    "jdk": "17",
+    "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "cpu_model": "12th Gen Intel(R) Core(TM) i7-12650H",
+    "parallelism": 1,
+    "backend": "memory",
+    "release": true,
+    "features": [
+      "mimalloc",
+      "rocksdb-state"
+    ]
+  },
+  "query": "SELECT k, SUM(v) AS v FROM (SELECT k, v FROM (SELECT s AS k, d AS v FROM src) s UNION ALL SELECT k, SUM(v) AS v FROM (SELECT s AS k, d AS v FROM src) s GROUP BY k) u GROUP BY k",
+  "fixture": "BasicTypeBenchmark bounded RowData source: 991 distinct STRING values plus NULL, nullable DECIMAL(7,2); every seventh row has NULL key and value",
+  "end_to_end_boundary": "Complete submitted row-source to rowwise blackhole jobs, including both transposes, JNI, native state, and Arrow IPC shuffle. Warmups execute before five retained runs; stock/native ordering alternates each trial.",
+  "configuration": {
+    "warmups": 2,
+    "runs": 5,
+    "mini_batch": false,
+    "zero_copy_local": false,
+    "transpose_rows": 1024,
+    "coalesce_latency_ms": 50,
+    "sf_test_forks": 1
+  },
+  "reproduce_fixed": "SF_BENCHMARK=true mvn test -Pbench -pl streamfusion-runtime -am -Dtest=MixedUnionBenchmark -Dsurefire.failIfNoSpecifiedTests=false -Dbasic.rows=2000000 -Dbasic.keys=991 -Dbasic.warmup=2 -Dbasic.runs=5 -Dbasic.miniBatch=false",
+  "baseline_method": "Copied the same benchmark fixture into a worktree at source_base, retaining its unmodified production Java and Rust. Default coalescing failed at both sizes; baseline-control changes only coalesceRows to 1.",
+  "limitations": [
+    "Default baseline returns incorrect sums in the four-row SQL regression and intermittently panics at both larger sizes; partial timings are retained but are not successful speed comparisons.",
+    "The 200000-row jobs show substantial startup/JIT variability. These complete-job times do not isolate steady-state processing.",
+    "The fixed-default and disabled-coalescing baseline controls have different coalescing settings; their timing difference is not a controlled optimization speedup.",
+    "Criterion reports allocation requests and output buffer sharing, not copied-byte counts; JNI and Flink scheduling are outside its timed boundary."
+  ],
+  "correctness": {
+    "flink22": [
+      {
+        "suite": "tech.streamfusion.FlinkMixedUnionSqlHarnessTest",
+        "tests": 22,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "tech.streamfusion.FlinkUnionSqlHarnessTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "tech.streamfusion.operator.BatchCoalescerTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "flink118": [
+      {
+        "suite": "tech.streamfusion.FlinkMixedUnionSqlHarnessTest",
+        "tests": 22,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "tech.streamfusion.FlinkUnionSqlHarnessTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "tech.streamfusion.operator.BatchCoalescerTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "canonical_baseline": {
+      "tests": 16,
+      "failures": 12,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "rust_regressions": {
+    "selected": 4,
+    "passed": 4
+  },
+  "criterion": {
+    "fixtures": 24,
+    "sample_size": 20,
+    "warmup_seconds": 1,
+    "measurement_seconds": 1,
+    "cases": [
+      {
+        "case": "append/rows=1024/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8981.58917273576,
+            "upper_bound": 9081.736666666668
+          },
+          "point_estimate": 9008.920201058201,
+          "standard_error": 21.577417734635038
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 491668,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 490500
+      },
+      {
+        "case": "append/rows=1024/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1636.3117718570581,
+            "upper_bound": 1660.0596570954422
+          },
+          "point_estimate": 1650.5871541044344,
+          "standard_error": 6.825265381760021
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 56676,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 55508
+      },
+      {
+        "case": "append/rows=16/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 745.1307602367871,
+            "upper_bound": 756.2602212434454
+          },
+          "point_estimate": 748.0938775510203,
+          "standard_error": 3.3677697478794846
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 8596,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 7308
+      },
+      {
+        "case": "append/rows=16/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 686.4226527420144,
+            "upper_bound": 705.0670015268881
+          },
+          "point_estimate": 692.0282985630818,
+          "standard_error": 4.909398243689678
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 2148,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 860
+      },
+      {
+        "case": "append/rows=4096/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 70468.88717532466,
+            "upper_bound": 72222.36284271284
+          },
+          "point_estimate": 70869.67424242425,
+          "standard_error": 578.0744755524281
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 1964180,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 1963012
+      },
+      {
+        "case": "append/rows=4096/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4888.665104166666,
+            "upper_bound": 4991.273803323413
+          },
+          "point_estimate": 4946.191524203432,
+          "standard_error": 27.113838694237472
+        },
+        "allocation_requests": 22,
+        "requested_bytes": 223220,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 222052
+      },
+      {
+        "case": "mixed-append-first/rows=1024/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 10867.162454947997,
+            "upper_bound": 11077.672109490593
+          },
+          "point_estimate": 10912.80064257028,
+          "standard_error": 53.71068095485865
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 496764,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 492548
+      },
+      {
+        "case": "mixed-append-first/rows=1024/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2893.999330449114,
+            "upper_bound": 2950.742450738021
+          },
+          "point_estimate": 2906.9362473512274,
+          "standard_error": 14.708916478160027
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 61772,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 57556
+      },
+      {
+        "case": "mixed-append-first/rows=16/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1584.981706081081,
+            "upper_bound": 1622.309527027027
+          },
+          "point_estimate": 1596.1213694162911,
+          "standard_error": 10.143316160958722
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 10668,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 7340
+      },
+      {
+        "case": "mixed-append-first/rows=16/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1505.1474768413186,
+            "upper_bound": 1516.4168503136125
+          },
+          "point_estimate": 1512.589968852793,
+          "standard_error": 3.232753843800587
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 4220,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 892
+      },
+      {
+        "case": "mixed-append-first/rows=4096/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 79745.32998810586,
+            "upper_bound": 80508.66666666666
+          },
+          "point_estimate": 80145.49071056063,
+          "standard_error": 171.73216385595666
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 1978492,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 1971204
+      },
+      {
+        "case": "mixed-append-first/rows=4096/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7260.431074714759,
+            "upper_bound": 7394.493052503052
+          },
+          "point_estimate": 7297.15298076923,
+          "standard_error": 36.246655475578045
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 237532,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 230244
+      },
+      {
+        "case": "mixed-update-first/rows=1024/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11001.057489165763,
+            "upper_bound": 11187.665122312825
+          },
+          "point_estimate": 11084.809076682315,
+          "standard_error": 51.686241413773644
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 496764,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 492548
+      },
+      {
+        "case": "mixed-update-first/rows=1024/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2859.058661829471,
+            "upper_bound": 2901.609485884486
+          },
+          "point_estimate": 2890.4065677196804,
+          "standard_error": 11.848103963751194
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 61772,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 57556
+      },
+      {
+        "case": "mixed-update-first/rows=16/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1571.5361087689714,
+            "upper_bound": 1596.0559106239461
+          },
+          "point_estimate": 1584.5477132479662,
+          "standard_error": 6.197482441616282
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 10668,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 7340
+      },
+      {
+        "case": "mixed-update-first/rows=16/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1524.7480139334978,
+            "upper_bound": 1554.8816703010252
+          },
+          "point_estimate": 1540.0525171065492,
+          "standard_error": 8.168163729164272
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 4220,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 892
+      },
+      {
+        "case": "mixed-update-first/rows=4096/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 80926.67068965518,
+            "upper_bound": 81862.42959770115
+          },
+          "point_estimate": 81469.16759634888,
+          "standard_error": 258.94381346271905
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 1978492,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 1971204
+      },
+      {
+        "case": "mixed-update-first/rows=4096/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7497.975057234432,
+            "upper_bound": 7684.757068799958
+          },
+          "point_estimate": 7547.22516025641,
+          "standard_error": 48.308889194533904
+        },
+        "allocation_requests": 49,
+        "requested_bytes": 237532,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 230244
+      },
+      {
+        "case": "updating/rows=1024/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 10097.675097984322,
+            "upper_bound": 10563.71569148936
+          },
+          "point_estimate": 10216.207725430599,
+          "standard_error": 133.4439892621511
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 494028,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 492548
+      },
+      {
+        "case": "updating/rows=1024/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2342.096202689243,
+            "upper_bound": 2402.96344621514
+          },
+          "point_estimate": 2370.939563175868,
+          "standard_error": 14.639784037548775
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 59036,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 57556
+      },
+      {
+        "case": "updating/rows=16/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 936.970733527912,
+            "upper_bound": 951.3309810607436
+          },
+          "point_estimate": 943.3837224906065,
+          "standard_error": 4.1082100577427845
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 8940,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 7340
+      },
+      {
+        "case": "updating/rows=16/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 889.6425699365407,
+            "upper_bound": 906.1916235136172
+          },
+          "point_estimate": 893.3703821670593,
+          "standard_error": 3.9413748737027636
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 2492,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 892
+      },
+      {
+        "case": "updating/rows=4096/width=256",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 78064.04895833333,
+            "upper_bound": 82457.53444444445
+          },
+          "point_estimate": 81997.22195723685,
+          "standard_error": 1244.3197816675017
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 1972684,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 1971204
+      },
+      {
+        "case": "updating/rows=4096/width=8",
+        "median_ns": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7311.468310722458,
+            "upper_bound": 7561.403726708075
+          },
+          "point_estimate": 7390.764529724934,
+          "standard_error": 72.66890406773003
+        },
+        "allocation_requests": 27,
+        "requested_bytes": 231724,
+        "shared_output_buffer_bytes": 0,
+        "new_output_buffer_bytes": 230244
+      }
+    ]
+  },
+  "end_to_end": [
+    {
+      "variant": "baseline",
+      "rows": 200000,
+      "coalesce_rows": 4096,
+      "outcome": "FAILED_NATIVE_CONCAT",
+      "failure": "native panic: index out of bounds: the len is 2 but the index is 2",
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.277333
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.671504
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.420607
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.695858
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.559809
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.342505
+        }
+      ],
+      "summary": {}
+    },
+    {
+      "variant": "baseline",
+      "rows": 2000000,
+      "coalesce_rows": 4096,
+      "outcome": "FAILED_NATIVE_CONCAT",
+      "failure": "native panic: index out of bounds: the len is 2 but the index is 2",
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.617562
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.082664
+        }
+      ],
+      "summary": {}
+    },
+    {
+      "variant": "baseline-control",
+      "rows": 200000,
+      "coalesce_rows": 1,
+      "outcome": "SUCCESS",
+      "failure": null,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.272434
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.585689
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.43237
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.709517
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.593138
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.413203
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.392033
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.450282
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.454133
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.346272
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.321625
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.427159
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.425961
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.324126
+        }
+      ],
+      "summary": {
+        "Flink": {
+          "median_seconds": 0.450282,
+          "min_seconds": 0.425961,
+          "max_seconds": 0.593138,
+          "sample_stdev_seconds": 0.06996110075106025
+        },
+        "StreamFusion": {
+          "median_seconds": 0.346272,
+          "min_seconds": 0.321625,
+          "max_seconds": 0.413203,
+          "sample_stdev_seconds": 0.04124079341744045
+        }
+      }
+    },
+    {
+      "variant": "baseline-control",
+      "rows": 2000000,
+      "coalesce_rows": 1,
+      "outcome": "SUCCESS",
+      "failure": null,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.67084
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.41101
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.820174
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.775282
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.67356
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.706146
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.682484
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.67204
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.592756
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.656389
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.663186
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 2.621696
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 2.6322
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.604079
+        }
+      ],
+      "summary": {
+        "Flink": {
+          "median_seconds": 2.6322,
+          "min_seconds": 2.592756,
+          "max_seconds": 2.67356,
+          "sample_stdev_seconds": 0.03452789036127172
+        },
+        "StreamFusion": {
+          "median_seconds": 1.663186,
+          "min_seconds": 1.604079,
+          "max_seconds": 1.706146,
+          "sample_stdev_seconds": 0.03793136037238842
+        }
+      }
+    },
+    {
+      "variant": "fixed",
+      "rows": 200000,
+      "coalesce_rows": 4096,
+      "outcome": "SUCCESS",
+      "failure": null,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.289547
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.617921
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.400711
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.715464
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.541753
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.347336
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.317437
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.4553
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.445438
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.39967
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.297161
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.420006
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.475962
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.211249
+        }
+      ],
+      "summary": {
+        "Flink": {
+          "median_seconds": 0.4553,
+          "min_seconds": 0.420006,
+          "max_seconds": 0.541753,
+          "sample_stdev_seconds": 0.046033089720330544
+        },
+        "StreamFusion": {
+          "median_seconds": 0.317437,
+          "min_seconds": 0.211249,
+          "max_seconds": 0.39967,
+          "sample_stdev_seconds": 0.0694660758305808
+        }
+      }
+    },
+    {
+      "variant": "fixed",
+      "rows": 2000000,
+      "coalesce_rows": 4096,
+      "outcome": "SUCCESS",
+      "failure": null,
+      "trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.723108
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.172268
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.794345
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.740883
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.700156
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.618931
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.613004
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.702952
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.726778
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.616263
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.619783
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds": 2.636
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 2.71548
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.519018
+        }
+      ],
+      "summary": {
+        "Flink": {
+          "median_seconds": 2.702952,
+          "min_seconds": 2.636,
+          "max_seconds": 2.726778,
+          "sample_stdev_seconds": 0.035326990859681114
+        },
+        "StreamFusion": {
+          "median_seconds": 1.616263,
+          "min_seconds": 1.519018,
+          "max_seconds": 1.619783,
+          "sample_stdev_seconds": 0.043896520815435935
+        }
+      }
+    }
+  ]
+}

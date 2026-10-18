@@ -1,0 +1,3352 @@
+{
+  "date": "2026-10-15",
+  "baseline_revision": "f88dc23792058691d1daefedcafac281e604badb",
+  "implementation_parent": "167d4e4b",
+  "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "configuration": {
+    "flink": "2.2.1",
+    "java": "17.0.20.1",
+    "native": "release,mimalloc",
+    "java_heap_gib": 2,
+    "parallelism": 1,
+    "transpose_batch_rows": 1024,
+    "shuffle": "production Arrow IPC",
+    "phase": "ONE_PHASE",
+    "mini_batch": false,
+    "nulls": "every seventh row",
+    "boundary": "complete Flink job with row source, both transposes, JNI, state and row blackhole sink",
+    "pair_order": "alternating",
+    "large_cases": "two warmups/five measured pairs; 2M rows and 65,536 keys",
+    "controls": "one warmup/three measured pairs; 500k rows and 16,384 keys, preserving about 30 rows per key",
+    "previous_revision": "isolated actual previous main; identical harness/data/resources; zero native substitutions asserted"
+  },
+  "sha256": {
+    "native/engine/src/group_agg.rs": "23929e52a2d7f878a4d0cb821d5d7b97f4bff44d0d86b6e53187975c3dfad135",
+    "native/engine/src/group_agg/json_agg.rs": "188f91994dd2ab6ffe347c85ec4466ef53623785eafdec0096d3e2a8beee7ba8",
+    "native/engine/src/bench.rs": "8182c8b3e117810496c0b0b048514d656cd1e4e229ecdd04b23abdfaad55301f",
+    "src/main/java/tech/streamfusion/planner/GroupAggregateMatcher.java": "0d607048882a0e868a2e66413efe3c56dcbeb138b1aa882427da7dbd798e52a4",
+    "src/test/java/tech/streamfusion/StringAggregateBenchmark.java": "2982e01c4fb1056b8701fc6d0591f4af64720cad92392a6f80560ea8ae3f98c6",
+    "src/main/java-flink1.18/tech/streamfusion/compat/TableErrors.java": "b108e5c16897dcda417e65a02f3910ccedc835a860643dc05968589bed422272",
+    "src/main/java-flink2.2/tech/streamfusion/compat/TableErrors.java": "5770d540528ba7bd3d7e5a080f3288278094d001f09df904b2753ad0f1df287d",
+    "native/target/232-json-fixed/libstreamfusion.so": "d55c5bfa509c460a84c76c9bc2b62a4a46575cec32ff4d905847a1e66c4bd786"
+  },
+  "runs": [
+    {
+      "label": "array-append-2m-native",
+      "function": "JSON_ARRAYAGG",
+      "updating": false,
+      "rows": 2000000,
+      "keys": 65536,
+      "width": 16,
+      "value": "string",
+      "previous": false,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=2000000",
+        "-Dstringagg.keys=65536",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=true"
+      ],
+      "warmup_pairs": 2,
+      "measurement_pairs": 5,
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=false rows=2000000 keys=65536 width=16 stock=8.939006 native=1.890907 stock_trials=[8.939006489, 9.58820814, 8.692143587, 8.540092876, 9.006445476] native_trials=[1.856706243, 1.959688816, 1.890907304, 1.947220209, 1.864110963]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=10.291070",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=2.378926",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=2.045644",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=9.059854",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=8.939006",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=1.856706",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=1.959689",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=9.588208",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=8.692144",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=1.890907",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=1.947220",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=8.540093",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=9.006445",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=1.864111"
+      ],
+      "stock_trials_seconds": [
+        8.939006489,
+        9.58820814,
+        8.692143587,
+        8.540092876,
+        9.006445476
+      ],
+      "streamfusion_trials_seconds": [
+        1.856706243,
+        1.959688816,
+        1.890907304,
+        1.947220209,
+        1.864110963
+      ]
+    },
+    {
+      "label": "array-append-2m-previous",
+      "function": "JSON_ARRAYAGG",
+      "updating": false,
+      "rows": 2000000,
+      "keys": 65536,
+      "width": 16,
+      "value": "string",
+      "previous": true,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=2000000",
+        "-Dstringagg.keys=65536",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=false"
+      ],
+      "warmup_pairs": 2,
+      "measurement_pairs": 5,
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=false rows=2000000 keys=65536 width=16 stock=8.863445 native=8.756855 stock_trials=[9.060156606, 8.622540883, 8.863444898, 8.677426428, 8.917200789] native_trials=[9.323719833, 8.75685502, 8.584270077, 8.637627212, 9.146323976]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=10.123814",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=9.283352",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=9.144763",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=9.162006",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=9.060157",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=9.323720",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=8.756855",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=8.622541",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=8.863445",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=8.584270",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=8.637627",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=8.677426",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=8.917201",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=9.146324"
+      ],
+      "stock_trials_seconds": [
+        9.060156606,
+        8.622540883,
+        8.863444898,
+        8.677426428,
+        8.917200789
+      ],
+      "streamfusion_trials_seconds": [
+        9.323719833,
+        8.75685502,
+        8.584270077,
+        8.637627212,
+        9.146323976
+      ]
+    },
+    {
+      "label": "object-append-2m-native",
+      "function": "JSON_OBJECTAGG",
+      "updating": false,
+      "rows": 2000000,
+      "keys": 65536,
+      "width": 16,
+      "value": "string",
+      "previous": false,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=2000000",
+        "-Dstringagg.keys=65536",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=true"
+      ],
+      "warmup_pairs": 2,
+      "measurement_pairs": 5,
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=false rows=2000000 keys=65536 width=16 stock=26.991530 native=4.046228 stock_trials=[27.022323282, 26.88494436, 26.991529624, 27.798374614, 26.841470381] native_trials=[4.04622822, 4.150942812, 4.167298315, 3.946302526, 4.032506931]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=27.754214",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=4.579933",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=4.189894",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=26.460930",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=27.022323",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=4.046228",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=4.150943",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=26.884944",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=26.991530",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=4.167298",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=3.946303",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=27.798375",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=26.841470",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=4.032507"
+      ],
+      "stock_trials_seconds": [
+        27.022323282,
+        26.88494436,
+        26.991529624,
+        27.798374614,
+        26.841470381
+      ],
+      "streamfusion_trials_seconds": [
+        4.04622822,
+        4.150942812,
+        4.167298315,
+        3.946302526,
+        4.032506931
+      ]
+    },
+    {
+      "label": "object-append-500k-native",
+      "function": "JSON_OBJECTAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": false,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=true"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=false rows=500000 keys=16384 width=16 stock=6.289998 native=1.033405 stock_trials=[6.518469848, 6.226130264, 6.289998215] native_trials=[1.207984364, 1.033405497, 1.030895766]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=7.627961",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=1.373031",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=1.207984",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.518470",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=6.226130",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=1.033405",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=1.030896",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=6.289998"
+      ],
+      "stock_trials_seconds": [
+        6.518469848,
+        6.226130264,
+        6.289998215
+      ],
+      "streamfusion_trials_seconds": [
+        1.207984364,
+        1.033405497,
+        1.030895766
+      ]
+    },
+    {
+      "label": "object-append-500k-previous",
+      "function": "JSON_OBJECTAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": true,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=false"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=false rows=500000 keys=16384 width=16 stock=6.505637 native=6.172539 stock_trials=[6.505637233, 6.847019569, 6.040441564] native_trials=[6.270594278, 6.172538802, 5.966148723]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=7.606411",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=6.584802",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.270594",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.505637",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=6.847020",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=6.172539",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=5.966149",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=6.040442"
+      ],
+      "stock_trials_seconds": [
+        6.505637233,
+        6.847019569,
+        6.040441564
+      ],
+      "streamfusion_trials_seconds": [
+        6.270594278,
+        6.172538802,
+        5.966148723
+      ]
+    },
+    {
+      "label": "array-retract-500k-native",
+      "function": "JSON_ARRAYAGG",
+      "updating": true,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": false,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=true",
+        "-Dstringagg.expectNative=true"
+      ],
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=true rows=500000 keys=16384 width=16 stock=1.431440 native=0.500308 stock_trials=[1.587529794, 1.431440435, 1.398291026] native_trials=[0.542083814, 0.467827158, 0.500307609]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=2.355324",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=0.759790",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=0.542084",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=1.587530",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=1.431440",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=0.467827",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=0.500308",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=1.398291"
+      ],
+      "stock_trials_seconds": [
+        1.587529794,
+        1.431440435,
+        1.398291026
+      ],
+      "streamfusion_trials_seconds": [
+        0.542083814,
+        0.467827158,
+        0.500307609
+      ]
+    },
+    {
+      "label": "array-retract-500k-previous",
+      "function": "JSON_ARRAYAGG",
+      "updating": true,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": true,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=true",
+        "-Dstringagg.expectNative=false"
+      ],
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=true rows=500000 keys=16384 width=16 stock=1.427518 native=1.364634 stock_trials=[1.427517893, 1.38054283, 1.452574408] native_trials=[1.440620895, 1.364633898, 1.362761416]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=2.352141",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=1.522726",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=1.440621",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=1.427518",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=1.380543",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=1.364634",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=1.362761",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=1.452574"
+      ],
+      "stock_trials_seconds": [
+        1.427517893,
+        1.38054283,
+        1.452574408
+      ],
+      "streamfusion_trials_seconds": [
+        1.440620895,
+        1.364633898,
+        1.362761416
+      ]
+    },
+    {
+      "label": "object-retract-500k-native",
+      "function": "JSON_OBJECTAGG",
+      "updating": true,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": false,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=true",
+        "-Dstringagg.expectNative=true"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=true rows=500000 keys=16384 width=16 stock=2.781854 native=0.613749 stock_trials=[2.961426941, 2.781853699, 2.753675363] native_trials=[0.702703909, 0.591786309, 0.613748597]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=3.905273",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=0.926305",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=0.702704",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=2.961427",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=2.781854",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=0.591786",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=0.613749",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=2.753675"
+      ],
+      "stock_trials_seconds": [
+        2.961426941,
+        2.781853699,
+        2.753675363
+      ],
+      "streamfusion_trials_seconds": [
+        0.702703909,
+        0.591786309,
+        0.613748597
+      ]
+    },
+    {
+      "label": "object-retract-500k-previous",
+      "function": "JSON_OBJECTAGG",
+      "updating": true,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "string",
+      "previous": true,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=true",
+        "-Dstringagg.expectNative=false"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=true rows=500000 keys=16384 width=16 stock=2.839443 native=2.746717 stock_trials=[2.839442922, 2.833632591, 2.871062959] native_trials=[2.795446973, 2.738919159, 2.746716601]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=3.940445",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=2.984852",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=2.795447",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=2.839443",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=2.833633",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=2.738919",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=2.746717",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=true engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=2.871063"
+      ],
+      "stock_trials_seconds": [
+        2.839442922,
+        2.833632591,
+        2.871062959
+      ],
+      "streamfusion_trials_seconds": [
+        2.795446973,
+        2.738919159,
+        2.746716601
+      ]
+    },
+    {
+      "label": "array-wide-500k-native",
+      "function": "JSON_ARRAYAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 128,
+      "value": "string",
+      "previous": false,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=128",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=true"
+      ],
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=false rows=500000 keys=16384 width=128 stock=3.442023 native=1.251739 stock_trials=[3.516689412, 3.44202282, 3.328957211] native_trials=[1.312908393, 1.192852583, 1.251738831]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=0 warmup=true seconds=4.394719",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=0 warmup=true seconds=1.654449",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=1 warmup=false seconds=1.312908",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=1 warmup=false seconds=3.516689",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=2 warmup=false seconds=3.442023",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=2 warmup=false seconds=1.192853",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=3 warmup=false seconds=1.251739",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=3 warmup=false seconds=3.328957"
+      ],
+      "stock_trials_seconds": [
+        3.516689412,
+        3.44202282,
+        3.328957211
+      ],
+      "streamfusion_trials_seconds": [
+        1.312908393,
+        1.192852583,
+        1.251738831
+      ]
+    },
+    {
+      "label": "array-wide-500k-previous",
+      "function": "JSON_ARRAYAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 128,
+      "value": "string",
+      "previous": true,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_ARRAYAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=128",
+        "-Dstringagg.value=string",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=false"
+      ],
+      "summary": "[string-aggregate] function=JSON_ARRAYAGG updating=false rows=500000 keys=16384 width=128 stock=3.349814 native=3.361688 stock_trials=[3.34981353, 3.324372049, 3.433107822] native_trials=[3.361687585, 3.342413232, 3.405716746]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=0 warmup=true seconds=4.404218",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=0 warmup=true seconds=3.669126",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=1 warmup=false seconds=3.361688",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=1 warmup=false seconds=3.349814",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=2 warmup=false seconds=3.324372",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=2 warmup=false seconds=3.342413",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=128 trial=3 warmup=false seconds=3.405717",
+        "[string-aggregate-trial] function=JSON_ARRAYAGG updating=false engine=Flink rows=500000 keys=16384 width=128 trial=3 warmup=false seconds=3.433108"
+      ],
+      "stock_trials_seconds": [
+        3.34981353,
+        3.324372049,
+        3.433107822
+      ],
+      "streamfusion_trials_seconds": [
+        3.361687585,
+        3.342413232,
+        3.405716746
+      ]
+    },
+    {
+      "label": "object-bigint-500k-native",
+      "function": "JSON_OBJECTAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "bigint",
+      "previous": false,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=bigint",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=true"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=false rows=500000 keys=16384 width=16 stock=6.308724 native=0.954688 stock_trials=[6.407087103, 6.198208241, 6.3087244] native_trials=[1.006936898, 0.877095987, 0.954688062]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=7.322987",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=1.200545",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=1.006937",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.407087",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=6.198208",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=0.877096",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=0.954688",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=6.308724"
+      ],
+      "stock_trials_seconds": [
+        6.407087103,
+        6.198208241,
+        6.3087244
+      ],
+      "streamfusion_trials_seconds": [
+        1.006936898,
+        0.877095987,
+        0.954688062
+      ]
+    },
+    {
+      "label": "object-bigint-500k-previous",
+      "function": "JSON_OBJECTAGG",
+      "updating": false,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "value": "bigint",
+      "previous": true,
+      "warmup_pairs": 1,
+      "measurement_pairs": 3,
+      "command": [
+        "mvn",
+        "-o",
+        "-B",
+        "-ntp",
+        "surefire:test@default-test",
+        "-Pbench",
+        "-pl",
+        "streamfusion-runtime",
+        "-Dtest=StringAggregateBenchmark",
+        "-Dnative.build.skip=true",
+        "-Dnative.resource.directory=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.extraJvmArgs=-Djava.library.path=$WORKTREE/native/target/232-json-fixed",
+        "-Dsf.benchmarkJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false",
+        "-Dstringagg.warmup=1",
+        "-Dstringagg.runs=3",
+        "-Dstringagg.function=JSON_OBJECTAGG",
+        "-Dstringagg.rows=500000",
+        "-Dstringagg.keys=16384",
+        "-Dstringagg.width=16",
+        "-Dstringagg.value=bigint",
+        "-Dstringagg.updating=false",
+        "-Dstringagg.expectNative=false"
+      ],
+      "summary": "[string-aggregate] function=JSON_OBJECTAGG updating=false rows=500000 keys=16384 width=16 stock=6.075765 native=6.206059 stock_trials=[6.075764809, 5.968027242, 6.651399568] native_trials=[6.142284943, 6.206058832, 6.355416134]",
+      "trials": [
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=7.480947",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=0 warmup=true seconds=6.464583",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.142285",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=1 warmup=false seconds=6.075765",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=5.968027",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=2 warmup=false seconds=6.206059",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=StreamFusion rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=6.355416",
+        "[string-aggregate-trial] function=JSON_OBJECTAGG updating=false engine=Flink rows=500000 keys=16384 width=16 trial=3 warmup=false seconds=6.651400"
+      ],
+      "stock_trials_seconds": [
+        6.075764809,
+        5.968027242,
+        6.651399568
+      ],
+      "streamfusion_trials_seconds": [
+        6.142284943,
+        6.206058832,
+        6.355416134
+      ]
+    }
+  ],
+  "implementation_revision": "4dd1d66a0505a9c3c537194218d75ec19e8f8226",
+  "profiling": {
+    "tool": "released async-profiler 4.0",
+    "cpu_event": "cpu-clock",
+    "interval_ms": 2,
+    "native_stack": "DWARF",
+    "java_alloc_interval": "1m",
+    "timings": "profiled trials excluded from speed claims",
+    "classification": "Flink task thread names at p=1; Native node names distinguish native tasks; Source/GroupAggregate names distinguish stock tasks. Compiler, GC and control threads are excluded.",
+    "allocation_note": "Java allocation weights are sampled allocation traffic, not peak memory or Rust/C/C++ allocation bytes. Native Rust request counters are separate.",
+    "runs": {
+      "array": {
+        "rows": 2000000,
+        "keys": 65536,
+        "warmup_pairs": 1,
+        "measurement_pairs": 3,
+        "cpu_task_samples": {
+          "stock": 20530,
+          "native": 5024
+        },
+        "java_sampled_allocation_bytes": {
+          "stock": 67271393280,
+          "native": 14688452608
+        },
+        "native_leaf_samples": {
+          "/usr/lib/x86_64-linux-gnu/libc.so.6": 722,
+          "streamfusion::group_agg::GroupAggregator<S>::update": 658,
+          "malloc": 224,
+          "<core::iter::adapters::GenericShunt<I,R> as core::iter::traits::iterator::Iterator>::next": 157,
+          "itable stub": 131,
+          "mi_heap_umalloc": 108,
+          "_raw_spin_unlock_irqrestore_[k]": 94,
+          "clear_page_erms_[k]": 87,
+          "streamfusion::group_agg::output_of": 77,
+          "<datafusion_common::scalar::ScalarValue as core::cmp::PartialEq>::eq": 77,
+          "mi_free": 74,
+          "<datafusion_common::scalar::ScalarValue as core::clone::Clone>::clone": 71,
+          "jbyte_disjoint_arraycopy": 63,
+          "streamfusion::group_agg::GroupChanges::push": 58,
+          "streamfusion::flink_functions::json_serialize::JsonColumn::write": 55,
+          "core::hash::BuildHasher::hash_one": 53,
+          "jdk/internal/misc/Unsafe.copyMemory_[i]": 50,
+          "org/apache/flink/table/data/GenericRowData.<init>_[i]": 47,
+          "_mi_heap_realloc_zero": 47,
+          "streamfusion::group_agg::group_agg_state_bytes": 45
+        },
+        "stock_leaf_samples": {
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/util/RawValue.serialize_[i]": 3411,
+          "org/apache/flink/runtime/state/heap/CopyOnWriteStateMap.get_[j]": 1812,
+          "org/apache/flink/table/runtime/functions/aggregate/JsonArrayAggFunction.getValue_[j]": 1616,
+          "org/apache/flink/core/memory/MemorySegment.getInt_[i]": 1060,
+          "org/apache/flink/table/data/binary/StringUtf8Utils.encodeUTF8_[j]": 682,
+          "java/lang/StringLatin1.getChars_[i]": 450,
+          "java/util/ArrayList$Itr.next_[i]": 433,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/node/NodeCursor$ArrayCursor.nextToken_[i]": 360,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/core/json/JsonWriteContext.writeValue_[i]": 283,
+          "org/apache/flink/table/data/binary/BinaryStringData.toString_[j]": 267,
+          "itable stub": 251,
+          "org/apache/flink/table/runtime/operators/aggregate/GroupAggFunction.processElement_[j]": 230,
+          "org/apache/flink/util/MathUtils.bitMix_[i]": 223,
+          "org/apache/flink/runtime/state/heap/CopyOnWriteStateMap.computeHashForOperationAndDoIncrementalRehash_[i]": 219,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/node/ArrayNode.<init>_[i]": 212,
+          "_raw_spin_unlock_irqrestore_[k]": 202,
+          "org/apache/flink/table/data/binary/BinaryRowData.equals_[i]": 202,
+          "java/lang/invoke/VarHandleReferences$Array.getAndSet_[i]": 179,
+          "java/util/ArrayList.add_[i]": 173,
+          "java/lang/String.charAt_[i]": 148
+        },
+        "native_inclusive_samples": {
+          "tech/streamfusion/Native.updateGroupAggregator_[j]": 2810,
+          "Java_tech_streamfusion_Native_updateGroupAggregator": 2810,
+          "streamfusion::group_agg::GroupAggregator<S>::update": 2800,
+          "streamfusion::group_agg::output_of": 1165,
+          "tech/streamfusion/operator/ArrowToRowDataOperator.processElement_[j]": 722,
+          "tech/streamfusion/operator/RowDataToArrowOperator.processElement_[j]": 580,
+          "malloc": 236,
+          "Java_tech_streamfusion_Native_closeGroupAggregator": 111,
+          "core::ptr::drop_in_place<streamfusion::group_agg::GroupAggregator>": 111,
+          "tech/streamfusion/Native.closeGroupAggregator_[0]": 110,
+          "mi_heap_umalloc": 108,
+          "<streamfusion::flink_functions::json_serialize::JsonString as datafusion_expr::udf::ScalarUDFImpl>::invoke_with_args": 102,
+          "_mi_malloc_generic": 91,
+          "streamfusion::flink_functions::json_serialize::JsonColumn::write": 64,
+          "streamfusion::group_agg::json_agg::JsonAggState::update": 55,
+          "streamfusion::group_agg::GroupAggregator<S>::create": 21,
+          "os::malloc": 8,
+          "tech/streamfusion/Native.updateGroupAggregator_[0]": 3,
+          "streamfusion::flink_functions::json_serialize::finish": 3,
+          "alloc::alloc::exchange_malloc": 1
+        },
+        "cpu_stacks": "json-aggregates-2026-10-15-array-cpu.collapsed.gz",
+        "alloc_stacks": "json-aggregates-2026-10-15-array-alloc.collapsed.gz"
+      },
+      "object": {
+        "rows": 500000,
+        "keys": 16384,
+        "warmup_pairs": 1,
+        "measurement_pairs": 3,
+        "cpu_task_samples": {
+          "stock": 13666,
+          "native": 2469
+        },
+        "java_sampled_allocation_bytes": {
+          "native": 5018484736,
+          "stock": 28297920512
+        },
+        "native_leaf_samples": {
+          "/usr/lib/x86_64-linux-gnu/libc.so.6": 272,
+          "<core::iter::adapters::GenericShunt<I,R> as core::iter::traits::iterator::Iterator>::next": 203,
+          "streamfusion::group_agg::GroupAggregator<S>::update": 154,
+          "core::slice::sort::unstable::quicksort::quicksort": 133,
+          "core::iter::traits::iterator::Iterator::cmp_by": 89,
+          "streamfusion_bridge::json_string::write_json_string": 76,
+          "streamfusion::group_agg::json_agg::JsonAggState::update": 70,
+          "mi_heap_umalloc": 62,
+          "itable stub": 57,
+          "_raw_spin_unlock_irqrestore_[k]": 53,
+          "malloc": 50,
+          "clear_page_erms_[k]": 46,
+          "core::slice::sort::shared::smallsort::bidirectional_merge": 46,
+          "core::slice::sort::shared::smallsort::sort4_stable": 41,
+          "<datafusion_common::scalar::ScalarValue as core::cmp::PartialEq>::eq": 36,
+          "jbyte_disjoint_arraycopy": 32,
+          "core::hash::BuildHasher::hash_one": 25,
+          "jshort_disjoint_arraycopy": 21,
+          "<datafusion_common::scalar::ScalarValue as core::clone::Clone>::clone": 21,
+          "mi_free": 18
+        },
+        "stock_leaf_samples": {
+          "java/util/HashMap$HashIterator.nextNode_[i]": 964,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/util/RawValue.serialize_[i]": 771,
+          "org/apache/flink/core/memory/MemorySegment.getInt_[i]": 716,
+          "java/util/HashMap.putVal_[i]": 622,
+          "java/util/HashMap.resize_[j]": 448,
+          "java/util/TreeMap.put_[j]": 425,
+          "java/lang/Integer.rotateLeft_[i]": 409,
+          "org/apache/flink/table/data/binary/StringUtf8Utils.encodeUTF8_[j]": 301,
+          "org/apache/flink/table/data/binary/BinarySegmentUtils.getBytes_[i]": 294,
+          "itable stub": 257,
+          "java/lang/String.compareTo_[j]": 220,
+          "org/apache/flink/runtime/state/heap/CopyOnWriteStateMap.get_[i]": 220,
+          "org/apache/flink/table/runtime/functions/aggregate/JsonObjectAggFunction.getValue_[j]": 215,
+          "org/apache/flink/table/data/binary/BinarySegmentUtils.inFirstSegment_[i]": 193,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/core/json/WriterBasedJsonGenerator._writeString2_[i]": 192,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/node/NodeCursor$ObjectCursor.nextToken_[i]": 187,
+          "org/apache/flink/runtime/state/heap/CopyOnWriteStateMap.incrementalRehash_[i]": 160,
+          "sun/misc/Unsafe.getInt_[i]": 145,
+          "org/apache/flink/table/data/binary/MurmurHashUtils.fmix_[i]": 136,
+          "org/apache/flink/shaded/jackson2/com/fasterxml/jackson/databind/ser/std/MapSerializer.serializeFields_[i]": 135
+        },
+        "native_inclusive_samples": {
+          "Java_tech_streamfusion_Native_updateGroupAggregator": 1563,
+          "streamfusion::group_agg::GroupAggregator<S>::update": 1560,
+          "tech/streamfusion/Native.updateGroupAggregator_[j]": 1148,
+          "streamfusion::group_agg::output_of": 962,
+          "tech/streamfusion/Native.updateGroupAggregator_[0]": 423,
+          "tech/streamfusion/operator/ArrowToRowDataOperator.processElement_[j]": 266,
+          "tech/streamfusion/operator/RowDataToArrowOperator.processElement_[j]": 252,
+          "streamfusion::group_agg::json_agg::JsonAggState::update": 144,
+          "malloc": 63,
+          "mi_heap_umalloc": 62,
+          "tech/streamfusion/Native.closeGroupAggregator_[0]": 41,
+          "Java_tech_streamfusion_Native_closeGroupAggregator": 41,
+          "core::ptr::drop_in_place<streamfusion::group_agg::GroupAggregator>": 41,
+          "_mi_malloc_generic": 38,
+          "<streamfusion::flink_functions::json_serialize::JsonString as datafusion_expr::udf::ScalarUDFImpl>::invoke_with_args": 25,
+          "streamfusion::flink_functions::json_serialize::JsonColumn::write": 18,
+          "streamfusion::group_agg::GroupAggregator<S>::create": 5,
+          "os::malloc": 4,
+          "tech/streamfusion/Native.createGroupAggregator_[j]": 1,
+          "Java_tech_streamfusion_Native_createGroupAggregatorWithTtlEmission": 1
+        },
+        "cpu_stacks": "json-aggregates-2026-10-15-object-cpu.collapsed.gz",
+        "alloc_stacks": "json-aggregates-2026-10-15-object-alloc.collapsed.gz"
+      }
+    }
+  },
+  "native_criterion": {
+    "suite": "string_group_aggregates",
+    "features": [
+      "mimalloc"
+    ],
+    "mode": "release",
+    "smoke_cases": 56,
+    "timed_json_cases": 32,
+    "warmup_seconds": 0.1,
+    "samples": 10,
+    "measurement_seconds_per_case": 1,
+    "boundary": "production update and changelog materialization; setup, Arrow fixture construction, retract seeding and destruction outside timing",
+    "allocator_probe": "untimed, thread-local Rust allocation request counts/full requested sizes, including full realloc requests; excludes native C/C++ allocations; output buffer sharing is not copied bytes",
+    "allocation_probes": [
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=1/width=8/retract=false",
+        "allocation_calls": "114",
+        "requested_bytes": "16874",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1999"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=1/width=8/retract=true",
+        "allocation_calls": "109",
+        "requested_bytes": "12066",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1336"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=1/width=128/retract=false",
+        "allocation_calls": "118",
+        "requested_bytes": "106034",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "22279"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=1/width=128/retract=true",
+        "allocation_calls": "110",
+        "requested_bytes": "73242",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "15736"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=64/width=8/retract=false",
+        "allocation_calls": "161",
+        "requested_bytes": "18106",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "318"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=64/width=8/retract=true",
+        "allocation_calls": "53",
+        "requested_bytes": "4412",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "157"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=64/width=128/retract=false",
+        "allocation_calls": "162",
+        "requested_bytes": "24834",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1878"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=16/keys=64/width=128/retract=true",
+        "allocation_calls": "53",
+        "requested_bytes": "4412",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "877"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=1/width=8/retract=false",
+        "allocation_calls": "3039",
+        "requested_bytes": "25727274",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "7710823"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=1/width=8/retract=true",
+        "allocation_calls": "6738",
+        "requested_bytes": "30599890",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "5773720"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=1/width=128/retract=false",
+        "allocation_calls": "3042",
+        "requested_bytes": "377741810",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "100006303"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=1/width=128/retract=true",
+        "allocation_calls": "6594",
+        "requested_bytes": "395161778",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "74942680"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=64/width=8/retract=false",
+        "allocation_calls": "3571",
+        "requested_bytes": "1034000",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "139378"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=64/width=8/retract=true",
+        "allocation_calls": "3586",
+        "requested_bytes": "718494",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "99760"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=64/width=128/retract=false",
+        "allocation_calls": "3530",
+        "requested_bytes": "6861560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1583098"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "listagg/rows=1024/keys=64/width=128/retract=true",
+        "allocation_calls": "3516",
+        "requested_bytes": "6900902",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1181200"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=8/kind=26/retract=false",
+        "allocation_calls": "180",
+        "requested_bytes": "20194",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2243"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=8/kind=26/retract=true",
+        "allocation_calls": "152",
+        "requested_bytes": "17834",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2213"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=8/kind=29/retract=false",
+        "allocation_calls": "238",
+        "requested_bytes": "43363",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "5544"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=8/kind=29/retract=true",
+        "allocation_calls": "189",
+        "requested_bytes": "37704",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "5700"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=128/kind=26/retract=false",
+        "allocation_calls": "192",
+        "requested_bytes": "131025",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "22523"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=128/kind=26/retract=true",
+        "allocation_calls": "165",
+        "requested_bytes": "122357",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "22493"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=128/kind=29/retract=false",
+        "allocation_calls": "258",
+        "requested_bytes": "143759",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "30144"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=1/width=128/kind=29/retract=true",
+        "allocation_calls": "199",
+        "requested_bytes": "131935",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "31020"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=8/kind=26/retract=false",
+        "allocation_calls": "194",
+        "requested_bytes": "21444",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "374"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=8/kind=26/retract=true",
+        "allocation_calls": "55",
+        "requested_bytes": "5588",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "374"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=8/kind=29/retract=false",
+        "allocation_calls": "249",
+        "requested_bytes": "25416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "552"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=8/kind=29/retract=true",
+        "allocation_calls": "55",
+        "requested_bytes": "5588",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "552"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=128/kind=26/retract=false",
+        "allocation_calls": "208",
+        "requested_bytes": "31513",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1934"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=128/kind=26/retract=true",
+        "allocation_calls": "56",
+        "requested_bytes": "7636",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1934"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=128/kind=29/retract=false",
+        "allocation_calls": "263",
+        "requested_bytes": "35682",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2112"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=16/keys=64/width=128/kind=29/retract=true",
+        "allocation_calls": "56",
+        "requested_bytes": "7636",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2112"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=8/kind=26/retract=false",
+        "allocation_calls": "13439",
+        "requested_bytes": "52980338",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8484995"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=8/kind=26/retract=true",
+        "allocation_calls": "12535",
+        "requested_bytes": "39104938",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8484965"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=8/kind=29/retract=false",
+        "allocation_calls": "17041",
+        "requested_bytes": "122275337",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "23027256"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=8/kind=29/retract=true",
+        "allocation_calls": "14995",
+        "requested_bytes": "147883869",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "23282100"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=128/kind=26/retract=false",
+        "allocation_calls": "13989",
+        "requested_bytes": "487493265",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "100780475"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=128/kind=26/retract=true",
+        "allocation_calls": "13080",
+        "requested_bytes": "453688941",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "100780445"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=128/kind=29/retract=false",
+        "allocation_calls": "18287",
+        "requested_bytes": "533892341",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130775376"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=1/width=128/kind=29/retract=true",
+        "allocation_calls": "15292",
+        "requested_bytes": "783316780",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "131065500"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=8/kind=26/retract=false",
+        "allocation_calls": "7965",
+        "requested_bytes": "1508789",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "156305"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=8/kind=26/retract=true",
+        "allocation_calls": "6186",
+        "requested_bytes": "1358214",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "156275"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=8/kind=29/retract=false",
+        "allocation_calls": "11587",
+        "requested_bytes": "2789042",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "387168"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=8/kind=29/retract=true",
+        "allocation_calls": "8458",
+        "requested_bytes": "2420842",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "391080"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=128/kind=26/retract=false",
+        "allocation_calls": "8552",
+        "requested_bytes": "8580183",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1600025"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=128/kind=26/retract=true",
+        "allocation_calls": "6774",
+        "requested_bytes": "7991345",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "1599995"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=128/kind=29/retract=false",
+        "allocation_calls": "12053",
+        "requested_bytes": "9357814",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2070648"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "json_aggregate/rows=1024/keys=64/width=128/kind=29/retract=true",
+        "allocation_calls": "8929",
+        "requested_bytes": "8591653",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2075280"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=24",
+        "allocation_calls": "164",
+        "requested_bytes": "22313",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=24",
+        "allocation_calls": "780",
+        "requested_bytes": "1903553",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=25",
+        "allocation_calls": "179",
+        "requested_bytes": "22978",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=25",
+        "allocation_calls": "1913",
+        "requested_bytes": "1853005",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=26",
+        "allocation_calls": "181",
+        "requested_bytes": "23167",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=26",
+        "allocation_calls": "2105",
+        "requested_bytes": "1901047",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=29",
+        "allocation_calls": "202",
+        "requested_bytes": "26648",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "string_group_aggregates",
+        "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=29",
+        "allocation_calls": "3385",
+        "requested_bytes": "2352542",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      }
+    ],
+    "estimates_nanoseconds": {
+      "rows=1024_keys=64_width=8_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 263680.85887418303,
+            "upper_bound": 276968.72220588237
+          },
+          "point_estimate": 268957.5451633987,
+          "standard_error": 3637.800244927958
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 263201.7830882353,
+            "upper_bound": 270415.5044117647
+          },
+          "point_estimate": 264432.88562091504,
+          "standard_error": 1656.4545204204805
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 252.05289699570912,
+            "upper_bound": 8652.64967285539
+          },
+          "point_estimate": 2042.413371534066,
+          "standard_error": 2141.537189690145
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 263246.7072625315,
+            "upper_bound": 277531.5856278682
+          },
+          "point_estimate": 267628.90817417874,
+          "standard_error": 3930.716648666114
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1228.809041984623,
+            "upper_bound": 18237.952894372374
+          },
+          "point_estimate": 12164.563199486454,
+          "standard_error": 5280.643391701329
+        }
+      },
+      "rows=16_keys=64_width=8_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3179.260731058371,
+            "upper_bound": 3316.757523201265
+          },
+          "point_estimate": 3235.885043251965,
+          "standard_error": 36.51457372515893
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3162.1581295482856,
+            "upper_bound": 3259.0084901330883
+          },
+          "point_estimate": 3208.3120060170313,
+          "standard_error": 28.12320973158294
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8.533606097542114,
+            "upper_bound": 112.53936261882312
+          },
+          "point_estimate": 59.63200368470421,
+          "standard_error": 27.093405265696127
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3170.667661421335,
+            "upper_bound": 3292.304461380594
+          },
+          "point_estimate": 3212.2769517769975,
+          "standard_error": 31.532404697850062
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 32.797163332666784,
+            "upper_bound": 182.10877821586723
+          },
+          "point_estimate": 121.94288033422418,
+          "standard_error": 47.95604158318945
+        }
+      },
+      "rows=1024_keys=64_width=128_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 527276.02410831,
+            "upper_bound": 547462.2015041433
+          },
+          "point_estimate": 536227.8704318394,
+          "standard_error": 5179.097869212388
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 526969.2568627452,
+            "upper_bound": 547549.0777310925
+          },
+          "point_estimate": 529455.893382353,
+          "standard_error": 4577.203113454803
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 906.7588706664401,
+            "upper_bound": 25622.87173431879
+          },
+          "point_estimate": 4746.738952052173,
+          "standard_error": 5528.889421827889
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 526153.7691694564,
+            "upper_bound": 534082.6536353672
+          },
+          "point_estimate": 529750.7420932009,
+          "standard_error": 2074.405033868059
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3546.564876111458,
+            "upper_bound": 22147.12517775575
+          },
+          "point_estimate": 17279.610331461437,
+          "standard_error": 4847.28143496728
+        }
+      },
+      "rows=1024_keys=1_width=8_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2949643.302881944,
+            "upper_bound": 3073860.9042939814
+          },
+          "point_estimate": 3012003.8931084657,
+          "standard_error": 31749.132765971863
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2940193.4553571427,
+            "upper_bound": 3099219.5
+          },
+          "point_estimate": 3006493.2,
+          "standard_error": 38758.216391807975
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 22284.05652437927,
+            "upper_bound": 184756.64024491393
+          },
+          "point_estimate": 113758.04273039103,
+          "standard_error": 43035.02433310066
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2945484.284467714,
+            "upper_bound": 3100685.21593809
+          },
+          "point_estimate": 3036047.767099567,
+          "standard_error": 39700.80975843914
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 60009.21162338172,
+            "upper_bound": 133735.62342563248
+          },
+          "point_estimate": 105702.21397583031,
+          "standard_error": 19172.528899320616
+        }
+      },
+      "rows=1024_keys=64_width=8_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 861748.2069034392,
+            "upper_bound": 900080.1318650794
+          },
+          "point_estimate": 880664.948994709,
+          "standard_error": 9850.251837753693
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 848792.5952380953,
+            "upper_bound": 909465.0099206349
+          },
+          "point_estimate": 881406.2619047619,
+          "standard_error": 19515.391505744738
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2243.6679601669025,
+            "upper_bound": 52070.73785055955
+          },
+          "point_estimate": 42249.66125547409,
+          "standard_error": 13378.356012450751
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 849229.3767442183,
+            "upper_bound": 882635.5908132399
+          },
+          "point_estimate": 859818.7920841064,
+          "standard_error": 8618.228209433999
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 22058.784918117002,
+            "upper_bound": 38220.11176316463
+          },
+          "point_estimate": 32791.36269081233,
+          "standard_error": 4196.414493676745
+        }
+      },
+      "rows=1024_keys=64_width=128_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1082508.347550245,
+            "upper_bound": 1106085.6262254901
+          },
+          "point_estimate": 1094987.5044607841,
+          "standard_error": 6041.524951958248
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1083671.862745098,
+            "upper_bound": 1112117.1470588236
+          },
+          "point_estimate": 1096108.5772058824,
+          "standard_error": 7625.476363846694
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4992.437381954633,
+            "upper_bound": 34271.541159205546
+          },
+          "point_estimate": 19280.834740049613,
+          "standard_error": 7033.535801961733
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1087019.71822947,
+            "upper_bound": 1107250.450897981
+          },
+          "point_estimate": 1096670.2959511077,
+          "standard_error": 5142.666851861338
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 10200.630940556632,
+            "upper_bound": 26620.286541882124
+          },
+          "point_estimate": 20119.38419036262,
+          "standard_error": 4517.635946820188
+        }
+      },
+      "rows=16_keys=64_width=8_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3689.6677978120883,
+            "upper_bound": 3971.71850047393
+          },
+          "point_estimate": 3798.579117471956,
+          "standard_error": 77.8996045960974
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3679.154477658708,
+            "upper_bound": 3799.2160180485052
+          },
+          "point_estimate": 3698.9357609513067,
+          "standard_error": 37.98773359701795
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7.998801997492975,
+            "upper_bound": 162.8549662740031
+          },
+          "point_estimate": 36.183285793038294,
+          "standard_error": 44.53495177398951
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3692.7901658475516,
+            "upper_bound": 3818.940515645453
+          },
+          "point_estimate": 3755.289029526593,
+          "standard_error": 34.58511857281109
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 27.463062324728025,
+            "upper_bound": 395.727677995743
+          },
+          "point_estimate": 260.02844867137105,
+          "standard_error": 118.75508620256836
+        }
+      },
+      "rows=1024_keys=64_width=128_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 508981.35682870366,
+            "upper_bound": 529661.7313051146
+          },
+          "point_estimate": 518423.0921538801,
+          "standard_error": 5296.245435676691
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 506351.47986111115,
+            "upper_bound": 526121.2777777778
+          },
+          "point_estimate": 515753.69907407404,
+          "standard_error": 6426.752608661695
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1783.5471766690173,
+            "upper_bound": 26775.623394776514
+          },
+          "point_estimate": 13816.760988036753,
+          "standard_error": 6243.173760182076
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 503735.54720735975,
+            "upper_bound": 542477.8510458046
+          },
+          "point_estimate": 524204.90533910535,
+          "standard_error": 10478.36419623263
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7971.102829900266,
+            "upper_bound": 24384.100614233234
+          },
+          "point_estimate": 17653.678268407246,
+          "standard_error": 4748.338762660281
+        }
+      },
+      "rows=16_keys=64_width=8_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4349.976070887447,
+            "upper_bound": 4434.7056785714285
+          },
+          "point_estimate": 4391.10664448052,
+          "standard_error": 21.706436378828894
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4342.932115800866,
+            "upper_bound": 4443.503652597403
+          },
+          "point_estimate": 4373.172088744588,
+          "standard_error": 25.373987039913775
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7.04375385222114,
+            "upper_bound": 119.63117639884922
+          },
+          "point_estimate": 75.92163410666736,
+          "standard_error": 29.041426399010017
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4386.413801156278,
+            "upper_bound": 4480.681038287977
+          },
+          "point_estimate": 4442.959129701468,
+          "standard_error": 23.61782829588486
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 36.53667357874385,
+            "upper_bound": 94.3480407065902
+          },
+          "point_estimate": 72.06800952709567,
+          "standard_error": 14.981999493519918
+        }
+      },
+      "rows=16_keys=64_width=8_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5498.585661246917,
+            "upper_bound": 5679.137295525903
+          },
+          "point_estimate": 5577.822626523136,
+          "standard_error": 46.431431103979655
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5452.1466509680795,
+            "upper_bound": 5630.657358712716
+          },
+          "point_estimate": 5570.510923600209,
+          "standard_error": 45.210410397340596
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7.786772554064799,
+            "upper_bound": 213.33546863012074
+          },
+          "point_estimate": 117.0703074781016,
+          "standard_error": 49.43574980491607
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5527.164695828263,
+            "upper_bound": 5818.252275936718
+          },
+          "point_estimate": 5673.643647169158,
+          "standard_error": 80.42702008970102
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 60.3625288263473,
+            "upper_bound": 220.86581844930012
+          },
+          "point_estimate": 154.65281476401944,
+          "standard_error": 48.44066520246079
+        }
+      },
+      "rows=16_keys=1_width=8_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11933.091515950242,
+            "upper_bound": 12101.026362342282
+          },
+          "point_estimate": 12017.041990839749,
+          "standard_error": 43.13235532424628
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11850.851796407185,
+            "upper_bound": 12138.753087574849
+          },
+          "point_estimate": 12029.231911177645,
+          "standard_error": 68.14435699104516
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 14.537636261365014,
+            "upper_bound": 264.18828273861226
+          },
+          "point_estimate": 206.22621617408208,
+          "standard_error": 63.5476430747593
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11903.885114193723,
+            "upper_bound": 12117.11801502038
+          },
+          "point_estimate": 12024.391379578505,
+          "standard_error": 54.981318319425384
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 88.45235729612801,
+            "upper_bound": 172.89147020070786
+          },
+          "point_estimate": 144.05731053973255,
+          "standard_error": 21.41048274857498
+        }
+      },
+      "rows=1024_keys=1_width=8_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 75674111.38875,
+            "upper_bound": 76485512.185
+          },
+          "point_estimate": 76060756.35,
+          "standard_error": 207953.80335273515
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 75445591.0,
+            "upper_bound": 76494501.0
+          },
+          "point_estimate": 76010920.75,
+          "standard_error": 245682.32894353467
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 142676.89651697874,
+            "upper_bound": 1168835.302674025
+          },
+          "point_estimate": 777556.9691956043,
+          "standard_error": 267798.38465267327
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 352932.03819311725,
+            "upper_bound": 900082.3265673179
+          },
+          "point_estimate": 691466.185970718,
+          "standard_error": 144505.19253949003
+        }
+      },
+      "rows=16_keys=1_width=8_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5046.763132957176,
+            "upper_bound": 5177.37131864356
+          },
+          "point_estimate": 5106.797509003493,
+          "standard_error": 33.681419229514916
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5032.080790201822,
+            "upper_bound": 5192.374542720734
+          },
+          "point_estimate": 5062.993995949074,
+          "standard_error": 36.72700981875731
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 12.934227534586169,
+            "upper_bound": 167.9330377778702
+          },
+          "point_estimate": 69.71847548750998,
+          "standard_error": 38.90604463837632
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5053.429125152715,
+            "upper_bound": 5254.171459208717
+          },
+          "point_estimate": 5157.038272794914,
+          "standard_error": 54.00686002801458
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 37.61948776450495,
+            "upper_bound": 141.65832904545363
+          },
+          "point_estimate": 111.85446532308123,
+          "standard_error": 26.75760400670135
+        }
+      },
+      "rows=16_keys=1_width=128_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7002.533325992728,
+            "upper_bound": 7313.208035814158
+          },
+          "point_estimate": 7152.427006731385,
+          "standard_error": 79.59383884217618
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6933.569351230425,
+            "upper_bound": 7390.909156279961
+          },
+          "point_estimate": 7087.296700223714,
+          "standard_error": 145.7043401668431
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 26.81532469171785,
+            "upper_bound": 432.297156425442
+          },
+          "point_estimate": 272.16785187946374,
+          "standard_error": 120.27457631583023
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7119.607014200465,
+            "upper_bound": 7469.575121848674
+          },
+          "point_estimate": 7349.946012376885,
+          "standard_error": 89.02657243884045
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 161.96747514266187,
+            "upper_bound": 314.4863541604533
+          },
+          "point_estimate": 265.5489846500812,
+          "standard_error": 38.861126785460044
+        }
+      },
+      "rows=16_keys=64_width=128_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6152.553834487857,
+            "upper_bound": 6974.050307800462
+          },
+          "point_estimate": 6507.662353794063,
+          "standard_error": 214.5510644066807
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6095.019080026736,
+            "upper_bound": 6863.357640365802
+          },
+          "point_estimate": 6265.422564866014,
+          "standard_error": 155.43411400686102
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 12.617747165397962,
+            "upper_bound": 888.3526600399438
+          },
+          "point_estimate": 189.76650038823774,
+          "standard_error": 190.05405752585523
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6175.987938062855,
+            "upper_bound": 6348.936543411026
+          },
+          "point_estimate": 6263.448651306158,
+          "standard_error": 43.27988232818971
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 110.35523303479938,
+            "upper_bound": 973.2624697472392
+          },
+          "point_estimate": 715.2016313720457,
+          "standard_error": 234.13126821323104
+        }
+      },
+      "rows=16_keys=64_width=128_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5072.1152150947655,
+            "upper_bound": 5351.373466991146
+          },
+          "point_estimate": 5199.091108947911,
+          "standard_error": 71.79945612282032
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5013.350112815884,
+            "upper_bound": 5326.576741877256
+          },
+          "point_estimate": 5132.673730445246,
+          "standard_error": 94.15101573682492
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 39.77640440032595,
+            "upper_bound": 392.0879649930177
+          },
+          "point_estimate": 246.56313296017422,
+          "standard_error": 84.20111705003087
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5100.365071290523,
+            "upper_bound": 5289.437738932168
+          },
+          "point_estimate": 5186.928035069624,
+          "standard_error": 47.96899692018925
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 111.92599035814277,
+            "upper_bound": 327.31754880083736
+          },
+          "point_estimate": 239.06571150758512,
+          "standard_error": 62.425897462266995
+        }
+      },
+      "rows=1024_keys=1_width=8_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2952629.875854166,
+            "upper_bound": 3077000.3509656084
+          },
+          "point_estimate": 3014566.4424470905,
+          "standard_error": 31801.551398826487
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2909949.1666666665,
+            "upper_bound": 3100556.55
+          },
+          "point_estimate": 3018024.3791666664,
+          "standard_error": 52047.85438804635
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 25195.180402695903,
+            "upper_bound": 184186.44023753708
+          },
+          "point_estimate": 138452.61226975266,
+          "standard_error": 39241.992436412525
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3021396.4253875967,
+            "upper_bound": 3107249.684881695
+          },
+          "point_estimate": 3067606.554978355,
+          "standard_error": 21501.964016581853
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 66128.70304466657,
+            "upper_bound": 126669.58891390439
+          },
+          "point_estimate": 106011.52460480221,
+          "standard_error": 15412.080698550813
+        }
+      },
+      "rows=16_keys=64_width=128_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3838.030738877044,
+            "upper_bound": 3899.9211781094527
+          },
+          "point_estimate": 3868.5868813788197,
+          "standard_error": 15.827045588118187
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3821.2103482587063,
+            "upper_bound": 3920.0821641791044
+          },
+          "point_estimate": 3862.752447761194,
+          "standard_error": 28.007223763855766
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11.392563738040064,
+            "upper_bound": 85.91023649866892
+          },
+          "point_estimate": 63.90951505045411,
+          "standard_error": 19.344806208851388
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3826.95577487026,
+            "upper_bound": 3927.3909428892944
+          },
+          "point_estimate": 3881.89663423144,
+          "standard_error": 26.17715466311579
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 33.07780642295385,
+            "upper_bound": 63.35073078934908
+          },
+          "point_estimate": 52.63789815405468,
+          "standard_error": 7.740355568972365
+        }
+      },
+      "rows=1024_keys=1_width=8_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 75099139.0875,
+            "upper_bound": 77575173.645
+          },
+          "point_estimate": 76294787.2,
+          "standard_error": 634167.0444115615
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 74431123.0,
+            "upper_bound": 78050133.0
+          },
+          "point_estimate": 75775872.5,
+          "standard_error": 1157074.5264305065
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 385582.74035453796,
+            "upper_bound": 3546474.0234375
+          },
+          "point_estimate": 2591185.193297267,
+          "standard_error": 879425.8151734028
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1283604.285323481,
+            "upper_bound": 2587008.3278538487
+          },
+          "point_estimate": 2114002.5566267944,
+          "standard_error": 341082.7683897318
+        }
+      },
+      "rows=1024_keys=64_width=128_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 945305.2966482582,
+            "upper_bound": 965511.6813580247
+          },
+          "point_estimate": 956240.3931261024,
+          "standard_error": 5171.614309484679
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 951980.9930555555,
+            "upper_bound": 966249.6666666666
+          },
+          "point_estimate": 955551.3941798941,
+          "standard_error": 4428.96036927662
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 700.1468553475355,
+            "upper_bound": 23153.372481908435
+          },
+          "point_estimate": 8018.789531249203,
+          "standard_error": 5970.188489298787
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 953370.5502284401,
+            "upper_bound": 972091.0622977347
+          },
+          "point_estimate": 961164.2646464646,
+          "standard_error": 5117.563718079199
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5748.892249662003,
+            "upper_bound": 24721.505919152343
+          },
+          "point_estimate": 17247.92282618512,
+          "standard_error": 5332.418742831755
+        }
+      },
+      "rows=16_keys=1_width=128_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 15525.841874677913,
+            "upper_bound": 15863.690546077125
+          },
+          "point_estimate": 15675.747570396468,
+          "standard_error": 87.62871397714848
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 15502.541042067052,
+            "upper_bound": 15868.930206776284
+          },
+          "point_estimate": 15544.570683856502,
+          "standard_error": 78.53333851219513
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13.776655809224874,
+            "upper_bound": 346.72150207465614
+          },
+          "point_estimate": 122.72221545951116,
+          "standard_error": 88.08149504706377
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 15521.677315804569,
+            "upper_bound": 15673.00730568012
+          },
+          "point_estimate": 15583.86472540912,
+          "standard_error": 38.345295683688896
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 63.75470474524434,
+            "upper_bound": 386.1156265805913
+          },
+          "point_estimate": 292.6341108975231,
+          "standard_error": 86.17478010163927
+        }
+      },
+      "rows=16_keys=1_width=128_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13706.50356530838,
+            "upper_bound": 14698.11360158533
+          },
+          "point_estimate": 14074.363141106636,
+          "standard_error": 283.1449060652812
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13658.828109452737,
+            "upper_bound": 14040.49071310116
+          },
+          "point_estimate": 13766.765466648241,
+          "standard_error": 111.35189981162966
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 47.33878609157525,
+            "upper_bound": 427.8920333486714
+          },
+          "point_estimate": 192.9462260839186,
+          "standard_error": 119.16186664121102
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13717.641717273667,
+            "upper_bound": 13956.507530058043
+          },
+          "point_estimate": 13834.555861385712,
+          "standard_error": 64.1934034116285
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 102.10202913681768,
+            "upper_bound": 1449.241578012624
+          },
+          "point_estimate": 943.7414496282925,
+          "standard_error": 466.97207847840207
+        }
+      },
+      "rows=16_keys=64_width=128_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3371.556622458408,
+            "upper_bound": 3507.4985854007246
+          },
+          "point_estimate": 3432.8705787477047,
+          "standard_error": 34.938334651708125
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3342.9702320027295,
+            "upper_bound": 3491.785226885022
+          },
+          "point_estimate": 3417.946079267599,
+          "standard_error": 44.17976151132621
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 12.430678896506757,
+            "upper_bound": 179.88056013981503
+          },
+          "point_estimate": 110.31655374773307,
+          "standard_error": 39.99731722574191
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3382.426135022268,
+            "upper_bound": 3482.7394839327226
+          },
+          "point_estimate": 3432.8006859057014,
+          "standard_error": 25.143365185245603
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 51.967223001816635,
+            "upper_bound": 162.9951835115914
+          },
+          "point_estimate": 116.78046687910633,
+          "standard_error": 33.114668645778515
+        }
+      },
+      "rows=1024_keys=64_width=8_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 721399.5429166668,
+            "upper_bound": 759423.311170635
+          },
+          "point_estimate": 737007.2103769842,
+          "standard_error": 10119.427920193726
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 718252.7256944445,
+            "upper_bound": 744287.1595238096
+          },
+          "point_estimate": 726921.0138888889,
+          "standard_error": 7656.117656818857
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1058.8646645346319,
+            "upper_bound": 30971.282529316442
+          },
+          "point_estimate": 14156.529365338016,
+          "standard_error": 7985.7964471459
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 726150.7301493711,
+            "upper_bound": 749735.7244063218
+          },
+          "point_estimate": 735212.1813852814,
+          "standard_error": 5984.7008131908115
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8472.93764126275,
+            "upper_bound": 50221.23357692715
+          },
+          "point_estimate": 33709.36819421561,
+          "standard_error": 13240.75070417625
+        }
+      },
+      "rows=1024_keys=1_width=128_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28764222.659682542,
+            "upper_bound": 30935572.617144845
+          },
+          "point_estimate": 29762141.01579365,
+          "standard_error": 559286.528231339
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28371095.0,
+            "upper_bound": 30565525.35
+          },
+          "point_estimate": 29632322.85,
+          "standard_error": 616810.9298597993
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 217782.1388735959,
+            "upper_bound": 2880520.805080532
+          },
+          "point_estimate": 1407271.7271059316,
+          "standard_error": 623965.4552073497
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 29247106.576835476,
+            "upper_bound": 30458259.820359282
+          },
+          "point_estimate": 29843205.238961037,
+          "standard_error": 309106.5069476063
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 824336.2383603648,
+            "upper_bound": 2575879.0551823843
+          },
+          "point_estimate": 1854184.0389636508,
+          "standard_error": 504729.3022038873
+        }
+      },
+      "rows=1024_keys=1_width=128_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28538983.1,
+            "upper_bound": 31320117.131249998
+          },
+          "point_estimate": 29812791.5,
+          "standard_error": 713566.4753622072
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28137668.5,
+            "upper_bound": 31775684.5
+          },
+          "point_estimate": 29209611.0,
+          "standard_error": 799718.9682252419
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 255688.07951062918,
+            "upper_bound": 3692394.1073969007
+          },
+          "point_estimate": 1400367.9367884994,
+          "standard_error": 830853.044357085
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 856524.8021103041,
+            "upper_bound": 3015931.565273796
+          },
+          "point_estimate": 2378429.580665395,
+          "standard_error": 558093.4353968811
+        }
+      },
+      "rows=1024_keys=1_width=128_kind=29_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 130185488.8,
+            "upper_bound": 143364591.1
+          },
+          "point_estimate": 135656282.1,
+          "standard_error": 3481159.199229225
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 130496120.5,
+            "upper_bound": 137678826.0
+          },
+          "point_estimate": 131433295.0,
+          "standard_error": 2223277.088147489
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 413229.52336370945,
+            "upper_bound": 11411388.155007362
+          },
+          "point_estimate": 3698645.86083591,
+          "standard_error": 3173074.084746057
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2850504.7137116063,
+            "upper_bound": 17324824.46867013
+          },
+          "point_estimate": 11622240.380260114,
+          "standard_error": 4578321.737964232
+        }
+      },
+      "rows=1024_keys=64_width=8_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 267346.31025028345,
+            "upper_bound": 271569.3934604434
+          },
+          "point_estimate": 269441.35436193,
+          "standard_error": 1078.1401961289043
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 266779.63174603175,
+            "upper_bound": 272945.9232804233
+          },
+          "point_estimate": 268966.3036659108,
+          "standard_error": 1834.7548080657643
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 414.91684633746206,
+            "upper_bound": 5644.511736826926
+          },
+          "point_estimate": 3765.873356475721,
+          "standard_error": 1564.3948372339632
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 266046.0420092425,
+            "upper_bound": 269778.05021076894
+          },
+          "point_estimate": 267467.0399092971,
+          "standard_error": 949.3434444853362
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2176.359124079056,
+            "upper_bound": 4387.052670501308
+          },
+          "point_estimate": 3592.1204431847846,
+          "standard_error": 559.5746173698134
+        }
+      },
+      "rows=16_keys=1_width=8_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13415.091312846605,
+            "upper_bound": 14096.456075278207
+          },
+          "point_estimate": 13697.996879929511,
+          "standard_error": 179.73480364758134
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13325.043348861283,
+            "upper_bound": 13828.781142167012
+          },
+          "point_estimate": 13528.639008429458,
+          "standard_error": 140.67861859533937
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 86.96442617346314,
+            "upper_bound": 607.4132795061137
+          },
+          "point_estimate": 322.6416599086099,
+          "standard_error": 135.74674409461986
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 13547.998033389034,
+            "upper_bound": 13988.21543396147
+          },
+          "point_estimate": 13773.961028877955,
+          "standard_error": 110.69453958032564
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 165.11616212005313,
+            "upper_bound": 885.1628231051285
+          },
+          "point_estimate": 598.4154306094272,
+          "standard_error": 226.02457826787833
+        }
+      },
+      "rows=16_keys=1_width=128_kind=26_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7263.867525776694,
+            "upper_bound": 7408.6627332818925
+          },
+          "point_estimate": 7334.395951740303,
+          "standard_error": 37.177746465450724
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7234.280923551757,
+            "upper_bound": 7449.273741690408
+          },
+          "point_estimate": 7321.636182336182,
+          "standard_error": 57.49648519929261
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 19.46621482534567,
+            "upper_bound": 212.71438467244107
+          },
+          "point_estimate": 138.86237571845993,
+          "standard_error": 48.258917505834944
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7302.2337798983235,
+            "upper_bound": 7459.148659507634
+          },
+          "point_estimate": 7391.855406322073,
+          "standard_error": 39.7956765768943
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 72.19362684804298,
+            "upper_bound": 150.2756528547176
+          },
+          "point_estimate": 124.18041802171149,
+          "standard_error": 19.508982365046307
+        }
+      },
+      "rows=1024_keys=1_width=128_kind=29_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 107897229.6875,
+            "upper_bound": 113447234.34499998
+          },
+          "point_estimate": 110655573.7,
+          "standard_error": 1415410.0596209324
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 105978879.0,
+            "upper_bound": 115156160.0
+          },
+          "point_estimate": 110830706.5,
+          "standard_error": 2565601.770179458
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1143978.5874903202,
+            "upper_bound": 7909502.584478259
+          },
+          "point_estimate": 6255893.599435687,
+          "standard_error": 1742829.2085406503
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3084658.4237608756,
+            "upper_bound": 5516028.903362737
+          },
+          "point_estimate": 4725703.619337102,
+          "standard_error": 622775.421996482
+        }
+      },
+      "rows=16_keys=1_width=8_kind=26_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4844.303911750268,
+            "upper_bound": 4951.537044673541
+          },
+          "point_estimate": 4893.324685956857,
+          "standard_error": 27.570814751318927
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4824.971785930868,
+            "upper_bound": 4933.150365300759
+          },
+          "point_estimate": 4880.379017586416,
+          "standard_error": 32.7463587587278
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 14.948141159723496,
+            "upper_bound": 138.61563508910993
+          },
+          "point_estimate": 69.30781754455496,
+          "standard_error": 30.65026912087411
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4836.059353294026,
+            "upper_bound": 4924.777484977121
+          },
+          "point_estimate": 4869.139703716538,
+          "standard_error": 22.620697061355017
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 41.36970713465869,
+            "upper_bound": 127.63656306404646
+          },
+          "point_estimate": 91.85358011800712,
+          "standard_error": 25.20928186332856
+        }
+      }
+    },
+    "timed_checkpoint_cases": 8,
+    "checkpoint_estimates_nanoseconds": {
+      "string_aggregate_checkpoint_rows=1024_keys=64_width=128_kind=25": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 153088.92664769344,
+            "upper_bound": 155198.40952120535
+          },
+          "point_estimate": 154096.18427083333,
+          "standard_error": 540.2328653662507
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 152630.28125,
+            "upper_bound": 155514.853125
+          },
+          "point_estimate": 153795.85863095237,
+          "standard_error": 593.1689088076678
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 264.15320468534725,
+            "upper_bound": 3270.672352871438
+          },
+          "point_estimate": 1166.1691246088594,
+          "standard_error": 774.6186832936279
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 153226.93521155373,
+            "upper_bound": 155341.14608055682
+          },
+          "point_estimate": 154183.28028756956,
+          "standard_error": 528.9250588091488
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 830.814282064321,
+            "upper_bound": 2273.8441423460395
+          },
+          "point_estimate": 1798.405478545324,
+          "standard_error": 367.39113975347783
+        }
+      },
+      "string_aggregate_checkpoint_rows=16_keys=1_width=8_kind=26": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7688.960888194444,
+            "upper_bound": 7945.896464459
+          },
+          "point_estimate": 7796.606291242116,
+          "standard_error": 67.26406258315977
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7655.285080058225,
+            "upper_bound": 7832.2326146288215
+          },
+          "point_estimate": 7771.592513343037,
+          "standard_error": 49.94950468452711
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 29.534739375580898,
+            "upper_bound": 234.18769002719904
+          },
+          "point_estimate": 121.95404475628033,
+          "standard_error": 52.26674898650051
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7651.792130260619,
+            "upper_bound": 7849.984046934356
+          },
+          "point_estimate": 7728.398803380026,
+          "standard_error": 50.661409705191346
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 66.96795563203628,
+            "upper_bound": 330.84997375143274
+          },
+          "point_estimate": 223.45156683571193,
+          "standard_error": 83.1238075255506
+        }
+      },
+      "string_aggregate_checkpoint_rows=1024_keys=64_width=128_kind=26": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 170954.5260973437,
+            "upper_bound": 176232.1953761743
+          },
+          "point_estimate": 173373.86950882734,
+          "standard_error": 1362.284454551241
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 170137.30793650792,
+            "upper_bound": 175943.7636054422
+          },
+          "point_estimate": 172363.50929300292,
+          "standard_error": 1294.6090833362884
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 315.5775818973636,
+            "upper_bound": 6863.351982913063
+          },
+          "point_estimate": 2320.7624924206716,
+          "standard_error": 1654.1357139975973
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 170385.521358469,
+            "upper_bound": 173751.29805194805
+          },
+          "point_estimate": 172060.52006360985,
+          "standard_error": 882.1274041890206
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1756.715011511337,
+            "upper_bound": 6131.8162755116555
+          },
+          "point_estimate": 4532.334274962952,
+          "standard_error": 1193.0439340479393
+        }
+      },
+      "string_aggregate_checkpoint_rows=1024_keys=64_width=128_kind=24": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 120308.25163416988,
+            "upper_bound": 124155.86502252251
+          },
+          "point_estimate": 122236.69650418274,
+          "standard_error": 985.7231225541825
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 119490.94594594595,
+            "upper_bound": 125002.40067567567
+          },
+          "point_estimate": 122130.9346042471,
+          "standard_error": 1255.911099694948
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 714.5170663688336,
+            "upper_bound": 5693.2069497650855
+          },
+          "point_estimate": 4081.649365711904,
+          "standard_error": 1248.6956780651778
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 121293.939624649,
+            "upper_bound": 125826.40288448347
+          },
+          "point_estimate": 124143.86916461916,
+          "standard_error": 1137.3127305072562
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1830.7207799343166,
+            "upper_bound": 4185.061246589896
+          },
+          "point_estimate": 3281.895364507674,
+          "standard_error": 606.3443949771626
+        }
+      },
+      "string_aggregate_checkpoint_rows=16_keys=1_width=8_kind=29": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8843.475886346565,
+            "upper_bound": 9041.56172119869
+          },
+          "point_estimate": 8937.898960990187,
+          "standard_error": 51.001114447408554
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8795.095943837754,
+            "upper_bound": 9054.433784018027
+          },
+          "point_estimate": 8904.233437337494,
+          "standard_error": 60.71183216935978
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 19.983392975956892,
+            "upper_bound": 289.08251616261134
+          },
+          "point_estimate": 177.06831461858644,
+          "standard_error": 71.68243837945808
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8833.517101229356,
+            "upper_bound": 9050.799089106224
+          },
+          "point_estimate": 8921.808848457835,
+          "standard_error": 55.340002929448794
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 76.26564686594152,
+            "upper_bound": 211.22559464318525
+          },
+          "point_estimate": 169.93877621505297,
+          "standard_error": 33.05491937615848
+        }
+      },
+      "string_aggregate_checkpoint_rows=16_keys=1_width=8_kind=24": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7172.174771821397,
+            "upper_bound": 7881.967712999751
+          },
+          "point_estimate": 7490.723126699423,
+          "standard_error": 183.50088493542046
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7022.4677501391525,
+            "upper_bound": 7860.649183796856
+          },
+          "point_estimate": 7304.812185946526,
+          "standard_error": 201.56934134041416
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 73.30798285108261,
+            "upper_bound": 898.9616526751995
+          },
+          "point_estimate": 445.02338958313254,
+          "standard_error": 219.12299180858173
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7026.789734949698,
+            "upper_bound": 7480.123095410311
+          },
+          "point_estimate": 7207.8121693703315,
+          "standard_error": 121.65287390261663
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 218.22840110164427,
+            "upper_bound": 833.1217767378413
+          },
+          "point_estimate": 615.2711138520731,
+          "standard_error": 167.49551547649446
+        }
+      },
+      "string_aggregate_checkpoint_rows=16_keys=1_width=8_kind=25": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7406.008786850553,
+            "upper_bound": 7604.880530735291
+          },
+          "point_estimate": 7495.421819020516,
+          "standard_error": 51.2569775719942
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7380.454611792177,
+            "upper_bound": 7581.30959938704
+          },
+          "point_estimate": 7431.084880326912,
+          "standard_error": 51.47162639121319
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 17.85883843950981,
+            "upper_bound": 252.14889007468784
+          },
+          "point_estimate": 98.92378937772708,
+          "standard_error": 62.00718078561713
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 7362.44471215754,
+            "upper_bound": 7627.609186508072
+          },
+          "point_estimate": 7451.688536857188,
+          "standard_error": 70.69574423846088
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 58.29926431104764,
+            "upper_bound": 230.74066931439677
+          },
+          "point_estimate": 170.7037431761697,
+          "standard_error": 46.06193554077939
+        }
+      },
+      "string_aggregate_checkpoint_rows=1024_keys=64_width=128_kind=29": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 269222.43645430106,
+            "upper_bound": 276556.37699417566
+          },
+          "point_estimate": 272608.7383154122,
+          "standard_error": 1870.0805479064381
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 269725.6818996416,
+            "upper_bound": 274220.28387096775
+          },
+          "point_estimate": 272129.45026881725,
+          "standard_error": 1279.5737111618857
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 372.6347643521594,
+            "upper_bound": 8792.767717553104
+          },
+          "point_estimate": 2898.1860299985,
+          "standard_error": 1948.0969295354457
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 269986.50150799897,
+            "upper_bound": 273700.1507834101
+          },
+          "point_estimate": 271661.0790113113,
+          "standard_error": 940.5716529007157
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1674.5848941249264,
+            "upper_bound": 9068.624423405514
+          },
+          "point_estimate": 6237.126788135832,
+          "standard_error": 1970.8051036068334
+        }
+      }
+    },
+    "json_update_fixture_revision": "4dd1d66a0505a9c3c537194218d75ec19e8f8226",
+    "checkpoint_fixture_sha256": "6a103586284b40c15d764be23cb729c0e489fdea91a783c74a291a81a2c9a04c",
+    "checkpoint_boundary": "snapshot serialization and state restoration; input/state setup and output/state destruction outside timing; byte/state results have no Arrow output buffers to report"
+  },
+  "validation": {
+    "flink_2_2_1": "19 JSON + 12 LISTAGG/TTL SQL checks pass",
+    "flink_1_18_1": "19 JSON + 12 LISTAGG/TTL SQL checks pass",
+    "native_state_tests": 3,
+    "recovery": "eight JSON scenarios, two successive restores each, memory/native RocksDB, append/retract; specific operator consumption and released memory verified",
+    "format": "cargo fmt --all -- --check passes"
+  }
+}

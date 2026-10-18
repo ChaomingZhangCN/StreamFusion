@@ -41,6 +41,10 @@ class NativeColumnarTopNOperatorTest {
   }
 
   private static NativeColumnarTopNOperator operator(long stateTtlMillis) {
+    return operator(stateTtlMillis, 2L);
+  }
+
+  private static NativeColumnarTopNOperator operator(long stateTtlMillis, long limit) {
     return new NativeColumnarTopNOperator(
         new int[] {0},
         new int[] {-1},
@@ -49,7 +53,7 @@ class NativeColumnarTopNOperatorTest {
         new int[] {1},
         new int[] {0},
         0L,
-        2L,
+        limit,
         false,
         false,
         null,
@@ -59,6 +63,43 @@ class NativeColumnarTopNOperatorTest {
         -1,
         stateTtlMillis,
         MAX_PARALLELISM);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false", "true,true"})
+  void appendTop1RetainsTieExpiryAndCanonicalBackendContinuation(boolean writeRocks,
+      boolean readRocks) throws Exception {
+    OperatorSubtaskState snapshot;
+    try (var allocator = new RootAllocator(); var before = harness(operator(1000, 1), 1, 0)) {
+      if (writeRocks) before.setStateBackend(new tech.streamfusion.state.RocksDBNativeStateBackendFactory()
+          .createFromConfig(new org.apache.flink.configuration.Configuration(), getClass().getClassLoader()));
+      before.setup(new ArrowBatchSerializer());
+      before.open();
+      before.setProcessingTime(5000);
+      before.processElement(new StreamRecord<>(batch(allocator, row(1, 5), row(1, 3))));
+      assertEquals(List.of(change(RowKind.INSERT, 1, 5), change(RowKind.DELETE, 1, 5),
+          change(RowKind.INSERT, 1, 3)), collect(before));
+      before.setProcessingTime(5800);
+      before.processElement(new StreamRecord<>(batch(allocator, row(1, 3), row(1, 8))));
+      assertEquals(List.of(), collect(before));
+      snapshot = before.snapshotWithLocalState(1, 1,
+          org.apache.flink.runtime.checkpoint.SavepointType.savepoint(
+              org.apache.flink.core.execution.SavepointFormatType.CANONICAL)).getJobManagerOwnedState();
+    }
+    try (var allocator = new RootAllocator(); var restored = harness(operator(1000, 1), 1, 0)) {
+      if (readRocks) restored.setStateBackend(new tech.streamfusion.state.RocksDBNativeStateBackendFactory()
+          .createFromConfig(new org.apache.flink.configuration.Configuration(), getClass().getClassLoader()));
+      restored.setup(new ArrowBatchSerializer());
+      restored.initializeState(snapshot);
+      restored.open();
+      restored.setProcessingTime(6500);
+      restored.processElement(new StreamRecord<>(batch(allocator, row(1, 8))));
+      assertEquals(List.of(), collect(restored));
+      restored.setProcessingTime(6800);
+      restored.processElement(new StreamRecord<>(batch(allocator, row(1, 8), row(1, 7))));
+      assertEquals(List.of(change(RowKind.INSERT, 1, 8), change(RowKind.DELETE, 1, 8),
+          change(RowKind.INSERT, 1, 7)), collect(restored));
+    }
   }
 
   private static NativeColumnarTopNOperator netDiffOperator(long miniBatchSize) {

@@ -51,6 +51,11 @@ public final class Native {
 
   public static native void closeFirstN(long handle);
 
+  public static native void setWindowJoinerCalendar(long handle, Object calendar);
+  public static native long nextWindowJoinerTimerDeadline(long handle);
+  public static native void setWindowRankerCalendar(long handle, Object calendar);
+  public static native long nextWindowRankerTimerDeadline(long handle);
+
   private Native() {}
 
   /**
@@ -365,6 +370,24 @@ public final class Native {
 
   /** Releases a compiled predicate handle and its native state. */
   public static native void closeFilterExpression(long handle);
+
+  /**
+   * Assigns local calendar windows and converts their window-time properties using released Flink.
+   * @param inArrayAddress input Arrow array
+   * @param inSchemaAddress input Arrow schema
+   * @param outArrayAddress output Arrow array
+   * @param outSchemaAddress output Arrow schema
+   * @param timeColumn timestamp column index
+   * @param windowMillis window size
+   * @param slideMillis window slide or step
+   * @param cumulative whether windows accumulate within a max-size grid
+   * @param proctime whether the operator clock supplies assignment time
+   * @param nowMillis current processing time
+   * @param calendar batched released-Flink local/epoch conversion
+   */
+  public static native void assignCalendarWindows(long inArrayAddress, long inSchemaAddress,
+      long outArrayAddress, long outSchemaAddress, int timeColumn, long windowMillis,
+      long slideMillis, boolean cumulative, boolean proctime, long nowMillis, Object calendar);
 
   /**
    * Runs a batch the JVM exported through the stateless windowing table function, writing the
@@ -766,6 +789,24 @@ public final class Native {
       long outArrayAddress,
       long outSchemaAddress);
 
+  /** Assigns fixed-grid windows on the shifted local timeline, retaining epoch bounds in state. */
+  public static native void setFixedWindowAssignmentOffset(long handle, long offsetMillis);
+
+  /**
+   * Attaches released-Flink deadlines to local fixed-window bounds.
+   * @param handle fixed-window handle, either heap or persistent
+   * @param calendar batched local-end conversion
+   */
+  public static native void setFixedWindowCalendar(long handle, Object calendar);
+
+  /**
+   * Reads the earliest remaining regional timer after a firing pass.
+   * @param handle fixed-window handle, either heap or persistent
+   * @return inclusive epoch deadline, or {@link Long#MIN_VALUE} when no window remains
+   */
+  public static native long fixedWindowNextTimerDeadline(long handle);
+
+
   /**
    * Creates a stateful tumbling-window aggregator and returns an opaque handle. The handle owns
    * native state that persists across calls and must be released with {@link
@@ -809,6 +850,12 @@ public final class Native {
       long handle, long inArrayAddress, long inSchemaAddress);
 
   /**
+   * Folds assigned window bounds into final state, dropping windows already closed by watermarks.
+   */
+  public static native void updateAttachedFinalWindowAggregator(
+      long handle, long inArrayAddress, long inSchemaAddress);
+
+  /**
    * Emits the windows the watermark has closed as a batch (columns {@code window_start} and {@code
    * total}) and drops them from state.
    */
@@ -831,6 +878,9 @@ public final class Native {
    */
   public static native void flushPartialTumblingAggregator(
       long handle, long watermarkMillis, long outArrayAddress, long outSchemaAddress);
+
+  /** Whether the lowest buffered local slice is ready to trigger a whole-buffer drain. */
+  public static native boolean localWindowBufferReady(long handle, long watermarkMillis);
 
   /**
    * Local two-phase half's barrier flush: emits every open window's partial state, watermark
@@ -969,6 +1019,12 @@ public final class Native {
       long nowMillis,
       byte[][] snapshots,
       long memoryBudgetBytes);
+
+  /** Attaches the managed heap copy-on-write observer for decimal RANGE state. */
+  public static native void setOverAggregatorHeapSnapshotProbe(long handle, Object probe, int maxParallelism);
+
+  /** Applies heap RANGE map reconstruction for a canonical savepoint after raw OVER restore. */
+  public static native void restoreOverAggregatorCanonicalRangeOrder(long handle, byte[][] snapshots);
 
   /**
    * Creates an event-time sorter over the given rowtime column and returns an opaque handle. Each
@@ -1196,9 +1252,10 @@ public final class Native {
    * @param keyColumns grouping-key column indices in the input batch (empty for global aggregation)
    * @param keyTimestampPrecisions pre-order logical key type descriptors (timestamp precision or
    *     {@code -1}); this lets the native BinaryRow codec preserve nested timestamp layout
-   * @param countColumns per-aggregate two-phase AVG count-partial column ({@code -1} otherwise):
-   *     the value column is then the local's pre-summed sum partial, and each row bumps the count
-   *     by this column instead of by one
+   * @param countColumns per-aggregate secondary input column ({@code -1} otherwise): a two-phase
+   *     numeric merge reads its count partial; LISTAGG reads its separator and JSON_OBJECTAGG
+   *     reads its key.
+   *     An empty array retains the historical single-phase encoding.
    * @param distinctViewColumns per-aggregate two-phase distinct-view column ({@code -1} otherwise):
    *     the column carries a local bundle's distinct (value, count) entries as a list of structs,
    *     folded into the per-key distinct set with multiplicities instead of one value per row
@@ -1239,9 +1296,7 @@ public final class Native {
         miniBatch,
         stateTtlMillis,
         memoryBudgetBytes,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long createGroupAggregatorWithTtlEmission(
@@ -1322,9 +1377,7 @@ public final class Native {
         nowMillis,
         snapshots,
         memoryBudgetBytes,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long restoreGroupAggregatorPartitionsWithTtlEmission(
@@ -1412,9 +1465,7 @@ public final class Native {
         keyGroupEnd,
         aligned,
         restoredPartitions,
-        !miniBatch
-            || countColumns.length == 0
-            || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
+        !miniBatch || tech.streamfusion.compat.FlinkCompat.GLOBAL_TTL_EMITS_UNCHANGED);
   }
 
   private static native long createRocksDBGroupAggregatorWithTtlEmission(
@@ -2158,6 +2209,9 @@ public final class Native {
 
   public static native long rocksdbTopNRankerStateBytes(long handle);
 
+  /** Resident cache entries, hits, misses and accounted bytes, in that order. */
+  public static native long[] rocksdbTopNRankerCacheStats(long handle);
+
   public static native long rocksdbTopNRankerStagingBytes(long handle);
 
   public static native long rocksdbTopNRankerStagedPartitions(long handle);
@@ -2626,6 +2680,9 @@ public final class Native {
       long stateTtlMillis,
       long memoryBudgetBytes);
 
+  /** Selects row-identity changelogs for an unbounded, insert-only non-time ROW_NUMBER. */
+  public static native void enableNonTimeRowNumber(long handle, boolean persistent);
+
   /** Retains each partition's first variable bound independently of its ranked rows. */
   public static native void enableTopNFirstBound(
       long handle, boolean persistent, boolean generateUpdateBefore);
@@ -2867,6 +2924,21 @@ public final class Native {
    */
   public static native void updateSessionAggregator(
       long handle, long inArrayAddress, long inSchemaAddress);
+
+  /**
+   * Uses released-Flink calendar deadlines for sessions stored with local bounds.
+   * @param handle session handle, either heap or persistent
+   * @param calendar batched local-end conversion
+   */
+  public static native void setSessionWindowCalendar(long handle, Object calendar);
+
+  /**
+   * Returns the earliest open session timer after the latest firing pass.
+   * @param handle session handle, either heap or persistent
+   * @return inclusive epoch deadline, or {@link Long#MIN_VALUE} when no session remains
+   */
+  public static native long sessionAggregatorNextTimerDeadline(long handle);
+
 
   /**
    * Emits the sessions the watermark has closed as a batch (columns {@code key}, {@code

@@ -1,6 +1,414 @@
 use super::*;
 
 #[test]
+fn timestamp_panes_match_direct_windows_across_boundaries_late_rows_and_restore() {
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let batch = |times: Vec<i64>| {
+        let values: ArrayRef = Arc::new(timestamp_array(times.iter().enumerate().map(
+            |(row, _)| match row % 4 {
+                0 => Some(early),
+                1 => Some(late),
+                _ => None,
+            },
+        )));
+        RecordBatch::try_from_iter(vec![
+            ("ts", Arc::new(Int64Array::from(times.clone())) as ArrayRef),
+            (
+                "key0",
+                Arc::new(StringArray::from_iter(times.iter().enumerate().map(
+                    |(row, _)| {
+                        if row % 3 == 0 {
+                            None
+                        } else {
+                            Some(if row % 2 == 0 { "A" } else { "B" })
+                        }
+                    },
+                ))) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values.clone()),
+            (
+                "value2",
+                Arc::new(Int64Array::from_value(1, times.len())) as ArrayRef,
+            ),
+            ("value3", values),
+        ])
+        .unwrap()
+    };
+    let types = vec![1009, 1009, 0, 1009];
+    let kinds = vec![1, 2, 3, 3];
+    for offset in [0, 123, -345, 20_700_123] {
+        for cumulative in [false, true] {
+            let mut panes =
+                TumblingAggregator::new(10_000, 2000, cumulative, types.clone(), kinds.clone())
+                    .with_memory_budget(1024 * 1024)
+                    .unwrap();
+            let mut direct =
+                TumblingAggregator::new(10_000, 2000, cumulative, types.clone(), kinds.clone());
+            panes.set_assignment_offset(offset);
+            direct.set_assignment_offset(offset);
+            direct.exact_panes = false;
+            for times in [
+                vec![-2001, -2000, -1, 0, 1, 1999, 2000, 7999, 8000, 9999],
+                vec![0, 3000, 8000, 9999, 10_000, 10_001, 15_999, 16_000],
+            ] {
+                let input = batch(times);
+                panes.update(&input).unwrap();
+                assert_eq!(panes.memory.state_bytes, panes.computed_state_bytes());
+                direct.update(&input).unwrap();
+                assert_eq!(panes.flush(3999).unwrap(), direct.flush(3999).unwrap());
+                assert_eq!(panes.late_drops, direct.late_drops);
+                let restore = |operator: &mut TumblingAggregator| {
+                    TumblingAggregator::restore(
+                        10_000,
+                        2000,
+                        cumulative,
+                        types.clone(),
+                        kinds.clone(),
+                        &operator.snapshot(),
+                    )
+                };
+                panes = restore(&mut panes);
+                panes = panes.with_memory_budget(1024 * 1024).unwrap();
+                direct = restore(&mut direct);
+                direct.exact_panes = false;
+            }
+            assert_eq!(
+                panes.flush(i64::MAX).unwrap(),
+                direct.flush(i64::MAX).unwrap()
+            );
+            assert_eq!(panes.flush(i64::MAX).unwrap().num_rows(), 0);
+            assert_eq!(panes.memory.state_bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn temporal_sessions_bridge_restored_values_without_retaining_source_batches() {
+    use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let middle = TimestampValue::new(-1, 999_999).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let types = vec![1009, 1009];
+    let kinds = vec![1, 2];
+    let batch = |times: Vec<i64>, values: Vec<Option<TimestampValue>>| {
+        let values: ArrayRef = Arc::new(timestamp_array(values));
+        RecordBatch::try_from_iter(vec![
+            ("ts", Arc::new(Int64Array::from(times)) as ArrayRef),
+            (
+                "key0",
+                Arc::new(Int64Array::from(vec![1, 1, 2])) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+        ])
+        .unwrap()
+    };
+    let mut window = SessionAggregator::new(1000, types.clone(), kinds.clone());
+    window
+        .update(&batch(
+            vec![100, 2100, 100],
+            vec![Some(middle), Some(early), None],
+        ))
+        .unwrap();
+    let snapshots = window
+        .snapshot_partitions(128, &[-1])
+        .into_values()
+        .collect::<Vec<_>>();
+    let mut restored = SessionAggregator::restore_partitions(1000, types, kinds, &snapshots);
+    restored
+        .update(&batch(vec![1100, 1200, 100], vec![Some(late), None, None]))
+        .unwrap();
+    let output = restored.flush(4000).unwrap();
+    assert_eq!(output.num_rows(), 2);
+    let minimum =
+        TimestampColumn::try_new(output.column_by_name("result0").unwrap().as_ref()).unwrap();
+    let maximum =
+        TimestampColumn::try_new(output.column_by_name("result1").unwrap().as_ref()).unwrap();
+    assert_eq!(column_i64(&output, "key0").values(), &[1, 2]);
+    assert_eq!(minimum.value(0).unwrap(), early);
+    assert_eq!(maximum.value(0).unwrap(), late);
+    assert!(minimum.is_null(1));
+    assert!(maximum.is_null(1));
+    assert_eq!(column_i64(&output, "window_start").values(), &[100, 100]);
+    assert_eq!(column_i64(&output, "window_end").values(), &[3100, 1100]);
+    assert_eq!(restored.flush(4000).unwrap().num_rows(), 0);
+}
+
+#[test]
+fn timestamp_extrema_partials_and_snapshots_keep_fractional_null_state() {
+    use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
+    let early = TimestampValue::new(-62_135_596_800_000, 1).unwrap();
+    let late = TimestampValue::new(253_402_300_799_999, 999_999).unwrap();
+    let low = TimestampValue::new(-1, 999_998).unwrap();
+    let high = TimestampValue::new(-1, 999_999).unwrap();
+    let kinds = vec![1, 2, 3, 1, 2];
+    let types = vec![1009, 1009, 0, 3, 3];
+    let create = || TumblingAggregator::new(1000, 1000, false, types.clone(), kinds.clone());
+    let mut single = create();
+    let mut local = create();
+    let mut global = create();
+    for rows in [
+        vec![(1, Some(high)), (2, None), (3, Some(high)), (1, None)],
+        vec![(1, Some(early)), (1, Some(late)), (2, None), (3, Some(low))],
+    ] {
+        let rows: Vec<_> = [(-99, None)]
+            .into_iter()
+            .chain(rows)
+            .chain([(-99, None)])
+            .collect();
+        let values: ArrayRef = Arc::new(timestamp_array(rows.iter().map(|row| row.1)));
+        let strings: ArrayRef = Arc::new(StringArray::from(
+            rows.iter()
+                .map(|row| {
+                    row.1.map(|value| {
+                        if value == early {
+                            "a\0"
+                        } else if value == late {
+                            "\u{e000}"
+                        } else if value == low {
+                            ""
+                        } else {
+                            "z"
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ));
+        let batch = RecordBatch::try_from_iter(vec![
+            (
+                "ts",
+                Arc::new(Int64Array::from_value(100, rows.len())) as ArrayRef,
+            ),
+            (
+                "key0",
+                Arc::new(Int64Array::from_iter_values(rows.iter().map(|row| row.0))) as ArrayRef,
+            ),
+            ("value0", values.clone()),
+            ("value1", values),
+            (
+                "value2",
+                Arc::new(Int64Array::from_value(1, rows.len())) as ArrayRef,
+            ),
+            ("value3", strings.clone()),
+            ("value4", strings),
+        ])
+        .unwrap();
+        let batch = batch.slice(1, rows.len() - 2);
+        single.update(&batch).unwrap();
+        local.update_local(&batch).unwrap();
+        global.update_partial(&local.drain_partial()).unwrap();
+        single = TumblingAggregator::restore(
+            1000,
+            1000,
+            false,
+            types.clone(),
+            kinds.clone(),
+            &single.snapshot(),
+        );
+        let partitions = global.snapshot_partitions(128, &[-1]);
+        global = TumblingAggregator::restore_partitions(
+            1000,
+            1000,
+            false,
+            types.clone(),
+            kinds.clone(),
+            &partitions.into_values().collect::<Vec<_>>(),
+        );
+    }
+    let result = single.flush(i64::MAX).unwrap();
+    assert_eq!(result, global.flush(i64::MAX).unwrap());
+    let keys = column_i64(&result, "key0");
+    let minimum =
+        TimestampColumn::try_new(result.column_by_name("result0").unwrap().as_ref()).unwrap();
+    let maximum =
+        TimestampColumn::try_new(result.column_by_name("result1").unwrap().as_ref()).unwrap();
+    let string_column = |name| {
+        result
+            .column_by_name(name)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+    };
+    let string_min = string_column("result3");
+    let string_max = string_column("result4");
+    for row in 0..result.num_rows() {
+        match keys.value(row) {
+            1 => {
+                assert_eq!(minimum.value(row).unwrap(), early);
+                assert_eq!(maximum.value(row).unwrap(), late);
+                assert_eq!(column_i64(&result, "result2").value(row), 4);
+                assert_eq!(string_min.value(row), "a\0");
+                assert_eq!(string_max.value(row), "\u{e000}");
+            }
+            2 => {
+                assert!(minimum.is_null(row));
+                assert!(maximum.is_null(row));
+                assert_eq!(column_i64(&result, "result2").value(row), 2);
+                assert!(string_min.is_null(row));
+                assert!(string_max.is_null(row));
+            }
+            3 => {
+                assert_eq!(minimum.value(row).unwrap(), low);
+                assert_eq!(maximum.value(row).unwrap(), high);
+                assert_eq!(column_i64(&result, "result2").value(row), 2);
+                assert_eq!(string_min.value(row), "");
+                assert_eq!(string_max.value(row), "z");
+            }
+            _ => panic!("unexpected key"),
+        }
+    }
+}
+
+#[test]
+fn local_buffer_readiness_drains_future_slices_without_advancing_lateness() {
+    let batch = RecordBatch::try_from_iter(vec![
+        (
+            "ts",
+            Arc::new(Int64Array::from(vec![100, 2100])) as ArrayRef,
+        ),
+        ("value0", Arc::new(Int64Array::from(vec![1, 1])) as ArrayRef),
+    ])
+    .unwrap();
+    let mut local = TumblingAggregator::new(1000, 1000, false, vec![0], vec![3]);
+    local.update_local(&batch).unwrap();
+    assert!(!local.local_buffer_ready(998));
+    assert!(local.local_buffer_ready(999));
+    assert_eq!(local.current_watermark, i64::MIN);
+    let partials = local.drain_partial();
+    assert_eq!(column_i64(&partials, "slice_end").values(), &[1000, 3000]);
+    assert!(!local.local_buffer_ready(i64::MAX));
+    assert_eq!(local.current_watermark, i64::MIN);
+    local.update_local(&batch).unwrap();
+    assert_eq!(local.drain_partial(), partials);
+}
+
+#[test]
+fn basic_value_partials_keep_extrema_and_distinct_sets_across_checkpoint_restore() {
+    use arrow::array::{BooleanArray, StringArray, Time32MillisecondArray};
+    use streamfusion_bridge::timestamp::{timestamp_array, TimestampValue};
+    let timestamp = |millis, nanos| TimestampValue::new(millis, nanos).unwrap();
+    let columns: Vec<(i64, ArrayRef, Vec<i64>)> = vec![
+        (
+            0,
+            Arc::new(Int64Array::from(vec![None, Some(i64::MAX), Some(1), None])),
+            vec![22],
+        ),
+        (
+            5803,
+            Arc::new(
+                Decimal128Array::from(vec![None, Some(DECIMAL128_MAX - 1), Some(1), Some(-1)])
+                    .with_precision_and_scale(38, 3)
+                    .unwrap(),
+            ),
+            vec![22],
+        ),
+        (
+            3,
+            Arc::new(StringArray::from(vec![
+                Some("z"),
+                Some(""),
+                Some("é😀"),
+                None,
+            ])),
+            vec![1, 2],
+        ),
+        (
+            1009,
+            Arc::new(timestamp_array([
+                Some(timestamp(253_402_300_799_999, 999_999)),
+                Some(timestamp(-62_135_596_800_000, 1)),
+                Some(timestamp(0, 2)),
+                None,
+            ])),
+            vec![1, 2],
+        ),
+        (
+            10,
+            Arc::new(BooleanArray::from(vec![
+                Some(true),
+                Some(false),
+                Some(true),
+                None,
+            ])),
+            vec![7],
+        ),
+        (
+            9,
+            Arc::new(Time32MillisecondArray::from(vec![
+                Some(1),
+                Some(999),
+                Some(1),
+                None,
+            ])),
+            vec![7],
+        ),
+    ];
+    for (code, values, kinds) in columns {
+        let mut fields = vec![
+            ("ts", Arc::new(Int64Array::from(vec![100; 4])) as ArrayRef),
+            ("key0", Arc::new(Int64Array::from(vec![0; 4])) as ArrayRef),
+        ];
+        fields.push(("value0", values.clone()));
+        if kinds.len() == 2 {
+            fields.push(("value1", values));
+        }
+        let batch = RecordBatch::try_from_iter(fields).unwrap();
+        for (size, slide, cumulative) in
+            [(1000, 1000, false), (1000, 500, false), (1000, 500, true)]
+        {
+            let create = || {
+                TumblingAggregator::new(
+                    size,
+                    slide,
+                    cumulative,
+                    vec![code; kinds.len()],
+                    kinds.clone(),
+                )
+            };
+            let mut single = create();
+            let mut local = TumblingAggregator::new(
+                slide,
+                slide,
+                false,
+                vec![code; kinds.len()],
+                kinds.clone(),
+            );
+            let mut global = create();
+            single.update(&batch).unwrap();
+            local.update_local(&batch).unwrap();
+            global.update_partial(&local.drain_partial()).unwrap();
+            global = TumblingAggregator::restore(
+                size,
+                slide,
+                cumulative,
+                vec![code; kinds.len()],
+                kinds.clone(),
+                &global.snapshot(),
+            );
+            let expected = single.flush(1000).unwrap();
+            let actual = global.flush(1000).unwrap();
+            assert_eq!(actual, expected, "value code {code}");
+            assert!(actual.num_rows() > 0);
+            if kinds == [7] {
+                assert_eq!(
+                    actual
+                        .column_by_name("result0")
+                        .unwrap()
+                        .as_any()
+                        .downcast_ref::<Int64Array>()
+                        .unwrap()
+                        .value(0),
+                    2
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn string_extrema_partials_preserve_nulls_utf8_order_and_keyed_restore() {
     fn batch(continuation: bool) -> RecordBatch {
         let values: ArrayRef = Arc::new(StringArray::from(if continuation {
@@ -985,6 +1393,94 @@ fn local_late_slices_update_only_unfired_final_windows_after_restore() {
             global.flush(i64::MAX).unwrap().num_rows(),
             0,
             "fully expired partials must be dropped"
+        );
+    }
+}
+
+#[test]
+fn fixed_offset_assignment_retains_epoch_bounds_and_snapshot_grid() {
+    const DAY: i64 = 86_400_000;
+    for offset in [28_800_000, -28_800_000, 20_700_000] {
+        for (size, slide, cumulative) in [
+            (DAY, DAY, false),
+            (DAY, DAY / 4, false),
+            (DAY, DAY / 4, true),
+        ] {
+            for timestamp in [-DAY * 2 + 1000, 1_704_067_200_000 + 1000] {
+                let batch = RecordBatch::try_from_iter(vec![
+                    (
+                        "ts",
+                        Arc::new(Int64Array::from(vec![timestamp])) as ArrayRef,
+                    ),
+                    ("value0", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+                ])
+                .unwrap();
+                let mut before = TumblingAggregator::new(size, slide, cumulative, vec![0], vec![3]);
+                before.set_assignment_offset(offset);
+                before.update(&batch).unwrap();
+                let raw = before.snapshot();
+                let mut restored =
+                    TumblingAggregator::restore(size, slide, cumulative, vec![0], vec![3], &raw);
+                assert_eq!(
+                    before.assignment_offset_millis,
+                    restored.assignment_offset_millis
+                );
+                let mut local = Vec::new();
+                windows_for(timestamp + offset, size, slide, cumulative, &mut local);
+                local.sort_by_key(|&(_, end)| end);
+                let close = local.last().unwrap().1 - offset;
+                assert_eq!(before.flush(close).unwrap(), restored.flush(close).unwrap());
+                let mut actual =
+                    TumblingAggregator::restore(size, slide, cumulative, vec![0], vec![3], &raw);
+                let out = actual.flush(close).unwrap();
+                let starts = out.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+                let ends = out.column(1).as_any().downcast_ref::<Int64Array>().unwrap();
+                assert_eq!(
+                    starts.values().as_ref(),
+                    local
+                        .iter()
+                        .map(|(start, _)| start - offset)
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    ends.values().as_ref(),
+                    local
+                        .iter()
+                        .map(|(_, end)| end - offset)
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fixed_offset_local_partials_merge_on_the_global_shifted_grid() {
+    const DAY: i64 = 86_400_000;
+    let offset = 20_700_000;
+    let timestamp = -DAY + 1000;
+    let batch = RecordBatch::try_from_iter(vec![
+        (
+            "ts",
+            Arc::new(Int64Array::from(vec![timestamp])) as ArrayRef,
+        ),
+        ("value0", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+    ])
+    .unwrap();
+    for cumulative in [false, true] {
+        let mut local = TumblingAggregator::new(DAY / 4, DAY / 4, false, vec![0], vec![3]);
+        local.set_assignment_offset(offset);
+        local.update_local(&batch).unwrap();
+        let partial = local.drain_partial();
+        let mut global = TumblingAggregator::new(DAY, DAY / 4, cumulative, vec![0], vec![3]);
+        global.set_assignment_offset(offset);
+        global.update_partial(&partial).unwrap();
+        let mut direct = TumblingAggregator::new(DAY, DAY / 4, cumulative, vec![0], vec![3]);
+        direct.set_assignment_offset(offset);
+        direct.update(&batch).unwrap();
+        assert_eq!(
+            global.flush(DAY * 2).unwrap(),
+            direct.flush(DAY * 2).unwrap()
         );
     }
 }

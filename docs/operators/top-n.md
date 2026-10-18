@@ -31,8 +31,30 @@ three natively:
   refreshed by every record processed for that partition — modeling Flink's own per-record
   `SortedMap` rewrite.
 
+Unfiltered numeric ROW_NUMBER on Flink 2.2 uses the same retained-row representation through
+[a separate OVER matcher](over.md#ordinary-numeric-row_number-flink-22). It retains every row and
+emits updates by row identity, rather than changing occupants of bounded rank slots. Its narrower
+input/TTL gates do not change the filtered Top-N admission described here.
+
 Idle-state TTL is native across all three — see [TTL semantics](index.md#idle-state-ttl) and
 [Configuration](../configuration.md) for the flag surface.
+
+Constant AppendFast Top-1 (`offset=0`, `limit=1`, no variable rank bound) uses a
+single-winner update loop. It compares the borrowed sort key before obtaining
+mutable state, so rejected arrivals neither construct owned payload/sort rows nor
+write RocksDB state. Winners replace the retained entry directly. The existing
+raw checkpoint codec and key-group assignment are unchanged; memory/RocksDB
+recovery does not require a migration. Immediate and logical mini-batch modes
+retain their existing emission and TTL rules, including hidden-rank tie writes
+in immediate mode. Variable bounds and wider ranks use the general algorithm.
+A direct RocksDB Top-1 also retains a FIFO cache of clean decoded winners,
+limited to an accounted 64 MiB per operator. State still writes through at each
+bundle. Only existing stored keys enter the cache; fresh unique keys bypass it.
+Checkpoint/canonical scan clears cached values, and memory reservation denial
+clears and disables the cache while execution continues through RocksDB.
+`topn.cache.size`, `topn.cache.hitRate` and `topn.cache.bytes` describe resident
+keys, hits per distinct state-hydration request and the cache's accounted footprint.
+See [Top-1 winner state](../optimizations/top1-winner-state.md) for measured boundaries.
 
 Also native: a projected rank number and both insert-only and retracting changelog input.
 `OFFSET` runs natively over insert-only, update-fast and general retracting inputs, with either
@@ -311,16 +333,19 @@ regressions: unique-key ingestion slowed 3–13%, and retained-row updates slowe
 repeated-key gains. The production loop is retained. [The complete Criterion comparison](../benchmarks/native-criterion.md#rejected-window-rank-payload-admission-prototype)
 includes the unfavorable controls and does not establish a whole-job improvement.
 
-The one shape gap is a rank that doesn't start at 1 — i.e. an `OFFSET` on the window rank. Both
-shapes also hold the [window-assignment zone gate](window-aggregate.md#matcher-declines): a
-`TIMESTAMP_LTZ` time attribute in a session zone with any historical or recurring transition, or a fixed offset not
-aligned with the window slide, falls back together with the windowing TVF that feeds them.
+The one shape gap is a rank that does not start at 1, such as an OFFSET on the window rank.
+Fixed offsets and regional LTZ calendars use the same assignment as the upstream TVF.
 
 Attached start/end columns are local wall-clock values, including inside native expressions.
 Window Top-N/dedup preserves these payload columns; it converts the watermark or processing-time
-threshold into their fixed-offset domain, firing at the last millisecond of the window. It does
+deadline using each local end and released-Flink regional timer conversion, or the fixed-offset
+shift, firing at the last millisecond of the window. It does
 not apply another zone shift on output. Plain TIMESTAMP uses a zero offset. This also supports
 input from an aggregate whose boundaries are already rendered locally.
+
+Regional RocksDB firing scans keys to collect distinct local window ends before converting their
+deadlines. Its subsequent row scan retains only closed groups. Pending rank buffers remain in
+RocksDB, and fixed-offset firing retains its ordered-prefix scan.
 
 The `-Dstreamfusion.operator.windowRank.enabled` switch covers both shapes; window dedup reuses the
 window-rank operator rather than getting its own switch — see [Configuration](../configuration.md).

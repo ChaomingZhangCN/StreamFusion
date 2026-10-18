@@ -1,6 +1,7 @@
 package tech.streamfusion.operator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tech.streamfusion.compat.FlinkTestSources.fromData;
 
@@ -63,6 +64,23 @@ class SplitByKeyGroupOperatorTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectsLateParallelismChangesForSingleton(boolean recoverable) throws Exception {
+    try (var harness =
+        new OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch>(
+            new SplitByKeyGroupOperator(new int[0], new int[0], 128, recoverable))) {
+      var output =
+          ColumnarShuffleTestOutput.output(
+              32, 128, ColumnarKeyGroupPartitioner.singleton(128, recoverable));
+      ColumnarShuffleTestOutput.configure(
+          harness, List.of(output), List.of(output), List.of(ColumnarShuffleTestOutput.writer(32, 128)));
+      harness.setup(new ArrowBatchSerializer());
+      var error = assertThrows(IllegalStateException.class, harness::open);
+      assertTrue(error.getMessage().contains("exactly one downstream channel, deployed 32"));
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(ints = {1, 4})
   @SuppressWarnings("unchecked")
   void splitsABatchIntoKeyGroupTaggedSubBatches(int channels) throws Exception {
@@ -72,8 +90,9 @@ class SplitByKeyGroupOperatorTest {
         OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness =
             new OneInputStreamOperatorTestHarness<>(
                 new SplitByKeyGroupOperator(
-                    new int[] {0}, new int[] {-1}, maxParallelism, channels),
+                    new int[] {0}, new int[] {-1}, maxParallelism),
                 new ArrowBatchSerializer())) {
+      ColumnarShuffleTestOutput.configure(harness, channels, maxParallelism, false);
       harness.setup(new ArrowBatchSerializer());
       harness.open();
 
@@ -136,8 +155,9 @@ class SplitByKeyGroupOperatorTest {
         OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness =
             new OneInputStreamOperatorTestHarness<>(
                 new SplitByKeyGroupOperator(
-                    new int[] {0}, new int[] {-1}, maxParallelism, channels, true),
+                    new int[] {0}, new int[] {-1}, maxParallelism, true),
                 new ArrowBatchSerializer())) {
+      ColumnarShuffleTestOutput.configure(harness, channels, maxParallelism, true);
       harness.setup(new ArrowBatchSerializer());
       harness.open();
       List<RowData> rows = List.of(row(1, 0), row(2, 1), row(1, 2), row(3, 3), row(2, 4));
@@ -178,8 +198,9 @@ class SplitByKeyGroupOperatorTest {
     try (BufferAllocator allocator = new RootAllocator();
         OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness =
             new OneInputStreamOperatorTestHarness<>(
-                new SplitByKeyGroupOperator(new int[] {0}, new int[] {-1}, 128, 1),
+                new SplitByKeyGroupOperator(new int[] {0}, new int[] {-1}, 128),
                 new ArrowBatchSerializer())) {
+      ColumnarShuffleTestOutput.configure(harness, 1, 128, false);
       harness.setup(new ArrowBatchSerializer());
       harness.open();
       VectorSchemaRoot empty = RowDataArrowConverter.write(List.of(), SCHEMA, allocator);
@@ -267,11 +288,9 @@ class SplitByKeyGroupOperatorTest {
         OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch> harness =
             new OneInputStreamOperatorTestHarness<>(
                 new SplitByKeyGroupOperator(
-                    new int[] {0},
-                    new int[] {-1, -1, -1, 9},
-                    maxParallelism,
-                    channels),
+                    new int[] {0}, new int[] {-1, -1, -1, 9}, maxParallelism),
                 new ArrowBatchSerializer())) {
+      ColumnarShuffleTestOutput.configure(harness, channels, maxParallelism, false);
       harness.setup(new ArrowBatchSerializer());
       harness.open();
       harness.processElement(

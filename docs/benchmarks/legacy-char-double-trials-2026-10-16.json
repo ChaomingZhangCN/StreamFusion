@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-16",
+  "baseline_commit": "b170a474d5658330ed7e92e9b8bcc54117c8d287",
+  "machine": "Apple M4 Pro, 24 GiB RAM, macOS 26.5",
+  "jdk": "17",
+  "flink": "2.2.1 (released)",
+  "native_profile": "release, default features, system allocator",
+  "heap": "8 GiB",
+  "parallelism": 1,
+  "warmup": 2,
+  "measured_runs": 5,
+  "null_every": 7,
+  "mini_batch_rows": 1024,
+  "mini_batch_latency": "1 h",
+  "shuffle": "Arrow IPC (bench profile)",
+  "measured_boundary": "Complete row-source/blackhole job; submission, conversion, JNI, native state, output and completion included. MiniCluster creation excluded.",
+  "ordering": "Alternating engine order per trial",
+  "baseline": "Unmodified baseline planner; native-enabled runs assert zero substitutions; identical benchmark source and release native payload",
+  "records": [
+    {
+      "stage": "initial-generated-prototype",
+      "case": "CHAR8_DOUBLE",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.411758,
+      "streamfusion_median_seconds": 0.494686,
+      "stock_trials_seconds": [
+        0.407827,
+        0.419551792,
+        0.411758208,
+        0.40333575,
+        0.459455625
+      ],
+      "streamfusion_trials_seconds": [
+        0.50675825,
+        0.480019208,
+        0.494685625,
+        0.499430167,
+        0.474219833
+      ]
+    },
+    {
+      "stage": "baseline",
+      "case": "CHAR8_DOUBLE",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": false,
+      "backend": "memory",
+      "stock_median_seconds": 0.397853,
+      "streamfusion_median_seconds": 0.402268,
+      "stock_trials_seconds": [
+        0.3970115,
+        0.408022083,
+        0.393651708,
+        0.402885791,
+        0.397853
+      ],
+      "streamfusion_trials_seconds": [
+        0.402268042,
+        0.398966083,
+        0.396043083,
+        0.402410125,
+        0.404538292
+      ]
+    },
+    {
+      "stage": "candidate",
+      "case": "CHAR8_DOUBLE",
+      "rows": 2000000,
+      "keys": 64,
+      "native_expected": true,
+      "backend": "memory",
+      "stock_median_seconds": 0.458194,
+      "streamfusion_median_seconds": 0.519314,
+      "stock_trials_seconds": [
+        0.472621667,
+        0.455663625,
+        0.458194208,
+        0.461622916,
+        0.456798917
+      ],
+      "streamfusion_trials_seconds": [
+        0.532474042,
+        0.520877583,
+        0.518855041,
+        0.519313917,
+        0.515030875
+      ]
+    }
+  ],
+  "candidate_configuration": "table.exec.legacy-cast-behaviour=ENABLED; streamfusion.calc.legacyNumericCasts.enabled=true (default false)",
+  "admission": "Opt-in compatibility groundwork; standalone regression prevents default admission.",
+  "off_heap_accounting_budget": "48 GiB in the shared fixture for both engines; not a reservation or measured resident usage"
+}

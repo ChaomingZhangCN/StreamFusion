@@ -2,6 +2,7 @@ package tech.streamfusion.operator;
 
 import java.lang.ref.Cleaner;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.LongConsumer;
 import org.apache.arrow.vector.FieldVector;
@@ -182,6 +183,27 @@ public final class ArrowBatch {
     }
     backstop.handedOver = true;
     return root;
+  }
+
+  /** Borrowed, read-only inspection; neither transfers ownership nor spends a consumer share. */
+  VectorSchemaRoot inspectRoot() {
+    return root;
+  }
+
+  /** Retains an owned root's prefix while keeping its row-aligned and source metadata. */
+  ArrowBatch prefix(VectorSchemaRoot ownedRoot, int length) {
+    return new ArrowBatch(
+        ownedRoot.slice(0, length),
+        keyGroup,
+        handleOwner,
+        encodeTiming,
+        nativeScanMetrics,
+        parentEpochHigh,
+        parentEpochLow,
+        parentSequence,
+        rowOrdinals == null ? null : Arrays.copyOf(rowOrdinals, length),
+        parentKeyGroups == null ? null : Arrays.copyOf(parentKeyGroups, length),
+        sourceWatermarkMillis);
   }
 
   /** A new root whose vectors share (and retain) this batch's buffers — Arrow's zero-copy split. */

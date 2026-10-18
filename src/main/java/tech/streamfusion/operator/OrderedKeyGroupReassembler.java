@@ -1,5 +1,7 @@
 package tech.streamfusion.operator;
 
+import static org.apache.flink.util.Preconditions.checkState;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -25,6 +27,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import tech.streamfusion.compat.FlinkStreamOperator;
+import tech.streamfusion.compat.RuntimeCompat;
 
 /**
  * Reconstructs destination-local parent batches after the unaligned-safe shuffle emits one record
@@ -63,6 +66,12 @@ public final class OrderedKeyGroupReassembler extends FlinkStreamOperator<ArrowB
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
+    int deployedMaxParallelism = RuntimeCompat.maxParallelism(getRuntimeContext());
+    checkState(
+        maxParallelism == deployedMaxParallelism,
+        "Native shuffle reassembler max parallelism changed after planning: expected %s key groups, deployed %s",
+        maxParallelism,
+        deployedMaxParallelism);
     serializer = new ArrowBatchSerializer();
     fragmentState = context.getOperatorStateStore().getUnionListState(STATE);
     watermarkState = context.getOperatorStateStore().getUnionListState(WATERMARK_STATE);

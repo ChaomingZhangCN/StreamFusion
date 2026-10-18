@@ -106,6 +106,26 @@ that timer clears the frame and admission marker. Unbounded frames use the stric
 watermark comparison. See the OVER coverage page for restore and expiry behavior.
 
 ## Scope
+
+Decimal reductions add an exception to bounded recomputation. Its
+sum/count fold is retained beside the final frame row in the existing frame
+codec, and expired values retract before new values accumulate. SUM can replace a
+NULL overflowed buffer on a later value, while SUM0 and AVG retain NULL. Rebuilding
+each frame from its remaining rows loses that history. ROWS therefore keeps the
+full prior frame for its next retraction; the existing non-arithmetic path keeps
+its previous snapshot columns.
+
+Released Flink's RANGE SUM also exposes state-backend iteration order after
+decimal overflow. For a 1,000-ms frame with `(time,value)` arrivals
+`(100, 10^38-1), (200, -1), (400, 2), (2000, 7)`, the final SUM is 8 on the
+heap backend and 7 on RocksDB, while SUM0 and AVG remain NULL. The heap MapState
+retracts timestamp groups in HashMap order; RocksDB iterates serialized keys.
+The released-operator regression compares both outcomes against the native operator.
+The operator retains heap timestamp-map order and distinguishes ordinary checkpoint
+from canonical savepoint reconstruction, as described below. Expanded admission,
+full SQL and end-to-end performance validation remain required in
+[#322](https://github.com/datafusion-contrib/StreamFusion/issues/322).
+
 Running aggregates (`SUM`/`MIN`/`MAX`/`COUNT`/`AVG`; `AVG` via Flink's
 `$SUM0`+`COUNT` with the divide on the host), `FIRST_VALUE`/`LAST_VALUE`, and the
 window functions `ROW_NUMBER`/`RANK`/`DENSE_RANK`, over the unbounded `RANGE`/`ROWS` frames, the
@@ -113,8 +133,160 @@ bounded `ROWS n PRECEDING` frame, or the bounded `RANGE INTERVAL n PRECEDING` fr
 Both event-time and proctime orders are supported; under proctime the operator folds in
 arrival order and emits eagerly (no watermark), assigning a monotonic arrival sequence as
 the ordering key so the same fold/frames apply — only a proctime bounded-`RANGE` frame
-(a wall-clock interval) falls back as non-deterministic. Decimal bounded frames fall back.
+(a wall-clock interval) falls back as non-deterministic. Decimal-valued frame offsets fall back;
+this refers to the PRECEDING bound, not decimal aggregate inputs. Ordinary COUNT over decimal,
+string and temporal inputs uses Arrow validity and preserves that membership through bounded
+frame snapshots and memory/RocksDB transitions. Other runtime non-numeric reductions remain
+tracked in [#322](https://github.com/datafusion-contrib/StreamFusion/issues/322).
 
 ## Verification
 Parity harness: running aggregates and `ROW_NUMBER`, partitioned and not, over
 DataStream and Parquet sources, including rowtime ties within the unbounded frame.
+
+### Typed value ownership
+
+Primitive values remain copyable. Decimal values retain their unscaled i128 and declared
+precision/scale; timestamps retain milliseconds and fractional nanoseconds. Strings own
+immutable UTF-8 text and optional original UTF-16 cache units in a frame sidecar. Running
+extrema compare before retaining a replacement, and bounded results share retained payloads.
+Memory accounting includes payloads and ownership metadata. This preserves existing numeric
+frame layouts rather than widening every primitive value into a heap-allocated scalar.
+
+### RANGE heap membership and restore protocols
+
+The RANGE overflow fixture also checkpoints after timestamp 400 and restores before
+the arrival at 2000. On released Flink 1.18.1 and 2.2.1, recovered heap state returns
+SUM 7 rather than uninterrupted heap's 8; RocksDB remains 7. Flink's map serializer
+reconstructs a `HashMap` using `CollectionUtil.newHashMapWithExpectedSize(size)`.
+The released helper uses the default 0.75 load factor and a capacity derived from
+the retained count, rather than the old heap table's capacity. Restored iteration
+order is therefore part of the contract, alongside live insertion/removal order
+and pending timestamp keys. A single timestamp-sort rule cannot preserve all these cases. The operator retains
+heap timestamp membership in Java-compatible bucket and tree order, including keys
+whose rows have not yet fired. It ranks just the expired groups before removal;
+there is no per-result scan of the entire pending map. Retained-row Arrow buffers
+continue to own the values. A separate keyed IPC component at the end of the raw
+partition carries timestamp membership order, leaving the primitive snapshot layouts
+unchanged. The task memory counter includes table, node-arena and free-slot storage.
+
+Canonical heap savepoint restore follows a different released path:
+`HeapSavepointRestoreOperation` inserts each user entry into a fresh default `HashMap`.
+The operator detects `SavepointKeyedStateHandle` through the restored task state and
+rebuilds its native timestamp membership accordingly. The existing OVER restore JNI
+signature is unchanged; a separate cold restore hook applies that map rule and
+reconciles the memory reservation. A restore-hook failure closes the newly restored
+handle. Canonical RocksDB exports retain the host's serialized timestamp order for
+the target heap reconstruction.
+
+`OverRangeOrderOracle` produces iteration traces from the running JDK and released
+Flink map serializers. Eleven traces cover 1,064 mutation/recovery steps, including
+collisions, tree splits/removals, signed hash comparisons, and ordinary/canonical
+reconstruction. Both supported released SDK lines produce identical controls on
+JDK 17. Actual released OVER operators independently test overflow retractions,
+pending timestamp groups, ordinary recovery and all canonical backend pairs.
+Full SQL comparisons cover expanded basic-value admission, actual native OVER consumption
+and repeated recovery. Production comparisons include both row/Arrow transposes and stock plus
+previous-StreamFusion fallback controls; results are recorded on the OVER operator page.
+
+Heap `CopyOnWriteStateMap.get` can copy state while a snapshot is outstanding;
+for a map value, `MapSerializer.copy` rebuilds capacity too. Released controls on
+both supported lines hold the actual heap snapshot future open or complete it
+before further input. Without recovery, the held snapshot yields SUM 7 and the
+completed snapshot yields 8 for the same overflow fixture. A second pair records
+the final input before capture and triggers the copy on watermark firing instead.
+
+The operator registers small mutable markers in managed heap ValueState per
+partition, separately for input membership and string value-map reads. Its namespace is the encoded native partition key and its explicit key
+group follows the same BinaryRow hash used for native state redistribution. The
+marker serializer's `copy` records the backend's real copy-on-write event; the
+native operator observes it before an admitted input or completed group first
+touches the partition and rebuilds the affected timestamp/value maps. This uses released
+keyed-state APIs and follows snapshot completion through the backend's version
+logic rather than approximating it with checkpoint notifications. No aggregate
+row or value moves through this marker. Callbacks deduplicate partition keys per
+Arrow batch, preserve the backend's key context and use scoped JNI local references.
+The native map's actual capacity is re-accounted after the copy.
+
+A cleared frame clears its marker, including after restore. The marker's copy flag
+is transient and is never restored as a pending notification. The managed marker
+is JVM heap metadata; native table/node/free-slot ownership remains under the task
+native off-heap reservation. Release Criterion fixtures exercise the actual heap
+backend and production JNI callbacks, including completed and outstanding snapshot futures.
+
+## Cached string representations and bounded views
+
+Released Flink compares two cached Java strings by UTF-16, and otherwise compares their
+UTF-8 bytes. Ordinary object copy retains a cache; serialized recovery removes it. Those
+comparisons can form a cycle: cached U+1F600 precedes cached U+E000, which precedes binary
+U+E100, which precedes U+1F600. Recomputing a fresh bounded-frame minimum would therefore
+change a selected value that has not expired. Arroyo/Comet start from Arrow/binary string
+values, so this host representation requires a Flink-specific state sidecar.
+
+Metadata-marked Arrow List<UInt16> companions retain original Java units when the boundary
+requests cached representations. A Boolean flag cannot preserve two distinct unpaired
+surrogates with identical UTF-8 replacement bytes. Reads reconstruct both original bytes
+and cache units. Shuffle/checkpoint serialization normalizes caches; RocksDB proctime views
+normalize between each output, including multiple rows within one Arrow batch. Released
+controls cover cached and binary input, source/computed SQL strings, chained native OVER,
+window-to-OVER and both supported Flink lines.
+
+Bounded FIRST/LAST retain selected value/order, value-to-order lists and order-to-value lists
+independently of physical frame rows. Raw/persistent checkpoints encode these views as Arrow
+IPC in appended binary fields; restore applies serialized key collapse without reconstructing
+selection history from the remaining rows. An alias collision can leave a selected value
+outside the physical frame. Normal/canonical backend transitions and peer controls preserve
+this behavior. Immutable text/cache payloads can be shared with output columns.
+
+Bounded MIN/MAX keep their selected scalar, positive-membership count and counted value map
+independently. Retraction rescans only when a winner retires; negative counts balance later
+additions without becoming positive membership. Heap scans reproduce JDK bucket and tree-bin
+order using the existing timestamp membership implementation. A synthetic Long key stores an
+entry identifier in its high word and identifier XOR string hash in its low word, giving the
+same raw Java hash. Distinct hashes therefore follow the same signed hash/tree ordering.
+Persistent scans use serialized string-key order. Ordinary restore reconstructs capacity from
+serialized entry count; canonical heap restore rebuilds a default map in original entry order.
+The managed snapshot marker applies actual heap copy-on-write reconstruction to string value
+maps as well as timestamp membership, including proctime bounded ROWS. Cleanup drops the marker
+and native ownership together. Separating the two markers also preserves snapshot completion
+between rowtime input buffering and watermark firing. Original numeric snapshots keep their
+existing state layouts.
+
+Large malformed cached-key collisions also expose inherently nondeterministic released behavior.
+The retractable FIRST_VALUE helper assigns implicit System.currentTimeMillis order groups:
+controlled identical arrivals with tied versus distinct groups select different values after
+alias retraction. Identity-ordered full-hash tree entries can serialize different duplicate
+counts last, changing restored MIN. Untouched independent stock jobs demonstrate both effects;
+deterministic SDK contract tests separately pin the two mechanisms. Native FIRST/LAST use relative
+arrival order, and exact-hash ties use stable native identifiers. These cases remain admitted;
+there is no unique stock execution output to mirror. Deterministic valid-Unicode tree histories
+retain exact parity across uninterrupted execution, normal/canonical restore, and outstanding/
+completed heap snapshots. The OVER page links all retained control and performance samples.
+
+
+## Non-time ROW_NUMBER uses a retained sorted buffer
+
+Released Flink 2.2.1 also plans an ordinary numeric `ORDER BY` as `StreamPhysicalOverAggregate`.
+Its exec node chooses `NonTimeRowsUnboundedPrecedingFunction` for ROWS unbounded preceding,
+verified against the released planner JAR before broadening StreamFusion admission. A nonmonotonic
+arrival changes already-emitted ranks: the inserted row emits +I, then each shifted existing row
+emits -U at its previous rank and +U at its new rank. Equal sort keys retain arrival order.
+This differs from Top-N's rank-slot replacements and from arrival-order proctime counters.
+
+Arroyo's planner `plan/window_fn.rs` rejects non-windowed input ("Window functions require
+already windowed input"); its worker buffers by timestamp and drains a window exec after a
+watermark. A non-time Flink rank can never finalize an unbounded partition that way. We instead
+reuse StreamFusion's Arrow-row sorted rank state and key-group/checkpoint representation, adding
+an explicit row-identity emission mode. No generic OVER time guard is removed. Native operators
+still consume and emit Arrow batches, and existing Top-N slot updates remain unchanged.
+
+Initial admission is one ascending INT/BIGINT key, one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
+through CURRENT ROW, insert-only input and disabled TTL. NULL placement is explicit; ties remain
+stable across physical batches and recovery. Every row remains in state; there is no implicit
+Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
+Updating input, TTL, other order specifications and other non-time analytic functions retain
+fallback. Flink 1.18 rejects this query itself, before native admission.
+
+The released heap operator failed an injected restore with a NULL prior accumulator in its
+update emission. Native checkpoint validation therefore compares its twice-restored output
+with an uninterrupted stock run, independently verifying restored offsets and source cleanup;
+it does not claim parity between two successfully restored host/native jobs.

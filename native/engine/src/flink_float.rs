@@ -34,6 +34,31 @@ pub(crate) fn canonical_scalar(value: &ScalarValue) -> Option<ScalarValue> {
     }
 }
 
+pub(crate) fn boxed_equal(left: &ScalarValue, right: &ScalarValue) -> bool {
+    match (left, right) {
+        (ScalarValue::Float32(Some(a)), ScalarValue::Float32(Some(b))) => {
+            canonical_f32(*a).to_bits() == canonical_f32(*b).to_bits()
+        }
+        (ScalarValue::Float64(Some(a)), ScalarValue::Float64(Some(b))) => {
+            canonical_f64(*a).to_bits() == canonical_f64(*b).to_bits()
+        }
+        _ => left == right,
+    }
+}
+
+/// Flink's generated aggregate-result equaliser uses primitive floating comparison.
+pub(crate) fn record_equal(left: &ScalarValue, right: &ScalarValue) -> bool {
+    match (left, right) {
+        (ScalarValue::Float32(Some(a)), ScalarValue::Float32(Some(b))) => a == b,
+        (ScalarValue::Float64(Some(a)), ScalarValue::Float64(Some(b))) => a == b,
+        _ => left == right,
+    }
+}
+
+pub(crate) fn record_row_equal(left: &[ScalarValue], right: &[ScalarValue]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| record_equal(a, b))
+}
+
 pub(crate) fn canonical_array(array: &ArrayRef) -> ArrayRef {
     match array.data_type() {
         DataType::Float32 => Arc::new(

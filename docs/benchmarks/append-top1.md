@@ -43,6 +43,6 @@ For the previous-StreamFusion comparison required by
 canonical baseline and candidate as separate release libraries with identical
 allocator features. Run this same harness against each in separate JVMs, and
 retain both library/source identities plus every stock control. Replacing a
-library while a running JVM has it mapped is unsafe. This harness adds
-measurement coverage; it does not change rank execution or establish that the
-pending Top-1 optimization is ready to enable.
+library while a running JVM has it mapped is unsafe. The [Top-1 winner-state ledger](../optimizations/top1-winner-state.md) records the
+production optimization and its sustained comparisons. The raw results retain
+all measured counter intervals and previous-version controls.

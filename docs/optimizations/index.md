@@ -16,6 +16,10 @@ caching, shared build artifacts, grouped connector suites and combined coverage 
 Those measurements describe CI job counts and elapsed time, not SQL execution throughput.
 
 - [Reuse Iceberg boundary setup](iceberg-boundary-overhead.md): cached task schemas and serializers, shared Arrow leases and routing maps.
+
+- [Shared-window state costs](shared-window-state.md): exact memory deltas, batched reservations and preserved accumulator state.
+- [Compact window-rank timestamp cells](window-rank-timestamp-cells.md): exact numeric digits avoid per-row timestamp struct slicing.
+- [Top-1 winner state](top1-winner-state.md): conditional winner updates and bounded clean decoded RocksDB state.
 - [Retire dead Delta checkpoint buffers](delta-live-buffer-retirement.md): release fully superseded Arrow batches and metadata.
 - [Preserve Paimon partition pruning](paimon-partition-pruning.md): carry retained partition equalities into released split planning.
 - [Indexed pending rowtime deduplication](pending-dedup-index.md): incoming-key probes over bounded Arrow chunks.

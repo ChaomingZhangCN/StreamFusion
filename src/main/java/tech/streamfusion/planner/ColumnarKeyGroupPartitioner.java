@@ -1,5 +1,6 @@
 package tech.streamfusion.planner;
 
+import java.util.Objects;
 import org.apache.flink.runtime.io.network.api.writer.SubtaskStateMapper;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -21,17 +22,28 @@ public class ColumnarKeyGroupPartitioner
 
   private int maxParallelism;
   private final boolean recoverable;
+  private final boolean singleton;
 
   public ColumnarKeyGroupPartitioner(int maxParallelism) {
     this(maxParallelism, false);
   }
 
   public ColumnarKeyGroupPartitioner(int maxParallelism, boolean recoverable) {
+    this(maxParallelism, recoverable, false);
+  }
+
+  private ColumnarKeyGroupPartitioner(int maxParallelism, boolean recoverable, boolean singleton) {
     this.recoverable = recoverable;
+    this.singleton = singleton;
     configure(maxParallelism);
     if (!recoverable) {
       disableUnalignedCheckpoints();
     }
+  }
+
+  /** Creates a single-destination exchange without changing its state key-group namespace. */
+  public static ColumnarKeyGroupPartitioner singleton(int maxParallelism, boolean recoverable) {
+    return new ColumnarKeyGroupPartitioner(maxParallelism, recoverable, true);
   }
 
   @Override
@@ -50,7 +62,8 @@ public class ColumnarKeyGroupPartitioner
 
   @Override
   public StreamPartitioner<ArrowBatch> copy() {
-    ColumnarKeyGroupPartitioner copy = new ColumnarKeyGroupPartitioner(maxParallelism, recoverable);
+    ColumnarKeyGroupPartitioner copy =
+        new ColumnarKeyGroupPartitioner(maxParallelism, recoverable, singleton);
     // Flink 1.18's recovery filter copies after setup and does not configure the copy again.
     copy.setup(numberOfChannels);
     return copy;
@@ -70,6 +83,38 @@ public class ColumnarKeyGroupPartitioner
   public void configure(int maxParallelism) {
     KeyGroupRangeAssignment.checkParallelismPreconditions(maxParallelism);
     this.maxParallelism = maxParallelism;
+  }
+
+  public int maxParallelism() {
+    return maxParallelism;
+  }
+
+  public boolean recoverable() {
+    return recoverable;
+  }
+
+  /**
+   * Whether the distribution requires one downstream subtask, even after resource planning. This
+   * constraint is independent of maximum parallelism and the current channel count.
+   */
+  public boolean requiresSingleton() {
+    return singleton;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (!super.equals(other)) {
+      return false;
+    }
+    ColumnarKeyGroupPartitioner that = (ColumnarKeyGroupPartitioner) other;
+    return maxParallelism == that.maxParallelism
+        && recoverable == that.recoverable
+        && singleton == that.singleton;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), maxParallelism, recoverable, singleton);
   }
 
   @Override

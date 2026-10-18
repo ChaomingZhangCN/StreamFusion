@@ -27,13 +27,13 @@ import tech.streamfusion.operator.ArrowBatchTypeInformation;
 import tech.streamfusion.operator.ArrowBucketRouter;
 import tech.streamfusion.operator.BucketedArrowBatch;
 import tech.streamfusion.operator.BucketedArrowBatchTypeInformation;
+import tech.streamfusion.operator.NativeConstraintEnforcer;
 import tech.streamfusion.paimon.BucketedArrowBatchChannelComputer;
 import tech.streamfusion.paimon.NativePaimonAppendSink;
 import tech.streamfusion.paimon.NativePaimonBucketAssigner;
 import tech.streamfusion.paimon.NativePaimonBucketSink;
 import tech.streamfusion.paimon.NativePaimonDynamicPartitionOperator;
 import tech.streamfusion.paimon.NativePaimonLocalMergeOperator;
-import tech.streamfusion.paimon.NativePaimonNotNullEnforcer;
 import tech.streamfusion.paimon.NativePaimonPostponeSink;
 
 /**
@@ -76,7 +76,7 @@ public final class NativePaimonSinkExecNode extends ExecNodeBase<Object>
           new OneInputTransformation<>(
               input,
               "native-paimon-not-null-enforcer",
-              SimpleOperatorFactory.of(new NativePaimonNotNullEnforcer(planned.notNullFieldNames)),
+              SimpleOperatorFactory.of(new NativeConstraintEnforcer(planned.notNullFieldNames)),
               ArrowBatchTypeInformation.INSTANCE,
               input.getParallelism(),
               false);

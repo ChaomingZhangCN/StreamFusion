@@ -1,5 +1,10 @@
 use super::*;
 
+/// Post-exchange coalescing, including physical sidecar validation and normalization.
+pub fn coalesce(batches: &[RecordBatch]) -> RecordBatch {
+    crate::exchange::coalesce_batches(batches).expect("compatible coalescer fixtures")
+}
+
 /// The production Flink scalar UDFs, including scalar adaptation and result allocation.
 pub fn flink_scalar_function(op: i64, arity: usize) -> datafusion::logical_expr::ScalarUDF {
     crate::flink_functions::function(op, arity).expect("registered scalar benchmark")
@@ -38,6 +43,31 @@ impl Filter {
     }
 }
 
+/// Stateless regional assignment through the production Arrow and calendar boundary.
+pub fn assign_calendar_windows(
+    input: &RecordBatch,
+    time_column: usize,
+    size: i64,
+    slide: i64,
+    cumulative: bool,
+    now: Option<i64>,
+    callback: jni::objects::GlobalRef,
+) -> RecordBatch {
+    let calendar = crate::window_calendar::WindowCalendar::new(callback);
+    crate::window_agg::assign_windows_with_calendar(
+        input,
+        time_column,
+        size,
+        slide,
+        cumulative,
+        now,
+        &streamfusion_bridge::timestamp::timestamp_type(),
+        0,
+        Some(&calendar),
+    )
+    .expect("calendar TVF assignment")
+}
+
 /// A tumbling-window aggregator driven by `update`/`flush`, as the stateful operator drives it.
 pub struct Tumbling(TumblingAggregator);
 
@@ -53,6 +83,95 @@ impl Tumbling {
         ))
     }
 
+    pub fn calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.0.set_calendar(callback);
+    }
+
+    pub fn account_calendar_state(mut self, budget_bytes: i64) -> Self {
+        self.0 = self
+            .0
+            .with_memory_budget(budget_bytes)
+            .expect("calendar state fits budget");
+        self
+    }
+
+    pub fn assert_calendar_accounting(&self) {
+        assert_eq!(self.0.memory.state_bytes, self.0.computed_state_bytes());
+    }
+
+    pub fn retracting_calendar(size: i64, slide: i64, cumulative: bool) -> Self {
+        Self(TumblingAggregator::new(
+            size,
+            slide,
+            cumulative,
+            vec![0],
+            vec![LIVE_COUNT],
+        ))
+    }
+
+    pub fn restore_retracting_calendar(
+        size: i64,
+        slide: i64,
+        cumulative: bool,
+        bytes: &[u8],
+    ) -> Self {
+        Self(TumblingAggregator::restore(
+            size,
+            slide,
+            cumulative,
+            vec![0],
+            vec![LIVE_COUNT],
+            bytes,
+        ))
+    }
+
+    pub fn local_buffer_ready(&self, watermark: i64) -> bool {
+        self.0.local_buffer_ready(watermark)
+    }
+
+    pub fn fixed_calendar(size: i64, slide: i64, cumulative: bool, offset: i64) -> Self {
+        let mut aggregate = TumblingAggregator::new(size, slide, cumulative, vec![0], vec![3]);
+        aggregate.set_assignment_offset(offset);
+        Self(aggregate)
+    }
+
+    #[cfg(feature = "rocksdb-state")]
+    pub fn persistent_fixed_calendar(
+        directory: &str,
+        options: &str,
+        size: i64,
+        slide: i64,
+        cumulative: bool,
+    ) -> Self {
+        let state_types = window_state_types(&[3], &[0]);
+        let store = crate::state::RocksWindowAggStore::create(
+            PersistentSort::config(directory, options),
+            &state_types,
+            0..=0,
+        )
+        .expect("persistent calendar create");
+        Self(
+            TumblingAggregator::new(size, slide, cumulative, vec![0], vec![3])
+                .with_key_timestamp_precisions(vec![-1])
+                .with_store(store, vec![DataType::Utf8]),
+        )
+    }
+
+    pub fn restore_fixed_calendar(size: i64, slide: i64, cumulative: bool, bytes: &[u8]) -> Self {
+        Self(TumblingAggregator::restore(
+            size,
+            slide,
+            cumulative,
+            vec![0],
+            vec![3],
+            bytes,
+        ))
+    }
+
+    pub fn snapshot_fixed_calendar(&mut self) -> Vec<u8> {
+        self.0.snapshot()
+    }
+
     /// The accounted variant: state is tracked against `budget_bytes`, measuring the
     /// memory-accounting overhead against `new`.
     pub fn with_budget(
@@ -61,9 +180,27 @@ impl Tumbling {
         kinds: Vec<i64>,
         budget_bytes: i64,
     ) -> Self {
+        Self::with_window_budget(
+            window_millis,
+            window_millis,
+            false,
+            value_type,
+            kinds,
+            budget_bytes,
+        )
+    }
+
+    pub fn with_window_budget(
+        window_millis: i64,
+        slide_millis: i64,
+        cumulative: bool,
+        value_type: i64,
+        kinds: Vec<i64>,
+        budget_bytes: i64,
+    ) -> Self {
         let value_types = vec![value_type; kinds.len()];
         Tumbling(
-            TumblingAggregator::new(window_millis, window_millis, false, value_types, kinds)
+            TumblingAggregator::new(window_millis, slide_millis, cumulative, value_types, kinds)
                 .with_memory_budget(budget_bytes)
                 .expect("empty state fits any budget"),
         )
@@ -71,6 +208,28 @@ impl Tumbling {
 
     pub fn update(&mut self, batch: &RecordBatch) {
         self.0.update(batch).expect("budget exceeded");
+    }
+
+    pub fn update_attached_final(&mut self, batch: &RecordBatch) {
+        self.0
+            .update_attached_final(batch)
+            .expect("final assigned window update");
+    }
+
+    pub fn late_drops(&self) -> u64 {
+        self.0.late_drops
+    }
+
+    pub fn update_local(&mut self, batch: &RecordBatch) {
+        self.0.update_local(batch).expect("local window update");
+    }
+
+    pub fn drain_partial(&mut self) -> RecordBatch {
+        self.0.drain_partial()
+    }
+
+    pub fn update_partial(&mut self, batch: &RecordBatch) {
+        self.0.update_partial(batch).expect("global window merge");
     }
 
     pub fn flush(&mut self, watermark: i64) -> RecordBatch {
@@ -227,6 +386,38 @@ impl Session {
         Session(SessionAggregator::new(gap_millis, value_types, kinds))
     }
 
+    pub fn with_budget(
+        gap_millis: i64,
+        value_type: i64,
+        kinds: Vec<i64>,
+        budget_bytes: i64,
+    ) -> Self {
+        let value_types = vec![value_type; kinds.len()];
+        Session(
+            SessionAggregator::new(gap_millis, value_types, kinds)
+                .with_memory_budget(budget_bytes)
+                .expect("empty state fits any budget"),
+        )
+    }
+
+    pub fn calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.0.set_calendar(callback);
+    }
+
+    pub fn snapshot(&mut self) -> Vec<u8> {
+        self.0.snapshot()
+    }
+
+    pub fn restore(gap_millis: i64, value_type: i64, kinds: Vec<i64>, snapshot: &[u8]) -> Self {
+        let value_types = vec![value_type; kinds.len()];
+        Self(SessionAggregator::restore(
+            gap_millis,
+            value_types,
+            kinds,
+            snapshot,
+        ))
+    }
+
     pub fn update(&mut self, batch: &RecordBatch) {
         self.0.update(batch).expect("budget exceeded");
     }
@@ -240,6 +431,57 @@ impl Session {
 pub struct Over(OverWindowAggregator);
 
 impl Over {
+    pub fn framed(value_type: i64, kind: i64, frame: i64, offset: i64, proctime: bool) -> Self {
+        Over(OverWindowAggregator::new(
+            vec![value_type],
+            vec![kind],
+            1,
+            vec![2],
+            vec![0],
+            frame,
+            offset,
+            proctime,
+        ))
+    }
+
+    pub fn heap_snapshot_probe(&mut self, probe: jni::objects::GlobalRef) {
+        self.0.with_heap_snapshot_probe(probe, 128);
+    }
+
+    pub fn push_proctime(&mut self, batch: RecordBatch) -> RecordBatch {
+        self.0.push_proctime(batch, 0).expect("OVER proctime fold")
+    }
+
+    pub fn snapshot(&mut self) -> Vec<Vec<u8>> {
+        self.0
+            .snapshot_partitions(128, &[-1])
+            .into_values()
+            .collect()
+    }
+
+    pub fn restore_framed(
+        value_type: i64,
+        kind: i64,
+        frame: i64,
+        offset: i64,
+        proctime: bool,
+        snapshots: &[Vec<u8>],
+    ) -> Self {
+        Over(OverWindowAggregator::restore_partitions(
+            vec![value_type],
+            vec![kind],
+            1,
+            vec![2],
+            vec![0],
+            frame,
+            offset,
+            proctime,
+            snapshots,
+            0,
+            0,
+        ))
+    }
+
     pub fn new(
         value_type: i64,
         kinds: Vec<i64>,
@@ -481,6 +723,10 @@ impl PersistentUpdatingJoin {
 pub struct AppendTopN(TopNRanker);
 
 impl AppendTopN {
+    pub fn with_top1_fast(mut self, enabled: bool) -> Self {
+        self.0 = self.0.with_top1_fast(enabled);
+        self
+    }
     pub fn new(
         partition_columns: Vec<usize>,
         sort_columns: Vec<(usize, bool)>,
@@ -505,12 +751,99 @@ impl AppendTopN {
         ))
     }
 
+    pub fn non_time_row_number(partition_columns: Vec<usize>, sort_column: usize) -> Self {
+        let mut operator = Self::new(
+            partition_columns,
+            vec![(sort_column, true)],
+            i64::MAX,
+            true,
+            false,
+        );
+        operator.0.enable_non_time_row_number();
+        operator
+    }
+
     pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
         self.0.push(batch, 0).expect("budget exceeded")
     }
 
     pub fn flush(&mut self) -> RecordBatch {
         self.0.flush_net_diff()
+    }
+}
+
+/// AppendFast Top-1 through the production persistent-state seam, including hydration and writes.
+#[cfg(feature = "rocksdb-state")]
+pub struct PersistentTop1 {
+    operator: TopNRanker<crate::topn::RocksTopNStore>,
+    _shared: Option<Box<crate::state::rocks_config::RocksSharedResources>>,
+}
+
+#[cfg(feature = "rocksdb-state")]
+impl PersistentTop1 {
+    pub fn new(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+    ) -> Self {
+        Self::build(directory, options, schema, net_diff, fast, None)
+    }
+
+    pub fn shared(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+        bytes: i64,
+    ) -> Self {
+        let shared = Box::new(crate::state::rocks_config::RocksSharedResources::new(
+            bytes, 0.5,
+        ));
+        Self::build(directory, options, schema, net_diff, fast, Some(shared))
+    }
+
+    fn build(
+        directory: &str,
+        options: &str,
+        schema: SchemaRef,
+        net_diff: bool,
+        fast: bool,
+        shared: Option<Box<crate::state::rocks_config::RocksSharedResources>>,
+    ) -> Self {
+        let sort = vec![SortColumn {
+            index: 1,
+            ascending: true,
+            nulls_first: false,
+        }];
+        let empty = RecordBatch::new_empty(schema.clone());
+        let converters =
+            crate::topn::TopNConverters::build(&empty, schema.fields().len(), &[0], &sort);
+        let codec = crate::topn::TopNStateCodec::new(&converters);
+        let mut config = PersistentSort::config(directory, options);
+        config.shared_resources = shared.as_deref().map_or(0, |pool| pool as *const _ as i64);
+        let store =
+            crate::state::RocksStore::create(config, codec).expect("persistent top-1 create");
+        Self {
+            operator: TopNRanker::new(vec![0], sort, 1, false, net_diff)
+                .with_top1_fast(fast)
+                .with_converters(converters)
+                .with_payload_schema(schema)
+                .with_backend(store)
+                .with_read_through_budget(-1)
+                .expect("top-1 cache budget"),
+            _shared: shared,
+        }
+    }
+
+    pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
+        self.operator.push(batch, 0).expect("persistent top-1 push")
+    }
+
+    pub fn flush(&mut self) -> RecordBatch {
+        self.operator.flush_net_diff()
     }
 }
 
@@ -584,6 +917,64 @@ impl GroupBy {
             key_columns,
             true,
         ))
+    }
+
+    pub fn json_aggregate(kind: i64) -> Self {
+        Self(
+            GroupAggregator::new(vec![kind], vec![3], vec![1], vec![0], true)
+                .with_count_columns(vec![if kind >= 28 { 2 } else { -1 }]),
+        )
+    }
+
+    pub fn restore_json_aggregate(kind: i64, snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![kind],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![if kind >= 28 { 2 } else { -1 }]),
+        )
+    }
+
+    pub fn listagg(retracting: bool) -> Self {
+        Self(
+            GroupAggregator::new(
+                vec![if retracting { 25 } else { 24 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
+    pub fn restore_listagg(retracting: bool, snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![if retracting { 25 } else { 24 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
+    pub fn sum_retract_partials() -> Self {
+        Self(
+            GroupAggregator::new(vec![0, 0], vec![0, 0], vec![1, 2], vec![0], true)
+                .with_count_columns(vec![2, -1])
+                .with_record_count_column(3),
+        )
     }
 
     pub fn update(&mut self, batch: &RecordBatch) -> RecordBatch {
@@ -843,6 +1234,9 @@ impl IntervalJoin {
 pub struct WindowJoin(WindowJoiner);
 
 impl WindowJoin {
+    pub fn calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.0.set_calendar(callback);
+    }
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -888,6 +1282,9 @@ pub struct PersistentWindowJoin(WindowJoiner);
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentWindowJoin {
+    pub fn calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.0.set_calendar(callback);
+    }
     fn operator(schema: SchemaRef) -> WindowJoiner {
         WindowJoin::new(vec![0], vec![0], 2, 3, 2, 3, schema.clone(), schema).0
     }
@@ -1489,6 +1886,9 @@ pub struct WindowRankState(crate::topn::WindowRanker);
 
 #[cfg(feature = "rocksdb-state")]
 impl WindowRankState {
+    pub fn calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.0.set_calendar(callback);
+    }
     pub fn memory(limit: i64, keep_last: bool) -> Self {
         let mut ranker = crate::topn::WindowRanker::new(
             0,
@@ -1662,5 +2062,27 @@ impl PersistentOver {
             .checkpoint_store(directory)
             .expect("persistent OVER checkpoint")
             .snapshot_id
+    }
+}
+
+/// Running STRING reduction kernel, excluding row/Arrow transport and frame/key management.
+pub struct StringOverReduction(OverAggState);
+
+impl StringOverReduction {
+    pub fn new(kind: i64) -> Self {
+        Self(OverAggState::new(kind, &DataType::Utf8))
+    }
+
+    pub fn update(&mut self, values: &StringArray, java_utf16: &[Option<Vec<u16>>]) {
+        assert_eq!(values.len(), java_utf16.len());
+        for (row, cache) in java_utf16.iter().enumerate() {
+            if !values.is_null(row) {
+                self.0.fold_cached_text(values.value(row), cache.as_deref());
+            }
+        }
+    }
+
+    pub fn value(&self) -> ScalarValue {
+        self.0.emit()
     }
 }

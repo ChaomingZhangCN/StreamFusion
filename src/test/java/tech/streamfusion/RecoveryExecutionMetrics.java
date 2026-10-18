@@ -40,6 +40,19 @@ final class RecoveryExecutionMetrics implements AutoCloseable {
         cluster.getMiniCluster(), jobConfig, parallelism, List.of(), List.of());
   }
 
+  void printTop1Cache(String jobId) {
+    reporter.getMetricsByGroup().forEach((group, metrics) -> {
+      if (!jobId.equals(group.getAllVariables().get("<job_id>"))) return;
+      if (!group.getAllVariables().getOrDefault("<operator_name>", "").startsWith("NativeColumnarTopN")) return;
+      metrics.forEach((name, metric) -> {
+        if (name.startsWith("topn.cache.") && metric instanceof org.apache.flink.metrics.Gauge) {
+          System.out.println("[append-top1-cache] job=" + jobId + " metric=" + name + " value="
+              + ((org.apache.flink.metrics.Gauge<?>) metric).getValue());
+        }
+      });
+    });
+  }
+
   long recordsIn(String jobId, String operatorPrefix) {
     long[] total = {0};
     reporter.getMetricsByGroup().forEach((group, metrics) -> {
@@ -52,6 +65,34 @@ final class RecoveryExecutionMetrics implements AutoCloseable {
       }
     });
     return total[0];
+  }
+
+  long counterValue(String name) {
+    long[] total = {0};
+    reporter.getMetricsByGroup().forEach((group, metrics) -> {
+      if (metrics.get(name) instanceof Counter)
+        total[0] += ((Counter) metrics.get(name)).getCount();
+    });
+    return total[0];
+  }
+
+  long completedCheckpoints(String jobId) {
+    long[] completed = {0};
+    reporter
+        .getMetricsByGroup()
+        .forEach(
+            (group, metrics) -> {
+              if (!jobId.equals(group.getAllVariables().get("<job_id>"))) return;
+              var metric = metrics.get("numberOfCompletedCheckpoints");
+              if (metric instanceof org.apache.flink.metrics.Gauge) {
+                completed[0] =
+                    Math.max(
+                        completed[0],
+                        ((Number) ((org.apache.flink.metrics.Gauge<?>) metric).getValue())
+                            .longValue());
+              }
+            });
+    return completed[0];
   }
 
   List<Map<String, Object>> nativeOperators() {

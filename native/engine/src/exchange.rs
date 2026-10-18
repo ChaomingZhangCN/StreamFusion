@@ -1,5 +1,8 @@
 use crate::*;
 
+mod coalesce;
+pub(crate) use coalesce::coalesce_batches;
+
 /// Splits a batch into one order-preserving sub-batch per destination channel using
 /// `BinaryRowData.hashCode()` → `MathUtils.murmurHash` → Flink's key-group range assignment.
 /// Each sub-batch carries one representative key group owned by that channel, which lets Flink's
@@ -13,6 +16,13 @@ pub(crate) fn partition_batch(
     max_parallelism: usize,
     parallelism: usize,
 ) -> Vec<(usize, RecordBatch)> {
+    let serialized;
+    let batch = if has_string_caches(batch) {
+        serialized = cold_string_caches(batch);
+        &serialized
+    } else {
+        batch
+    };
     // The precision sidecar is a pre-order type tree, so a nested key contributes more than one
     // descriptor; the encoder validates that it is consumed exactly.
     let mut channels: Vec<Option<(usize, Vec<u32>)>> = vec![None; parallelism];
@@ -57,6 +67,13 @@ pub(crate) fn partition_batch_by_key_group(
     timestamp_precisions: &[i32],
     max_parallelism: usize,
 ) -> Vec<(usize, Vec<i32>, RecordBatch)> {
+    let serialized;
+    let batch = if has_string_caches(batch) {
+        serialized = cold_string_caches(batch);
+        &serialized
+    } else {
+        batch
+    };
     let mut rows_by_key_group: Vec<Vec<u32>> = vec![Vec::new(); max_parallelism];
     let mut encoder = BinaryRowBatchEncoder::new(batch, key_columns, timestamp_precisions);
     for row in 0..batch.num_rows() {
@@ -233,9 +250,8 @@ pub extern "system" fn Java_tech_streamfusion_Native_closeSplit<'local>(
     })
 }
 
-/// Concatenates batches the JVM exported — row subsets of one exchange edge, so they share a
-/// schema — into a single batch exported back into the consumer-allocated C structs. The merge
-/// step of the post-exchange coalescer, undoing the fragmentation `splitByKey` introduced.
+/// Coalesces JVM-exported batches, including UNION inputs with optional physical sidecars,
+/// into one batch exported back into the consumer-allocated C structs.
 #[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_Native_concatBatches<'local>(
     env: JNIEnv<'local>,
@@ -248,13 +264,23 @@ pub extern "system" fn Java_tech_streamfusion_Native_concatBatches<'local>(
     crate::bridge::jni_guard(env, move |env| {
         let arrays = read_longs(&env, &in_array_addresses);
         let schemas = read_longs(&env, &in_schema_addresses);
+        assert_eq!(arrays.len(), schemas.len(), "one schema per input array");
         let batches: Vec<RecordBatch> = arrays
             .into_iter()
             .zip(schemas)
             .map(|(array, schema)| import_record_batch(array, schema))
             .collect();
-        let merged = concat_batches(&batches[0].schema(), &batches).expect("concat batches");
-        export_record_batch(merged, out_array_address, out_schema_address);
+        let merged = coalesce_batches(&batches);
+        // Java-backed buffers run release callbacks on drop; finish those before raising an
+        // exception so a callback cannot consume the pending validation exception.
+        drop(batches);
+        match merged {
+            Ok(merged) => export_record_batch(merged, out_array_address, out_schema_address),
+            Err(error) => {
+                env.throw_new("tech/streamfusion/NativeException", error.to_string())
+                    .expect("throw concat validation failure");
+            }
+        }
     })
 }
 
@@ -271,6 +297,43 @@ mod tests {
             &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(rows)),
         )
         .expect("zero-column batch")
+    }
+
+    #[test]
+    fn both_shuffle_modes_clear_caches_without_mutating_the_parent_batch() {
+        let cache = string_cache_array([Some(&[0xd800][..]), Some(&[0xd801][..]), None]);
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("k", DataType::Int64, false),
+                Field::new("$string_java_1$", DataType::Utf8, false),
+                string_cache_field(1, cache.data_type().clone()),
+            ])),
+            vec![
+                Arc::new(Int64Array::from(vec![1, 2, 3])),
+                Arc::new(StringArray::from(vec!["?", "?", "binary"])),
+                cache,
+            ],
+        )
+        .unwrap();
+        assert_eq!(data_arity(&batch), 2);
+        let mut rows = 0;
+        for (_, part) in partition_batch(&batch, &[0], &[-1], 128, 2) {
+            rows += part.num_rows();
+            let cache = string_cache_column(&part, 1).unwrap();
+            assert_eq!(cache.null_count(), part.num_rows());
+        }
+        assert_eq!(rows, 3);
+        let mut rows = 0;
+        for (_, _, part) in partition_batch_by_key_group(&batch, &[0], &[-1], 128) {
+            rows += part.num_rows();
+            let cache = string_cache_column(&part, 1).unwrap();
+            assert_eq!(cache.null_count(), part.num_rows());
+        }
+        assert_eq!(rows, 3);
+        assert_eq!(
+            JavaStringCacheColumn::new(string_cache_column(&batch, 1).unwrap()).value(0),
+            Some(&[0xd800][..])
+        );
     }
 
     /// A projection can leave no columns behind, and Arrow refuses to infer a row count from none.

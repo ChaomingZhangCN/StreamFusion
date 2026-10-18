@@ -99,6 +99,7 @@ nav:
       - LIMIT: operators/limit.md
       - Event-time sort: operators/event-time-sort.md
       - Watermark assigner: operators/watermark-assigner.md
+      - Sink constraints: operators/sink-constraints.md
       - Unsupported operators: operators/unsupported.md
   - Backends:
       - backends/index.md
@@ -127,6 +128,7 @@ nav:
       - Iceberg streaming results: benchmarks/iceberg-optimized-20261017/README.md
       - Kafka to Iceberg results: benchmarks/kafka-iceberg-final-20261017/README.md
       - Basic type coverage: benchmarks/basic-type-coverage.md
+      - Floating GROUP BY: benchmarks/floating-group-by.md
       - Flink 1.18 compatibility: benchmarks/flink118-nexmark.md
   - Optimizations:
       - optimizations/index.md
@@ -160,6 +162,9 @@ nav:
       - Borrowed key probes: optimizations/borrowed-key-probes.md
       - Mini-batch logical boundary: optimizations/mini-batch-logical-boundary.md
       - Top-N emit decodes distinct rows: optimizations/topn-emit-decodes-distinct-rows.md
+      - Top-1 winner state: optimizations/top1-winner-state.md
+      - Shared-window state: optimizations/shared-window-state.md
+      - Window-rank timestamp cells: optimizations/window-rank-timestamp-cells.md
       - Aggregate specialization fast paths: optimizations/aggregate-specialization-fast-paths.md
       - Allocation discipline: optimizations/allocation-discipline.md
       - Memory accounting off the hot path: optimizations/memory-accounting-off-hot-path.md

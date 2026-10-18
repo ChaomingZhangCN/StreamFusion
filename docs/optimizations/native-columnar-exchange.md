@@ -15,7 +15,147 @@ Each serialized Arrow record carries a representative key group from its destina
 random-key 8192-row input therefore produces at most the downstream parallelism in network records,
 instead of nearly one IPC stream per row. Rows retain their original order within every destination.
 
-For an aligned exchange with one destination, the splitter forwards the existing Arrow root with
+## Finalized output topology
+
+The splitter resolves its destination count at task startup, not during SQL translation. A resource
+planner may change operator parallelism on the generated StreamGraph before submission. The splitter
+identifies its own columnar keyed output in the operator configuration, maps its dataset identity to
+the task's output writer, and uses that writer's actual channel count. This also works when the
+splitter is chained into a producer with different parallelism or other task outputs. Missing,
+replaced, ambiguous, or non-pipelined outputs fail initialization rather than guessing a count.
+See [issue #358](https://github.com/datafusion-contrib/StreamFusion/issues/358) for the stale-routing
+reproduction.
+
+Maximum parallelism is a separate state contract. Changing ordinary parallelism is supported;
+changing maximum parallelism after native planning is rejected before processing or restoring
+native state. Splitter, partitioner, reassembler, and native keyed state retain the planned key-group
+namespace. Set `pipeline.max-parallelism` before SQL translation if the deployment requires a
+particular count; external resource planners must preserve it too. This does not migrate existing
+state to a new key-group count. Splitter gauges `target_channels` and `target_key_groups` expose the
+bound routing parameters.
+
+SINGLETON exchanges retain exactly one destination and use the downstream operator's planned state
+namespace, not a universal key-group count. Global aggregates use the configured/default count;
+event-time sort and keyless joins retain their fixed one-key-group namespace, even when the job-wide
+maximum parallelism is larger. The matcher carries that contract through physical-plan copies into
+the splitter, partitioner, and optional reassembler. Their startup consistency checks remain enabled.
+Changing a SINGLETON destination to multiple subtasks is rejected rather than producing independent
+global results. Previously an unaligned global-aggregate reassembler used maximum parallelism 1
+even when its downstream accumulator planned a larger count.
+Existing checkpoints of that old topology need an explicit upgrade/recovery decision; this fix does
+not migrate their state or claim that they restore into the corrected topology. Ordinary HASH
+exchange layouts and the one-key-group sort/keyless-join layouts are unchanged.
+
+### Singleton metadata for external resource planners
+
+`ColumnarKeyGroupPartitioner.requiresSingleton()` exposes the exchange's distribution constraint
+independently of its current channel count. Exchanges with no key columns use the `singleton(...)`
+factory; existing public constructors continue to describe ordinary HASH/key-group distribution.
+A HASH exchange running at parallelism one is still rescalable and does not become SINGLETON.
+Copies and Java serialization preserve this metadata. Partitioner equality includes distribution,
+key-group count, and recovery protocol so Flink cannot share outputs with different contracts.
+Regenerate serialized execution plans created before this metadata existed; this does not change
+checkpoint state or Arrow wire formats. The diagnostic name remains
+`columnar-key-group`; consumers must use the typed accessor rather than interpret that string.
+
+An external resource planner must preserve one downstream state instance for a SINGLETON exchange
+and keep its planned maximum parallelism unchanged. Setting maximum parallelism to one is not a
+substitute: a global aggregate can require one subtask while retaining 128 or 256 state key groups.
+With unaligned checkpoints enabled, the exchange first feeds an `OrderedKeyGroupReassembler`;
+both that receiver and the actual singleton stateful consumer must remain at parallelism one.
+The accessor describes the exchange, not arbitrary downstream topology rewrites. It does not
+automatically enforce constraints in third-party resource planners. Splitter startup checks reject
+disagreement with the partitioner's distribution metadata and still reject multiple network
+destinations; they do not validate every possible mutation beyond the exchange receiver.
+
+Source and local aggregation parallelism need not be one. Stateless operators and sinks after the
+global aggregate may also run in parallel if a valid redistribution edge is supplied at that
+boundary. For example, a two-phase CUMULATE without business grouping keys can have a parallel local
+aggregate, a SINGLETON global aggregate, and a parallel projection/sink reached through rebalance.
+Do not cap the entire downstream chain solely because the aggregate is singleton.
+
+Regression coverage includes HASH versus SINGLETON copies/serialization, distribution mismatch at
+startup, rejection of a 32-channel SINGLETON deployment, and a two-phase 10-second/60-second
+CUMULATE with late parallelism adjustment. The window test compares exact DOUBLE sums and window
+boundaries against stock Flink, preserves 128/256 key groups, allows parallel output after the global
+aggregate, and requires completed checkpoints in aligned and unaligned-enabled modes. It does not
+claim a production deployment or a singleton window restore test.
+
+The singleton metadata change passes a focused 69-test selection on each of public Flink 1.18.1
+and 2.2.1 with JDK 11 on macOS ARM. Both runs apply the Java patch to an isolated upstream snapshot
+and use a freshly built upstream debug native core, with no failures, errors, or skips. The
+selection includes the window parity checks, key-group reassembly, and aligned/unaligned exchange
+checkpoint restore with rescaling. These are correctness checks, not full-suite or performance runs.
+
+SQL regression tests change StreamNode parallelism after translation from 1 to 4, 2 to 4, 4 to 3,
+3 to 1, and 1 to 5, including different producer/consumer parallelism. They verify every key's actual
+Flink owner and exact COUNT/SUM values. Aligned and unaligned-enabled SQL jobs must complete
+checkpoints after the late change. Exchange recovery tests also apply parallelism after graph
+generation before checkpointing and rescaling in both directions.
+
+Sort and keyless-join SQL regressions additionally cover both aligned and unaligned-enabled
+checkpoints with the default job maximum parallelism and an explicit value of 256. They require
+native execution, matching one-key-group exchange metadata, exact ordered-sort/cross-product rows,
+and a real completed checkpoint. The existing temporal-sort and keyless-join parity suites are also
+part of the regression selection.
+
+On public Flink 1.18.1 / JDK 11, adding only the SQL reproduction to the unmodified upstream
+baseline makes four of five routing cases fail with incorrect owners; the 3-to-1 control passes.
+With the fix, focused regressions on macOS ARM run 327 tests on each released line: Flink 1.18.1
+has 324 passes and three existing SESSION/STATE_TTL capability skips; Flink 2.2.1 has 327 passes.
+Both runs use JDK 11 and a freshly built debug native core from the upstream source, with no
+failures or errors. They include RocksDB state, stateful SQL rescale, exchange recovery,
+window/Top-N/join, serializer, and one-/two-phase aggregate checks. They are not full-suite runs
+or performance measurements.
+
+### Preliminary downstream performance evidence
+
+The 2026-10-15 measurements below use a downstream Flink 1.18-based distribution, not public Flink
+1.18.1 or the current upstream main. They are diagnostic evidence for this Java routing fix, not
+upstream performance acceptance. Both Java variants use the same release+mimalloc native library;
+there are no Rust or JNI changes in this fix.
+
+The environment is Linux x86_64, Xeon E5-2682 v4, an unpinned 8-CPU quota, 16 GiB container, 8 GiB
+heap, and JDK 11.0.22. A bounded rowwise datagen source emits 64 million sequential BIGINT ids:
+
+```sql
+SELECT k, COUNT(*) AS c, SUM(id) AS s
+FROM (SELECT CAST(MOD(id, 1024) AS BIGINT) AS k, id FROM gen)
+GROUP BY k
+```
+
+All variants use four runtime source/consumer subtasks, 128 key groups, a rowwise blackhole sink,
+no logical mini-batching or checkpoints, 1024-row source transposes, and the default 4096-row/50 ms
+exchange coalescer. Both native transposes remain in the measured path; process-local exchange
+handles are disabled. The late variant plans at parallelism one and changes all StreamNodes to four
+after graph generation; other variants plan at four. Each of three trials uses a fresh JVM after
+two 2-million-row warmup jobs, alternating variant order. Submission-to-completion timing includes
+deployment, source batching, both transposes, JNI, IPC, state, and sink, but excludes SQL/graph
+compilation. Each measured job verifies all aggregate input counts and actual native engagement.
+
+| Variant | Median (s) | Range (s) |
+|---|---:|---:|
+| Stock row execution | 29.107 | 28.828-33.658 |
+| Previous native, planned/runtime 4 | 28.707 | 26.815-30.437 |
+| Fixed native, planned/runtime 4 | 32.883 | 32.646-33.096 |
+| Previous native, late 1-to-4 (incorrect ownership) | 64.996 | 64.652-70.606 |
+| Fixed native, late 1-to-4 | 28.687 | 28.310-33.151 |
+
+Correcting late routing reduces that defective path's median elapsed time by 55.9%, but it is
+effectively tied with the stock control within variation, not a general native speedup. The normally
+planned fixed path is 14.5% slower than the previous native median and 13.0% slower than stock in this
+matrix. That unresolved performance risk still needs investigation on released Flink. A separate
+paired JFR run measures 32.205 s previous versus 33.874 s fixed, with 2.500 versus 2.823 s of GC pauses;
+samples include JNI updates, row conversion/copying, and shuffle IPC but do not establish the cause.
+
+Before timing, 65,536-row checks verify every COUNT/SUM result for BIGINT and STRING keys. For 1024
+BIGINT keys the old late path routes 1024/0/0/0 keys, while the fixed path matches the stock control's
+251/254/262/257; STRING changes from 1024/0/0/0 to 236/266/247/275. These synthetic downstream runs do
+not validate a production job or establish the performance of this branch on released Flink.
+
+## Single-destination forwarding
+
+For an aligned exchange with one actual runtime destination, the splitter forwards the existing Arrow root with
 representative key group zero. Every key group belongs to that destination, so hashing, gathering,
 and the split's JNI export/import round trip are unnecessary. Empty batches are consumed without
 emitting a record. The forwarded batch keeps the split operator's handle owner and encoding metrics;

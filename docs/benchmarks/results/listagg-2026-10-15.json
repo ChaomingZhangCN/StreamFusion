@@ -1,0 +1,937 @@
+{
+  "date": "2026-10-15",
+  "base_revision": "f88dc23792058691d1daefedcafac281e604badb",
+  "implementation_parent": "e2d215af",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": "17.0.20.1",
+    "parallelism": 1,
+    "java_heap_gib": 2,
+    "warmup_pairs": 2,
+    "measurement_pairs": 5,
+    "order": "alternating",
+    "native": "release,mimalloc,production IPC",
+    "transpose_batch_rows": 1024,
+    "phase": "ONE_PHASE",
+    "mini_batch": false,
+    "width": "ASCII bytes per value",
+    "nulls": "every seventh input",
+    "boundary": "complete Flink job, row source, both transposes, JNI, state, row blackhole sink",
+    "baseline": "isolated checkout of actual previous main, same harness and settings; zero native substitutions asserted"
+  },
+  "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+  "sha256": {
+    "native/engine/src/group_agg.rs": "c8c28833aed212b9d946fe049a13262ea3d37b8e360d95b7d8ae9ee93631ed35",
+    "native/engine/src/group_agg/list_agg.rs": "6ec63fb08ed827a3cb8992124e6293a908ed712fb4208bd8158039028d456c69",
+    "src/main/java/tech/streamfusion/planner/GroupAggregateMatcher.java": "834d636c2c8da62cf26459339f7358bb2e9054c2d6432f0472596742458b14f2",
+    "src/test/java/tech/streamfusion/StringAggregateBenchmark.java": "2bd2c277a4d15ce66c20eb4e6026b7b5fc6ba2b21f3b2554d1a752637e031c04",
+    "native/target/232-fixed/libstreamfusion.so": "61b573d6e2ea8ac997903b38bcc87509cdbd6ae56d2cc1c567746a163c6386c3"
+  },
+  "runs": {
+    "release-2m-65536": {
+      "summary": "[string-aggregate] function=LISTAGG updating=false rows=2000000 keys=65536 width=16 stock=2.414026 native=1.322289 stock_trials=[2.482843928, 2.433342313, 2.413569056, 2.346637612, 2.414026407] native_trials=[1.301724385, 1.322289281, 1.360606268, 1.256703444, 1.33369255]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=3.688184",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=1.785305",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=1.432562",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=2.562548",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=2.482844",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=1.301724",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=1.322289",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=2.433342",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=2.413569",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=1.360606",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=1.256703",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=2.346638",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=2.414026",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=1.333693"
+      ]
+    },
+    "release-retract-2m-65536": {
+      "summary": "[string-aggregate] function=LISTAGG updating=true rows=2000000 keys=65536 width=16 stock=3.800539 native=1.336173 stock_trials=[3.773127718, 3.689939563, 3.800539434, 3.853528411, 4.109048689] native_trials=[1.337653807, 1.354547426, 1.336172572, 1.324046208, 1.32832983]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=5.095104",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=1.758062",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=1.467029",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=3.970523",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=3.773128",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=1.337654",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=1.354547",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=3.689940",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=3.800539",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=1.336173",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=1.324046",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=3.853528",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=4.109049",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=1.328330"
+      ]
+    },
+    "release-wide-1m-32768": {
+      "summary": "[string-aggregate] function=LISTAGG updating=false rows=1000000 keys=32768 width=128 stock=2.102818 native=1.840397 stock_trials=[2.205858943, 2.102817788, 2.170744485, 1.959032094, 2.059521571] native_trials=[1.976796072, 1.844175109, 1.840397036, 1.785299931, 1.835637993]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=0 warmup=true seconds=3.322948",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=0 warmup=true seconds=2.370003",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=1 warmup=true seconds=1.981237",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=1 warmup=true seconds=2.250232",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=2 warmup=false seconds=2.205859",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=2 warmup=false seconds=1.976796",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=3 warmup=false seconds=1.844175",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=3 warmup=false seconds=2.102818",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=4 warmup=false seconds=2.170744",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=4 warmup=false seconds=1.840397",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=5 warmup=false seconds=1.785300",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=5 warmup=false seconds=1.959032",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=6 warmup=false seconds=2.059522",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=6 warmup=false seconds=1.835638"
+      ]
+    },
+    "baseline-2m-65536": {
+      "summary": "[string-aggregate] function=LISTAGG updating=false rows=2000000 keys=65536 width=16 stock=2.435205 native=2.419543 stock_trials=[2.435204544, 2.481408398, 2.53363873, 2.320416694, 2.341765146] native_trials=[2.419542958, 2.486385571, 2.357949898, 2.527993268, 2.404635078]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=3.689256",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=2.628065",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=2.482541",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=2.504959",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=2.435205",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=2.419543",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=2.486386",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=2.481408",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=2.533639",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=2.357950",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=2.527993",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=2.320417",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=2.341765",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=2.404635"
+      ]
+    },
+    "baseline-retract-2m-65536": {
+      "summary": "[string-aggregate] function=LISTAGG updating=true rows=2000000 keys=65536 width=16 stock=3.586506 native=3.660287 stock_trials=[3.581263987, 4.00187221, 3.397635147, 3.586505803, 3.800798787] native_trials=[3.660287293, 3.897723683, 3.386569939, 3.604315044, 3.747386058]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=5.027487",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=0 warmup=true seconds=3.994772",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=3.532023",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=1 warmup=true seconds=3.668800",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=3.581264",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=2 warmup=false seconds=3.660287",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=3.897724",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=3 warmup=false seconds=4.001872",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=3.397635",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=4 warmup=false seconds=3.386570",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=3.604315",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=5 warmup=false seconds=3.586506",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=Flink rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=3.800799",
+        "[string-aggregate-trial] function=LISTAGG updating=true engine=StreamFusion rows=2000000 keys=65536 width=16 trial=6 warmup=false seconds=3.747386"
+      ]
+    },
+    "baseline-wide-1m-32768": {
+      "summary": "[string-aggregate] function=LISTAGG updating=false rows=1000000 keys=32768 width=128 stock=2.028166 native=2.037565 stock_trials=[2.111115698, 2.028166223, 2.020447217, 1.959830993, 2.073884024] native_trials=[2.138891004, 1.99906813, 1.977952758, 2.230360598, 2.037564936]",
+      "trials": [
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=0 warmup=true seconds=3.320832",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=0 warmup=true seconds=2.376995",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=1 warmup=true seconds=2.179430",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=1 warmup=true seconds=2.036045",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=2 warmup=false seconds=2.111116",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=2 warmup=false seconds=2.138891",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=3 warmup=false seconds=1.999068",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=3 warmup=false seconds=2.028166",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=4 warmup=false seconds=2.020447",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=4 warmup=false seconds=1.977953",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=5 warmup=false seconds=2.230361",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=5 warmup=false seconds=1.959831",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=Flink rows=1000000 keys=32768 width=128 trial=6 warmup=false seconds=2.073884",
+        "[string-aggregate-trial] function=LISTAGG updating=false engine=StreamFusion rows=1000000 keys=32768 width=128 trial=6 warmup=false seconds=2.037565"
+      ]
+    }
+  },
+  "criterion": {
+    "boundary": "production update and changelog materialization; operator creation, fixture construction, retract seeding and destruction outside timing",
+    "rows": [
+      16,
+      1024
+    ],
+    "keys": [
+      1,
+      64
+    ],
+    "width_bytes": [
+      8,
+      128
+    ],
+    "samples": 10,
+    "warmup_seconds": 0.1,
+    "measurement_seconds": 1,
+    "estimates": {
+      "rows=1024_keys=64_width=8_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 142214.52196838622,
+            "upper_bound": 146165.23438359785
+          },
+          "point_estimate": 144278.3647010582,
+          "standard_error": 1011.5064195507151
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 140653.45185185186,
+            "upper_bound": 147500.28444444443
+          },
+          "point_estimate": 145129.9773148148,
+          "standard_error": 1601.0196995256729
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 203.67095549524666,
+            "upper_bound": 5383.778463085492
+          },
+          "point_estimate": 3584.2957880882445,
+          "standard_error": 1353.6192267527158
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 144911.82944444445,
+            "upper_bound": 147220.60177612558
+          },
+          "point_estimate": 146431.97587301588,
+          "standard_error": 594.0322314502674
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1609.7786466083253,
+            "upper_bound": 4026.51216921656
+          },
+          "point_estimate": 3355.2562423926774,
+          "standard_error": 565.1098211357454
+        }
+      },
+      "rows=16_keys=64_width=8_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2018.9066154717627,
+            "upper_bound": 2049.383362037902
+          },
+          "point_estimate": 2034.178157365165,
+          "standard_error": 7.806700825590433
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2008.2383609080416,
+            "upper_bound": 2057.999076567911
+          },
+          "point_estimate": 2035.585455944594,
+          "standard_error": 14.35578302863928
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3.4475206534921963,
+            "upper_bound": 42.23652621565166
+          },
+          "point_estimate": 38.14966041255031,
+          "standard_error": 11.050685330791946
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2013.7422261767347,
+            "upper_bound": 2053.799333667984
+          },
+          "point_estimate": 2033.7561639591652,
+          "standard_error": 10.231648394007907
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 16.944652332068966,
+            "upper_bound": 30.29381442151495
+          },
+          "point_estimate": 25.981124533742943,
+          "standard_error": 3.4283905087535222
+        }
+      },
+      "rows=16_keys=1_width=8_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3168.9263098046767,
+            "upper_bound": 3240.8615456268963
+          },
+          "point_estimate": 3202.0491784430324,
+          "standard_error": 18.451861238635036
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3154.77049689441,
+            "upper_bound": 3243.9677704752276
+          },
+          "point_estimate": 3185.8182507583415,
+          "standard_error": 23.032294610948643
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 8.318824978702136,
+            "upper_bound": 96.88045566122128
+          },
+          "point_estimate": 50.57300453693235,
+          "standard_error": 22.719797603872387
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3151.7365635815104,
+            "upper_bound": 3212.805390382288
+          },
+          "point_estimate": 3175.5053431906817,
+          "standard_error": 15.597618404736885
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 27.12865717703716,
+            "upper_bound": 80.0230378861419
+          },
+          "point_estimate": 61.394192033086036,
+          "standard_error": 13.965142446163584
+        }
+      },
+      "rows=1024_keys=64_width=128_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 388492.3231331521,
+            "upper_bound": 399698.21135170804
+          },
+          "point_estimate": 394156.3357091097,
+          "standard_error": 2867.67965907991
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 387158.4836956522,
+            "upper_bound": 404054.4673913043
+          },
+          "point_estimate": 393962.83152173914,
+          "standard_error": 3731.1550669948338
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1603.590875008825,
+            "upper_bound": 17244.69318982372
+          },
+          "point_estimate": 11614.690879667547,
+          "standard_error": 4475.827359501085
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 391063.05207181146,
+            "upper_bound": 403158.4306800383
+          },
+          "point_estimate": 396161.1291360813,
+          "standard_error": 3094.273607543502
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5542.268925987489,
+            "upper_bound": 11874.599627635605
+          },
+          "point_estimate": 9547.592096982511,
+          "standard_error": 1646.925873919804
+        }
+      },
+      "rows=16_keys=64_width=128_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2053.664309504739,
+            "upper_bound": 2116.900230292223
+          },
+          "point_estimate": 2081.0305246454473,
+          "standard_error": 16.371973422060258
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2044.142971565879,
+            "upper_bound": 2110.679565478574
+          },
+          "point_estimate": 2055.7971766119344,
+          "standard_error": 16.76892055841781
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1.6378450450115913,
+            "upper_bound": 66.74101716412878
+          },
+          "point_estimate": 19.44793984195476,
+          "standard_error": 19.856152546267538
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2050.453051646767,
+            "upper_bound": 2116.645829251115
+          },
+          "point_estimate": 2072.328269247773,
+          "standard_error": 17.41094007827139
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 14.098420639350147,
+            "upper_bound": 76.59843536987502
+          },
+          "point_estimate": 54.45575135096927,
+          "standard_error": 17.266179221446663
+        }
+      },
+      "rows=16_keys=1_width=128_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4119.522127644668,
+            "upper_bound": 4261.285525781141
+          },
+          "point_estimate": 4184.711678426309,
+          "standard_error": 36.47750100187673
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4096.113782051282,
+            "upper_bound": 4273.724376488721
+          },
+          "point_estimate": 4138.491803278688,
+          "standard_error": 44.97298092155396
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11.03079724006158,
+            "upper_bound": 196.27511141663993
+          },
+          "point_estimate": 63.67600180142845,
+          "standard_error": 45.77523811578023
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 4120.677139636226,
+            "upper_bound": 4296.899682033746
+          },
+          "point_estimate": 4197.473989944482,
+          "standard_error": 45.27584044208305
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 39.52577456876673,
+            "upper_bound": 152.60835388334468
+          },
+          "point_estimate": 122.03333401718773,
+          "standard_error": 28.335381513667365
+        }
+      },
+      "rows=16_keys=1_width=8_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3668.6645541544303,
+            "upper_bound": 3698.649314523713
+          },
+          "point_estimate": 3684.6211777317135,
+          "standard_error": 7.697504409073578
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3667.2720677146312,
+            "upper_bound": 3707.8062877871826
+          },
+          "point_estimate": 3689.3013603385734,
+          "standard_error": 8.682117303740478
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5.099572223047817,
+            "upper_bound": 42.36256031200112
+          },
+          "point_estimate": 25.220316328549753,
+          "standard_error": 10.112116945225987
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3661.6319170904353,
+            "upper_bound": 3695.5497173037534
+          },
+          "point_estimate": 3679.744862199469,
+          "standard_error": 8.525777760020214
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 11.505893758750364,
+            "upper_bound": 33.0058324272323
+          },
+          "point_estimate": 25.69481859713617,
+          "standard_error": 5.529139171406287
+        }
+      },
+      "rows=1024_keys=1_width=128_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28130327.45,
+            "upper_bound": 42994150.25
+          },
+          "point_estimate": 34415682.95,
+          "standard_error": 3859389.1230648463
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 26381281.75,
+            "upper_bound": 38730851.5
+          },
+          "point_estimate": 30860783.5,
+          "standard_error": 2614506.348523024
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1314202.1915182471,
+            "upper_bound": 14978422.504229844
+          },
+          "point_estimate": 4926458.805137873,
+          "standard_error": 3658491.2866661786
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3258798.270980828,
+            "upper_bound": 18533140.431754418
+          },
+          "point_estimate": 12851957.352015147,
+          "standard_error": 4453300.57544753
+        }
+      },
+      "rows=1024_keys=1_width=8_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1221612.715586735,
+            "upper_bound": 1263766.8298809524
+          },
+          "point_estimate": 1243700.7030385488,
+          "standard_error": 10751.837309395876
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1228129.6666666667,
+            "upper_bound": 1270898.6857142858
+          },
+          "point_estimate": 1242216.5307539683,
+          "standard_error": 10107.952895357264
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3656.5548475831747,
+            "upper_bound": 58530.59949420734
+          },
+          "point_estimate": 26801.479348583383,
+          "standard_error": 14132.14366146892
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1234514.1804131716,
+            "upper_bound": 1274839.8186590723
+          },
+          "point_estimate": 1256063.2285714287,
+          "standard_error": 10289.964723965848
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 16006.696127986206,
+            "upper_bound": 49141.02574648705
+          },
+          "point_estimate": 35905.90054629471,
+          "standard_error": 8878.382904398923
+        }
+      },
+      "rows=1024_keys=64_width=128_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 327604.1699037698,
+            "upper_bound": 336916.1782217971
+          },
+          "point_estimate": 332542.649132653,
+          "standard_error": 2383.2854750635656
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 326608.46329365077,
+            "upper_bound": 339253.0714285714
+          },
+          "point_estimate": 334700.3557823129,
+          "standard_error": 3329.1782455638454
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1796.1169181125567,
+            "upper_bound": 13610.583357173344
+          },
+          "point_estimate": 8330.964585429143,
+          "standard_error": 2934.3813027656925
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 325239.779283496,
+            "upper_bound": 334633.9168210874
+          },
+          "point_estimate": 330318.12356215215,
+          "standard_error": 2404.907487987117
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3931.562801466457,
+            "upper_bound": 10296.537862732706
+          },
+          "point_estimate": 7929.494836515143,
+          "standard_error": 1697.9189744565979
+        }
+      },
+      "rows=1024_keys=64_width=8_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 169978.56505484428,
+            "upper_bound": 176619.8402261811
+          },
+          "point_estimate": 172751.36454215337,
+          "standard_error": 1756.3156756419273
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 169289.66509433964,
+            "upper_bound": 173879.12395178195
+          },
+          "point_estimate": 171099.68573113208,
+          "standard_error": 1512.5740384999035
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 363.77222146628765,
+            "upper_bound": 5871.524435539425
+          },
+          "point_estimate": 2806.983510236835,
+          "standard_error": 1492.1246676544865
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 170494.55035190177,
+            "upper_bound": 177723.0037138489
+          },
+          "point_estimate": 173078.68397451605,
+          "standard_error": 1875.844460868271
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1691.7501874856528,
+            "upper_bound": 8662.562110212904
+          },
+          "point_estimate": 5852.66743270231,
+          "standard_error": 2210.01825783452
+        }
+      },
+      "rows=16_keys=64_width=128_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3793.6397167350865,
+            "upper_bound": 3880.2402307824623
+          },
+          "point_estimate": 3831.876650817948,
+          "standard_error": 22.33549678461309
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3784.300758419148,
+            "upper_bound": 3854.474280622816
+          },
+          "point_estimate": 3825.2182855552464,
+          "standard_error": 21.389449587312775
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 9.918059460713007,
+            "upper_bound": 94.6510721910246
+          },
+          "point_estimate": 53.25497775849658,
+          "standard_error": 21.401127164536554
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3806.9050171496533,
+            "upper_bound": 3847.664614447487
+          },
+          "point_estimate": 3829.4985661152095,
+          "standard_error": 10.396866926262872
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 27.141141631836962,
+            "upper_bound": 107.28383802083046
+          },
+          "point_estimate": 74.59406945484334,
+          "standard_error": 24.132664643415573
+        }
+      },
+      "rows=16_keys=1_width=128_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5148.107956188467,
+            "upper_bound": 5276.82926652602
+          },
+          "point_estimate": 5215.550824568012,
+          "standard_error": 33.00190290519207
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5117.055696202532,
+            "upper_bound": 5295.82981188467
+          },
+          "point_estimate": 5256.046428571428,
+          "standard_error": 48.77796447922994
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 14.296149725095573,
+            "upper_bound": 176.91653965182485
+          },
+          "point_estimate": 71.203928115625,
+          "standard_error": 44.71241089646043
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 5219.271412303414,
+            "upper_bound": 5298.3213286849195
+          },
+          "point_estimate": 5270.285382212724,
+          "standard_error": 20.346101985549588
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 49.90525626634053,
+            "upper_bound": 132.5338495808545
+          },
+          "point_estimate": 109.90108712886718,
+          "standard_error": 19.72996880748896
+        }
+      },
+      "rows=1024_keys=1_width=8_retract=true": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2452503.450684524,
+            "upper_bound": 2518510.2481130953
+          },
+          "point_estimate": 2482023.6184821427,
+          "standard_error": 17084.53985128443
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2446299.953125,
+            "upper_bound": 2504075.0
+          },
+          "point_estimate": 2468175.005952381,
+          "standard_error": 14628.010268002387
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6812.6704290511525,
+            "upper_bound": 80188.2264951244
+          },
+          "point_estimate": 36859.08892999552,
+          "standard_error": 19476.019383684616
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 2453803.6641104296,
+            "upper_bound": 2566546.1447368423
+          },
+          "point_estimate": 2506857.5253246753,
+          "standard_error": 31453.87577489831
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 20197.38506304962,
+            "upper_bound": 79238.90733138523
+          },
+          "point_estimate": 56957.734391351805,
+          "standard_error": 16594.626329512805
+        }
+      },
+      "rows=1024_keys=1_width=128_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 30298484.33,
+            "upper_bound": 41886858.45
+          },
+          "point_estimate": 35735628.95,
+          "standard_error": 2948333.633047045
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 28389600.0,
+            "upper_bound": 49390672.0
+          },
+          "point_estimate": 31094822.75,
+          "standard_error": 4856334.00080494
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 385183.1796616316,
+            "upper_bound": 14505060.208533704
+          },
+          "point_estimate": 4396850.0022903085,
+          "standard_error": 3792335.0539330957
+        },
+        "slope": null,
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 1673202.5759608496,
+            "upper_bound": 11034631.703973552
+          },
+          "point_estimate": 9809417.98989314,
+          "standard_error": 1834695.9210386125
+        }
+      },
+      "rows=16_keys=64_width=8_retract=false": {
+        "mean": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3542.5768379233673,
+            "upper_bound": 3598.4729591926834
+          },
+          "point_estimate": 3572.478804225796,
+          "standard_error": 14.348307207455951
+        },
+        "median": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3535.7073377483443,
+            "upper_bound": 3609.2387827183857
+          },
+          "point_estimate": 3595.0612030905077,
+          "standard_error": 21.439630968544964
+        },
+        "median_abs_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 6.3331401590877565,
+            "upper_bound": 81.66708202429186
+          },
+          "point_estimate": 30.3737918859233,
+          "standard_error": 20.473637636447286
+        },
+        "slope": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 3574.024319812131,
+            "upper_bound": 3609.7609897163193
+          },
+          "point_estimate": 3597.5025949944097,
+          "standard_error": 9.17750702013838
+        },
+        "std_dev": {
+          "confidence_interval": {
+            "confidence_level": 0.95,
+            "lower_bound": 22.495280291253536,
+            "upper_bound": 60.397905390841956
+          },
+          "point_estimate": 47.69421041745635,
+          "standard_error": 9.861002294302484
+        }
+      }
+    }
+  },
+  "profiling": {
+    "tool": "async-profiler 4.0",
+    "event": "cpu-clock",
+    "interval_ms": 2,
+    "native_stack": "DWARF",
+    "alloc_interval": "1m",
+    "rows": 2000000,
+    "keys": 65536,
+    "width": 16,
+    "warmup_pairs": 2,
+    "measurement_pairs": 3,
+    "files": {
+      "cpu": "listagg-2026-10-15-cpu.collapsed.gz",
+      "alloc": "listagg-2026-10-15-alloc.collapsed.gz"
+    },
+    "task_cpu_samples": {
+      "native": 4622,
+      "stock": 8232
+    },
+    "note": "Mixed Java/Rust stacks and sampled allocations. Profiled timings excluded from performance claims; CPU samples are not elapsed-time ratios. Inclusive Rust stacks include callees."
+  },
+  "known_preexisting_diagnostic": {
+    "scope": "Flink 1.18 ONE_PHASE mini-batch numeric SUM, positive TTL, unchanged bundle result",
+    "host": [
+      "+I 1"
+    ],
+    "native": [
+      "+I 1",
+      "-U 1",
+      "+U 1"
+    ],
+    "reproduces_previous_planner": "f88dc237",
+    "not_counted_as_passing_validation": true
+  }
+}

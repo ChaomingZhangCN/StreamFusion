@@ -275,7 +275,7 @@ pub(crate) fn build_expr(
         }
         // A JVM UDF node: `arg` indexes the long pool at [udf id, return-type code]; the children are the
         // argument expressions. Builds a JvmUdf scalar function that upcalls the JVM per batch.
-        17 | 38 | 41 => {
+        17 | 38 | 41 | 42 => {
             let id = longs[arg] as i32;
             let row_result = kinds[node] == 38;
             let return_type = if row_result {
@@ -305,6 +305,7 @@ pub(crate) fn build_expr(
             if kinds[node] == 41 {
                 function.decimal_round_text = Some(longs[arg + 2] != 0);
             }
+            function.numeric_cast = kinds[node] == 42;
             datafusion::logical_expr::ScalarUDF::new_from_impl(function).call(children)
         }
         // Preserve the legacy literal encoding used by native timestamp arithmetic. The generated
@@ -2070,6 +2071,7 @@ pub(crate) struct JvmUdf {
     signature: datafusion::logical_expr::Signature,
     row_result: bool,
     decimal_round_text: Option<bool>,
+    numeric_cast: bool,
 }
 
 impl JvmUdf {
@@ -2079,6 +2081,7 @@ impl JvmUdf {
             return_type,
             row_result,
             decimal_round_text: None,
+            numeric_cast: false,
             signature: datafusion::logical_expr::Signature::variadic_any(if row_result {
                 datafusion::logical_expr::Volatility::Volatile
             } else {
@@ -2116,6 +2119,13 @@ impl datafusion::logical_expr::ScalarUDFImpl for JvmUdf {
         if let Some(truncate) = self.decimal_round_text {
             if let Some(output) =
                 crate::flink_functions::decimal_round_text::evaluate(&arrays, truncate)
+            {
+                return Ok(ColumnarValue::Array(output));
+            }
+        }
+        if self.numeric_cast {
+            if let Some(output) =
+                crate::flink_functions::numeric_cast::evaluate(&arrays, &self.return_type)
             {
                 return Ok(ColumnarValue::Array(output));
             }
@@ -2290,4 +2300,92 @@ pub(crate) fn infer_expr_type(
         root,
     )?
     .data_type(&indexed_schema(schema))
+}
+
+#[cfg(test)]
+mod uuid_tests {
+    use super::*;
+    use crate::calc::CalcExpression;
+
+    fn projection() -> CalcExpression {
+        CalcExpression {
+            kinds: vec![6, 6],
+            payload: vec![166, 166],
+            child_counts: vec![0, 0],
+            longs: vec![],
+            doubles: vec![],
+            strings: vec![],
+            projection_roots: vec![0, 1],
+            condition_root: -1,
+            output_names: vec!["a".into(), "b".into()],
+            compiled: None,
+        }
+    }
+
+    fn input(rows: usize) -> RecordBatch {
+        RecordBatch::try_new_with_options(
+            Arc::new(Schema::empty()),
+            vec![],
+            &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(rows)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn uuid_is_volatile_per_row_call_site_and_batch_without_input_columns() {
+        let mut calc = projection();
+        let mut seen = std::collections::HashSet::new();
+        for rows in [0, 1, 127, 1024, 127] {
+            let output = calc.evaluate(input(rows));
+            assert_eq!(output.num_rows(), rows);
+            assert_eq!(output.num_columns(), 2);
+            for array in output.columns() {
+                let values = array.as_any().downcast_ref::<StringArray>().unwrap();
+                assert_eq!(values.null_count(), 0);
+                for value in values.iter().flatten() {
+                    let bytes = value.as_bytes();
+                    assert_eq!(bytes.len(), 36);
+                    assert_eq!(bytes[14], b'4');
+                    assert!(b"89ab".contains(&bytes[19]));
+                    for (index, byte) in bytes.iter().enumerate() {
+                        if [8, 13, 18, 23].contains(&index) {
+                            assert_eq!(*byte, b'-');
+                        } else {
+                            assert!(byte.is_ascii_digit() || (b'a'..=b'f').contains(byte));
+                        }
+                    }
+                    assert!(seen.insert(value.to_owned()));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn all_filtered_projection_keeps_empty_uuid_columns() {
+        let mut calc = projection();
+        calc.kinds.push(4);
+        calc.payload.push(0);
+        calc.child_counts.push(0);
+        calc.longs.push(0);
+        calc.condition_root = 2;
+        let output = calc.evaluate(input(1024));
+        assert_eq!(output.num_rows(), 0);
+        assert_eq!(output.num_columns(), 2);
+        assert!(output
+            .columns()
+            .iter()
+            .all(|array| array.data_type() == &DataType::Utf8));
+    }
+
+    #[test]
+    fn uuid_projection_preserves_each_input_changelog_tag() {
+        let batch = RecordBatch::try_from_iter(vec![(
+            ROW_KIND_COLUMN,
+            Arc::new(Int8Array::from(vec![0, 1, 2, 3])) as ArrayRef,
+        )])
+        .unwrap();
+        let result = projection().evaluate(batch);
+        assert_eq!(result.num_rows(), 4);
+        assert_eq!(row_kind_column(&result).unwrap().values(), &[0, 1, 2, 3]);
+    }
 }

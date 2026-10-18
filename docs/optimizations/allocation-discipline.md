@@ -50,11 +50,13 @@ the accumulators consume Arrow slices instead of gathered arrays from `take`. A 
 is the common case at high cardinality. The selection-index Arrow array is also omitted.
 Signed row-kind selections share the same range and preserve the input offsets and validity.
 
-Sparse selections and groups with any nested value column retain `take`, so a DISTINCT
-accumulator cannot retain an entire nested input batch through this shortcut. COUNT/SUM0 finish
-reading the slice during update; their checkpoint state, managed-memory accounting and final
-output contain only the original scalar accumulators. The generalized selection technique and
-string measurements are described in the [string-copy ledger](string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges).
+Sparse selections and groups with nested non-temporal value columns retain `take`,
+so a DISTINCT accumulator cannot retain an entire nested input batch through this
+shortcut. Timestamp extrema use borrowed millisecond/remainder accessors described
+below and retain owned scalar pairs. Primitive and UTF-8 accumulators consume slices
+for contiguous selections. The generalized selection technique and string
+measurements are described in the [string-copy ledger](string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges).
+
 The `window_zero_sum` all-distinct-key fixtures exercise this production path; complete
 jobs retain both row/Arrow transposes.
 
@@ -72,6 +74,32 @@ These are separate process runs with drifting stock controls, so they do not iso
 the optimization's causal timing effect. Matched stock comparisons and every sample
 are retained in the [window benchmark](../operators/window-aggregate.md#shared-exact-aggregate-benchmarks)
 and [raw artifact](../benchmarks/results/window-sum0-2026-10-12.json).
+
+## Timestamp window state and output
+
+Insert-only timestamp MIN/MAX own a millisecond/remainder pair, rather than retaining a
+single-row Struct array. Window updates and global partial merges prepare one borrowed
+timestamp accessor per input column and read the selected positions directly. They avoid
+per-group Struct `take` arrays and per-partial slices. Timestamp DISTINCT retains its
+gathering path because the set can retain the selected values' buffers.
+
+Watermark firing constructs one component array per result column from the owned extrema.
+It avoids allocating a Struct scalar per fired group and concatenating those scalars.
+Session merges compare the owned pairs directly; they do not serialize the old accumulator
+to Arrow merely to merge it back. Session input selection uses the same borrowed timestamp
+reads, while other value types retain their existing aggregate and merge behavior.
+
+The JVM prepares timestamp accessors once per batch. Unfiltered, non-compact component
+MIN/MAX fields can retain an Arrow split view when source and destination share a root
+allocator. External allocator roots, compact values, primitive timestamp layouts and
+filtered values use the copying path. Views close after the synchronous JNI update, and
+the accumulator retains no source buffers.
+
+Complete jobs include both row/Arrow transposes, JNI, state and a collecting row sink.
+The [temporal window benchmarks](../operators/window-aggregate.md#temporal-extrema-benchmarks)
+report stock Flink and the previous fallback behavior, including the single-phase overlapping
+regressions that keep those shapes on Flink. Allocation requests and requested bytes describe
+allocation traffic, not copied bytes or retained-memory peaks.
 
 ## String encoding output buffers
 
@@ -168,6 +196,10 @@ Reproduce with JDK 17 and `SF_BENCHMARK=true mvn -pl streamfusion-runtime -am te
 `-Pbench` selects the default Flink 2.2.1 line; use `-Pflink-1.18,bench` for the released 1.18
 compatibility line as a portable rerun command, not a reported measurement here. Complete commands and boundaries for the full flush and stock comparison
 are recorded alongside the raw samples; use identical release libraries and fixtures in both runs.
+
+The shaping fixture owns no native aggregation handle and opts out of window-assignment
+initialization. Its output-ownership and failure-cleanup checks still exercise the production
+emitter, including closing the source buffers before reading the output.
 
 Focused controls retained in the same artifact reran the two-property INT and TIMESTAMP(9)
 cases at 16,384 rows in baseline/candidate/candidate/baseline order, with 100 warmups and 51
@@ -280,3 +312,44 @@ Native sample ranges are 357.6–393.4 → 361.9–392.2 ms for BIGINT and
 535.5–557.0 → 533.9–545.8 ms for STRING. The boundary optimization therefore carries no
 claim of a general complete-job throughput win. All 1,860 shaping observations and 20 job
 observations from this pair are archived alongside historical evidence.
+
+## Timestamp slice folding
+
+Overlapping timestamp extrema and ordinary counts fold once per key and input slice,
+then merge owned scalar states directly into each open window. This avoids repeated
+value reads, selection arrays and singleton Arrow partial arrays. Keys are cloned only
+when a window group is created. Timestamp pairs and counts have a fixed footprint, so
+memory accounting records that footprint at creation rather than scanning every
+accumulator after every update; closing a window releases the same tracked bytes.
+Compact MIN/MAX inputs use millisecond vectors, and COUNT inputs carry only validity.
+Full-precision values retain both timestamp digits. Snapshot codecs and window firing
+order retain the existing window-state layout.
+
+Boundary, late-row, NULL, restore and memory-reclamation controls compare slice folding
+with direct per-window updates. The final precision-3, two-million-row, 4096-key complete
+jobs are 1.11–1.32× faster than stock Flink for single-phase HOP/CUMULATE over TIMESTAMP
+and TIMESTAMP_LTZ. The measured path includes row inputs, both transposes, IPC, JNI,
+state and row collection. The
+[retained comparison](../benchmarks/results/window-temporal-overlap-integration-2026-10-13.json)
+contains every warmup/trial and rejected intermediate implementation. Earlier direct
+folding and compact-vector-only candidates did not consistently beat stock; the final
+fixed-footprint accounting removes their repeated state-size scans.
+
+## Typed OVER selection and retraction
+
+Typed OVER winners read timestamp components and decimal scalars directly. String winners
+copy only selected values and share immutable retained payloads with bounded outputs.
+Timestamp results build one component column per batch, instead of constructing a Struct
+scalar for each output row. COUNT observes validity without converting unused values.
+Bounded decimal reductions and string views retract expired membership incrementally,
+preserving the released backend’s overflow and selected-value history. Numeric frames
+retain their existing layout and folding path.
+
+The first release comparison at 500,000 rows and 64 keys covers four value families and
+all four event-time frames, with row sources, both transposes, IPC, JNI, state and a row
+blackhole sink. Every profile beats stock and the matched previous-OVER-fallback path.
+These are complete-feature results, without attributing each gain to one allocation change.
+All warmups and observations, including the earlier EOF-buffering diagnostic, are retained
+in the [raw artifact](../benchmarks/results/over-basic-values-2026-10-13.json). Eight one-million-row/4096-key comparisons also beat both controls. The final string-state ordering/copy/restore implementation was remeasured in all six affected
+profiles: 2.176–3.913× stock, also beating the previous fallback. Intermediate samples remain
+in the artifact.

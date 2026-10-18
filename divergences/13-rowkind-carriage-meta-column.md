@@ -16,6 +16,13 @@ boundary the kind has to become a column. We append a hidden byte column
 restore it onto each row on the way back. Carriage is opt-in: insert-only paths
 omit the column entirely and read back as `+I`, so nothing changes for them.
 
+When UNION mixes these layouts, downstream coalescing first normalizes the physical schema.
+Untagged batches receive INSERT bytes if any input carries RowKinds; string-cache companions
+are aligned independently and missing cache entries remain null. Unlike Arroyo's coalescing
+of batches already bound to one stored schema, this boundary must reconcile optional sidecars
+before invoking Arrow's positional concatenation. Normalization borrows existing data arrays
+and preserves all four kinds without a rowwise conversion.
+
 ## Why four-way, not Arroyo's two-way
 Parity. Research §6 flags the 2-vs-4 width gap as a silent-correctness hazard:
 **upsert sinks drop `-U` but act on `-D`**, so a two-way encoding that collapses

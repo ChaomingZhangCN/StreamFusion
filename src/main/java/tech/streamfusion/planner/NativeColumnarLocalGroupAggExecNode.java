@@ -3,7 +3,6 @@ package tech.streamfusion.planner;
 import java.util.Collections;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.planner.delegation.PlannerBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNodeBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNodeConfig;
@@ -67,7 +66,7 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
     Transformation<ArrowBatch> input =
         (Transformation<ArrowBatch>) getInputEdges().get(0).translateToPlan(planner);
     // The size trigger that caps the bundle, like Flink's CountBundleTrigger (mini-batch.size).
-    long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+    long miniBatchSize = tech.streamfusion.compat.FlinkCompat.miniBatchSize(config);
     Transformation<ArrowBatch> transformation =
         ExecNodeUtil.createOneInputTransformation(
             input,

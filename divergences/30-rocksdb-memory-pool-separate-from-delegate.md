@@ -32,3 +32,20 @@ Two smaller gaps ride along: the rust-rocksdb binding exposes no
 high-priority cache pool (`memory.high-priority-pool-ratio` is read by the
 delegate only), and `memory.partitioned-index-filters` is not applied to the
 native instance.
+
+## Arena allocation in small shared pools
+
+Flink checks the default arena quantum against the shared write-buffer manager's
+mutable limit and warns about constant flushing when it is too large
+(`RocksDBOperationUtils.sanityCheckArenaBlockSize`). Native stores instead derive
+the usual one-eighth quantum from the smaller of the configured write-buffer size
+and the shared manager capacity, aligned to RocksDB's 4 KiB minimum. An 8 MiB
+arena from the default 64 MiB write buffer can otherwise exceed the mutable limit
+of a 10 MiB slot pool and crowd out its block cache even after winner changes stop.
+
+This changes allocation and local flush behavior while preserving the configured
+buffer limit, total memory budget, persisted rows and checkpoint formats. Larger
+pools that can hold the configured buffer retain the default quantum. Production
+options-file and live-memtable tests cover small and sufficient shared budgets.
+The Top-1 shared-pool Criterion fixtures include 64 MiB configured buffers with
+10 MiB pools; setup and initial state are outside the timed update/flush boundary.

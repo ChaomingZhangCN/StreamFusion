@@ -34,11 +34,17 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
   private final int[] filterColumns;
   private final int[] keyColumns;
   private final int[] keyTypes;
+  private final int windowStartColumn;
+  private final int windowEndColumn;
 
-  /** The latest processing-time boundary already scheduled, so each window-end timer registers once. */
+  /**
+   * The latest processing-time boundary already scheduled, so each window-end timer registers once.
+   */
   private transient long registeredTimer;
 
-  /** The latest end of any window that has received a row, so the timer stops chaining once drained. */
+  /**
+   * The latest end of any window that has received a row, so the timer stops chaining once drained.
+   */
   private transient long maxOpenEnd;
 
   @Override
@@ -122,6 +128,48 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
       boolean proctime,
       int[] keyTimestampPrecisions,
       int maxParallelism) {
+    this(
+        cumulative,
+        windowMillis,
+        slideMillis,
+        timeColumn,
+        valueColumns,
+        filterColumns,
+        keyColumns,
+        keyTypes,
+        valueTypes,
+        aggregateKinds,
+        timeZoneId,
+        timestampLtz,
+        sessionTimeZoneId,
+        outputType,
+        proctime,
+        keyTimestampPrecisions,
+        maxParallelism,
+        -1,
+        -1);
+  }
+
+  public NativeColumnarWindowAggregateOperator(
+      boolean cumulative,
+      long windowMillis,
+      long slideMillis,
+      int timeColumn,
+      int[] valueColumns,
+      int[] filterColumns,
+      int[] keyColumns,
+      int[] keyTypes,
+      int[] valueTypes,
+      int[] aggregateKinds,
+      String timeZoneId,
+      boolean timestampLtz,
+      String sessionTimeZoneId,
+      RowType outputType,
+      boolean proctime,
+      int[] keyTimestampPrecisions,
+      int maxParallelism,
+      int windowStartColumn,
+      int windowEndColumn) {
     super(
         "window aggregate",
         windowMillis,
@@ -141,6 +189,8 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
     this.keyColumns = keyColumns;
     this.keyTypes = keyTypes;
     this.proctime = proctime;
+    this.windowStartColumn = windowStartColumn;
+    this.windowEndColumn = windowEndColumn;
   }
 
   @Override
@@ -148,7 +198,13 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
     super.open();
     registeredTimer = Long.MIN_VALUE;
     maxOpenEnd = restoredProcessingTimeTimerDeadline();
-    if (proctime && maxOpenEnd != Long.MIN_VALUE) {
+    if (proctime && usesLocalWindowBounds()) {
+      emitClosedWindows(Long.MIN_VALUE);
+      long next = Native.fixedWindowNextTimerDeadline(handle);
+      long now = getProcessingTimeService().getCurrentProcessingTime();
+      if (next != Long.MIN_VALUE && next <= now) emitClosedWindows(now);
+      scheduleNextTimer(now);
+    } else if (proctime && maxOpenEnd != Long.MIN_VALUE) {
       long now = getProcessingTimeService().getCurrentProcessingTime();
       if (maxOpenEnd - 1 <= now) {
         emitClosedWindows(now);
@@ -214,11 +270,15 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
   public void processElement(StreamRecord<ArrowBatch> element) {
     ColumnarRecordMetrics.countIngested(getMetricGroup(), element.getValue().rowCount());
     try (var in = element.getValue().root()) {
-      if (proctime) {
+      if (windowEndColumn >= 0) {
+        updateColumnarAttached(
+            in, windowStartColumn, windowEndColumn, valueColumns, keyColumns, keyTypes, true);
+        reportLateRecords(Native.tumblingAggregatorLateDrops(handle));
+      } else if (proctime) {
         long now = getProcessingTimeService().getCurrentProcessingTime();
         updateColumnarProctime(in, now, valueColumns, keyColumns, keyTypes);
         emitClosedWindows(now); // emit windows the clock has already passed
-        maxOpenEnd = Math.max(maxOpenEnd, latestWindowEnd(now));
+        if (!usesLocalWindowBounds()) maxOpenEnd = Math.max(maxOpenEnd, latestWindowEnd(now));
         scheduleNextTimer(now);
       } else {
         updateColumnar(in, timeColumn, valueColumns, filterColumns, keyColumns, keyTypes);
@@ -238,18 +298,25 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
 
   @Override
   protected long processingTimeTimerDeadlineForSnapshot() {
-    return proctime ? maxOpenEnd : Long.MIN_VALUE;
+    return proctime ? (usesLocalWindowBounds() ? registeredTimer : maxOpenEnd) : Long.MIN_VALUE;
   }
 
   /**
    * Register a timer at the next window's last millisecond strictly after {@code now}, unless every
    * open window is already drained or that boundary is already scheduled. Window ends fall on slide
-   * boundaries (the matcher requires the slide to divide the size), so the next end is the next slide
-   * multiple minus one millisecond. Processing time only advances, so the latest scheduled boundary
-   * never needs revisiting.
+   * boundaries (the matcher requires the slide to divide the size), so the next end is the next
+   * slide multiple minus one millisecond. Processing time only advances, so the latest scheduled
+   * boundary never needs revisiting.
    */
   private void scheduleNextTimer(long now) {
-    long boundary = Math.floorDiv(now + 1, slideMillis) * slideMillis + slideMillis - 1;
+    if (usesLocalWindowBounds()) {
+      long next = Native.fixedWindowNextTimerDeadline(handle);
+      if (next != Long.MIN_VALUE && next != registeredTimer)
+        getProcessingTimeService().registerTimer(next, this);
+      registeredTimer = next;
+      return;
+    }
+    long boundary = fixedGridStart(now + 1, slideMillis) + slideMillis - 1;
     if (boundary < maxOpenEnd && boundary > registeredTimer) {
       getProcessingTimeService().registerTimer(boundary, this);
       registeredTimer = boundary;
@@ -257,14 +324,15 @@ public class NativeColumnarWindowAggregateOperator extends NativeRowWindowOperat
   }
 
   /**
-   * The latest end of any window covering processing time {@code now}: for cumulative windows the end
-   * of the enclosing max-size window; for tumbling/hopping the end of the window with the latest start
-   * that still covers {@code now}. Bounds how far the timer keeps chaining after the last row.
+   * The latest end of any window covering processing time {@code now}: for cumulative windows the
+   * end of the enclosing max-size window; for tumbling/hopping the end of the window with the
+   * latest start that still covers {@code now}. Bounds how far the timer keeps chaining after the
+   * last row.
    */
   private long latestWindowEnd(long now) {
     return cumulative
-        ? Math.floorDiv(now, windowMillis) * windowMillis + windowMillis
-        : Math.floorDiv(now, slideMillis) * slideMillis + windowMillis;
+        ? fixedGridStart(now, windowMillis) + windowMillis
+        : fixedGridStart(now, slideMillis) + windowMillis;
   }
 
   @Override

@@ -12,6 +12,9 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
             ("smallint", 4),
             ("tinyint", 5),
             ("decimal", 4002),
+            ("date", 8),
+            ("time", 9),
+            ("timestamp", 7),
             ("string8", 3),
             ("string256", 3),
         ] {
@@ -48,6 +51,29 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
                     .with_precision_and_scale(20, 2)
                     .unwrap(),
                 ),
+                "date" => Arc::new(arrow::array::Date32Array::from(
+                    values
+                        .iter()
+                        .map(|v| v.map(|v| v as i32))
+                        .collect::<Vec<_>>(),
+                )),
+                "time" => Arc::new(arrow::array::Time32MillisecondArray::from(
+                    values
+                        .iter()
+                        .map(|v| v.map(|v| (v + 128) as i32))
+                        .collect::<Vec<_>>(),
+                )),
+                "timestamp" => Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                    values.iter().map(|v| {
+                        v.map(|v| {
+                            streamfusion_bridge::timestamp::TimestampValue::new(
+                                -1,
+                                (v + 128) as u32,
+                            )
+                            .unwrap()
+                        })
+                    }),
+                )),
                 _ => {
                     let width = if name == "string8" { 8 } else { 256 };
                     Arc::new(StringArray::from(
@@ -71,6 +97,18 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
                 ],
             )
             .unwrap();
+            let mut fixture =
+                LocalGroupBy::filtered(vec![7], vec![code], vec![1], vec![-1], vec![0], vec![0]);
+            fixture.update(&batch);
+            let output = fixture.flush();
+            assert_eq!(output.num_rows(), 16);
+            let DataType::List(entries) = output.column(2).data_type() else {
+                panic!("expected a typed distinct view");
+            };
+            let DataType::Struct(fields) = entries.data_type() else {
+                panic!("expected value/count entries");
+            };
+            assert_eq!(fields[0].data_type(), batch.column(1).data_type());
             for local in [false, true] {
                 let id = format!(
                     "{}/{name}/cardinality{cardinality}",

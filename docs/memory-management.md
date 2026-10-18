@@ -52,6 +52,18 @@ RocksDB's own memtables and block cache hold the rest, governed by Flink's
 `state.backend.rocksdb.memory.*` options rather than the task off-heap pool (see the
 [RocksDB backend](backends/rocksdb.md) memory section).
 
+Constant append Top-1 additionally retains clean decoded winners under a 64 MiB
+FIFO limit. That cache uses a separate reservation against the same task off-heap
+pool as the operator. Cache bytes include retained row buffers, payload ownership,
+keys and container overhead; a value header or a sort-row header already held in
+its container is counted once. Cache growth reserves its estimated upper bound before retaining values; unused
+reservation is returned after eviction. Memory denial clears and disables the cache rather
+than failing the query; ordinary write-through state remains in RocksDB. Fresh
+unique keys bypass cache admission, and checkpoint/canonical scans clear it.
+The `topn.cache.bytes` gauge reports its accounted estimate. The large allocation
+authority remains separate from RocksDB's managed memtable/block-cache pool.
+
+
 ## Sizing
 
 Size `taskmanager.memory.task.off-heap.size` for the peak aggregate across every StreamFusion task

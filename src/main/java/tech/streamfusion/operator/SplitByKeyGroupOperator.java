@@ -11,6 +11,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import tech.streamfusion.Native;
+import tech.streamfusion.compat.ColumnarShuffleOutput;
 import tech.streamfusion.compat.FlinkStreamOperator;
 
 /**
@@ -24,9 +25,9 @@ public class SplitByKeyGroupOperator extends FlinkStreamOperator<ArrowBatch>
   private final int[] keyColumns;
   private final int[] timestampPrecisions;
   private final int maxParallelism;
-  private final int parallelism;
   private final boolean recoverable;
 
+  private transient int parallelism;
   private transient BufferAllocator allocator;
   private transient CDataDictionaryProvider dictionaries;
   private transient long handleOwner;
@@ -40,26 +41,27 @@ public class SplitByKeyGroupOperator extends FlinkStreamOperator<ArrowBatch>
   private transient long parentSequence;
 
   public SplitByKeyGroupOperator(
-      int[] keyColumns, int[] timestampPrecisions, int maxParallelism, int parallelism) {
-    this(keyColumns, timestampPrecisions, maxParallelism, parallelism, false);
+      int[] keyColumns, int[] timestampPrecisions, int maxParallelism) {
+    this(keyColumns, timestampPrecisions, maxParallelism, false);
   }
 
   public SplitByKeyGroupOperator(
       int[] keyColumns,
       int[] timestampPrecisions,
       int maxParallelism,
-      int parallelism,
       boolean recoverable) {
     this.keyColumns = keyColumns;
     this.timestampPrecisions = timestampPrecisions;
     this.maxParallelism = maxParallelism;
-    this.parallelism = parallelism;
     this.recoverable = recoverable;
   }
 
   @Override
   public void open() throws Exception {
     super.open();
+    parallelism =
+        ColumnarShuffleOutput.parallelism(
+            this, maxParallelism, recoverable, keyColumns.length == 0);
     NativeAllocator.initializeFor(this);
     allocator = NativeAllocator.SHARED;
     dictionaries = NativeAllocator.DICTIONARIES;
@@ -69,6 +71,8 @@ public class SplitByKeyGroupOperator extends FlinkStreamOperator<ArrowBatch>
         "streamfusion-arrow-handles-" + owner, () -> ArrowBatchHandles.forgetOwner(owner));
     elapsedCompute = getMetricGroup().counter("elapsed_compute");
     repartTime = getMetricGroup().counter("repart_time");
+    getMetricGroup().gauge("target_channels", () -> parallelism);
+    getMetricGroup().gauge("target_key_groups", () -> maxParallelism);
     encodeTime = getMetricGroup().counter("encode_time");
     decodeTime = getMetricGroup().counter("decode_time");
     getMetricGroup().counter("spill_count");

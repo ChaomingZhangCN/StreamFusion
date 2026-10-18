@@ -345,3 +345,25 @@ generated-segment experiment already removes the temporary getter array while
 keeping the reusable writer. This API inspection does not claim new timings or
 complete the BINARY performance gate. The scoped rejection is recorded in
 `.claude/wontdos/binary-direct-owned-exit-row.md`.
+
+## JVM table-function output projection
+
+The [JVM table-function operator](../operators/unnest-correlate.md#jvm-table-functions)
+also applies pure column projections before writing Arrow output. Correlate evaluates against its
+full released-Flink input/output schema, while a reusable projected view selects only the columns
+needed by its consumer. This preserves predicate coordinates, function invocation order, repeated
+columns and zero-column fanout without copying discarded input fields into every expanded row.
+The following identity/subset Calc is removed.
+
+Mixed Java/Rust CPU profiles identified the redundant Calc/JNI boundary and writes of discarded
+fields in the first implementation. On released Flink 2.2.1/JDK 17, 2M source rows with two string
+outputs per non-NULL row, projection fusion measured 1.055 s native versus 1.348 s stock, compared
+with an unfused control at 1.332 s native versus 1.422 s stock. Both use release+mimalloc,
+parallelism one, 2 GiB heap, production IPC, both 1,024-row transposes and a row sink, two warmups
+and five alternating pairs. These are separate JVMs; the raw artifact retains trial ranges and
+stock controls rather than attributing the entire difference to one instruction. Each trial pair
+owns and closes its metrics cluster; a retained-metrics fixture caused the actual preceding revision
+to exhaust its heap and is retained only as a diagnostic. The
+[raw artifact](../benchmarks/results/jvm-table-functions-2026-10-15.json) records both fixtures.
+Verified basic JVM table functions are admitted by default after wider STRING and numeric release
+comparisons also beat stock and actual preceding code on both released Flink lines.

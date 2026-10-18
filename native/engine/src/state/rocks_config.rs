@@ -115,10 +115,12 @@ impl FlinkRocksOptions {
         table.set_metadata_block_size(self.metadata_block_size);
         let cache = if let Some(shared) = shared {
             options.set_write_buffer_manager(&shared.write_buffer_manager);
-            // Flink's arena sanity bound: memtable arenas allocate in blocks charged against the
-            // shared cache, and the default (write buffer / 8) keeps a single arena block from
-            // overshooting the manager's mutable limit and stalling writes.
-            options.set_arena_block_size(self.write_buffer_size / 8);
+            // A configured memtable can exceed its slot's shared budget. Bound its allocation
+            // quantum too, otherwise one arena forces a flush and evicts the read working set.
+            options.set_arena_block_size(shared_arena_block_size(
+                self.write_buffer_size,
+                shared.write_buffer_manager.get_buffer_size(),
+            ));
             table.set_block_cache(&shared.cache);
             None
         } else if self.block_cache_size == 0 {
@@ -137,6 +139,16 @@ impl FlinkRocksOptions {
         options.set_block_based_table_factory(&table);
         Ok((options, cache))
     }
+}
+
+fn shared_arena_block_size(write_buffer_size: usize, shared_buffer_size: usize) -> usize {
+    const PAGE: usize = 4096;
+    let effective_buffer = if shared_buffer_size == 0 {
+        write_buffer_size
+    } else {
+        write_buffer_size.min(shared_buffer_size)
+    };
+    (effective_buffer / 8).div_ceil(PAGE).max(1) * PAGE
 }
 
 fn log_level(name: &str) -> Result<LogLevel, String> {
@@ -170,5 +182,67 @@ fn compression_type(name: &str) -> Result<DBCompressionType, String> {
         "LZ4HC_COMPRESSION" | "LZ4HC" => Ok(DBCompressionType::Lz4hc),
         "ZSTD_COMPRESSION" | "ZSTD" => Ok(DBCompressionType::Zstd),
         other => Err(format!("unsupported RocksDB compression type {other}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rocksdb::DB;
+
+    #[test]
+    fn oversized_configured_memtable_respects_shared_allocation_quantum() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config =
+            FlinkRocksOptions::from_json(include_str!("../../benches/fixtures/rocks-options.json"))
+                .unwrap();
+        config.write_buffer_size = 64 * 1024 * 1024;
+        let shared = RocksSharedResources::new(10 * 1024 * 1024, 0.5);
+        let (options, _) = config.build(Some(&shared)).unwrap();
+        let db = DB::open(&options, directory.path()).unwrap();
+        db.put(b"partition", b"winner").unwrap();
+        let allocated = db
+            .property_int_value("rocksdb.cur-size-active-mem-table")
+            .unwrap()
+            .unwrap();
+        assert!(allocated > 0);
+        assert!(allocated <= shared.write_buffer_manager.get_buffer_size() as u64);
+
+        let options_file = std::fs::read_dir(directory.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("OPTIONS-")
+            })
+            .unwrap();
+        let persisted = std::fs::read_to_string(options_file).unwrap();
+        assert!(persisted.contains("arena_block_size=438272"));
+    }
+
+    #[test]
+    fn sufficient_shared_memory_preserves_the_default_arena_quantum() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config =
+            FlinkRocksOptions::from_json(include_str!("../../benches/fixtures/rocks-options.json"))
+                .unwrap();
+        config.write_buffer_size = 64 * 1024 * 1024;
+        let shared = RocksSharedResources::new(256 * 1024 * 1024, 0.5);
+        let (options, _) = config.build(Some(&shared)).unwrap();
+        let _db = DB::open(&options, directory.path()).unwrap();
+        let options_file = std::fs::read_dir(directory.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("OPTIONS-")
+            })
+            .unwrap();
+        let persisted = std::fs::read_to_string(options_file).unwrap();
+        assert!(persisted.contains("arena_block_size=8388608"));
     }
 }

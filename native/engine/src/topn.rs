@@ -1,7 +1,10 @@
 use crate::*;
 
+mod append_top1;
 #[cfg(test)]
 mod first_bound_tests;
+#[cfg(test)]
+mod non_time_row_number_tests;
 mod retract_offset;
 
 fn sort_array(array: &ArrayRef) -> ArrayRef {
@@ -125,7 +128,7 @@ pub(crate) struct TopNConverters {
 
 impl TopNConverters {
     /// Builds the three arrow-row converters from a batch's column types.
-    fn build(
+    pub(crate) fn build(
         batch: &RecordBatch,
         arity: usize,
         partition_columns: &[usize],
@@ -301,6 +304,7 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     limit: i64,
     rank_end_column: Option<usize>,
     first_bound: bool,
+    non_time_row_number: bool,
     invalid_top_size: u64,
     generate_update_before: bool,
     output_rank_number: bool,
@@ -309,6 +313,7 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     // running mini-batch, whose parity contract is the collapsed changelog — which the diff
     // preserves exactly — rather than the per-record byte sequence (see divergences/20).
     net_diff: bool,
+    top1_fast: bool,
     // Idle-state retention millis (0 = off — Flink's default). Expiry is silent: downstream only
     // ever saw +I's from the append-only ranker, and Flink emits nothing when rank state expires.
     ttl_ms: i64,
@@ -324,7 +329,8 @@ pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore
     // Transient mini-batch preimages, captured once per partition in deterministic first-touch
     // order and drained at the next logical boundary.
     staged_order: Vec<ByteKey>,
-    staged_old_tops: HashMap<ByteKey, Vec<Arc<OwnedRow>>>,
+    // None marks a first touch whose Top-1 winner is still unchanged; capture only on a later change.
+    staged_old_tops: HashMap<ByteKey, Option<Vec<Arc<OwnedRow>>>>,
     pub(crate) memory: OperatorMemory,
 }
 
@@ -375,6 +381,20 @@ impl TopNStateCodec {
 #[cfg(feature = "rocksdb-state")]
 impl crate::state::RocksStateCodec for TopNStateCodec {
     type Value = TopNPartition;
+    fn resident_bytes(&self, value: &TopNPartition) -> usize {
+        std::mem::size_of::<TopNPartition>()
+            + value.capacity() * std::mem::size_of::<TopNRow>()
+            + value
+                .iter()
+                .map(|entry| {
+                    entry.sort.row().data().len()
+                        + entry.payload.row().data().len()
+                        + std::mem::size_of::<OwnedRow>()
+                        + 2 * std::mem::size_of::<usize>()
+                })
+                .sum::<usize>()
+    }
+
     fn supported(&self) -> bool {
         true
     }
@@ -590,10 +610,12 @@ impl TopNRanker {
             limit,
             rank_end_column: None,
             first_bound: false,
+            non_time_row_number: false,
             invalid_top_size: 0,
             generate_update_before: true,
             output_rank_number,
             net_diff,
+            top1_fast: true,
             ttl_ms: 0,
             last_sweep_ms: 0,
             schema: None,
@@ -623,6 +645,10 @@ impl TopNRanker {
 }
 
 impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
+    pub(crate) fn with_top1_fast(mut self, enabled: bool) -> Self {
+        self.top1_fast = enabled;
+        self
+    }
     pub(crate) fn enable_first_bound(&mut self, generate_update_before: bool) {
         assert!(
             self.rank_end_column.is_some(),
@@ -640,6 +666,13 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         self
     }
 
+    pub(crate) fn enable_non_time_row_number(&mut self) {
+        assert!(self.limit == i64::MAX && self.output_rank_number);
+        assert!(!self.net_diff && !self.first_bound && self.rank_end_column.is_none());
+        assert_eq!(self.ttl_ms, 0);
+        self.non_time_row_number = true;
+    }
+
     /// Moves this freshly built (empty, memory-backed) ranker's configuration onto another state
     /// backend; construction goes through `new` + builders first so backend choice stays
     /// orthogonal to the shape builders.
@@ -654,10 +687,12 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             limit: self.limit,
             rank_end_column: self.rank_end_column,
             first_bound: self.first_bound,
+            non_time_row_number: self.non_time_row_number,
             invalid_top_size: self.invalid_top_size,
             generate_update_before: self.generate_update_before,
             output_rank_number: self.output_rank_number,
             net_diff: self.net_diff,
+            top1_fast: self.top1_fast,
             ttl_ms: self.ttl_ms,
             last_sweep_ms: self.last_sweep_ms,
             schema: self.schema,
@@ -676,6 +711,10 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         budget_bytes: i64,
     ) -> Result<Self, DataFusionError> {
         self.memory.attach("top-n", budget_bytes, 0)?;
+        if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+            self.groups
+                .enable_resident_cache(64 * 1024 * 1024, self.memory.temporary_reservation());
+        }
         Ok(self)
     }
 
@@ -755,6 +794,9 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         batch: &RecordBatch,
         now_ms: i64,
     ) -> Result<RecordBatch, DataFusionError> {
+        if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+            return self.push_top1(batch, now_ms);
+        }
         if self.net_diff {
             return self.push_net_diff(batch, now_ms);
         }
@@ -867,24 +909,40 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 if ttl.enabled() {
                     refresh_sort_key_ties(buffer, pos, ttl.now());
                 }
-                // Cascade from the new row's rank to the buffer end (capped at the limit): each rank's
-                // occupant changes, so retract the old and append the new; a brand-new rank inserts.
-                let upper = (old_len + 1).min(limit); // highest 1-based rank to emit
-                for rank in (pos + 1)..=upper {
-                    let new_occupant = buffer[rank - 1].payload.clone();
-                    if rank <= old_len {
-                        if self.generate_update_before {
-                            out_rows.push(buffer[rank].payload.clone()); // old occupant, shifted down
-                            out_kinds.push(1); // -U
+                if self.non_time_row_number {
+                    // Non-time OVER updates the same row's rank, rather than replacing the
+                    // occupant of a Top-N slot. The inserted row precedes shifted-row updates.
+                    out_rows.push(buffer[pos].payload.clone());
+                    out_kinds.push(0);
+                    out_ranks.push((pos + 1) as i64);
+                    for (index, shifted) in buffer.iter().enumerate().skip(pos + 1) {
+                        out_rows.push(shifted.payload.clone());
+                        out_kinds.push(1);
+                        out_ranks.push(index as i64);
+                        out_rows.push(shifted.payload.clone());
+                        out_kinds.push(2);
+                        out_ranks.push((index + 1) as i64);
+                    }
+                } else {
+                    // Cascade from the new row's rank to the buffer end (capped at the limit): each rank's
+                    // occupant changes, so retract the old and append the new; a brand-new rank inserts.
+                    let upper = (old_len + 1).min(limit); // highest 1-based rank to emit
+                    for rank in (pos + 1)..=upper {
+                        let new_occupant = buffer[rank - 1].payload.clone();
+                        if rank <= old_len {
+                            if self.generate_update_before {
+                                out_rows.push(buffer[rank].payload.clone()); // old occupant, shifted down
+                                out_kinds.push(1); // -U
+                                out_ranks.push(rank as i64);
+                            }
+                            out_rows.push(new_occupant);
+                            out_kinds.push(2); // +U
+                            out_ranks.push(rank as i64);
+                        } else {
+                            out_rows.push(new_occupant);
+                            out_kinds.push(0); // +I a brand-new rank
                             out_ranks.push(rank as i64);
                         }
-                        out_rows.push(new_occupant);
-                        out_kinds.push(2); // +U
-                        out_ranks.push(rank as i64);
-                    } else {
-                        out_rows.push(new_occupant);
-                        out_kinds.push(0); // +I a brand-new rank
-                        out_ranks.push(rank as i64);
                     }
                 }
                 // Flink retains the whole first overflow sort group. An expiring bound may
@@ -961,7 +1019,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
     pub(crate) fn staging_bytes(&self) -> usize {
         self.staged_old_tops
             .iter()
-            .map(|(key, old)| topn_staged_entry_bytes(key, old))
+            .map(|(key, old)| topn_staged_entry_bytes(key, old.as_ref().unwrap_or(&Vec::new())))
             .sum()
     }
 
@@ -1050,7 +1108,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                     delta += topn_staged_entry_bytes(&key, &old) as isize;
                 }
                 staged_order.push(key.clone());
-                staged_old_tops.insert(key, old);
+                staged_old_tops.insert(key, Some(old));
             }
             if rank_ends.is_some()
                 && buffer.len() >= 100
@@ -1110,7 +1168,35 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
         let mut out_kinds: Vec<i8> = Vec::new();
         let mut out_ranks: Vec<i64> = Vec::new();
         for part in touched {
-            let old = &old_tops[&part];
+            let Some(old) = &old_tops[&part] else {
+                continue;
+            };
+            if self.top1_fast && self.limit == 1 && self.rank_end_column.is_none() {
+                let new = self.groups.get(&part.0).expect("staged partition resident");
+                let new = new.first().map(|entry| &entry.payload);
+                if self.output_rank_number {
+                    diff_top(
+                        true,
+                        true,
+                        0,
+                        old,
+                        new.map_or(&[], std::slice::from_ref),
+                        &mut out_rows,
+                        &mut out_kinds,
+                        &mut out_ranks,
+                    );
+                } else if old.first().map(|row| row.row()) != new.map(|row| row.row()) {
+                    if let Some(row) = old.first() {
+                        out_rows.push(Arc::clone(row));
+                        out_kinds.push(3);
+                    }
+                    if let Some(row) = new {
+                        out_rows.push(Arc::clone(row));
+                        out_kinds.push(0);
+                    }
+                }
+                continue;
+            }
             let new: Vec<Arc<OwnedRow>> = self
                 .groups
                 .get(&part.0)
@@ -3592,6 +3678,13 @@ pub(crate) enum TopNHandle {
 }
 
 impl TopNHandle {
+    fn enable_non_time_row_number(&mut self) {
+        match self {
+            Self::Append(ranker) => ranker.enable_non_time_row_number(),
+            _ => panic!("non-time ROW_NUMBER requires an insert-only ranker"),
+        }
+    }
+
     fn enable_first_bound(&mut self, generate_update_before: bool) {
         match self {
             Self::Append(ranker) => ranker.enable_first_bound(generate_update_before),
@@ -3719,6 +3812,20 @@ pub(crate) enum RocksTopNHandle {
 
 #[cfg(feature = "rocksdb-state")]
 impl RocksTopNHandle {
+    fn enable_non_time_row_number(&mut self) {
+        match self {
+            Self::Append(ranker) => ranker.enable_non_time_row_number(),
+            _ => panic!("non-time ROW_NUMBER requires an insert-only ranker"),
+        }
+    }
+
+    pub(crate) fn cache_stats(&self) -> [i64; 4] {
+        match self {
+            Self::Append(r) => r.groups.decoded_cache_stats(),
+            Self::Retract(_) | Self::UpdateFast(_) => [0; 4],
+        }
+    }
+
     pub(crate) fn enable_first_bound(&mut self, generate_update_before: bool) {
         match self {
             Self::Append(ranker) => ranker.enable_first_bound(generate_update_before),
@@ -3844,6 +3951,8 @@ impl RocksTopNHandle {
 /// deduplication is the `limit = 1` case (keep-first = sort by rowtime ascending, keep-last =
 /// descending). Late rows (whose window already closed) are dropped, matching the host.
 pub(crate) struct WindowRanker {
+    calendar: Option<crate::window_calendar::WindowCalendar>,
+    next_timer_deadline: i64,
     window_start_col: usize,
     window_end_col: usize,
     partition_columns: Vec<usize>,
@@ -3873,6 +3982,13 @@ pub(crate) struct WindowRanker {
 }
 
 impl WindowRanker {
+    pub(crate) fn set_calendar(&mut self, callback: jni::objects::GlobalRef) {
+        self.calendar = Some(crate::window_calendar::WindowCalendar::new(callback));
+    }
+    pub(crate) fn next_timer_deadline(&self) -> i64 {
+        self.next_timer_deadline
+    }
+
     pub(crate) fn set_keep_last_on_tie(&mut self, enabled: bool) {
         assert!(!enabled || self.limit == 1);
         self.keep_last_on_tie = enabled;
@@ -3887,6 +4003,8 @@ impl WindowRanker {
         output_rank_number: bool,
     ) -> Self {
         WindowRanker {
+            calendar: None,
+            next_timer_deadline: i64::MIN,
             window_start_col,
             window_end_col,
             partition_columns,
@@ -3981,7 +4099,10 @@ impl WindowRanker {
                 ));
             }
         }
-        self.current_watermark = watermark;
+        // Durable rows were already admitted in their configured time domain. The calendar
+        // callback is installed after handle restoration, so replay must not test local ends
+        // against the saved epoch watermark.
+        self.current_watermark = i64::MIN;
         for bytes in snapshots {
             if bytes.len() < 8 {
                 continue;
@@ -3990,6 +4111,7 @@ impl WindowRanker {
                 self.push(&batch)?;
             }
         }
+        self.current_watermark = watermark;
         self.store
             .as_mut()
             .expect("window-rank rocksdb store")
@@ -4020,19 +4142,38 @@ impl WindowRanker {
         self.schema = Some(data_schema(batch));
         let ws = rt_to_millis(batch.column(self.window_start_col));
         let we = rt_to_millis(batch.column(self.window_end_col));
+        let deadlines = self
+            .calendar
+            .as_ref()
+            .map(|calendar| calendar.end_thresholds(we.values().iter().copied()));
         let partition_arrays: Vec<&ArrayRef> = self
             .partition_columns
             .iter()
             .map(|&i| batch.column(i))
             .collect();
         #[cfg(feature = "rocksdb-state")]
-        self.hydrate_store_groups(batch, &ws, &we, &partition_arrays)?;
+        self.hydrate_store_groups(batch, &ws, &we, &partition_arrays, deadlines.as_ref())?;
         let data_arrays: Vec<&ArrayRef> = (0..arity).map(|i| batch.column(i)).collect();
+        let timestamps = data_arrays
+            .iter()
+            .map(|array| {
+                streamfusion_bridge::timestamp::is_component_timestamp(array.data_type()).then(
+                    || {
+                        streamfusion_bridge::timestamp::TimestampColumn::try_new(array.as_ref())
+                            .expect("window rank timestamp")
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
         let track = self.memory.tracking();
         let mut delta = 0isize;
         for row in 0..batch.num_rows() {
             let window_end = we.value(row);
-            if window_end <= self.current_watermark {
+            if deadlines
+                .as_ref()
+                .map_or(window_end, |values| values[&window_end])
+                <= self.current_watermark
+            {
                 self.late_drops += 1;
                 continue; // late: the window already closed and emitted
             }
@@ -4040,7 +4181,13 @@ impl WindowRanker {
             let key = read_key(&partition_arrays, row);
             let full: JoinRow = data_arrays
                 .iter()
-                .map(|a| ScalarValue::try_from_array(a, row).expect("window-rank row scalar"))
+                .zip(&timestamps)
+                .map(|(array, timestamp)| match timestamp {
+                    Some(column) => compact_timestamp_scalar(column, row),
+                    None => {
+                        ScalarValue::try_from_array(array, row).expect("window-rank row scalar")
+                    }
+                })
                 .collect();
             if track {
                 delta += (scalar_row_bytes(&full) + GROUP_ENTRY_OVERHEAD) as isize;
@@ -4090,6 +4237,7 @@ impl WindowRanker {
         ws: &Int64Array,
         we: &Int64Array,
         partition_arrays: &[&ArrayRef],
+        deadlines: Option<&BTreeMap<i64, i64>>,
     ) -> Result<(), DataFusionError> {
         if self.store.is_none() {
             return Ok(());
@@ -4115,7 +4263,8 @@ impl WindowRanker {
         let mut db_keys: Vec<Vec<u8>> = Vec::new();
         for row in 0..batch.num_rows() {
             let window_end = we.value(row);
-            if window_end <= self.current_watermark {
+            if deadlines.map_or(window_end, |values| values[&window_end]) <= self.current_watermark
+            {
                 continue;
             }
             let group = (window_end, ws.value(row), read_key(partition_arrays, row));
@@ -4205,14 +4354,26 @@ impl WindowRanker {
         if self.store.is_some() {
             return self.flush_store(watermark);
         }
+        let deadlines = self
+            .calendar
+            .as_ref()
+            .map(|calendar| calendar.end_thresholds(self.groups.keys().map(|(end, _, _)| *end)));
+        self.next_timer_deadline = deadlines
+            .as_ref()
+            .and_then(|values| values.values().filter(|&&end| end > watermark).min())
+            .map_or(i64::MIN, |end| end.saturating_sub(1));
         let mut ready: Vec<(i64, i64, GroupKey)> = self
             .groups
             .keys()
-            .filter(|(we, _, _)| *we <= watermark)
+            .filter(|(we, _, _)| deadlines.as_ref().map_or(*we, |values| values[we]) <= watermark)
             .cloned()
             .collect();
         // Evict in (window_end, window_start) order for a deterministic emission sequence.
-        ready.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+        ready.sort_by(|a, b| {
+            let left = deadlines.as_ref().map_or(a.0, |values| values[&a.0]);
+            let right = deadlines.as_ref().map_or(b.0, |values| values[&b.0]);
+            (left, a.0, a.1).cmp(&(right, b.0, b.1))
+        });
         let mut rows: Vec<JoinRow> = Vec::new();
         let mut ranks: Vec<i64> = Vec::new();
         let track = self.memory.tracking();
@@ -4245,7 +4406,15 @@ impl WindowRanker {
             .store
             .as_mut()
             .expect("window-rank rocksdb store")
-            .take_closed(watermark)?;
+            .take_closed_with_calendar(watermark, self.calendar.as_ref())?;
+        if self.calendar.is_some() {
+            self.next_timer_deadline = self
+                .store
+                .as_ref()
+                .unwrap()
+                .next_exclusive_end()
+                .map_or(i64::MIN, |end| end.saturating_sub(1));
+        }
         let mut rows: Vec<JoinRow> = Vec::new();
         let mut ranks: Vec<i64> = Vec::new();
         for group in fired {
@@ -4395,12 +4564,13 @@ impl WindowRanker {
         if bytes.len() < 8 {
             return ranker;
         }
-        ranker.current_watermark = i64::from_le_bytes(bytes[0..8].try_into().expect("watermark"));
-        // Re-inserting through push reproduces each group's sorted, truncated buffer; buffered rows
-        // have window_end > the watermark, so none are dropped as late.
+        let watermark = i64::from_le_bytes(bytes[0..8].try_into().expect("watermark"));
+        // Rebuild durable buffers before applying the saved watermark: regional bounds are local,
+        // and their calendar callback is reapplied by the operator after restoration.
         for batch in read_ipc_if_present(&bytes[8..]) {
             ranker.push(&batch);
         }
+        ranker.current_watermark = watermark;
         ranker
     }
 
@@ -4779,6 +4949,25 @@ pub extern "system" fn Java_tech_streamfusion_Native_createTopNRanker<'local>(
 }
 
 /// Enables independent first-bound state at operator initialization, before the first batch.
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_enableNonTimeRowNumber<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    persistent: jboolean,
+) {
+    crate::bridge::jni_guard(env, move |_env| {
+        if persistent != 0 {
+            #[cfg(feature = "rocksdb-state")]
+            unsafe { &mut *(handle as *mut RocksTopNHandle) }.enable_non_time_row_number();
+            #[cfg(not(feature = "rocksdb-state"))]
+            panic!("native RocksDB support is unavailable");
+        } else {
+            unsafe { &mut *(handle as *mut TopNHandle) }.enable_non_time_row_number();
+        }
+    })
+}
+
 #[no_mangle]
 pub extern "system" fn Java_tech_streamfusion_Native_enableTopNFirstBound<'local>(
     env: JNIEnv<'local>,
@@ -5429,6 +5618,88 @@ mod tests {
     }
 
     #[test]
+    fn window_rank_component_timestamps_keep_full_digits_after_restore() {
+        use super::*;
+        use streamfusion_bridge::timestamp::{timestamp_array, TimestampColumn, TimestampValue};
+        let times = [
+            Some(TimestampValue::new(-1, 999_999).unwrap()),
+            Some(TimestampValue::new(253_402_300_799_999, 999_999).unwrap()),
+            Some(TimestampValue::new(253_402_300_799_999, 999_998).unwrap()),
+            None,
+        ];
+        let batch = RecordBatch::try_from_iter(vec![
+            ("value", Arc::new(timestamp_array(times)) as ArrayRef),
+            ("start", Arc::new(Int64Array::from(vec![0; 4])) as ArrayRef),
+            ("end", Arc::new(Int64Array::from(vec![100; 4])) as ArrayRef),
+            (
+                "id",
+                Arc::new(Int64Array::from(vec![1, 2, 3, 4])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        for ascending in [false, true] {
+            let sort = vec![SortColumn {
+                index: 0,
+                ascending,
+                nulls_first: false,
+            }];
+            let mut ranker = WindowRanker::new(1, 2, vec![], sort.clone(), 4, true);
+            ranker.push(&batch.slice(0, 2)).unwrap();
+            let snapshots = ranker
+                .raw_snapshot_partitions(128, &[])
+                .into_values()
+                .collect::<Vec<_>>();
+            let mut restored =
+                WindowRanker::restore_partitions(1, 2, vec![], sort, 4, true, &snapshots);
+            restored.push(&batch.slice(2, 2)).unwrap();
+            let output = restored.flush(100).unwrap();
+            let ids = output
+                .column(3)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap();
+            let expected = if ascending {
+                vec![1, 3, 2, 4]
+            } else {
+                vec![2, 3, 1, 4]
+            };
+            assert_eq!(ids.values().as_ref(), expected.as_slice());
+            let digits = TimestampColumn::try_new(output.column(0).as_ref()).unwrap();
+            for (row, id) in expected.iter().enumerate() {
+                let value = times[*id as usize - 1];
+                assert_eq!(digits.is_null(row), value.is_none());
+                if let Some(value) = value {
+                    assert_eq!(digits.value(row).unwrap(), value);
+                }
+            }
+            assert_eq!(output.schema().field(0), batch.schema().field(0));
+        }
+    }
+
+    #[test]
+    fn window_rank_restore_does_not_recheck_local_bounds_in_epoch_domain() {
+        use super::*;
+        let batch = RecordBatch::try_from_iter(vec![
+            ("id", Arc::new(Int64Array::from(vec![7])) as ArrayRef),
+            ("start", Arc::new(Int64Array::from(vec![0])) as ArrayRef),
+            ("end", Arc::new(Int64Array::from(vec![100])) as ArrayRef),
+        ])
+        .unwrap();
+        let mut ranker = WindowRanker::new(1, 2, vec![], vec![], 1, false);
+        ranker.push(&batch).unwrap();
+        // A negative zone offset leaves local bounds behind the epoch clock while pending.
+        ranker.current_watermark = 200;
+        let snapshots = ranker
+            .raw_snapshot_partitions(128, &[])
+            .into_values()
+            .collect::<Vec<_>>();
+        let restored = WindowRanker::restore_partitions(1, 2, vec![], vec![], 1, false, &snapshots);
+        assert_eq!(restored.current_watermark, 200);
+        assert_eq!(restored.groups.values().flatten().count(), 1);
+        assert_eq!(restored.late_drops, 0);
+    }
+
+    #[test]
     fn restored_signed_zero_keys_use_secondary_order_without_changing_payload() {
         use super::*;
         use arrow::array::Float64Array;
@@ -5550,4 +5821,31 @@ mod tests {
         assert_eq!(kinds.values(), &[3, 0]);
         assert_eq!(ranker.staged_partitions(), 0);
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_setWindowRankerCalendar<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    callback: jni::objects::JObject<'local>,
+) {
+    crate::bridge::jni_guard(env, move |env| {
+        let operator = unsafe { &mut *(handle as *mut WindowRanker) };
+        operator.set_calendar(
+            env.new_global_ref(callback)
+                .expect("window calendar reference"),
+        );
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_nextWindowRankerTimerDeadline<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jlong {
+    crate::bridge::jni_guard(env, move |_| {
+        unsafe { &*(handle as *const WindowRanker) }.next_timer_deadline()
+    })
 }

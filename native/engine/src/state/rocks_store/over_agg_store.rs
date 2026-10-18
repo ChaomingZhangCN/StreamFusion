@@ -20,7 +20,9 @@ use std::sync::Arc;
 /// shapes' per-key row buffers — key as `[key_group i32 BE][2][key arrow-row][rt i64 BE,
 /// sign-flipped][seq u64 BE]`, valued `[per-aggregate values arrow-row bytes]`: byte order equals
 /// the memory buffer's (rowtime ascending, arrival order for ties), so a key's prefix scan IS its
-/// sorted buffer. Stamps — the bounded shapes' per-key cleanup deadlines (they have no fold row to
+/// sorted buffer. Decimal arithmetic adds raw sum/count fields to that codec; the final retained
+/// row carries the current fold, while earlier rows can have NULL placeholders. Stamps — the
+/// bounded shapes' per-key cleanup deadlines (they have no separate fold row to
 /// carry one) — key as `[key_group i32 BE][3][key arrow-row]`, valued `[deadline i64 LE]`.
 /// Distinct seen-sets — one table per DISTINCT aggregate of the unbounded fold — key as
 /// `[key_group i32 BE][4 + slot][key arrow-row][element arrow-row]` with an empty value: OVER
@@ -52,7 +54,8 @@ pub(crate) struct StoredOverFold {
 }
 
 /// One persisted bounded-frame row read back from the store: its position in the key's sorted
-/// buffer (rowtime, then arrival sequence for ties) and the per-aggregate value scalars.
+/// buffer (rowtime, then arrival sequence for ties), per-aggregate input scalars and optional
+/// trailing raw arithmetic state.
 pub(crate) struct StoredFrameRow {
     pub(crate) rt: i64,
     pub(crate) seq: u64,
@@ -951,7 +954,7 @@ mod tests {
         RocksOverAggStore::create(
             test_config(name),
             &rocks_over_state_types(value_types, kinds, frame_kind, proctime).unwrap(),
-            &rocks_over_frame_value_types(value_types, frame_kind),
+            &rocks_over_frame_value_types(value_types, kinds, frame_kind),
             &rocks_over_distinct_element_types(value_types, kinds, frame_kind),
             over_schema(),
             0..=127,
@@ -971,7 +974,7 @@ mod tests {
         RocksOverAggStore::open_merged(
             test_config(name),
             &rocks_over_state_types(value_types, kinds, frame_kind, proctime).unwrap(),
-            &rocks_over_frame_value_types(value_types, frame_kind),
+            &rocks_over_frame_value_types(value_types, kinds, frame_kind),
             &rocks_over_distinct_element_types(value_types, kinds, frame_kind),
             over_schema(),
             0..=127,

@@ -36,6 +36,11 @@ final class WindowAggregateMatcher {
           .booleanType()
           .defaultValue(false);
 
+  static final org.apache.flink.configuration.ConfigOption<Boolean> ATTACHED_SINGLE_PHASE =
+      ConfigOptions.key("streamfusion.window.attached.single-phase.enabled")
+          .booleanType()
+          .defaultValue(false);
+
   static final int KIND_SUM = 0;
   /** MIN/MAX (the Rust GroupAggState routes these to the Extremes multiset). */
   static final int KIND_MIN = 1;
@@ -61,6 +66,14 @@ final class WindowAggregateMatcher {
         || !supportedInput(node, windowing, aggCalls, inputType)
         || !WindowZoneGate.admits(node, windowing)) {
       return false;
+    }
+    if (windowing instanceof WindowAttachedWindowingStrategy) {
+      WindowSpec attached = windowing.getWindow();
+      return ShortcutUtils.unwrapTableConfig(node).get(ATTACHED_SINGLE_PHASE)
+          && (attached instanceof TumblingWindowSpec
+              || attached instanceof HoppingWindowSpec
+              || attached instanceof CumulativeWindowSpec)
+          && matchesAttachedLocal(node, windowing, grouping, aggCalls, inputType);
     }
     WindowSpec spec = windowing.getWindow();
     boolean aligned;
@@ -242,7 +255,8 @@ final class WindowAggregateMatcher {
       int[] grouping,
       scala.collection.Seq<AggregateCall> aggCalls,
       RelDataType inputType) {
-    if (singlePhaseStringExtremaReason(node, aggCalls, inputType) != null
+    if (!(windowing instanceof TimeAttributeWindowingStrategy)
+        || singlePhaseStringExtremaReason(node, aggCalls, inputType) != null
         || hasFilters(aggCalls)
         || !insertOnlyInput(node)
         || !(FlinkCompat.isSessionWindow(windowing.getWindow()))) {
@@ -337,7 +351,8 @@ final class WindowAggregateMatcher {
   static boolean supportedAggregateValueType(int kind, SqlTypeName type) {
     return supportedValueType(type)
         || ((kind == KIND_MIN || kind == KIND_MAX)
-            && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR));
+            && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
+                || GroupAggregateMatcher.isTimestampType(type)));
   }
 
   static String singlePhaseStringExtremaReason(
@@ -396,6 +411,8 @@ final class WindowAggregateMatcher {
       case CHAR:
       case VARCHAR:
       case DATE:
+      case BOOLEAN:
+      case TIME:
       case TIMESTAMP:
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         return true;
@@ -437,6 +454,10 @@ final class WindowAggregateMatcher {
         return 7;
       case DATE:
         return 8;
+      case TIME:
+        return 9;
+      case BOOLEAN:
+        return 10;
       case CHAR:
       case VARCHAR:
         return 3; // string value (MIN/MAX over a string); value_data_type maps 3 → Utf8
@@ -614,6 +635,7 @@ final class WindowAggregateMatcher {
 
   static RelNode substitute(StreamPhysicalWindowAggregate agg, PlanContext ctx) {
     int[] keyColumns = WindowAggregateMatcher.keyColumns(agg.grouping());
+    boolean attached = agg.windowing() instanceof WindowAttachedWindowingStrategy;
     boolean retracting = !insertOnlyInput(agg);
     int[] kinds = retracting ? retractingKinds(agg.aggCalls()) : kinds(agg.aggCalls());
     int[] values = valueColumns(agg.aggCalls());
@@ -633,17 +655,21 @@ final class WindowAggregateMatcher {
         agg.getTraitSet(),
         ctx.columnarInput(agg.getInputs().get(0), keyColumns),
         agg.getRowType(),
-        WindowAggregateMatcher.isCumulative(agg.windowing()),
+        !attached && WindowAggregateMatcher.isCumulative(agg.windowing()),
         WindowAggregateMatcher.windowSize(agg.windowing()),
-        WindowAggregateMatcher.windowSlide(agg.windowing()),
-        WindowAggregateMatcher.timeColumn(agg.windowing()),
+        attached
+            ? WindowAggregateMatcher.windowSize(agg.windowing())
+            : WindowAggregateMatcher.windowSlide(agg.windowing()),
+        attached ? -1 : WindowAggregateMatcher.timeColumn(agg.windowing()),
         values,
         filterColumns(agg.aggCalls(), kinds.length),
         keyColumns,
         types,
         kinds,
         WindowAggregateMatcher.isProctime(agg.windowing()),
-        WindowAggregateMatcher.isLtz(agg.windowing()));
+        WindowAggregateMatcher.isLtz(agg.windowing()),
+        attached ? WindowAggregateMatcher.windowStartColumn(agg.windowing()) : -1,
+        attached ? WindowAggregateMatcher.windowEndColumn(agg.windowing()) : -1);
   }
 
   static RelNode substituteSession(StreamPhysicalWindowAggregate agg, PlanContext ctx) {
@@ -667,6 +693,11 @@ final class WindowAggregateMatcher {
 
   static LocalWindowVariant localWindowVariant(StreamPhysicalLocalWindowAggregate agg) {
     RelDataType input = agg.getInput().getRowType();
+    if (agg.windowing() instanceof WindowAttachedWindowingStrategy) {
+      return matchesAttachedLocal(agg, agg.windowing(), agg.grouping(), agg.aggCalls(), input)
+          ? LocalWindowVariant.ATTACHED
+          : null;
+    }
     if (WindowAggregateMatcher.matchesHoppingLocal(
         agg, agg.windowing(), agg.grouping(), agg.aggCalls(), input)) {
       return LocalWindowVariant.HOPPING;
@@ -678,10 +709,6 @@ final class WindowAggregateMatcher {
     }
     if (sliceable && WindowAggregateMatcher.isCumulative(agg.windowing())) {
       return LocalWindowVariant.CUMULATIVE;
-    }
-    if (WindowAggregateMatcher.matchesAttachedLocal(
-        agg, agg.windowing(), agg.grouping(), agg.aggCalls(), input)) {
-      return LocalWindowVariant.ATTACHED;
     }
     return null;
   }
@@ -784,7 +811,16 @@ final class WindowAggregateMatcher {
           + " numeric COUNT(value), or COUNT(*) (optional FILTER)";
     }
     if (windowing instanceof WindowAttachedWindowingStrategy) {
-      return "window aggregate: attached-window aggregation requires two-phase execution";
+      if (node instanceof StreamPhysicalWindowAggregate
+          && !ShortcutUtils.unwrapTableConfig(node).get(ATTACHED_SINGLE_PHASE)) {
+        return "attached-window aggregation requires two-phase execution by default;"
+            + " single-phase attached windows require "
+            + ATTACHED_SINGLE_PHASE.key()
+            + "=true; measured HOP/high-cardinality and persistent COUNT paths remain slower than"
+            + " Flink";
+      }
+      return "window aggregate: attached bounds require append-only event-time input, no FILTER,"
+            + " and supported aggregate/key types";
     }
     String zoneReason = WindowZoneGate.unsupportedReason(node, windowing);
     if (zoneReason != null) {
@@ -800,7 +836,7 @@ final class WindowAggregateMatcher {
       }
     }
     return "window aggregate: requires a supported window/time and grouping-key type, and"
-        + " numeric SUM/MIN/MAX/COUNT/AVG, string MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
+        + " numeric SUM/MIN/MAX/COUNT/AVG, string/timestamp MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
         + " temporal values (docs/operators/window-aggregate.md)";
   }
 
