@@ -128,3 +128,41 @@ The final bounded-bucket guard and factored handle signature additionally pass 1
 focused dynamic/partition tests, including all eight live dynamic-sink cases. This
 adds compound-bucket/null cardinality and overflow checks to the original cache,
 metadata-mutation, branch/upsert and recovery selection.
+
+## Complete dynamic writer cohorts
+
+All complete cohorts below use 2M Arrow rows, p4, four buckets per target, Zstd 3,
+4 GiB heaps, the normal shared-cluster lifecycle, Arrow IPC shuffle, one warmup
+and three alternating measured pairs per mode. Every trial validates all committed
+payloads, native data footers, v3 keyed Java Puffin deletes and resource release.
+Timing includes routing, shuffling, encoding, checkpoints and final commit.
+
+| Cohort | Format / mode | Stock median [range], s | Native median [range], s | Stock/native |
+|---|---|---:|---:|---:|
+| baseline-dynamic-v2 | v2 / forward-hash | 2.688 [2.588–2.709] | 1.783 [1.735–2.011] | 1.51× |
+| baseline-dynamic-v2 | v2 / keyed | 3.980 [3.813–4.933] | 3.423 [3.016–3.607] | 1.16× |
+| baseline-dynamic-v3 | v3 / forward-hash | 2.554 [2.398–2.924] | 2.145 [1.849–2.148] | 1.19× |
+| baseline-dynamic-v3 | v3 / keyed | 2.668 [2.613–3.596] | 2.202 [2.170–2.498] | 1.21× |
+| bounded-current-v2 | v2 / forward-hash | 2.394 [2.335–2.477] | 1.662 [1.607–1.803] | 1.44× |
+| bounded-current-v2 | v2 / keyed | 3.587 [3.423–3.736] | 2.766 [2.500–3.034] | 1.30× |
+| bounded-current-v3 | v3 / forward-hash | 3.389 [3.018–3.441] | 1.780 [1.664–3.086] | 1.90× |
+| bounded-current-v3 | v3 / keyed | 3.508 [2.935–3.832] | 3.225 [2.940–9.048] | 1.09× |
+| idle-previous-v2 | v2 / forward-hash | 2.348 [2.285–2.527] | 1.769 [1.719–1.872] | 1.33× |
+| idle-previous-v2 | v2 / keyed | 3.573 [3.330–3.774] | 2.704 [2.495–2.915] | 1.32× |
+| idle-current-v2 | v2 / forward-hash | 2.687 [2.656–3.404] | 2.001 [1.651–2.607] | 1.34× |
+| idle-current-v2 | v2 / keyed | 3.725 [3.100–3.737] | 3.301 [2.341–4.151] | 1.13× |
+| idle-current-v3 | v3 / forward-hash | 2.390 [2.341–2.778] | 1.603 [1.559–2.597] | 1.49× |
+| idle-current-v3 | v3 / keyed | 3.853 [3.258–4.365] | 2.346 [2.180–2.382] | 1.64× |
+| idle-previous-v3 | v3 / forward-hash | 2.385 [2.325–2.410] | 2.050 [1.807–2.544] | 1.16× |
+| idle-previous-v3 | v3 / keyed | 2.617 [2.587–2.837] | 2.092 [2.058–2.189] | 1.25× |
+
+The `idle-*` cohorts were launched after the machine became idle; another session
+started short Java workloads during collection. Their host-load log is retained.
+The earlier `bounded-current-v3` cohort overlaps a larger foreign test run and keeps
+its 9.048 s native keyed observation. No samples are dropped or replaced.
+
+These complete-job cohorts do not establish a consistent gain over previous native
+behavior: append gains and keyed regressions coexist with changing stock baselines
+and checkpoint/file-count variation. The measured benefit is lower routing/allocation
+cost at the component boundary; whole-job limits remain explicit. The full normal-SQL
+Nexmark matrix is evaluated separately.
