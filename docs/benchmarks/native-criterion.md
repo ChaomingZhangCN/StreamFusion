@@ -91,9 +91,11 @@ measures complete two-phase Flink jobs, including both transposes and production
 
 ## Running and comparing
 
-The `non_time_row_number` target includes eight production-kernel fixtures
-cross 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
-and ascending/descending arrival, with nullable order columns. Fixture setup and a separate inversion-count cardinality oracle stay
+The `non_time_row_number` target includes 80 production-kernel fixtures across
+16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
+and ascending/descending arrival, with nullable BIGINT/INT/SMALLINT/TINYINT, DECIMAL,
+DATE, TIME, BOOLEAN and 8/256-byte string order columns. Fixture setup and a separate
+inversion-count cardinality oracle stay
 outside timing. Each measurement creates an empty ranker, processes the batch and materializes
 all row-identity rank updates; it does not measure a fixed-state lookup or exclude output work.
 This native boundary complements the complete Flink job benchmark `NonTimeRowNumberBenchmark`,

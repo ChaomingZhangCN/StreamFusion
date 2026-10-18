@@ -21,14 +21,16 @@ Event-time parity fixtures keep the watermark behind the entire input timestamp 
 end of input, so file enumeration order cannot introduce accidental late rows. Late-row tests
 control the input order separately.
 
-## Ordinary numeric ROW_NUMBER (Flink 2.2)
+## Ordinary scalar ROW_NUMBER (Flink 2.2)
 
 An unfiltered `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY v ASC)` also runs over an ordinary
-INT or BIGINT column. This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
+TINYINT, SMALLINT, INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME or BOOLEAN column.
+This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
 PRECEDING through CURRENT ROW, insert-only input, supported partition/payload types and disabled
 idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
 its validation is unchanged. Other non-time analytic functions and order specifications retain
-fallback.
+fallback, including floating-point, timestamp and complex sort values. Descending ordinary
+OVER ordering is rejected by Flink itself.
 
 Each new row emits INSERT at its rank, followed by UPDATE_BEFORE/UPDATE_AFTER pairs for the
 same existing rows whose ranks shifted. Ties retain arrival order. The implementation reuses
@@ -37,7 +39,7 @@ Top-N keeps its existing rank-slot update contract. Mini-batching does not colla
 row-identity updates. The generic event-time/proctime OVER guard is unchanged.
 
 Every input row remains in state, including duplicate rows; state grows with the input rather
-than a configured Top-N bound. Watermarks do not retire this numeric rank state. Native memory
+than a configured Top-N bound. Watermarks do not retire this rank state. Native memory
 accounting and configured off-heap limits apply. Updating input and positive TTL retain fallback
 until their separate contracts are verified. MAP/MULTISET payloads unsupported by the Arrow row
 codec also retain fallback.
@@ -93,7 +95,54 @@ for the INT sort projection. `-Drank.expectNative=false` asserts the previous fa
 The focused SQL, existing Top-N and time-OVER suites pass 62 checks on Flink 2.2.1;
 Flink 1.18.1 passes 49 with 13 host-capability skips, including its non-time validation boundary.
 Three release Rust tests cover emitted row identities, complete retained-state restore and
-memory limits; eight release Criterion fixtures validate the production kernel separately.
+memory limits; 80 release Criterion fixtures validate the production kernel separately.
+
+### Additional scalar order comparison
+
+Eight typed SQL cases compare every rank update under NULLS FIRST/LAST. Ten more checks
+restore string, decimal, DATE, TIME and BOOLEAN ranks twice on memory and RocksDB; the
+existing fourteen-case rank suite also passes. Native fixtures cover ten physical sort
+representations, including narrow integers, wide decimals, 8/256-byte strings and nullable
+temporal/Boolean values, with an independent inversion-count oracle.
+
+The October 18, 2026 release+mimalloc comparison uses Flink 2.2.1/JDK 17, UTC,
+production IPC, parallelism one and a 2 GiB heap on Intel i7-12650H/Linux WSL2. Every
+profile has 131,072 runtime rows, 1,024 partitions and a NULL order value every 31 rows.
+Two warmups precede three measured jobs, alternating engine order. Complete jobs retain
+both transposes, row source, blackhole sink, sort casts, JNI, full retained state and every
+row-identity update; native consumption is asserted per job. Both arrival cases use
+`ORDER BY ... ASC NULLS FIRST`.
+
+| Order type | Arrival | Stock median (s) | Previous origin (s) | Native median (s) | Stock/native |
+| --- | --- | ---: | ---: | ---: | ---: |
+| TINYINT | Ascending | 0.902448 | 0.921784 | 0.220978 | 4.084x |
+| TINYINT | Descending | 6.069253 | 6.660529 | 1.751583 | 3.465x |
+| SMALLINT | Ascending | 0.771852 | 0.980990 | 0.224256 | 3.442x |
+| SMALLINT | Descending | 7.593005 | 6.628773 | 1.940302 | 3.913x |
+| DECIMAL(20,2) | Ascending | 1.628816 | 1.607016 | 0.216867 | 7.511x |
+| DECIMAL(20,2) | Descending | 6.319737 | 7.401731 | 1.759849 | 3.591x |
+| STRING | Ascending | 3.134559 | 3.501260 | 0.828730 | 3.782x |
+| STRING | Descending | 4.383904 | 5.352431 | 1.232235 | 3.558x |
+| CHAR(8) | Ascending | 3.249102 | 3.963801 | 0.822642 | 3.950x |
+| CHAR(8) | Descending | 4.833143 | 4.922082 | 1.283715 | 3.765x |
+| DATE | Ascending | 0.892963 | 1.070902 | 0.202173 | 4.417x |
+| DATE | Descending | 5.992467 | 6.614214 | 1.708785 | 3.507x |
+| TIME | Ascending | 0.518208 | 0.530490 | 0.189039 | 2.741x |
+| TIME | Descending | 0.506685 | 0.509098 | 0.197192 | 2.570x |
+| BOOLEAN | Ascending | 2.073037 | 2.199477 | 0.822275 | 2.521x |
+| BOOLEAN | Descending | 1.972475 | 2.174961 | 0.590466 | 3.341x |
+
+Previous-origin controls run identical fixtures with native planning enabled and fallback
+asserted. Their separate JVM has paired stock controls; the
+[raw artifact](../benchmarks/results/row-number-scalar-types-2026-10-18.json) retains every
+warmup and sample, variability and fixture/library hashes, including control drift. These
+are complete-job comparisons including startup, without excluding unfavorable samples.
+
+Select these profiles with `NonTimeRowNumberBenchmark` under `-Pbench` and
+`SF_BENCHMARK=true`, plus
+`'-Drank.orderTypes=TINYINT;SMALLINT;DECIMAL(20,2);STRING;CHAR(8);DATE;TIME;BOOLEAN'
+-Drank.rows=131072 -Drank.keys=1024 -Drank.warmup=2 -Drank.runs=3
+-Dsf.extraJvmArgs=-Xmx2g`. Original origin additionally sets `-Drank.expectNative=false`.
 
 ## Frame shapes
 

@@ -19,12 +19,15 @@ class NonTimeRowNumberBenchmark {
   @Test
   void completeJobsRetainAllRanksAndBothTransposes() throws Exception {
     assertEquals("false", System.getProperty("streamfusion.exchange.zeroCopyLocal"), "Use -Pbench");
-    for (String shape : System.getProperty("rank.cases", "ascending,descending").split(",")) {
-      measure(shape);
+    for (String type : System.getProperty("rank.orderTypes",
+        System.getProperty("rank.orderType", "BIGINT")).split(";")) {
+      for (String shape : System.getProperty("rank.cases", "ascending,descending").split(",")) {
+        measure(shape, type);
+      }
     }
   }
 
-  private static void measure(String shape) throws Exception {
+  private static void measure(String shape, String orderType) throws Exception {
     assertTrue(shape.equals("ascending") || shape.equals("descending"));
     int rows = Integer.getInteger("rank.rows", 131072);
     int keys = Integer.getInteger("rank.keys", 1024);
@@ -32,9 +35,20 @@ class NonTimeRowNumberBenchmark {
     int warmups = Integer.getInteger("rank.warmup", 2);
     int runs = Integer.getInteger("rank.runs", 5);
     boolean nativeExpected = Boolean.parseBoolean(System.getProperty("rank.expectNative", "true"));
-    String orderType = System.getProperty("rank.orderType", "BIGINT");
-    assertTrue(orderType.equals("BIGINT") || orderType.equals("INT"));
-    String order = orderType.equals("INT") ? "CAST(v AS INT)" : "v";
+    String order;
+    switch (orderType) {
+      case "BIGINT": order = "v"; break;
+      case "INT":
+      case "TINYINT":
+      case "SMALLINT":
+      case "DECIMAL(20,2)":
+      case "CHAR(8)":
+      case "STRING": order = "CAST(v AS " + orderType + ")"; break;
+      case "BOOLEAN": order = "MOD(v, 2) = 0"; break;
+      case "DATE": order = "CAST(TO_TIMESTAMP_LTZ(v * 86400000, 3) AS DATE)"; break;
+      case "TIME": order = "CAST(TO_TIMESTAMP_LTZ(v, 3) AS TIME(3))"; break;
+      default: throw new IllegalArgumentException("Unknown rank.orderType " + orderType);
+    }
     String sql =
         "SELECT k, v, id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY "
             + order
@@ -47,6 +61,7 @@ class NonTimeRowNumberBenchmark {
           var env = metrics.environment(new org.apache.flink.configuration.Configuration(), 1, 0);
           env.setParallelism(1);
           var table = StreamTableEnvironment.create(env);
+          table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
           var type =
               DataTypes.ROW(
                   DataTypes.FIELD("k", DataTypes.BIGINT()),

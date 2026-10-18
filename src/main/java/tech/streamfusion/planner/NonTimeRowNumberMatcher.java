@@ -38,15 +38,15 @@ final class NonTimeRowNumberMatcher {
   }
 
   static String unsupportedReason(StreamPhysicalOverAggregate over) {
-    if (!hasShape(over)) return "non-time ROW_NUMBER: requires one numeric rank group";
+    if (!hasShape(over)) return "non-time ROW_NUMBER: requires one ROW_NUMBER group";
     Window.Group group = over.logicWindow().groups.get(0);
     var inputType = over.getInput().getRowType();
     var order = group.orderKeys.getFieldCollations().get(0);
     SqlTypeName orderType =
         inputType.getFieldList().get(order.getFieldIndex()).getType().getSqlTypeName();
     if (order.direction != RelFieldCollation.Direction.ASCENDING
-        || (orderType != SqlTypeName.INTEGER && orderType != SqlTypeName.BIGINT)) {
-      return "non-time ROW_NUMBER: requires one ascending INT or BIGINT order column";
+        || !supportedOrderType(orderType)) {
+      return "non-time ROW_NUMBER: requires one ascending supported scalar order column";
     }
     if (!group.isRows
         || !group.lowerBound.isUnbounded()
@@ -72,6 +72,24 @@ final class NonTimeRowNumberMatcher {
       return "non-time ROW_NUMBER: unsupported Arrow row payload";
     }
     return null;
+  }
+
+  private static boolean supportedOrderType(SqlTypeName type) {
+    switch (type) {
+      case TINYINT:
+      case SMALLINT:
+      case INTEGER:
+      case BIGINT:
+      case DECIMAL:
+      case CHAR:
+      case VARCHAR:
+      case DATE:
+      case TIME:
+      case BOOLEAN:
+        return true;
+      default:
+        return false;
+    }
   }
 
   static RelNode substitute(StreamPhysicalOverAggregate over, PlanContext ctx) {
