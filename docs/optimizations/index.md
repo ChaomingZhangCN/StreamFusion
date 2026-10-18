@@ -18,7 +18,7 @@ Those measurements describe CI job counts and elapsed time, not SQL execution th
 - [Copy canonical state directly](canonical-state-installation.md): remove a full temporary payload copy while retaining managed chunk ownership.
 - [Reuse Iceberg boundary setup](iceberg-boundary-overhead.md): cached task schemas and serializers, shared Arrow leases and routing maps.
 
-- [Collection representation work](collection-representation-work.md): omit unnecessary snapshots and reuse nested-row readers.
+- [Collection representation work](collection-representation-work.md): omit unnecessary snapshots, reuse nested-row readers and prune UNNEST expansion before copying.
 - [Shared-window state costs](shared-window-state.md): exact memory deltas, batched reservations and preserved accumulator state.
 - [Compact window-rank timestamp cells](window-rank-timestamp-cells.md): exact numeric digits avoid per-row timestamp struct slicing.
 - [Top-1 winner state](top1-winner-state.md): conditional winner updates and bounded clean decoded RocksDB state.

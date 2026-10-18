@@ -314,5 +314,183 @@ fn run(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, run);
+fn constructors(c: &mut Criterion) {
+    let mut group = c.benchmark_group("collection_expressions/array_constructor");
+    for rows in [16, 1024, 16384] {
+        for kind in [
+            "integer",
+            "boolean",
+            "float",
+            "decimal",
+            "date",
+            "time",
+            "timestamp",
+        ] {
+            let column: ArrayRef = match kind {
+                "boolean" => Arc::new(arrow::array::BooleanArray::from_iter(
+                    (0..rows).map(|i| (i % 7 != 0).then_some(i % 3 == 0)),
+                )),
+                "float" => Arc::new(arrow::array::Float64Array::from_iter((0..rows).map(|i| {
+                    (i % 7 != 0).then_some(if i % 3 == 0 {
+                        -0.0
+                    } else {
+                        f64::from_bits(0x7ff8000000000001)
+                    })
+                }))),
+                "decimal" => Arc::new(
+                    arrow::array::Decimal128Array::from_iter(
+                        (0..rows).map(|i| (i % 7 != 0).then_some(i as i128)),
+                    )
+                    .with_precision_and_scale(20, 3)
+                    .unwrap(),
+                ),
+                "date" => Arc::new(arrow::array::Date32Array::from_iter(
+                    (0..rows).map(|i| (i % 7 != 0).then_some(i as i32 - 100)),
+                )),
+                "time" => Arc::new(arrow::array::Time32MillisecondArray::from_iter(
+                    (0..rows).map(|i| (i % 7 != 0).then_some(i as i32 % 86400000)),
+                )),
+                "timestamp" => Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                    (0..rows).map(|i| {
+                        (i % 7 != 0).then(|| {
+                            streamfusion_bridge::timestamp::TimestampValue::from_nanos(
+                                i as i128 * 1234567 - 999999,
+                            )
+                            .unwrap()
+                        })
+                    }),
+                )),
+                _ => Arc::new(arrow::array::Int64Array::from_iter(
+                    (0..rows).map(|i| (i % 7 != 0).then_some(i as i64)),
+                )),
+            };
+            for width in [2, 16] {
+                let input = RecordBatch::try_from_iter(
+                    (0..width).map(|i| (format!("value{i}"), column.clone())),
+                )
+                .unwrap();
+                for compact in [false, true] {
+                    if compact && kind != "timestamp" {
+                        continue;
+                    }
+                    let mut plan = CalcProgram::new(
+                        std::iter::once(6)
+                            .chain(std::iter::repeat_n(0, width))
+                            .collect(),
+                        std::iter::once(if compact { 172 } else { 171 })
+                            .chain((0..width).map(|i| i as i64))
+                            .collect(),
+                        std::iter::once(width as i64)
+                            .chain(std::iter::repeat_n(0, width))
+                            .collect(),
+                        vec![],
+                        vec![],
+                        vec![],
+                    );
+                    let output = plan.run(input.clone());
+                    assert_eq!(output.num_rows(), rows);
+                    let list = output
+                        .column(0)
+                        .as_any()
+                        .downcast_ref::<ListArray>()
+                        .unwrap();
+                    assert_eq!(list.null_count(), 0);
+                    assert_eq!(list.values().len(), rows * width);
+                    let label = format!("{kind}/{rows}/width={width}/compact={compact}");
+                    let (output, allocations) = measure(|| plan.run(input.clone()));
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| {
+                            std::hint::black_box(plan.run(std::hint::black_box(input.clone())))
+                        })
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+
+fn temporal_operands(c: &mut Criterion) {
+    let mut group = c.benchmark_group("collection_expressions/unnest_temporal");
+    for rows in [16, 1024, 16384] {
+        for operation in [173, 174, 175, 176, 177] {
+            for nullable in [false, true] {
+                let values = (0..rows)
+                    .map(|i| (!nullable || i % 7 != 0).then_some(i as i64 * 12345 - 99999))
+                    .collect::<Vec<_>>();
+                let input: ArrayRef = if operation == 173 {
+                    Arc::new(arrow::array::Int64Array::from(values))
+                } else {
+                    Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                        values.into_iter().map(|value| {
+                            value.map(streamfusion_bridge::timestamp::TimestampValue::from_millis)
+                        }),
+                    ))
+                };
+                let mut columns = vec![("value", input)];
+                if operation >= 176 {
+                    columns.push((
+                        "offset",
+                        Arc::new(Int32Array::from_iter((0..rows).map(|i| {
+                            (!nullable || i % 7 != 0).then_some(if i % 2 == 0 {
+                                -18000
+                            } else {
+                                3600
+                            })
+                        }))) as ArrayRef,
+                    ));
+                }
+                let batch = RecordBatch::try_from_iter(columns).unwrap();
+                let mut plan = if operation == 177 {
+                    CalcProgram::new(
+                        vec![6, 0, 0, 7],
+                        vec![operation, 0, 1, 0],
+                        vec![3, 0, 0, 0],
+                        vec![1000],
+                        vec![],
+                        vec![],
+                    )
+                } else if operation == 176 {
+                    CalcProgram::new(
+                        vec![6, 0, 0],
+                        vec![operation, 0, 1],
+                        vec![2, 0, 0],
+                        vec![],
+                        vec![],
+                        vec![],
+                    )
+                } else if operation == 175 {
+                    CalcProgram::new(
+                        vec![6, 0, 7],
+                        vec![operation, 0, 0],
+                        vec![2, 0, 0],
+                        vec![1000],
+                        vec![],
+                        vec![],
+                    )
+                } else {
+                    plan_for(operation)
+                };
+                let output = plan.run(batch.clone());
+                assert_eq!(output.num_rows(), rows);
+                assert_eq!(
+                    output.column(0).null_count(),
+                    if nullable { rows.div_ceil(7) } else { 0 }
+                );
+                let label = format!("{operation}/{rows}/nullable={nullable}");
+                let (output, allocations) = measure(|| plan.run(batch.clone()));
+                report(&label, batch.columns(), output.columns(), allocations);
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| std::hint::black_box(plan.run(std::hint::black_box(batch.clone()))))
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, run, constructors, temporal_operands);
 criterion_main!(benches);

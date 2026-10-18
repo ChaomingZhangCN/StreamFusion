@@ -4,8 +4,8 @@ use std::sync::Arc;
 use arrow::array::{ArrayRef, Int64Array, Int64Builder, ListBuilder, RecordBatch, StringArray};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use streamfusion::bench::{
-    decode_ipc, encode_ipc, expand_grouping_sets, unnest, ArrivalFirstN, Projection, TemporalJoin,
-    TemporalSort,
+    decode_ipc, encode_ipc, expand_grouping_sets, unnest, unnest_projected, ArrivalFirstN,
+    Projection, TemporalJoin, TemporalSort,
 };
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 
@@ -95,6 +95,27 @@ fn transformations(c: &mut Criterion) {
             ])
             .unwrap();
             for left in [false, true] {
+                for (shape, projection) in [
+                    ("key_element", vec![0, 2]),
+                    ("repeat_ordinal", vec![3, 2, 2]),
+                ] {
+                    let label =
+                        format!("unnest_projected/{rows}/width={width}/left={left}/{shape}");
+                    let (output, allocations) =
+                        measure(|| unnest_projected(&input, left, true, &projection));
+                    assert_eq!(output.num_rows(), unnest(&input, left, true).num_rows());
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| {
+                            std::hint::black_box(unnest_projected(
+                                std::hint::black_box(&input),
+                                left,
+                                true,
+                                &projection,
+                            ))
+                        })
+                    });
+                }
                 let label = format!("unnest/{rows}/width={width}/left={left}");
                 let (output, allocations) = measure(|| unnest(&input, left, true));
                 report(&label, input.columns(), output.columns(), allocations);
@@ -103,6 +124,81 @@ fn transformations(c: &mut Criterion) {
                         std::hint::black_box(unnest(std::hint::black_box(&input), left, true))
                     })
                 });
+            }
+        }
+    }
+    for rows in [16, 1024, 16384] {
+        for width in [2, 16] {
+            let count = rows * width;
+            for shape in ["timestamp", "one_field_row"] {
+                let values: ArrayRef = if shape == "timestamp" {
+                    Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                        (0..count).map(|i| {
+                            (i % 7 != 0).then(|| {
+                                streamfusion_bridge::timestamp::TimestampValue::from_nanos(
+                                    i as i128 * 1234567 - 999999,
+                                )
+                                .unwrap()
+                            })
+                        }),
+                    ))
+                } else {
+                    Arc::new(arrow::array::StructArray::new(
+                        vec![Arc::new(arrow::datatypes::Field::new(
+                            "a",
+                            arrow::datatypes::DataType::Int64,
+                            true,
+                        ))]
+                        .into(),
+                        vec![Arc::new(Int64Array::from_iter_values(0..count as i64))],
+                        Some(arrow::buffer::NullBuffer::from(
+                            (0..count).map(|i| i % 7 != 0).collect::<Vec<_>>(),
+                        )),
+                    ))
+                };
+                let list = arrow::array::ListArray::new(
+                    Arc::new(arrow::datatypes::Field::new(
+                        "item",
+                        values.data_type().clone(),
+                        true,
+                    )),
+                    arrow::buffer::OffsetBuffer::new(
+                        (0..=rows)
+                            .map(|i| (i * width) as i32)
+                            .collect::<Vec<_>>()
+                            .into(),
+                    ),
+                    values,
+                    Some(arrow::buffer::NullBuffer::from(
+                        (0..rows).map(|i| i % 11 != 0).collect::<Vec<_>>(),
+                    )),
+                );
+                let input = RecordBatch::try_from_iter(vec![
+                    (
+                        "key",
+                        Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                    ),
+                    ("items", Arc::new(list) as ArrayRef),
+                ])
+                .unwrap();
+                group.throughput(Throughput::Elements(rows as u64));
+                for left in [false, true] {
+                    let label = format!("unnest_typed/{shape}/{rows}/width={width}/left={left}");
+                    let (output, allocations) =
+                        measure(|| unnest_projected(&input, left, true, &[0, 2, 3]));
+                    assert_eq!(output.num_columns(), 3);
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| {
+                            std::hint::black_box(unnest_projected(
+                                std::hint::black_box(&input),
+                                left,
+                                true,
+                                &[0, 2, 3],
+                            ))
+                        })
+                    });
+                }
             }
         }
     }

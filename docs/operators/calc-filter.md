@@ -1910,7 +1910,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | CARDINALITY on ARRAY/MAP | Rust outer-offset count, returning INT; NULL container produces NULL |
 | ARRAY_APPEND, ARRAY_PREPEND, ARRAY_CONTAINS, ARRAY_POSITION, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
-| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
+| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 
 The generated route evaluates the complete filter and projection together, preserving failure
 order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
@@ -1918,6 +1918,16 @@ It retains Arrow batch inputs/outputs and production JNI costs. A NativeCalc con
 functions does **not** imply that its scalar work executes in Rust; the function-engine diagnostic
 reports the assignment, including ARRAY/MAP/ROW constructors. Programs with user scalar
 functions retain their existing admission gates.
+
+An ARRAY materialized solely for [UNNEST](unnest-correlate.md) can use released DataFusion's scalar
+array constructor because the container's generic/binary identity does not escape that consumer.
+The admitted scalar element types preserve raw floating values and the released timestamp writer's
+compact/expanded storage rules. BIGINT millisecond epoch conversion and TIMESTAMP_LTZ-to-DATE/TIME
+casts also have native kernels in that operand context, with SQL epoch bounds and per-version TIME
+truncation preserved. Non-UTC offsets come from JDK ZoneRules through the batch bridge and are
+cached between transitions, preserving historical and daylight-saving behavior. This total lookup
+does not trigger whole-Calc row evaluation; other JVM calls retain their error-order safeguards.
+Ordinary projected ARRAYs retain their existing routes.
 
 Primitive bridge types and recursively supported ARRAY/MAP/ROW values are admitted, including
 nullable typed map keys, decimal and timestamp values. Fixed BINARY leaves inside generated

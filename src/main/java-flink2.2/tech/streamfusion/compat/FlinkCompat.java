@@ -22,6 +22,10 @@ public final class FlinkCompat {
     return org.apache.flink.table.utils.DateTimeUtils.applyTimePrecisionTruncation(millis, precision);
   }
 
+  public static int timestampToTimeTruncationFactor(int precision) {
+    return precision >= 3 ? 1 : (int) Math.pow(10, 3 - precision);
+  }
+
   public static org.apache.flink.table.functions.ScalarFunction scalarFunction(
       org.apache.calcite.sql.SqlOperator operator) {
     Object scalarCandidate;

@@ -1,6 +1,5 @@
 package tech.streamfusion.planner;
 
-import tech.streamfusion.operator.NativeUdf;
 import java.util.List;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
@@ -10,11 +9,12 @@ import org.apache.flink.table.planner.calcite.FlinkTypeFactory$;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.flink.table.planner.plan.nodes.exec.InputProperty;
 import org.apache.flink.table.planner.utils.ShortcutUtils;
+import tech.streamfusion.operator.NativeUdf;
 
 /**
- * Physical node standing in for a pure filter the native operator runs. It keeps the replaced node's
- * output type (the input type — a filter does not rewrite columns) and traits, and carries the
- * encoded predicate expression the operator compiles and applies. Stateless, so it needs no
+ * Physical node standing in for a pure filter the native operator runs. It keeps the replaced
+ * node's output type (the input type — a filter does not rewrite columns) and traits, and carries
+ * the encoded predicate expression the operator compiles and applies. Stateless, so it needs no
  * watermark.
  */
 public class StreamPhysicalNativeFilter extends StreamPhysicalNativeSingleRel
@@ -58,6 +58,47 @@ public class StreamPhysicalNativeFilter extends StreamPhysicalNativeSingleRel
     return false;
   }
 
+  StreamPhysicalNativeFilter withProjection(RelTraitSet traits, RelDataType output, int[] columns) {
+    int[] combined = java.util.Arrays.stream(columns).map(index -> projection[index]).toArray();
+    RelNode input = getInput();
+    int[] predicate = payload;
+    if (input instanceof StreamPhysicalNativeUnnest) {
+      boolean[] used = new boolean[input.getRowType().getFieldCount()];
+      for (int column : combined) used[column] = true;
+      for (int column : RexExpression.referencedInputs(kinds, payload)) used[column] = true;
+      int[] kept =
+          java.util.stream.IntStream.range(0, used.length).filter(index -> used[index]).toArray();
+      if (kept.length < used.length) {
+        int[] remap = new int[used.length];
+        java.util.Arrays.fill(remap, -1);
+        var type = getCluster().getTypeFactory().builder();
+        for (int index = 0; index < kept.length; index++) {
+          remap[kept[index]] = index;
+          var field = input.getRowType().getFieldList().get(kept[index]);
+          type.add(field.getName(), field.getType());
+        }
+        input =
+            ((StreamPhysicalNativeUnnest) input)
+                .withProjection(input.getTraitSet(), type.build(), kept);
+        combined = java.util.Arrays.stream(combined).map(index -> remap[index]).toArray();
+        predicate = RexExpression.remapInputPayload(kinds, payload, remap);
+      }
+    }
+    return new StreamPhysicalNativeFilter(
+        getCluster(),
+        traits,
+        input,
+        output,
+        combined,
+        kinds,
+        predicate,
+        childCounts,
+        longs,
+        doubles,
+        strings,
+        udfBinding);
+  }
+
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new StreamPhysicalNativeFilter(
@@ -92,4 +133,3 @@ public class StreamPhysicalNativeFilter extends StreamPhysicalNativeSingleRel
         udfBinding);
   }
 }
-

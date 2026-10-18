@@ -9,11 +9,12 @@ import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalR
 import org.apache.flink.table.planner.plan.utils.ChangelogPlanUtils;
 
 /**
- * Recognizes a general {@link Calc} the native engine can run — an optional condition plus arbitrary
- * projection expressions (computed columns, constants, column subsets) — over an input whose columns
- * the whole-row converter handles. The pure filter-plus-column-subset shape stays with {@link
- * FilterCalcMatcher} (its column-transfer projection avoids evaluating identity expressions); this
- * matcher covers everything else the native expression engine can encode, and falls back otherwise.
+ * Recognizes a general {@link Calc} the native engine can run — an optional condition plus
+ * arbitrary projection expressions (computed columns, constants, column subsets) — over an input
+ * whose columns the whole-row converter handles. The pure filter-plus-column-subset shape stays
+ * with {@link FilterCalcMatcher} (its column-transfer projection avoids evaluating identity
+ * expressions); this matcher covers everything else the native expression engine can encode, and
+ * falls back otherwise.
  */
 final class CalcMatcher {
 
@@ -40,7 +41,9 @@ final class CalcMatcher {
     return CalcOutputTypeCheck.mismatch(encoded, calc.getInput().getRowType(), calc.getRowType());
   }
 
-  /** The encoded Calc (condition + projections), or null if it contains an unsupported operation. */
+  /**
+   * The encoded Calc (condition + projections), or null if it contains an unsupported operation.
+   */
   static RexExpression encode(Calc calc) {
     return RexExpression.encodeCalc(calc);
   }
@@ -57,6 +60,22 @@ final class CalcMatcher {
   static RelNode substitute(Calc calc, PlanContext ctx) {
     calc = mergeProcessingTimeProjection(calc);
     RelNode input = calc.getInputs().get(0);
+    if (input instanceof StreamPhysicalNativeFilter
+        && input.getInput(0) instanceof StreamPhysicalNativeUnnest
+        && calc.getProgram().getCondition() == null) {
+      int[] projection = FilterCalcMatcher.projection(calc);
+      if (projection != null) {
+        return ((StreamPhysicalNativeFilter) input)
+            .withProjection(calc.getTraitSet(), calc.getRowType(), projection);
+      }
+    }
+    if (input instanceof StreamPhysicalNativeUnnest && calc.getProgram().getCondition() == null) {
+      int[] projection = FilterCalcMatcher.projection(calc);
+      if (projection != null) {
+        return ((StreamPhysicalNativeUnnest) input)
+            .withProjection(calc.getTraitSet(), calc.getRowType(), projection);
+      }
+    }
     if (input instanceof StreamPhysicalNativeTableFunction
         && calc.getProgram().getCondition() == null
         && !Boolean.getBoolean("streamfusion.experimental.tableFunctionKeepProjection")) {
@@ -85,7 +104,8 @@ final class CalcMatcher {
             calc.getTraitSet(),
             source.withProjection(pruned.inputType),
             calc.getRowType(),
-            encoded.remapInputs(pruned.remap), calc.getProgram());
+            encoded.remapInputs(pruned.remap),
+            calc.getProgram());
       }
     }
     if (pruned != null && !(input instanceof ColumnarOutput)) {
@@ -106,14 +126,16 @@ final class CalcMatcher {
           calc.getTraitSet(),
           prunedTranspose,
           calc.getRowType(),
-          encoded.remapInputs(pruned.remap), calc.getProgram());
+          encoded.remapInputs(pruned.remap),
+          calc.getProgram());
     }
     // The mini-batch assigner is a pass-through (it forwards batches untouched), so it must not
     // hide a rowwise input from the pruning above: push the pruned entry transpose through it.
     // Without this, a mini-batch plan pays an UNPRUNED transpose of the full wide source row —
     // measured at 7x the transpose work on Nexmark q3.
     if (pruned != null && input instanceof StreamPhysicalNativeMiniBatchAssigner) {
-      StreamPhysicalNativeMiniBatchAssigner assigner = (StreamPhysicalNativeMiniBatchAssigner) input;
+      StreamPhysicalNativeMiniBatchAssigner assigner =
+          (StreamPhysicalNativeMiniBatchAssigner) input;
       RelNode below = assigner.getInput(0);
       if (!(below instanceof ColumnarOutput)) {
         boolean carryRowKind =
@@ -132,7 +154,8 @@ final class CalcMatcher {
             calc.getTraitSet(),
             assigner.withInput(prunedTranspose, pruned.inputType),
             calc.getRowType(),
-            encoded.remapInputs(pruned.remap), calc.getProgram());
+            encoded.remapInputs(pruned.remap),
+            calc.getProgram());
       }
     }
     return new StreamPhysicalNativeCalc(

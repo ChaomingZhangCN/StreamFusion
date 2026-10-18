@@ -34,6 +34,7 @@ pub(crate) mod to_date;
 mod array_distinct;
 pub(crate) mod array_item;
 mod array_slice;
+mod array_constructor;
 mod ascii;
 mod binary_strings;
 mod cardinality;
@@ -60,6 +61,7 @@ mod string_to_boolean;
 mod temporal_round;
 mod timestamp_millis;
 mod type_of;
+mod unnest_temporal;
 
 const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -197,6 +199,13 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
             .as_ref()
             .clone(),
         170 => array_slice::function(arity),
+        171 => array_constructor::function(arity, false),
+        172 => array_constructor::function(arity, true),
+        173 => unnest_temporal::function(unnest_temporal::Operation::EpochMillis),
+        174 => unnest_temporal::function(unnest_temporal::Operation::UtcDate),
+        175 => unnest_temporal::function(unnest_temporal::Operation::UtcTime),
+        176 => unnest_temporal::function(unnest_temporal::Operation::ZonedDate),
+        177 => unnest_temporal::function(unnest_temporal::Operation::ZonedTime),
         _ => return None,
     })
 }

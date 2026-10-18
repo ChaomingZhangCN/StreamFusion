@@ -140,7 +140,7 @@ class FlinkUnnestSqlHarnessTest {
     }
   }
 
-  private static TableEnvironment environment() {
+  static TableEnvironment environment() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
@@ -163,7 +163,7 @@ class FlinkUnnestSqlHarnessTest {
     return tEnv;
   }
 
-  private static TableEnvironment mapEnvironment() {
+  static TableEnvironment mapEnvironment() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
@@ -184,7 +184,7 @@ class FlinkUnnestSqlHarnessTest {
     return tEnv;
   }
 
-  private static TableEnvironment multisetEnvironment() {
+  static TableEnvironment multisetEnvironment() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
@@ -206,8 +206,11 @@ class FlinkUnnestSqlHarnessTest {
     return tEnv;
   }
 
-  private static TableEnvironment rowArrayEnvironment() {
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+  static TableEnvironment rowArrayEnvironment() {
+    return rowArrayEnvironment(StreamExecutionEnvironment.getExecutionEnvironment());
+  }
+
+  static TableEnvironment rowArrayEnvironment(StreamExecutionEnvironment env) {
     env.setParallelism(1);
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
     DataStream<Row> source =
@@ -236,7 +239,7 @@ class FlinkUnnestSqlHarnessTest {
     return tEnv;
   }
 
-  private static TableEnvironment stringArrayEnvironment() {
+  static TableEnvironment stringArrayEnvironment() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);

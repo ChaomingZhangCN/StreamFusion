@@ -460,6 +460,18 @@ public final class Native {
       boolean isLeft,
       boolean isMultiset);
 
+  /** UNNEST with a projection over its logical output, retaining the changelog tag separately. */
+  public static native void unnestProjected(
+      long inArrayAddress,
+      long inSchemaAddress,
+      long outArrayAddress,
+      long outSchemaAddress,
+      int arrayCol,
+      boolean withOrdinality,
+      boolean isLeft,
+      boolean isMultiset,
+      int[] projection);
+
   /**
    * Creates a buffering local half of a two-phase non-windowed {@code GROUP BY} and returns an opaque
    * handle. It accumulates rows by key across batches in memory (each aggregate folds its {@code
