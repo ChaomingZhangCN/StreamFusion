@@ -359,9 +359,26 @@ the preceding result from that accumulator. Filtered and mixed aggregates retain
 mini-batch emission and snapshot formats are unchanged.
 
 SINGLE_VALUE counts every element, including NULL. Zero elements yield NULL; one element
-yields that value. A second element raises Flink's `TableRuntimeException` with the same
+yields that value. A second element raises Flink's release-specific exception with the same
 cardinality diagnostic. Retraction clears the retained value and decrements the count;
 released Flink rejects a SQL FILTER clause on SINGLE_VALUE during planning.
+
+Released Flink's SQL planner removes DISTINCT from SINGLE_VALUE. Consequently
+`SINGLE_VALUE(DISTINCT v)` runs as ordinary SINGLE_VALUE: duplicate values and duplicate
+NULLs still count as separate elements and can raise the same cardinality error. This
+SQL form already runs natively; it is not a distinct-membership acceleration gap.
+An internal physical aggregate that retains a DISTINCT flag still has no native path.
+`FlinkSingleValueDistinctSqlHarnessTest` verifies twelve checks on each released line:
+duplicate and NULL failures, singleton/empty input, and actual local/global string
+plans with one-row and multi-row bundles. It compares host/native failure classes,
+diagnostics and evaluation phase, alongside exact successful changelogs and types.
+
+After a local bundle update or flush fails, cleanup never flushes that partially
+updated bundle again. Close still releases its native handle and memory reservation.
+This preserves the original cardinality error when Flink 1.18 cleanup invokes finish;
+a secondary Arrow key-gather failure must not replace it. The operator harness covers
+both one-row physical batches and a multi-row batch, followed by finish, checkpoint
+and watermark callbacks, and verifies that no partial output escapes.
 
 Checkpoints preserve the scalar/count or ordered occurrences. Append-only first/last and
 SINGLE_VALUE support the enclosing group's TTL. Retracting FIRST_VALUE/LAST_VALUE with a
@@ -369,7 +386,8 @@ positive retention, including a STATE_TTL hint, fall back: Flink independently e
 value-to-order and order-to-value map entries, which a single group lifetime does not model.
 These aggregate states use the existing raw keyed snapshot path with both memory and RocksDB
 backends; the direct RocksDB accumulator-row codec does not yet encode ordered occurrences.
-Two-phase FIRST_VALUE/LAST_VALUE plans, SINGLE_VALUE DISTINCT, DISTINCT first/last over types other
+Two-phase FIRST_VALUE/LAST_VALUE plans, physical SINGLE_VALUE with a retained DISTINCT flag,
+DISTINCT first/last over types other
 than STRING/VARCHAR, two-argument value/order dialects, and other value types retain explicit
 fallback gates.
 
@@ -583,7 +601,8 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
   preserve the released host's arrival-order behavior described above.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
-- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
+- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, physical SINGLE_VALUE with a retained DISTINCT flag,
+  and DISTINCT FIRST_VALUE/LAST_VALUE
   over types other than STRING/VARCHAR.
   (`COUNT(DISTINCT x)` keeps a per-key
   value set; `SUM(DISTINCT x)` adds a running sum folded as values enter/leave it; `MIN`/`MAX
