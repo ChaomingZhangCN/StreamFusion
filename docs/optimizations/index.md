@@ -10,6 +10,11 @@ iterations, earlier steps are summarized as history within that page rather than
 their own — this ledger tracks what the code does today, not a commit-by-commit changelog (that's
 what `git log` is for).
 
+The [benchmark evidence index](../benchmarks/evidence.md) separates complete-job
+comparisons from component measurements, profiles and rejected experiments.
+Those historical records support a decision; this ledger describes the current
+technique and its measured limits.
+
 CI build reuse and runner scheduling are documented separately in the
 [upstream-suite guide](../upstream-flink-suite.md#shared-builds-and-runtime-shards): compiled Flink
 caching, shared build artifacts, grouped connector suites and combined coverage verification.

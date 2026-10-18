@@ -2,6 +2,21 @@
 
 **Status:** native, with gaps — the largest admission surface in the project.
 
+Use this page for the current admission rules. For a specific question, start at:
+
+| Topic | Sections |
+| --- | --- |
+| Routing and failure semantics | [Overview](#admission-and-routing), [failure order](#failure-order-across-rows), [declared-type guard](#declared-type-guard) |
+| Basic types | [Casts](#casts), [decimal arithmetic](#decimal-arithmetic), [integer division](#integer-division) |
+| Strings and JSON | [String functions](#string-and-calendar-functions), [SQL/JSON](#sqljson-evaluation), [case folding and regex](#case-folding-regex) |
+| User functions and collections | [Scalar UDFs](#user-scalar-functions), [collection expressions](#collection-expressions), [subscripts](#collection-subscripts) |
+| Time and version compatibility | [Temporal functions](temporal-functions.md), [Flink 1.18](#flink-118-compatibility) |
+
+The [evidence index](../benchmarks/evidence.md) separates recorded performance
+comparisons and experiments from these current coverage rules.
+
+## Admission and routing
+
 `Calc` (Flink's fused projection + filter node) and standalone filters are where per-row expression
 evaluation happens, so their admission is expression-level rather than shape-level: the operator
 itself always has a native form, but it only runs natively if **every** expression node inside it —

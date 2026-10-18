@@ -1,5 +1,8 @@
 # Iceberg streaming diagnostics
 
+The [evidence index](../evidence.md) links the complete unprofiled matrices and the
+[superseded canonical-export sweep](../iceberg-canonical-20261017/README.md).
+
 These profiles investigate the q3/q4 regressions observed during the full benchmark.
 They are diagnostics, excluded from the final matrix and its geometric means.
 Both engines use 2M deterministic events, parallelism four, four-bucket Iceberg
@@ -57,6 +60,20 @@ the same revised protocol rather than mixing old and new observations.
 disk/on (46.452 s stock, 2.079 s native), checkpoint IDs/bytes/durations, native
 task and file witnesses, and the final savepoint sizes. These remain preflight
 observations, separate from the repeated final matrix.
+
+## Retained cohort reports
+
+Each report retains its own configuration and observations. Profiled jobs,
+checkpoint-storage preflights, compression changes and previous-I/O comparisons
+are diagnostic cohorts, excluded from the primary unprofiled matrix.
+
+| Diagnostic | Reports |
+| --- | --- |
+| Checkpoint completion/storage | [Ordinary checkpoint](normal-checkpoint/results.md), [filesystem checkpoint](filesystem-checkpoint/results.md) |
+| Previous I/O comparison | [I/O baseline](io-baseline/results.md), [q9 disk CPU profile](q9-disk-io-cpu/results.md) |
+| q9 checkpoint sensitivity | [CPU profile](q9-cpu/results.md), [snapshot compression](q9-compressed/results.md) |
+| q18 checkpoint sensitivity | [CPU profile](q18-cpu/results.md), [snapshot compression](q18-compressed/results.md) |
+| q20 checkpoint sensitivity | [CPU profile](q20-cpu/results.md), [snapshot compression](q20-compressed/results.md) |
 
 ## q9 memory/on checkpoint sensitivity
 

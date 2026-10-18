@@ -119,6 +119,7 @@ nav:
   - Portable SQL audit: sql-parity-audit.md
   - Benchmarks:
       - benchmarks.md
+      - Evidence and experiment index: benchmarks/evidence.md
       - Native Criterion suites: benchmarks/native-criterion.md
       - AppendFast Top-1: benchmarks/append-top1.md
       - Performance audit reproduction: benchmarks/performance-audit.md

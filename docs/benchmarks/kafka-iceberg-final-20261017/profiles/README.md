@@ -6,6 +6,9 @@ using the same two-million-event corpus, source/sink partitioning, RocksDB budge
 mini-batch-off configuration and exact release-library hashes as the main run.
 All four profiled pairs pass their normal committed-output and native-boundary checks.
 
+The [per-cell report](itimer/results.md) retains these profiled medians and ranges;
+the [evidence index](../../evidence.md) links the separate primary comparison.
+
 | Query | Profiled stock, seconds | Profiled native, seconds | Primary median stock/native |
 |---|---:|---:|---:|
 | q0 | 2.255 | 1.361 | 0.41× |
