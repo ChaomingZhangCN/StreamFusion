@@ -83,6 +83,16 @@ final class CollectionValueIdentity {
     return true;
   }
 
+  static boolean requiresRowSink(RelNode node) {
+    if (node instanceof StreamPhysicalNativeCalc) {
+      var calc = (StreamPhysicalNativeCalc) node;
+      if (calc.preservesCollections()
+          && calc.getRowType().getFieldList().stream()
+              .anyMatch(field -> sensitive(field.getType()))) return true;
+    }
+    return node.getInputs().stream().anyMatch(CollectionValueIdentity::requiresRowSink);
+  }
+
   static boolean crossesBoundary(RelNode root, boolean finalOutput) {
     if (!NativeConfig.collectionExpressionsEnabled()) return false;
     return crossesBoundary(root, null, finalOutput);

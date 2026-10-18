@@ -199,13 +199,16 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
     if (root instanceof org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalSink
         && substituted instanceof ColumnarInput
         && (JsonStringIdentity.projectsBinaryString(root)
-            || LegacyBinaryResults.reachesSink(root))) {
+            || LegacyBinaryResults.reachesSink(root)
+            || CollectionValueIdentity.requiresRowSink(substituted))) {
       substitutions = previousSubstitutions;
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
       recordFallback(
           LegacyBinaryResults.reachesSink(root)
               ? "legacy binary variable bytes require a row sink"
-              : "binary-backed STRING requires a row sink");
+              : JsonStringIdentity.projectsBinaryString(root)
+                  ? "binary-backed STRING requires a row sink"
+                  : "collection value representation requires a row sink");
       return root;
     }
     // Whole-query all-or-nothing: every native operator but a source/sink is Arrow → Arrow.

@@ -1938,7 +1938,10 @@ They fall back before stateful, ordering or exchange boundaries that have not ve
 representation. Sensitive inputs from other columnar producers also retain fallback until their
 cache/kind contract is verified, including an ordinary native Calc or transpose without the
 explicit representation layout. Arrays of nullable primitive elements can continue through ordinary native
-operators. These are representation gates even when the experimental option is enabled.
+operators. Representation-sensitive final results require a row sink: native sink rewrites
+with the extended layouts retain whole-query fallback until their writer contract is verified.
+Nullable primitive array results keep ordinary native sinks. These are representation gates
+even when the experimental option is enabled.
 
 ARRAY_SLICE uses inclusive, one-based Flink bounds. Negative positions count from the end;
 zero normalizes to the first element. NULL containers or bounds produce NULL. Whole slices retain

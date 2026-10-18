@@ -32,7 +32,9 @@ The planner captures the entry and generated-result Arrow schemas in serialized 
 specifications. Task JVM properties cannot change those layouts after planning. Connector schemas
 retain their ordinary layouts. Representation-sensitive inputs from other columnar producers and
 string/ROW/MAP-bearing or NOT NULL-element array results crossing unverified operator boundaries
-keep the host route. These schemas are scoped to generated collection programs; merely enabling
+keep the host route. Represented final results also require a row sink: native writer substitutions
+are declined until they verify the extended physical schema. Ordinary nullable primitive array
+outputs retain native sinks. These schemas are scoped to generated collection programs; merely enabling
 the experimental switch does not change other operators' schemas.
 
 Arrow Java 18.3 requires a non-nullable map-key field declaration. The existing declaration stays,
