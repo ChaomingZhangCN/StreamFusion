@@ -18,14 +18,16 @@
 
 package tech.streamfusion.arrow.vectors;
 
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.columnar.ColumnarMapData;
 import org.apache.flink.table.data.columnar.vector.ColumnVector;
 import org.apache.flink.table.data.columnar.vector.MapColumnVector;
 import org.apache.flink.util.Preconditions;
-
-import org.apache.arrow.vector.complex.MapVector;
+import tech.streamfusion.arrow.NestedRepresentation;
+import tech.streamfusion.arrow.RepresentedArrayData;
 
 /** Arrow column vector for Map. */
 @Internal
@@ -37,12 +39,16 @@ public final class ArrowMapColumnVector implements MapColumnVector {
     private final ColumnVector keyVector;
 
     private final ColumnVector valueVector;
+    private final boolean represented;
 
     public ArrowMapColumnVector(
             MapVector mapVector, ColumnVector keyVector, ColumnVector valueVector) {
         this.mapVector = Preconditions.checkNotNull(mapVector);
         this.keyVector = Preconditions.checkNotNull(keyVector);
         this.valueVector = Preconditions.checkNotNull(valueVector);
+        represented =
+                NestedRepresentation.requiresView(keyVector)
+                        || NestedRepresentation.requiresView(valueVector);
     }
 
     @Override
@@ -50,7 +56,23 @@ public final class ArrowMapColumnVector implements MapColumnVector {
         int index = i * MapVector.OFFSET_WIDTH;
         int offset = mapVector.getOffsetBuffer().getInt(index);
         int numElements = mapVector.getInnerValueCountAt(i);
-        return new ColumnarMapData(keyVector, valueVector, offset, numElements);
+        if (!represented) return new ColumnarMapData(keyVector, valueVector, offset, numElements);
+        return new MapData() {
+            @Override
+            public int size() {
+                return numElements;
+            }
+
+            @Override
+            public ArrayData keyArray() {
+                return new RepresentedArrayData(keyVector, offset, numElements);
+            }
+
+            @Override
+            public ArrayData valueArray() {
+                return new RepresentedArrayData(valueVector, offset, numElements);
+            }
+        };
     }
 
     @Override

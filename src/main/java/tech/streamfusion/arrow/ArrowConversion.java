@@ -73,12 +73,14 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
+import org.apache.flink.table.types.logical.StructuredType;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.table.types.logical.YearMonthIntervalType;
+import org.apache.flink.table.types.logical.utils.LogicalTypeChecks;
 import org.apache.flink.table.types.logical.utils.LogicalTypeDefaultVisitor;
 import tech.streamfusion.arrow.vectors.ArrowArrayColumnVector;
 import tech.streamfusion.arrow.vectors.ArrowBigIntColumnVector;
@@ -134,11 +136,33 @@ public final class ArrowConversion {
 
   /** The Arrow schema for a row type, with the two-component timestamp convention above. */
   public static Schema toArrowSchema(RowType rowType) {
+    return schema(rowType, false, false);
+  }
+
+  public static Schema toArrowInputSchema(RowType rowType, boolean preserve) {
+    return schema(rowType, preserve, true);
+  }
+
+  private static Schema schema(RowType rowType, boolean preserve, boolean input) {
     List<Field> fields =
         rowType.getFields().stream()
-            .map(f -> toArrowField(f.getName(), f.getType()))
+            .map(f -> toArrowField(f.getName(), f.getType(), input, preserve))
             .collect(Collectors.toCollection(ArrayList::new));
     return new Schema(fields);
+  }
+
+  /** Synthetic complete-Calc envelope: its children are top-level SQL outputs. */
+  public static Schema toArrowRowResultSchema(RowType rowType) {
+    return toArrowRowResultSchema(rowType, false);
+  }
+
+  public static Schema toArrowRowResultSchema(RowType rowType, boolean preserve) {
+    return new Schema(
+        List.of(
+            new Field(
+                "result",
+                FieldType.nullable(ArrowType.Struct.INSTANCE),
+                schema(rowType, preserve, true).getFields())));
   }
 
   /**
@@ -156,22 +180,43 @@ public final class ArrowConversion {
   }
 
   private static Field toArrowField(String fieldName, LogicalType logicalType) {
+    return toArrowField(fieldName, logicalType, false, false);
+  }
+
+  private static Field toArrowField(
+      String fieldName, LogicalType logicalType, boolean nested, boolean preserve) {
+    if (nested
+        && preserve
+        && (logicalType instanceof VarCharType || logicalType instanceof CharType))
+      return NestedRepresentation.stringField(fieldName, logicalType.isNullable());
     FieldType fieldType =
-        new FieldType(
-            logicalType.isNullable(), logicalType.accept(TypeConverter.INSTANCE), null);
+        new FieldType(logicalType.isNullable(), logicalType.accept(TypeConverter.INSTANCE), null);
+    if (preserve && logicalType instanceof ArrayType)
+      fieldType =
+          new FieldType(
+              logicalType.isNullable(),
+              ArrowType.List.INSTANCE,
+              null,
+              java.util.Map.of(NestedRepresentation.ARRAY, "1"));
     List<Field> children = null;
     if (logicalType instanceof TimestampType || logicalType instanceof LocalZonedTimestampType) {
       children = TimestampAccessor.fields();
     } else if (logicalType instanceof ArrayType) {
+      var element = ((ArrayType) logicalType).getElementType();
       children =
           Collections.singletonList(
-              toArrowField("element", ((ArrayType) logicalType).getElementType()));
-    } else if (logicalType instanceof RowType) {
-      RowType rowType = (RowType) logicalType;
-      children = new ArrayList<>(rowType.getFieldCount());
-      for (RowType.RowField field : rowType.getFields()) {
-        children.add(toArrowField(field.getName(), field.getType()));
+              preserve && !element.isNullable()
+                  ? NestedRepresentation.elementField(
+                      toArrowField("value", element.copy(true), true, true))
+                  : toArrowField("element", element, true, preserve));
+    } else if (logicalType instanceof RowType || logicalType instanceof StructuredType) {
+      List<String> names = LogicalTypeChecks.getFieldNames(logicalType);
+      List<LogicalType> types = LogicalTypeChecks.getFieldTypes(logicalType);
+      children = new ArrayList<>(types.size());
+      for (int i = 0; i < types.size(); i++) {
+        children.add(toArrowField(names.get(i), types.get(i), true, preserve));
       }
+      if (preserve) children.add(NestedRepresentation.kindField(children));
     } else if (logicalType instanceof MapType || logicalType instanceof MultisetType) {
       // A MAP, or a MULTISET carried as MAP<element, count> (mapKeyValue resolves which).
       LogicalType[] kv = mapKeyValue(logicalType);
@@ -181,10 +226,10 @@ public final class ArrowConversion {
                   "items",
                   new FieldType(false, ArrowType.Struct.INSTANCE, null),
                   Arrays.asList(
-                      // Map keys are non-null in Flink's data model; force it so the decoder builds a
-                      // non-nullable key (a nullable one is rejected when read back as MapData).
-                      toArrowField("key", kv[0].copy(false)),
-                      toArrowField("value", kv[1]))));
+                      // Arrow Java requires this key-field declaration. Flink's NULL-key
+                      // validity is retained by the vectors and the verified collection readers.
+                      toArrowField("key", kv[0].copy(false), true, preserve),
+                      toArrowField("value", kv[1], true, preserve))));
     }
     return new Field(fieldName, fieldType, children);
   }
@@ -201,6 +246,10 @@ public final class ArrowConversion {
   }
 
   private static boolean readsAs(Field actual, Field expected) {
+    if (NestedRepresentation.isElement(actual))
+      return readsAs(actual.getChildren().get(0), expected);
+    if (NestedRepresentation.isString(actual) && expected.getType() instanceof ArrowType.Utf8)
+      return true;
     ArrowType actualType = actual.getType();
     ArrowType expectedType = expected.getType();
     if ((actualType instanceof ArrowType.Timestamp || TimestampAccessor.isComponentTimestamp(actual))
@@ -213,6 +262,12 @@ public final class ArrowConversion {
       return false;
     }
     List<Field> actualChildren = actual.getChildren();
+    if (actualChildren.size() == expected.getChildren().size() + 1
+        && actualChildren
+            .get(actualChildren.size() - 1)
+            .getMetadata()
+            .containsKey("streamfusion.nested-row-kind"))
+      actualChildren = actualChildren.subList(0, actualChildren.size() - 1);
     List<Field> expectedChildren = expected.getChildren();
     if (actualChildren.size() != expectedChildren.size()) {
       return false;
@@ -225,7 +280,9 @@ public final class ArrowConversion {
     return true;
   }
 
-  /** A reader that exposes the batch's rows as {@link RowData} backed directly by the Arrow buffers. */
+  /**
+   * A reader that exposes the batch's rows as {@link RowData} backed directly by the Arrow buffers.
+   */
   public static ArrowReader createArrowReader(VectorSchemaRoot root, RowType rowType) {
     List<ColumnVector> columnVectors = new ArrayList<>();
     List<FieldVector> fieldVectors = root.getFieldVectors();
@@ -313,17 +370,29 @@ public final class ArrowConversion {
           createColumnVector(structVector.getChild(MapVector.VALUE_NAME), valueType));
     } else if (vector instanceof ListVector) {
       ListVector listVector = (ListVector) vector;
+      var data = listVector.getDataVector();
+      var carrier = NestedRepresentation.isElement(data.getField()) ? (StructVector) data : null;
       return new ArrowArrayColumnVector(
           listVector,
-          createColumnVector(listVector.getDataVector(), ((ArrayType) fieldType).getElementType()));
+          createColumnVector(
+              carrier == null ? data : carrier.getChild("value"),
+              ((ArrayType) fieldType).getElementType()),
+          ((ArrayType) fieldType).getElementType(),
+          carrier == null ? null : (TinyIntVector) carrier.getChild("array_copy_class"));
     } else if (vector instanceof StructVector) {
       StructVector structVector = (StructVector) vector;
-      ColumnVector[] fieldColumns = new ColumnVector[structVector.size()];
+      if (NestedRepresentation.isString(vector.getField()))
+        return new NestedStringColumnVector(structVector);
+      ColumnVector[] fieldColumns = new ColumnVector[LogicalTypeChecks.getFieldCount(fieldType)];
       for (int i = 0; i < fieldColumns.length; ++i) {
         fieldColumns[i] =
-            createColumnVector(structVector.getVectorById(i), ((RowType) fieldType).getTypeAt(i));
+            createColumnVector(
+                structVector.getVectorById(i), LogicalTypeChecks.getFieldTypes(fieldType).get(i));
       }
-      return new ArrowRowColumnVector(structVector, fieldColumns);
+      return new ArrowRowColumnVector(
+          structVector,
+          fieldColumns,
+          LogicalTypeChecks.getFieldTypes(fieldType).toArray(LogicalType[]::new));
     } else if (vector instanceof NullVector) {
       return ArrowNullColumnVector.INSTANCE;
     } else {
@@ -333,6 +402,8 @@ public final class ArrowConversion {
 
   private static ArrowFieldWriter<RowData> createArrowFieldWriterForRow(
       ValueVector vector, LogicalType fieldType) {
+    if (NestedRepresentation.isString(vector.getField()))
+      return tech.streamfusion.arrow.writers.NestedStringWriter.forRow((StructVector) vector);
     if (vector instanceof TinyIntVector) {
       return TinyIntWriter.forRow((TinyIntVector) vector);
     } else if (vector instanceof SmallIntVector) {
@@ -383,13 +454,14 @@ public final class ArrowConversion {
       ListVector listVector = (ListVector) vector;
       LogicalType elementType = ((ArrayType) fieldType).getElementType();
       return ArrayWriter.forRow(
-          listVector, createArrowFieldWriterForArray(listVector.getDataVector(), elementType));
+              listVector, createArrowFieldWriterForArray(listVector.getDataVector(), elementType))
+          .preserveArrayCopySemantics(elementType);
     } else if (vector instanceof StructVector) {
-      RowType rowType = (RowType) fieldType;
-      ArrowFieldWriter<RowData>[] fieldsWriters = new ArrowFieldWriter[rowType.getFieldCount()];
+      List<LogicalType> types = LogicalTypeChecks.getFieldTypes(fieldType);
+      ArrowFieldWriter<RowData>[] fieldsWriters = new ArrowFieldWriter[types.size()];
       for (int i = 0; i < fieldsWriters.length; i++) {
         fieldsWriters[i] =
-            createArrowFieldWriterForRow(((StructVector) vector).getVectorById(i), rowType.getTypeAt(i));
+            createArrowFieldWriterForRow(((StructVector) vector).getVectorById(i), types.get(i));
       }
       return RowWriter.forRow((StructVector) vector, fieldsWriters);
     } else if (vector instanceof NullVector) {
@@ -401,6 +473,12 @@ public final class ArrowConversion {
 
   private static ArrowFieldWriter<ArrayData> createArrowFieldWriterForArray(
       ValueVector vector, LogicalType fieldType) {
+    if (NestedRepresentation.isElement(vector.getField()))
+      return new tech.streamfusion.arrow.writers.ArrayElementWriter(
+          (StructVector) vector,
+          createArrowFieldWriterForArray(((StructVector) vector).getChild("value"), fieldType));
+    if (NestedRepresentation.isString(vector.getField()))
+      return tech.streamfusion.arrow.writers.NestedStringWriter.forArray((StructVector) vector);
     if (vector instanceof TinyIntVector) {
       return TinyIntWriter.forArray((TinyIntVector) vector);
     } else if (vector instanceof SmallIntVector) {
@@ -451,15 +529,16 @@ public final class ArrowConversion {
       ListVector listVector = (ListVector) vector;
       LogicalType elementType = ((ArrayType) fieldType).getElementType();
       return ArrayWriter.forArray(
-          listVector, createArrowFieldWriterForArray(listVector.getDataVector(), elementType));
+              listVector, createArrowFieldWriterForArray(listVector.getDataVector(), elementType))
+          .preserveArrayCopySemantics(elementType);
     } else if (vector instanceof StructVector) {
-      RowType rowType = (RowType) fieldType;
-      // A struct's children are always read as a RowData, even when the struct sits inside an array.
-      ArrowFieldWriter<RowData>[] fieldsWriters = new ArrowFieldWriter[rowType.getFieldCount()];
+      List<LogicalType> types = LogicalTypeChecks.getFieldTypes(fieldType);
+      // A struct's children are always read as a RowData, even when the struct sits inside an
+      // array.
+      ArrowFieldWriter<RowData>[] fieldsWriters = new ArrowFieldWriter[types.size()];
       for (int i = 0; i < fieldsWriters.length; i++) {
         fieldsWriters[i] =
-            createArrowFieldWriterForRow(
-                ((StructVector) vector).getVectorById(i), rowType.getTypeAt(i));
+            createArrowFieldWriterForRow(((StructVector) vector).getVectorById(i), types.get(i));
       }
       return RowWriter.forArray((StructVector) vector, fieldsWriters);
     } else if (vector instanceof NullVector) {
@@ -473,8 +552,11 @@ public final class ArrowConversion {
     return decimalVector.getPrecision();
   }
 
-  /** Maps each Flink logical type to its Arrow type — see {@code ArrowUtils.LogicalTypeToArrowTypeConverter},
-   * with lossless timestamp components (the divergence documented on the class). */
+  /**
+   * Maps each Flink logical type to its Arrow type — see {@code
+   * ArrowUtils.LogicalTypeToArrowTypeConverter}, with lossless timestamp components (the divergence
+   * documented on the class).
+   */
   private static final class TypeConverter extends LogicalTypeDefaultVisitor<ArrowType> {
     private static final TypeConverter INSTANCE = new TypeConverter();
 
@@ -579,6 +661,11 @@ public final class ArrowConversion {
 
     @Override
     public ArrowType visit(RowType rowType) {
+      return ArrowType.Struct.INSTANCE;
+    }
+
+    @Override
+    public ArrowType visit(StructuredType structuredType) {
       return ArrowType.Struct.INSTANCE;
     }
 

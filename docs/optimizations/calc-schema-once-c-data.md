@@ -23,3 +23,14 @@ The 2-million-event exactly-once Kafka Q8 timing remained within run-to-run nois
 before and 1.499 seconds after, while the adjacent Flink baseline moved from 1.617 to 1.845 seconds.
 The optimization is retained because it removes measured allocator and schema-tree work without
 changing batch contents, but no end-to-end Q8 gain is claimed from that noisy pair.
+
+JVM row-result registration computes and retains its immutable Arrow schema once per task.
+The entry transpose likewise captures a serialized input schema before task execution and parses
+it once at open. Later batches reuse those schemas instead of repeatedly decoding Flatbuffers or
+rebuilding field trees. Explicit nested-representation layouts therefore cannot change with task
+JVM configuration. No isolated speedup is claimed for these additional caches.
+
+Represented nested-row vectors retain one row reader for the batch lifetime rather than constructing
+new column-batch and row wrappers for every element getter. Each returned nested row is materialized
+before the reader moves to another index. This preserves ownership while removing repeated adapter
+construction; no isolated throughput gain is claimed.
