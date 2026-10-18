@@ -105,7 +105,7 @@ class FlinkComputedUnnestSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void computedMapConstructorRetainsRepresentationFallback(boolean ordinality) {
+  void computedMapConstructorRetainsTheReleasedRepresentation(boolean ordinality) {
     Assumptions.assumeTrue(
         !ordinality || FlinkTestCapabilities.UNNEST_ORDINALITY,
         "Flink 1.18 cannot plan UNNEST WITH ORDINALITY");
@@ -117,7 +117,7 @@ class FlinkComputedUnnestSqlHarnessTest {
             + (ordinality ? " WITH ORDINALITY AS u(mk, mv, o)" : " AS u(mk, mv)");
     try (var metrics = new RecoveryExecutionMetrics()) {
       var comparison = NativeFailureParity.run(() -> environment(false, metrics), sql);
-      comparison.assertSuccess(NativeFailureParity.Route.FALLBACK);
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
       if (ordinality) assertEquals(comparison.host().rows(), comparison.nativeRun().rows());
       assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
     }

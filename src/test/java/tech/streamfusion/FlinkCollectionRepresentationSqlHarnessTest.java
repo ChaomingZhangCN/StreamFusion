@@ -149,6 +149,21 @@ public class FlinkCollectionRepresentationSqlHarnessTest {
     NativeParity.assertKindedParity(() -> environment(true), sql);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"MAP['x',id,'y',id+1]", "MAP[id,nn[2]]", "MAP[id,nn[1]]"})
+  void generatedExpansionPreservesContainerGettersAndSkipsUnreadFields(String operand) {
+    var runs =
+        NativeFailureParity.run(
+            FlinkCollectionRepresentationSqlHarnessTest::environment,
+            "SELECT id,mk,mv FROM src CROSS JOIN UNNEST(" + operand + ") AS u(mk,mv)");
+    if (runs.host().failure() == null) runs.assertSuccess(NativeFailureParity.Route.NATIVE);
+    else
+      runs.assertFailure(
+          runs.host().rootCause().getClass(),
+          runs.host().phase(),
+          NativeFailureParity.Route.NATIVE);
+  }
+
   private static TableEnvironment environment() {
     return environment(false);
   }

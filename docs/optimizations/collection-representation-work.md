@@ -143,3 +143,130 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench \
 Run profiles serially, outside other builds/tests/timings. Prior-code controls use identical
 fixtures in the frozen revision and `-Dunnest.expectNative=false`. Native fixture validation uses
 `python3 bin/bench-native.py --bench data_movement --bench collection_expressions --features mimalloc --filter 'unnest|array_constructor' --smoke`.
+
+## Generated builtin expansion and owned binary ROW output
+
+Computed MAPs and representation-sensitive ARRAYs can expand with Flink's released correlate
+generator while remaining inside an Arrow island. This retains the host's constructor, iterator,
+predicate and serializer behavior. Source projection removes unused columns before the input
+transpose, and the generated output writer receives only the selected correlate columns. LEFT
+element predicates use the same generator so unmatched rows receive padding after filtering.
+Simple collections retain the existing Arrow take kernel.
+
+Nested binary ROW output carries an owned byte payload alongside the ordinary Arrow children
+and representation tag. Both BinaryRowData and NestedRowData use this cache; they are separate
+Flink classes. The ordinary reader preserves each class's serializer-copy behavior. An immediate
+row exit can instead feed the owned payload into Flink's generated binary projection, avoiding
+recursive field reconstruction. It checks every non-null ROW in the batch first. Generic rows,
+missing payloads and schemas requiring other representation-sensitive scalar conversions keep
+the ordinary exit path. The payload and its metadata survive Arrow IPC and changelog filtering.
+
+UTF-16 caches use checked bulk copies between reusable heap scratch capped at 8 KiB and Arrow's owned UInt16
+buffers. A read copies into an owned Java string. This follows Comet's bulk owned-copy pattern
+without keeping a native pointer beyond the copy. The code preserves code units directly,
+including isolated surrogates, and marks the contiguous non-null child range in one operation.
+Scalar cache sidecars allocate only when a Java cache is present; binary-only columns omit the
+sidecar. Late cache creation fills earlier rows with NULL and retains the original logical field
+index in metadata. Empty Java strings remain present caches, distinct from missing caches.
+
+The first two-million-row, four-entry ROW-valued MAP implementation took **4.956 s native versus
+3.828 s stock**. CPU sampling found nested serializer copies and row-reader reconstruction in the
+generated expansion path. A prototype that cached only BinaryRowData still took **5.005 s versus
+3.856 s stock**: map values arrive as NestedRowData. Supporting both classes and checking the
+immediate binary exit reduced the native median to **3.352 s versus 3.954 s stock**, with the
+native range 3.257–3.519 s below the stock range 3.882–3.955 s. The actual preceding StreamFusion
+revision, `8eb53c8b`, took 3.850 s with its separately paired stock control at 3.842 s.
+
+These complete jobs retain the runtime row source, both transposes, generated evaluation,
+production IPC and row blackhole sink. They use released Flink 2.2.1, JDK 17,
+release/mimalloc, parallelism one, 2 GiB heap, New York time zone, 1,024-row batches, two warmup
+pairs and three alternating measured pairs. Cluster creation and initial explain are outside
+timing; execution-time planning, deployment and processing remain inside. Startup effects and
+separate-JVM control drift limit fine comparisons. Profiled durations do not enter the medians.
+
+Final primary comparisons use two million source rows, four entries per constructor/array,
+eight-byte source strings and 4,096 distinct source IDs/values. COUNT groups by the four constant
+MAP keys, so this is not a high-cardinality aggregate benchmark. Its gain includes the existing
+native COUNT consumer admitted by the new expansion path.
+
+| Flink / query | Stock median, s | Native median, s | Prior median, s |
+| --- | ---: | ---: | ---: |
+| 2.2.1 / numeric MAP | 2.752839 | 1.324524 | 2.753661 |
+| 2.2.1 / numeric MAP then COUNT | 2.766744 | 1.807041 | 2.459782 |
+| 2.2.1 / STRING MAP | 4.226764 | 3.674639 | 4.209884 |
+| 2.2.1 / ROW-valued MAP | 3.870142 | 3.257920 | 3.849882 |
+| 2.2.1 / STRING ARRAY | 2.877080 | 2.353109 | 2.838102 |
+| 2.2.1 / LEFT element predicate | 1.124207 | 0.677199 | 1.148685 |
+| 1.18.1 / numeric MAP | 2.574973 | 1.256267 | 2.578673 |
+| 1.18.1 / numeric MAP then COUNT | 2.477214 | 1.808772 | 2.482529 |
+| 1.18.1 / STRING MAP | 4.062077 | 3.618422 | 4.193982 |
+| 1.18.1 / STRING ARRAY | 2.847182 | 2.393280 | 2.782944 |
+
+Every candidate range in this primary matrix is below its paired stock range. Prior runs use
+separate JVMs: for example, the 2.2 COUNT control's paired stock median was 2.536701 s, compared
+with 2.766744 s in the candidate invocation. The raw controls expose this drift; the table does
+not isolate the contribution of each optimization. Flink 1.18 does not plan the tested ROW MAP
+and LEFT-predicate signatures, so those are host restrictions rather than missing comparisons.
+
+Larger/wider Flink 2.2.1 cases retain the same resources and trial method. Cardinality below
+means source IDs/values; COUNT still groups by constant MAP keys.
+
+| Query / source rows / entries / string bytes / cardinality | Stock median, s | Native median, s | Prior median, s |
+| --- | ---: | ---: | ---: |
+| Numeric MAP / 8M / 2 / 8 / 65,536 | 6.445106 | 2.917515 | 6.335352 |
+| Updating numeric MAP then COUNT / 2M / 4 / 8 / 65,536 | 2.781754 | 1.750737 | 2.708050 |
+| Updating STRING MAP / 1M / 4 / 128 / 64 | 2.013133 | 1.947118 | 2.031207 |
+| ROW-valued MAP / 1M / 8 / 64 / 4,096 | 3.856058 | 3.348729 | 3.798793 |
+| Updating STRING ARRAY / 2M / 8 / 32 / 65,536 | 4.102884 | 3.576732 | 4.064715 |
+| Updating LEFT predicate / 4M / 8 / 8 / 64 | 3.164162 | 1.858234 | 3.063368 |
+| Updating STRING MAP / 4M / 4 / 128 / 64 | 7.692732 | 7.401638 | 7.654708 |
+
+The initial 128-byte updating STRING MAP lost at 2.366729 s versus 1.987632 s stock. Bulk UTF-16
+copies alone reduced it to 2.036470 s versus 2.010444 s stock, still a loss. Lazy scalar cache
+sidecars then removed unused Arrow vectors and unnecessary cache-aware output views. Writer
+scratch is bounded to 8 KiB, including for larger strings. The final one-million-row ranges
+overlap; its modest median gain is not a robust throughput claim. The matching four-million-row
+confirmation has native range **7.385885–7.515359 s**, below stock **7.676251–7.729726 s** and
+prior **7.620529–7.659227 s**. All 17 final candidate medians beat stock and prior behavior.
+
+The [full trial artifact](../benchmarks/results/generated-unnest-2026-10-18.json) retains all
+54 profiles and 540 complete unprofiled jobs: warmups, initial losses, intermediate attempts,
+final candidate runs and actual prior-code controls on both Flink lines. The source still
+constructs nullable strings and nullable/empty arrays even when a query does not read them.
+Updating profiles emit all four source RowKinds. Every candidate checks both transposes,
+native plans and consumed rows; prior controls require zero native substitutions.
+
+The [CPU profile artifact](../benchmarks/results/generated-unnest-profiles-2026-10-18.json)
+retains four profiles and their 16 diagnostic jobs separately. In the matching wide-string
+captures, cache-reader inclusive samples fall from 375 to 106 and nested string-writer samples
+from 579 to 201. Counts overlap and include startup, planning and both engines; they are not
+allocation counts or copied bytes. Sample totals come from the complete flamegraph root,
+including its initial compressed record and every JVM thread.
+
+Validation passes 324 selected checks on Flink 2.2.1, including two additional chained ROW/Calc
+equality cases after the 322-check suite. Flink 1.18.1 verifies 265 checks with 59 version skips;
+the eight UTF-16 unit checks were rerun after correcting two test expectations for Arrow's
+allocation-error wrapping. Coverage includes repeated restores on both state backends,
+changelog propagation, watermark-carried caches, malformed UTF-16, late cache allocation,
+buffer growth, quota rejection cleanup, IPC and owned values after the source/root closes.
+
+The [native allocation records](../benchmarks/results/generated-unnest-allocations-2026-10-18.csv)
+cover 18 release fixtures through production IPC encode/decode and UPDATE_BEFORE filtering:
+16/1,024/16,384 rows, widths 8/264, NULL parent rows, missing/generic payloads and all four
+root RowKinds. These counters report allocation requests and output buffer sharing, not copied
+bytes. Fixture setup is excluded from native timing; the complete jobs retain Java conversion.
+
+Reproduce a complete-job case after building the release native library:
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench \
+  -Dtest=GeneratedUnnestBenchmark -Dsf.testForks=1 \
+  '-Dsf.extraJvmArgs=-Xmx2g -Duser.timezone=America/New_York' \
+  -Dgenerated.shape=map_row -Dgenerated.rows=2000000 \
+  -Dgenerated.entries=4 -Dgenerated.bytes=8 -Dgenerated.keys=4096 \
+  -Dgenerated.warmup=2 -Dgenerated.runs=3
+```
+
+Prior-code controls copy only the same fixture into the frozen revision and set
+`-Dgenerated.expectNative=false`. Native fixture validation uses
+`python3 bin/bench-native.py --bench data_movement --features mimalloc --filter cached_rows --smoke`.

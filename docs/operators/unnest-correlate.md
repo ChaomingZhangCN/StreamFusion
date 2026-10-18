@@ -15,12 +15,28 @@ table functions run inside columnar islands. Other shapes retain fallback (see
 - `MAP` (unnested to key + value columns), or
 - `MULTISET` (unnested to the element, repeated by its count),
 
-optionally with `WITH ORDINALITY`, and — for the INNER case — including a pushed element filter.
+optionally with `WITH ORDINALITY`, including pushed element predicates for INNER and LEFT joins.
 
 The operand may be a direct column, a nested array field, or an encodable computed ARRAY such as
 `ARRAY[values_array[1], id]` or `ARRAY_APPEND(values_array, id)`. Sequential UNNESTs compose. LEFT
 `ON TRUE` followed by a separate encodable WHERE filter also composes; the WHERE remains a filter
 after expansion.
+
+Computed MAPs, STRING/ROW/MAP-bearing ARRAYs and LEFT element predicates use the released Flink
+correlate generator inside an Arrow-input/Arrow-output operator. This preserves the host's map
+constructor ordering, duplicate-key policy, generic/binary container behavior and LEFT padding
+after predicate evaluation. It covers verified builtin expressions; it does not expand admission
+for user functions. The existing Arrow take kernel remains the first choice for ordinary direct
+collections and native scalar ARRAY operands. The
+`streamfusion.experimental.collectionExpressions` switch also controls computed collection
+operands on the generated route; `streamfusion.operator.unnest.enabled` controls both routes.
+
+The source transpose preserves collection representation and can prune unused input columns before
+generated expansion. Generated collection Calc results and other generated expansions are verified
+inputs; DropUpdateBefore, mini-batch assignment and watermark assignment preserve that contract.
+Complex nested outputs require a verified preserving consumer or a final row boundary. Unverified
+state, ordering, exchange and native-sink boundaries retain whole-query fallback. Scalar expanded
+values can feed ordinary native aggregates, including checkpoint/recovery.
 
 Scalar ARRAY constructors consumed here use the native constructor for resolved homogeneous
 integer, floating, Boolean, decimal, DATE, TIME and timestamp elements. FLOAT/DOUBLE values retain
@@ -55,17 +71,19 @@ error for NULL ROW elements; they must not silently produce a different result n
 
 - **JVM table functions outside the verified STRING/INT/BIGINT boundary**, specialized functions,
   Python/async functions and legacy SQL wrappers retain fallback.
-- **`UNNEST` with a pushed condition the expression engine can't encode**, or **any condition over
-  a LEFT `UNNEST`** other than the ordinary `ON TRUE` shape, falls back.
-- **Computed collection operands requiring preserved opaque collection representation**, including
-  MAP constructors, retain fallback. The whole-query collection representation gate can also
-  decline queries whose upstream computed collection requires that representation.
+- **Types outside the Arrow bridge, user expressions outside their existing admission gates,
+  or an unverified collection producer/consumer boundary** retain fallback. A builtin condition
+  can use generated evaluation when it cannot use the Arrow expression engine.
 - **Nullable ROW elements with ordinality** retain fallback unless the element has exactly one
   nullable field, as described above.
 
 Flink 1.18 cannot plan `WITH ORDINALITY`. Both released lines reject some TIME(3) casts inside
 UNNEST during host planning (TIME(3)/TIME(0) type assertion); native substitution does not bypass
 that error. Multi-operand UNNEST also remains subject to the released host planner's restrictions.
+Flink 1.18 cannot plan nontrivial LEFT element predicates or some nested MAP/ROW constructor
+signatures. Its nonliteral TINYINT-key MAP constructor can fail in generated initialization.
+Flink 2.2 rejects LEFT predicates referencing outer columns (for example `ON element > id`).
+These host planning/initialization failures remain unchanged; they are not acceleration gaps.
 
 An unsupported shape falls the operator back, dragging the whole query with it per the
 [all-or-nothing island rule](index.md#the-all-or-nothing-island). See
@@ -74,6 +92,29 @@ An updating source may insert [DropUpdateBefore](drop-update-before.md) before U
 consumer omits update-before images. That surrounding filter runs columnarly inside the native
 chain and no longer prevents an otherwise admitted UNNEST from accelerating. Its page records
 exact changelog/recovery validation and complete-job comparisons against the preceding fallback.
+
+## Generated builtin validation and performance
+
+The generated expansion and its shared conversion paths pass 324 selected checks on Flink 2.2.1;
+Flink 1.18.1 verifies 265 checks with 59 version skips. Coverage includes constructor ordering
+and duplicate keys, NULL/empty containers, LEFT predicates, repeated/empty projections, exact
+getter failures, ROW equality across chained expansions, watermark-carried caches and all four
+RowKinds. COUNT/SUM consumers survive two restores on both memory and native RocksDB state.
+Owned binary ROW and UTF-16 tests cover IPC, source mutation/closure, allocation failure and
+late cache creation.
+
+All 17 final complete-job profiles beat both stock Flink and actual preceding revision `8eb53c8b`
+on median time, retaining runtime row sources, both transposes, production IPC and row sinks.
+Flink 2.2.1/JDK 17 examples include numeric MAP expansion at **1.325 s versus 2.753 s stock**,
+ROW-valued MAP at **3.258 s versus 3.870 s**, and LEFT element predicates at **0.677 s versus
+1.124 s**, each with two million source rows and four entries. The wider updating STRING MAP
+initially lost; checked bulk UTF-16 copies and lazy scalar cache sidecars reversed that loss.
+Its four-million-row confirmation is **7.402 s versus 7.693 s stock and 7.655 s prior**, with
+separated trial ranges. Smaller ranges can overlap, and separate-JVM controls expose drift.
+See the [method, full comparisons and profiles](../optimizations/collection-representation-work.md#generated-builtin-expansion-and-owned-binary-row-output)
+and [all 540 unprofiled jobs](../benchmarks/results/generated-unnest-2026-10-18.json), including
+the rejected intermediate implementations. Generated evaluation remains JVM work inside the
+Arrow island; these results do not imply every scalar expression runs in Rust.
 
 ## JVM table functions
 

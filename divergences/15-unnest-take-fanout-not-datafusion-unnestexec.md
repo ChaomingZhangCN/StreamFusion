@@ -37,8 +37,9 @@ condition indexes the table-function output, so its refs are shifted by the inpu
 `[input.., element]` output, then encoded by the expression engine and run as a `StreamPhysicalNativeFilter`
 on top of the unnest (it composes — no new operator). A LEFT (outer) unnest is supported: a row whose
 collection produces no element emits one row with the appended columns null (a null take index makes
-`take` emit null; the appended fields are relaxed to nullable). A condition the expression engine can't encode, and a pushed condition over a LEFT unnest (it changes
-outer semantics), fall back.
+`take` emit null; the appended fields are relaxed to nullable). A condition the expression engine
+cannot encode, or a pushed LEFT condition, uses the released Flink correlate generator when its
+types and representation boundary are verified, as described below.
 
 The physical node carries an optional logical-output projection. Pure projections and INNER
 filter projections compose this mapping, retaining predicate dependencies. Expansion builds row
@@ -52,9 +53,25 @@ hidden column; the expansion projection removes it. Homogeneous scalar ARRAY con
 released DataFusion's `make_array` kernel only at this immediate consumer, where Flink's generic
 versus binary container identity cannot escape. Compact timestamp construction still clears hidden
 nanoseconds to reproduce Flink's binary writer. Generated evaluation remains available for other
-expressions and representation-sensitive operands stay gated. Numeric epoch conversion and
+expressions. Numeric epoch conversion and
 TIMESTAMP_LTZ DATE/TIME extraction retain the released SQL range, signed Julian-date arithmetic
 and per-version TIME precision policy. Non-UTC casts use JDK ZoneRules offsets through the existing
 batch bridge, cached across transition intervals; arithmetic and array construction stay in Arrow.
 The total offset lookup is exempt from whole-Calc error-order fusion. Arbitrary JVM functions and
 fallible native expressions retain the existing scheduling safeguards.
+
+Representation-sensitive computed MAPs and ARRAYs use the released Flink correlate generator in
+an Arrow-input/Arrow-output wrapper. This is a second deliberate divergence from Arroyo's
+DataFusion-only expansion: Flink's generated constructors expose binary/generic container classes,
+map iteration order, duplicate-key behavior and nested serializer rules that a generic Arrow
+flatten cannot reproduce. The same generator preserves LEFT null padding after element predicates.
+Unused source fields and output columns are pruned; simple collections retain the take kernel.
+User function admission is unchanged. Sensitive complex values cannot cross unverified state,
+ordering, exchange or native-sink boundaries.
+
+Generated nested binary ROW output carries an owned byte payload alongside its ordinary Arrow
+children and representation tag. Comet's columnar-to-row boundary similarly uses an owned binary
+row representation for efficient handover; ours retains the Arrow columns for columnar consumers
+and IPC. An immediate row exit uses the cache only after checking the whole batch; generic rows
+and missing caches keep their existing representation-preserving readers. No borrowed native
+pointer escapes the input batch.

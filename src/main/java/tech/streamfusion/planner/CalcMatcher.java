@@ -76,6 +76,14 @@ final class CalcMatcher {
             .withProjection(calc.getTraitSet(), calc.getRowType(), projection);
       }
     }
+    if (input instanceof StreamPhysicalNativeGeneratedUnnest
+        && calc.getProgram().getCondition() == null) {
+      int[] projection = FilterCalcMatcher.projection(calc);
+      if (projection != null) {
+        return ((StreamPhysicalNativeGeneratedUnnest) input)
+            .withProjection(calc.getTraitSet(), calc.getRowType(), projection);
+      }
+    }
     if (input instanceof StreamPhysicalNativeTableFunction
         && calc.getProgram().getCondition() == null
         && !Boolean.getBoolean("streamfusion.experimental.tableFunctionKeepProjection")) {

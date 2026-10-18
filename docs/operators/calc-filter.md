@@ -1943,7 +1943,12 @@ caches. NOT NULL elements use an explicit carrier so a NULL first slot cannot hi
 The extended schemas belong only to generated collection programs and are serialized to tasks.
 Other operators and connector schemas keep their ordinary layouts.
 
-String/ROW/MAP-bearing and NOT NULL-element array results currently require a final projection or a fused consumer.
+The UTF-16 units move with checked bulk copies, preserving malformed surrogates. Optional scalar
+cache sidecars appear only in batches with a present Java cache; absent sidecars mean binary-only
+strings. A cache first seen later in the batch retains NULL entries for the earlier rows.
+
+String/ROW/MAP-bearing and NOT NULL-element array results currently require a final projection,
+a fused consumer or a verified generated [UNNEST](unnest-correlate.md) consumer.
 They fall back before stateful, ordering or exchange boundaries that have not verified this
 representation. Sensitive inputs from other columnar producers also retain fallback until their
 cache/kind contract is verified, including an ordinary native Calc or transpose without the
@@ -1952,6 +1957,13 @@ operators. Representation-sensitive final results require a row sink: native sin
 with the extended layouts retain whole-query fallback until their writer contract is verified.
 Nullable primitive array results keep ordinary native sinks. These are representation gates
 even when the experimental option is enabled.
+
+Generated UNNEST outputs can additionally carry an owned binary payload for nested binary ROWs.
+The helper is marked Arrow metadata outside SQL field ordinals and survives IPC. Readers retain
+BinaryRowData versus NestedRowData copy behavior; generic ROWs retain their string caches and
+serializer semantics. An immediate exit transpose can use the payload in Flink's binary projection
+only when every non-null ROW in that batch has a verified binary payload. Missing or generic
+payloads keep the ordinary reader path.
 
 ARRAY_SLICE uses inclusive, one-based Flink bounds. Negative positions count from the end;
 zero normalizes to the first element. NULL containers or bounds produce NULL. Whole slices retain

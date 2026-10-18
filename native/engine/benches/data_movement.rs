@@ -89,6 +89,117 @@ fn changelog_filtering(c: &mut Criterion) {
     group.finish();
 }
 
+fn cached_rows(c: &mut Criterion) {
+    use arrow::array::{Array, BinaryArray, Int8Array, StructArray};
+    use arrow::buffer::NullBuffer;
+    use arrow::datatypes::{DataType, Field, Schema};
+    use std::collections::HashMap;
+
+    header();
+    let mut group = c.benchmark_group("engine/cached_rows");
+    for rows in [16, 1024, 16384] {
+        for width in [8, 264] {
+            let text = "x".repeat(width);
+            let payloads = (0..rows)
+                .map(|row| {
+                    if row % 11 == 0 || row % 17 == 0 {
+                        return None;
+                    }
+                    let null = row % 7 == 0;
+                    let len = if null { 24 } else { (24 + width + 7) & !7 };
+                    let mut bytes = vec![0u8; len];
+                    bytes[0] = (row % 4) as u8;
+                    if null {
+                        bytes[1] = 1;
+                    } else {
+                        bytes[8..16]
+                            .copy_from_slice(&(((24u64) << 32) | width as u64).to_le_bytes());
+                        bytes[24..24 + width].copy_from_slice(text.as_bytes());
+                    }
+                    bytes[16..24].copy_from_slice(&(row as i64).to_le_bytes());
+                    Some(bytes)
+                })
+                .collect::<Vec<_>>();
+            let fields = vec![
+                Arc::new(Field::new("s", DataType::Utf8, true)),
+                Arc::new(Field::new("v", DataType::Int64, false)),
+                Arc::new(
+                    Field::new("__sf_binary_row", DataType::Binary, true).with_metadata(
+                        HashMap::from([("streamfusion.nested-row-binary".into(), "1".into())]),
+                    ),
+                ),
+                Arc::new(
+                    Field::new("__sf_nested_row_kind", DataType::Int8, true).with_metadata(
+                        HashMap::from([("streamfusion.nested-row-kind".into(), "1".into())]),
+                    ),
+                ),
+            ];
+            let cached: ArrayRef = Arc::new(StructArray::new(
+                fields.into(),
+                vec![
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|row| (row % 7 != 0).then_some(text.as_str())),
+                    )),
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)),
+                    Arc::new(BinaryArray::from_iter(
+                        payloads.iter().map(|value| value.as_deref()),
+                    )),
+                    Arc::new(Int8Array::from_iter_values((0..rows).map(|row| {
+                        (row % 4) as i8 | if payloads[row].is_some() { 16 } else { 0 }
+                    }))),
+                ],
+                Some(NullBuffer::from_iter((0..rows).map(|row| row % 17 != 0))),
+            ));
+            let schema = Arc::new(Schema::new(vec![
+                Field::new("value", cached.data_type().clone(), true),
+                Field::new("$row_kind$", DataType::Int8, false),
+            ]));
+            let input = RecordBatch::try_new(
+                schema,
+                vec![
+                    cached,
+                    Arc::new(Int8Array::from_iter_values(
+                        (0..rows).map(|row| (row % 4) as i8),
+                    )),
+                ],
+            )
+            .unwrap();
+            let encoded = encode_ipc(&input);
+            assert_eq!(decode_ipc(&encoded), vec![input.clone()]);
+            group.throughput(Throughput::Elements(rows as u64));
+            let label = format!("cached_row_ipc_encode/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| encode_ipc(&input));
+            report(&label, input.columns(), &[], allocations);
+            std::hint::black_box(output);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(encode_ipc(std::hint::black_box(&input))))
+            });
+            let label = format!("cached_row_ipc_decode/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| decode_ipc(&encoded));
+            report(&label, &[], output[0].columns(), allocations);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(decode_ipc(std::hint::black_box(&encoded))))
+            });
+            let label = format!("cached_row_drop_update_before/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| drop_update_before(&input));
+            assert_eq!(output.num_rows(), rows - rows / 4);
+            assert_eq!(output.schema(), input.schema());
+            let selected = arrow::array::UInt32Array::from_iter_values(
+                (0..rows).filter(|row| row % 4 != 1).map(|row| row as u32),
+            );
+            assert_eq!(
+                output,
+                arrow::compute::take_record_batch(&input, &selected).unwrap()
+            );
+            report(&label, input.columns(), output.columns(), allocations);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(drop_update_before(std::hint::black_box(&input))))
+            });
+        }
+    }
+    group.finish();
+}
+
 fn transformations(c: &mut Criterion) {
     header();
     let mut group = c.benchmark_group("engine/data_movement");
@@ -325,5 +436,11 @@ fn stateful(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, transformations, stateful, changelog_filtering);
+criterion_group!(
+    benches,
+    transformations,
+    stateful,
+    changelog_filtering,
+    cached_rows
+);
 criterion_main!(benches);

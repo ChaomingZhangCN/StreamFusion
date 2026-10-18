@@ -74,16 +74,22 @@ final class CollectionValueIdentity {
     if (!(node instanceof ColumnarOutput)) return false;
     if (node instanceof StreamPhysicalRowDataToArrow)
       return !((StreamPhysicalRowDataToArrow) node).preservesCollections();
+    if (node instanceof StreamPhysicalNativeGeneratedUnnest) return false;
     if (node instanceof StreamPhysicalNativeCalc
         && !((StreamPhysicalNativeCalc) node).preservesCollections()) return true;
     if (node instanceof StreamPhysicalNativeCalc
-        || node instanceof StreamPhysicalNativeMiniBatchAssigner)
+        || node instanceof StreamPhysicalNativeMiniBatchAssigner
+        || node instanceof StreamPhysicalNativeDropUpdateBefore
+        || node instanceof StreamPhysicalNativeWatermarkAssigner)
       return node.getInputs().stream()
           .anyMatch(CollectionValueIdentity::unverifiedColumnarProducer);
     return true;
   }
 
   static boolean requiresRowSink(RelNode node) {
+    if (node instanceof StreamPhysicalNativeGeneratedUnnest
+        && node.getRowType().getFieldList().stream().anyMatch(field -> sensitive(field.getType())))
+      return true;
     if (node instanceof StreamPhysicalNativeCalc) {
       var calc = (StreamPhysicalNativeCalc) node;
       if (calc.preservesCollections()
@@ -91,6 +97,27 @@ final class CollectionValueIdentity {
               .anyMatch(field -> sensitive(field.getType()))) return true;
     }
     return node.getInputs().stream().anyMatch(CollectionValueIdentity::requiresRowSink);
+  }
+
+  static boolean generatedUnnestCrossesBoundary(RelNode root, boolean finalOutput) {
+    return generatedUnnestCrossesBoundary(root, null, finalOutput);
+  }
+
+  private static boolean generatedUnnestCrossesBoundary(
+      RelNode node, RelNode parent, boolean finalOutput) {
+    if (node instanceof StreamPhysicalNativeGeneratedUnnest
+        && node.getRowType().getFieldList().stream()
+            .anyMatch(
+                field ->
+                    !org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER.contains(field.getType())
+                        && sensitive(field.getType()))
+        && !(parent == null && finalOutput)
+        && !(parent instanceof StreamPhysicalSink)
+        && !(parent instanceof StreamPhysicalNativeGeneratedUnnest)
+        && !(parent instanceof StreamPhysicalNativeCalc
+            && ((StreamPhysicalNativeCalc) parent).preservesCollections())) return true;
+    return node.getInputs().stream()
+        .anyMatch(input -> generatedUnnestCrossesBoundary(input, node, false));
   }
 
   static boolean crossesBoundary(RelNode root, boolean finalOutput) {
@@ -101,7 +128,13 @@ final class CollectionValueIdentity {
   private static boolean crossesBoundary(RelNode node, RelNode parent, boolean finalOutput) {
     if (node instanceof Calc
         && !(parent == null && finalOutput)
-        && !(parent instanceof StreamPhysicalSink)) {
+        && !(parent instanceof StreamPhysicalSink)
+        && !(parent
+                instanceof
+                org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate
+            && GeneratedUnnestMatcher.matches(
+                (org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate)
+                    parent))) {
       var program = ((Calc) node).getProgram();
       if (RexExpression.usesCollectionFunctions(program)
           && program.getProjectList().stream().anyMatch(ref -> sensitive(ref.getType())))

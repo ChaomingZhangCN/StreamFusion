@@ -9,7 +9,7 @@
       "width": 4,
       "warmups": 1,
       "measured_pairs": 1,
-      "total_samples": 7273,
+      "total_samples": 14193,
       "unnest_inclusive_samples": 622,
       "selected_inclusive_frames": {
         "NativeUdf.invokeUdf": 408,
@@ -32,7 +32,7 @@
       "width": 2,
       "warmups": 1,
       "measured_pairs": 1,
-      "total_samples": 7097,
+      "total_samples": 11965,
       "unnest_inclusive_samples": 59,
       "selected_inclusive_frames": {
         "NativeUdf.invokeUdf": 398,
@@ -55,7 +55,7 @@
       "width": 2,
       "warmups": 1,
       "measured_pairs": 1,
-      "total_samples": 14399,
+      "total_samples": 25289,
       "unnest_inclusive_samples": 105,
       "selected_inclusive_frames": {
         "NativeUdf.invokeUdf": 1029,
@@ -78,7 +78,7 @@
       "width": 2,
       "warmups": 1,
       "measured_pairs": 1,
-      "total_samples": 13202,
+      "total_samples": 23165,
       "unnest_inclusive_samples": 114,
       "selected_inclusive_frames": {
         "NativeUdf.invokeUdf": 0,
@@ -94,5 +94,6 @@
       },
       "profile_sha256": "436ccc1df17aaa4d27d2d28d4d4eda84518204a7e8b812f07a91b9133393aa5a"
     }
-  ]
+  ],
+  "sample_total_method": "Full flamegraph root count, including its initial compressed n() record and all JVM threads. Selected operator/kernel counts and unprofiled elapsed trials are unchanged."
 }

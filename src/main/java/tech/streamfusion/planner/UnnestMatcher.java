@@ -57,6 +57,7 @@ final class UnnestMatcher {
     RexCall unnest = (RexCall) call;
     if (unnest.getOperands().size() != 1) return false;
     if (unverifiedNullableRowOrdinality(correlate)) return false;
+    if (GeneratedUnnestMatcher.preservedInput(correlate.getInput())) return false;
     if (arrayColumn(correlate) < 0 && computedOperand(correlate) == null) return false;
     int inputArity = correlate.getInput().getRowType().getFieldCount();
     RelDataType collType = collectionType(correlate);
@@ -208,12 +209,12 @@ final class UnnestMatcher {
       return "UNNEST WITH ORDINALITY: nullable ROW elements require one nullable field;"
           + " other shapes retain released host failure behavior";
     }
-    return "correlate: only an INNER/LEFT UNNEST of a single ARRAY (scalar or ROW element), MAP, or"
-        + " MULTISET column, optionally WITH ORDINALITY, is supported — a non-encodable"
-        + " condition or a condition over a LEFT unnest fall back";
+    if (GeneratedUnnestMatcher.hasShape(correlate))
+      return GeneratedUnnestMatcher.unsupportedReason(correlate);
+    return "correlate: expected a single builtin UNNEST over ARRAY, MAP or MULTISET";
   }
 
-  private static boolean unverifiedNullableRowOrdinality(StreamPhysicalCorrelate correlate) {
+  static boolean unverifiedNullableRowOrdinality(StreamPhysicalCorrelate correlate) {
     RexNode invocation = correlate.scan().getCall();
     if (!(invocation instanceof RexCall)) return false;
     RexCall call = (RexCall) invocation;

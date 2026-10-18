@@ -212,6 +212,14 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
                   : "collection value representation requires a row sink");
       return root;
     }
+    if (CollectionValueIdentity.generatedUnnestCrossesBoundary(substituted, finalOutput)) {
+      substitutions = previousSubstitutions;
+      rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
+      recordFallback(
+          "generated UNNEST collection representation requires a final projection or fused"
+              + " consumer");
+      return root;
+    }
     // Whole-query all-or-nothing: every native operator but a source/sink is Arrow → Arrow.
     // If any operator other than a source (a leaf) or the sink (the plan root) is still row-wise,
     // the
@@ -229,7 +237,8 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
       substitutions = previousSubstitutions;
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
       recordFallback(
-          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow conversion overhead");
+          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow"
+              + " conversion overhead");
       return root;
     }
     // Pass 2 inserts a row↔columnar transpose at each perimeter edge (rowwise source/sink ↔
@@ -437,6 +446,13 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
         Substitution.of(StreamPhysicalCorrelate.class, "unnest", UnnestMatcher::substitute)
             .matching(UnnestMatcher::matches)
             .reason(UnnestMatcher::unsupportedReason)
+            .changelogSafe());
+
+    entries.add(
+        Substitution.of(StreamPhysicalCorrelate.class, "unnest", GeneratedUnnestMatcher::substitute)
+            .shaped(GeneratedUnnestMatcher::hasShape)
+            .matching(GeneratedUnnestMatcher::matches)
+            .reason(GeneratedUnnestMatcher::unsupportedReason)
             .changelogSafe());
 
     // GROUPING SETS / CUBE / ROLLUP expansion: fan each row out to one row per grouping set (copy
@@ -803,9 +819,13 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
 
   private RelNode insertTransitions(RelNode node, boolean preserveCollections) {
     boolean preserve =
-        node instanceof StreamPhysicalNativeCalc
+        node instanceof StreamPhysicalNativeGeneratedUnnest
+            || node instanceof StreamPhysicalNativeCalc
                 && ((StreamPhysicalNativeCalc) node).preservesCollections()
-            || preserveCollections && node instanceof StreamPhysicalNativeMiniBatchAssigner;
+            || preserveCollections
+                && (node instanceof StreamPhysicalNativeMiniBatchAssigner
+                    || node instanceof StreamPhysicalNativeDropUpdateBefore
+                    || node instanceof StreamPhysicalNativeWatermarkAssigner);
     List<RelNode> inputs = new ArrayList<>(node.getInputs().size());
     boolean changed = false;
     for (RelNode input : node.getInputs()) {

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -42,79 +41,78 @@ public final class StringCacheColumns {
   public static final class Writer implements AutoCloseable {
     private final List<Integer> fields = new ArrayList<>();
     private final List<ListVector> vectors = new ArrayList<>();
+    private final List<Utf16Cache.Writer> writers = new ArrayList<>();
+    private final BufferAllocator allocator;
 
     public Writer(RowType type, BufferAllocator allocator) {
-      try {
-        for (int field = 0; field < type.getFieldCount(); field++) {
-          switch (type.getTypeAt(field).getTypeRoot()) {
-            case CHAR:
-            case VARCHAR:
-              ListVector vector =
-                  new ListVector(
-                      name(field),
-                      allocator,
-                      new FieldType(
-                          true,
-                          ArrowType.List.INSTANCE,
-                          null,
-                          java.util.Map.of(METADATA_KEY, "v1")),
-                      null);
-              vectors.add(vector);
-              fields.add(field);
-              vector.initializeChildrenFromFields(
-                  List.of(
-                      new Field(
-                          "item", FieldType.notNullable(new ArrowType.Int(16, false)), null)));
-              vector.allocateNew();
-              break;
-            default:
-              break;
-          }
+      this.allocator = allocator;
+      for (int field = 0; field < type.getFieldCount(); field++) {
+        switch (type.getTypeAt(field).getTypeRoot()) {
+          case CHAR:
+          case VARCHAR:
+            fields.add(field);
+            vectors.add(null);
+            writers.add(null);
+            break;
+          default:
+            break;
         }
-      } catch (RuntimeException | Error failure) {
-        close();
-        throw failure;
       }
+    }
+
+    private Utf16Cache.Writer allocate(int slot, int position) {
+      var vector =
+          new ListVector(
+              name(fields.get(slot)),
+              allocator,
+              new FieldType(
+                  true, ArrowType.List.INSTANCE, null, java.util.Map.of(METADATA_KEY, "v1")),
+              null);
+      vectors.set(slot, vector);
+      vector.initializeChildrenFromFields(
+          List.of(new Field("item", FieldType.notNullable(new ArrowType.Int(16, false)), null)));
+      vector.allocateNew();
+      for (int previous = 0; previous < position; previous++) vector.setNull(previous);
+      var writer = new Utf16Cache.Writer(vector);
+      writers.set(slot, writer);
+      return writer;
     }
 
     public void write(RowData row, int position) {
       for (int slot = 0; slot < fields.size(); slot++) {
         int field = fields.get(slot);
-        ListVector vector = vectors.get(slot);
         String cache =
             row.isNullAt(field) ? null : ((BinaryStringData) row.getString(field)).getJavaObject();
-        if (cache == null) {
-          vector.setNull(position);
-        } else {
-          int start = vector.startNewValue(position);
-          UInt2Vector units = (UInt2Vector) vector.getDataVector();
-          for (int unit = 0; unit < cache.length(); unit++)
-            units.setSafe(start + unit, cache.charAt(unit));
-          vector.endValue(position, cache.length());
-        }
+        var writer = writers.get(slot);
+        if (writer == null && cache != null) writer = allocate(slot, position);
+        if (writer != null) writer.write(position, cache);
       }
     }
 
     public List<FieldVector> finish(int rows) {
-      for (ListVector vector : vectors) vector.setValueCount(rows);
-      return new ArrayList<>(vectors);
+      var result = new ArrayList<FieldVector>();
+      for (ListVector vector : vectors) {
+        if (vector == null) continue;
+        vector.setValueCount(rows);
+        result.add(vector);
+      }
+      return result;
     }
 
     @Override
     public void close() {
-      for (ListVector vector : vectors) vector.close();
+      for (ListVector vector : vectors) if (vector != null) vector.close();
       vectors.clear();
+      writers.clear();
     }
   }
 
   static BinaryStringData read(ListVector cache, int row, BinaryStringData binary) {
     if (cache == null || cache.isNull(row)) return null;
-    int start = cache.getElementStartIndex(row);
-    int end = cache.getElementEndIndex(row);
-    UInt2Vector units = (UInt2Vector) cache.getDataVector();
-    char[] text = new char[end - start];
-    for (int unit = start; unit < end; unit++) text[unit - start] = (char) units.get(unit);
     return new BinaryStringData(
-        binary.getSegments(), binary.getOffset(), binary.getSizeInBytes(), new String(text));
+        binary.getSegments(),
+        binary.getOffset(),
+        binary.getSizeInBytes(),
+        Utf16Cache.read(cache, row));
   }
 }

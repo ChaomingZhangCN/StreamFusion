@@ -866,7 +866,7 @@ final class RexExpression {
             .anyMatch(ref -> containsGeneratedCollectionFunction(program.expandLocalRef(ref)));
   }
 
-  private static boolean containsGeneratedCollectionFunction(RexNode node) {
+  static boolean containsGeneratedCollectionFunction(RexNode node) {
     if (node instanceof RexFieldAccess)
       return containsGeneratedCollectionFunction(((RexFieldAccess) node).getReferenceExpr());
     if (!(node instanceof RexCall)) return false;
