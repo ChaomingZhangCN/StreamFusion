@@ -1120,3 +1120,72 @@ fn mixed_decimal_and_cached_string_folds_share_expired_timestamp_membership() {
     inner.recompute_bytes();
     assert_eq!(inner.bytes, measured);
 }
+
+#[test]
+fn selected_string_caches_survive_later_batches_without_cache_columns() {
+    let cached = string_cache_array([Some(&[97u16][..]), Some(&[122u16][..])]);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("k", DataType::Int64, false),
+        Field::new("rt", DataType::Int64, false),
+        Field::new("v", DataType::Utf8, true),
+        string_cache_field(2, cached.data_type().clone()),
+    ]));
+    let seed = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(Int64Array::from(vec![0, 0])),
+            Arc::new(Int64Array::from(vec![100, 101])),
+            Arc::new(StringArray::from(vec!["a", "z"])),
+            cached,
+        ],
+    )
+    .unwrap();
+    let tail = RecordBatch::try_from_iter(vec![
+        ("k", Arc::new(Int64Array::from(vec![0, 0])) as ArrayRef),
+        ("rt", Arc::new(Int64Array::from(vec![102, 103])) as ArrayRef),
+        (
+            "v",
+            Arc::new(StringArray::from(vec![Some("m"), None])) as ArrayRef,
+        ),
+    ])
+    .unwrap();
+    assert!(!has_string_caches(&tail));
+    for frame in 0..4 {
+        let mut aggregate = OverWindowAggregator::new(
+            vec![3; 4],
+            vec![1, 2, 5, 6],
+            1,
+            vec![2; 4],
+            vec![0],
+            frame,
+            10,
+            false,
+        );
+        aggregate.push(seed.clone(), 0).unwrap();
+        aggregate.flush(101, 0).unwrap();
+        aggregate.push(tail.clone(), 0).unwrap();
+        let output = aggregate.flush(103, 0).unwrap();
+        assert_eq!(output.num_rows(), 2);
+        for (slot, text, units) in [
+            (0, "a", Some(&[97u16][..])),
+            (1, "z", Some(&[122u16][..])),
+            (2, "a", Some(&[97u16][..])),
+            (3, "m", None),
+        ] {
+            let values = output
+                .column(slot + 3)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            for row in 0..2 {
+                assert_eq!(values.value(row), text, "frame {frame} slot {slot}");
+                let cache = string_cache_column(&output, slot + 3).map(JavaStringCacheColumn::new);
+                assert_eq!(
+                    cache.as_ref().and_then(|cache| cache.value(row)),
+                    units,
+                    "frame {frame} slot {slot} row {row}"
+                );
+            }
+        }
+    }
+}

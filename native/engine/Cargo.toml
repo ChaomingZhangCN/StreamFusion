@@ -181,3 +181,7 @@ harness = false
 [[bench]]
 name = "window_scalar_extrema"
 harness = false
+
+[[bench]]
+name = "over_sparse_string_cache"
+harness = false
