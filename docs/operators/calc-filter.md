@@ -408,6 +408,22 @@ apply before generation; unsupported forms still fall back.
 
 Single calls, independent instances and deterministic scalar functions retain their existing
 admission. Binary buffer aliasing remains governed by the complete-row binary rules above.
+
+Already-admitted complete JVM Calcs with primitive numeric/boolean arguments and ordinary
+nonempty numeric/boolean/character outputs can evaluate directly over the borrowed Arrow input and write
+flat Arrow outputs inside the columnar operator. This avoids sending a batch to Rust only to call
+the same complete generated program back on the JVM. It applies only to batches without a
+RowKind column; changelog batches and represented, binary, decimal or temporal layouts retain
+the existing bridge. Zero-column outputs and string arguments also retain their existing path. Predicates,
+projections and shared function calls still execute together in Flink's row order, with one
+function lifecycle. Empty results and exceptional partial outputs release their Arrow buffers.
+`directPrimitiveCalcRows` counts input rows actually evaluated by this path.
+
+The [release comparison](../optimizations/udf-columnar-upcall.md#complete-generated-calcs-with-primitive-inputs)
+reduces the existing opt-in INT/BIGINT/STRING job times by about 28%/32%/10%. These isolated jobs
+remain slower than stock Flink, so this does not change the shared-stateful option's default or
+complete [issue #398](https://github.com/datafusion-contrib/StreamFusion/issues/398).
+
 Runtime tests compare ordered values, types, every changelog tag and invocation counts, including
 nullable inputs/results, nested and conditional calls, all-filtered and empty inputs, exceptions,
 5,003-row sources and balanced task lifecycle. Native operator metrics establish actual consumption.
@@ -447,7 +463,7 @@ DST-adjacent values, all four precisions, NULL/empty/fully filtered input, selec
 shared call-site order, lifecycle and grouping consumers. Native Calc input/output counters are
 asserted. Direct C Data tests cover sliced nullable timestamp vectors and output ownership after
 input release. See the [measured limits](#temporal-scalar-conversion)
-and the open [admission work](https://github.com/datafusion-contrib/StreamFusion/issues/364).
+and the open [admission work](https://github.com/datafusion-contrib/StreamFusion/issues/389).
 
 #### Temporal scalar conversion
 
@@ -477,7 +493,7 @@ writes, inline Calc evaluation inside that loop and bulk timestamp component val
 performance admission. A direct typed-output kernel likewise passed correctness checks but
 still lost to stock, including a variant that writes timestamp components directly. None is retained. See the
 [rejected experiments](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/364-temporal-row-output-shortcuts.md).
-Performance admission remains tracked in [#364](https://github.com/datafusion-contrib/StreamFusion/issues/364),
+Performance admission remains tracked in [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389),
 including further measured conversion work and complete-job measurements inside surrounding
 native operators before any broader admission.
 
@@ -494,7 +510,9 @@ for unconditional, timestamp-only projections of matching width. Every function 
 A byte-equal result column retains the input buffers; the first changed value materializes its
 unchanged prefix and all subsequent values. Preinitialized Arrow fields preserve timestamp
 component metadata through transfers. Other result shapes use the ordinary flat Arrow writer.
-Both experimental switches default off. PR #368 remains draft at the maintainer's request.
+Both experimental switches default off. [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368)
+merged the temporal UDF semantic support behind its default-off option; its merge does not admit
+these experimental paths by default.
 
 In an unprofiled 2M-row repeat with the configuration above, direct batches plus timestamp
 aliasing measured identity **0.651 s versus stock 0.645 s**, text **0.830 versus 0.969 s**, and
