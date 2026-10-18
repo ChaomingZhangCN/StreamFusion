@@ -40,7 +40,11 @@ class StringAggregateBenchmark {
         aggregate = "LISTAGG(v, ',')";
         break;
       case "JSON_ARRAYAGG":
-        aggregate = "JSON_ARRAYAGG(" + argument + ")";
+        String order = System.getProperty("stringagg.order", "");
+        if (!order.isEmpty() && !order.equals("ASC") && !order.equals("DESC"))
+          throw new IllegalArgumentException("stringagg.order must be ASC or DESC");
+        aggregate = "JSON_ARRAYAGG(" + argument
+            + (order.isEmpty() ? "" : " ORDER BY json_key " + order) + ")";
         break;
       case "JSON_OBJECTAGG":
         aggregate = "JSON_OBJECTAGG(json_key VALUE " + argument + ")";

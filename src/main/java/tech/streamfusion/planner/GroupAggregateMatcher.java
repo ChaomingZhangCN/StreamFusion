@@ -89,10 +89,11 @@ final class GroupAggregateMatcher {
       if (kind >= 26 && kind <= 31) {
         int arity = kind <= 27 ? 1 : 2;
         if (call.isDistinct()
-            || !call.getCollation().getFieldCollations().isEmpty()
+            || (kind >= 28 && !call.getCollation().getFieldCollations().isEmpty())
             || call.filterArg >= 0
             || call.getArgList().size() != arity)
-          return "GROUP BY: JSON aggregates require unfiltered unordered non-DISTINCT arguments";
+          return "GROUP BY: JSON aggregates require unfiltered non-DISTINCT arguments;"
+              + " JSON_OBJECTAGG ordering is unsupported";
         for (int column : call.getArgList()) {
           if (!isStringType(inputType.getFieldList().get(column).getType().getSqlTypeName()))
             return "GROUP BY: JSON aggregates require serialized character arguments";

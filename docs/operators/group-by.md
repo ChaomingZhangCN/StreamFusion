@@ -190,8 +190,12 @@ Duplicate keys fail before ABSENT ON NULL can omit a NULL value.
 
 The result retains VARCHAR(2000) NOT NULL. Owned per-key strings checkpoint through
 the existing binary state representation; ordered arrays are not stored as unordered
-multisets. Positive state TTL, DISTINCT, explicit ordering and local/global JSON
-aggregation remain fallback. Both released parsers reject JSON aggregate FILTER syntax.
+multisets. JSON_ARRAYAGG also admits inline ORDER BY and WITHIN GROUP ordering clauses.
+Released Flink 2.2.1 and 1.18.1 retain arrival order for these clauses rather than sorting;
+the native accumulator preserves that released behavior, including retractions. These
+clauses therefore do not promise sorted JSON arrays. JSON_OBJECTAGG ordering, positive
+state TTL, DISTINCT and local/global JSON aggregation remain fallback. Both released
+parsers reject JSON aggregate FILTER syntax.
 Flink 1.18 decimal JSON_STRING expressions use the existing generated evaluator
 inside Calc because that line strips decimal scale; the grouped accumulator still runs
 natively. The 2.2 expression retains scale.
@@ -252,6 +256,57 @@ Reproduce complete jobs with the LISTAGG command above and
 for numeric object values, `stringagg.updating=true` for retracting input, and
 `stringagg.warmup`/`stringagg.runs` for the recorded trial counts. The smaller controls use
 `stringagg.rows=500000` and `stringagg.keys=16384`; the wide case sets `stringagg.width=128`.
+
+### JSON array ordering clauses
+
+`FlinkJsonArrayOrderingSqlHarnessTest` passes twelve checks on each of released Flink
+2.2.1 and 1.18.1. ASC, DESC and WITHIN GROUP deliberately use sort keys that disagree
+with arrival order. Each append/retract case checks all three NULL policies, exact
+ordered RowKinds, result types and native aggregation. Nullable and multiple sort keys
+also preserve arrival order. Four recovery cases each
+exercise both inline and WITHIN GROUP forms through two restores, using memory or
+native RocksDB state and append or retracting input. They verify native work and
+released memory. The existing 19 JSON aggregate checks also pass on both releases.
+Ordering metadata uses the existing JSON array accumulator and its existing native
+string/JSON update and checkpoint Criterion fixtures; it adds no sort state or kernel.
+
+Release complete-job measurements on Flink 2.2.1/JDK 17 use parallelism one, 2 GiB
+heap, production Arrow IPC, mimalloc, 1,024-row transposes, ONE_PHASE and no
+mini-batching. Each profile has two warmups and three alternating measured trials
+per engine in a fresh JVM. The runtime row source, both transposes, serialization,
+JNI, aggregate state and row blackhole sink remain measured. Strings are 16 bytes;
+values include NULLs, and retracting profiles cycle insert/insert/delete rounds.
+
+| Value, order, changelog, rows / keys | Stock median | Previous StreamFusion median | Native median |
+|---|---:|---:|---:|
+| STRING, ASC, append, 2M / 65,536 | 9.080 s | 9.035 s | 2.026 s |
+| STRING, ASC, retracting, 2M / 65,536 | 5.699 s | 5.500 s | 1.498 s |
+| STRING, DESC, append, 2M / 65,536 | 9.340 s | 9.053 s | 1.962 s |
+| STRING, DESC, retracting, 2M / 65,536 | 5.706 s | 5.409 s | 1.504 s |
+| BIGINT, ASC, append, 2M / 65,536 | 9.279 s | 9.288 s | 1.543 s |
+| BIGINT, ASC, retracting, 2M / 65,536 | 5.916 s | 5.918 s | 1.373 s |
+| BIGINT, DESC, append, 2M / 65,536 | 9.256 s | 9.162 s | 1.508 s |
+| BIGINT, DESC, retracting, 2M / 65,536 | 5.861 s | 5.656 s | 1.349 s |
+| STRING, ASC, append, 1M / 16,384 | 6.751 s | 6.757 s | 1.252 s |
+| STRING, DESC, retracting, 1M / 16,384 | 3.477 s | 3.435 s | 0.961 s |
+
+All ten profiles beat stock by **3.617–6.136×** and frozen prior StreamFusion
+`d85b241a` by **3.574–6.074×**. Every candidate trial range lies below the stock
+and prior ranges. Separate-JVM paired stock medians differ by at most 4.6%, so
+fine differences between ordering directions are not meaningful. These are bounded
+per-key arrays, not a performance guarantee for arbitrary array sizes. The unchanged
+native array accumulator provides the gain when the planner admits these clauses.
+[Raw measured/warmup jobs, trial arrays, configuration and source/library hashes](../benchmarks/results/json-array-ordering-2026-10-18.json)
+retain all measurements. Reproduce using `StringAggregateBenchmark` above with
+`stringagg.order=ASC|DESC`, `stringagg.value=string|bigint`, and the recorded row,
+key, warmup and trial counts.
+
+Two additional profiles run the new planner with the frozen prior native library,
+independently of the unshipped SINGLE_VALUE optimization present in the development
+library. STRING/ASC append measures **1.966 s native versus 9.508 s stock**; BIGINT/DESC
+retracting measures **1.380 s versus 5.946 s**. These retain the same resources, warmups,
+three alternating measurements and native-consumption assertions. Their complete jobs
+are also retained in the artifact; no new native operation is needed for this admission.
 
 ### Floating aggregate validation
 
@@ -523,7 +578,9 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
+- LISTAGG and JSON aggregates with DISTINCT or positive state TTL. Explicit ordering
+  remains unsupported for LISTAGG and JSON_OBJECTAGG; JSON_ARRAYAGG ordering clauses
+  preserve the released host's arrival-order behavior described above.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
