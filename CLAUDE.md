@@ -109,7 +109,8 @@ outside timed execution and state the measured boundary. Use `bin/bench-native.p
 suites and `--smoke` to validate fixtures; the coverage inventory and methodology live in
 [docs/benchmarks/native-criterion.md](docs/benchmarks/native-criterion.md). Record allocation requests
 and Arrow buffer sharing when investigating copies, without equating either metric with copied bytes.
-Criterion isolates native costs; it does not replace the end-to-end Flink comparison below.
+Criterion isolates native costs; it does not supply the stock-Flink comparison required for the
+functionality gates below.
 
 ### Performance requirements for new features
 
@@ -122,14 +123,27 @@ baseline is insufficient if the new native path still loses to Flink. The regres
 passing parity tests is only one part of completing a feature.
 
 Use release builds, identical queries/data/resources, warmup, and repeated measurements. Include representative
-sizes, cardinalities, and types for the feature, and retain all production conversion, JNI, and state costs in
-the measured path. Verify that the intended native operators actually execute. Report stock Flink and native
+sizes, cardinalities, and types for the feature. Retain production JNI, state, and conversions intrinsic to the
+functionality being measured; complete-job benchmarks also retain all perimeter conversion costs. Verify that
+the intended native operators actually execute. Report stock Flink and native
 results, variability, and the benchmark configuration in the PR and relevant documentation; include measured
 improvements in the commit message. Distinguish startup-dominated results from sustained processing performance
 without discarding unfavorable end-to-end results.
 
-When a native path is slower, profile and optimize the bottleneck before treating the acceleration work as
-complete. Examine batch execution, allocation/copying, row conversions, JNI calls, and aggregate/state layout
+For **small functionality-enabling benchmarks**, gate performance with each engine operating on its own
+input format: **stock Flink receives prebuilt `RowData`; StreamFusion receives prebuilt Arrow buffers**
+containing the same logical data. For example, ten Flink rows must be compared with ten rows already in
+Arrow format, not ten Arrow batches. Match values, types, NULLs, widths, cardinalities, and resources.
+Prepare both input representations outside timing. Time the actual production functionality and equivalent
+output consumption in each engine's own format, excluding perimeter RowData-to-Arrow and Arrow-to-RowData
+transposes. JNI, state work, and conversions performed inside the functionality remain timed.
+This comparison is the admission gate for small functionality additions; conversion-inclusive standalone
+job timings remain separate diagnostics and do not replace that gate. This exception applies only to small
+functionality gating: Nexmark, connector, complete-pipeline, and end-to-end performance claims retain their
+full production boundaries and costs.
+
+When a native path is slower under its applicable gate, profile and optimize the bottleneck before treating
+the acceleration work as complete. Examine batch execution, allocation/copying, row conversions, JNI calls, and aggregate/state layout
 rather than assuming Rust or Arrow is inherently faster. Do not quietly enable a known slower path by default
 or dismiss a regression as coverage work. If a slower implementation is necessary groundwork for later
 optimization, obtain explicit maintainer agreement on the tradeoff, document its measured limits and follow-up

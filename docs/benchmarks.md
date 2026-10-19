@@ -7,6 +7,17 @@ the [operator](operators/index.md) and [connector](connectors/index.md) pages.
 
 ## Methodology
 
+- **Small functionality admission.** Compare equal logical data in each engine's own input format:
+  stock Flink operates on prebuilt `RowData`, and StreamFusion operates on prebuilt Arrow buffers.
+  Ten Flink rows correspond to ten Arrow rows, with matching values, types, NULLs, widths,
+  cardinalities, and resources. Prepare both representations outside timing and measure the
+  production functionality with equivalent output consumption in each engine's own format.
+  Exclude perimeter RowData-to-Arrow and Arrow-to-RowData transposes from this gate; retain JNI,
+  state work, and conversions intrinsic to the functionality. Use release builds, warmup,
+  repeated trials, parity checks, and verified native execution. This comparison gates small
+  functionality additions; conversion-inclusive standalone jobs remain separate diagnostics.
+  Nexmark, connector, complete-pipeline, and end-to-end claims retain their full production
+  boundaries and costs.
 - **Nexmark, end to end.** The headline numbers below are an end-to-end, exactly-once Kafka
   pipeline — not a blackhole sink. Stock Flink and StreamFusion run at **parallelism 4**, read the
   same 2M-event Kafka JSON corpus from a four-partition topic (one split per source subtask), and
