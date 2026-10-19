@@ -1271,3 +1271,84 @@ fn distinct_numeric_membership_grows_the_tracked_footprint() {
     running.recompute_bytes();
     assert_eq!(running.bytes, measured);
 }
+
+#[test]
+fn decimal_distinct_arithmetic_rebuilds_multiplicities_without_replaying_the_sum() {
+    for frame in 0..4 {
+        for proctime in [false, true] {
+            if proctime && frame == 2 {
+                continue;
+            }
+            let offset = if frame == 1 { 2 } else { 200 };
+            let mut over = OverWindowAggregator::new(
+                vec![3202; 4],
+                vec![100, 122, 104, 103],
+                1,
+                vec![3; 4],
+                vec![0],
+                frame,
+                offset,
+                proctime,
+            );
+            let values = [
+                Some(125),
+                Some(125),
+                Some(250),
+                None,
+                Some(-25),
+                Some(125),
+                Some(250),
+            ];
+            for (index, value) in values.into_iter().enumerate() {
+                let time = 100 + index as i64 * 100;
+                let input = reductions(&[time], vec![None], vec![value], 12, 2);
+                let out = if proctime {
+                    over.push_proctime(input, 0).unwrap()
+                } else {
+                    over.push(input, 0).unwrap();
+                    over.flush(time, 0).unwrap()
+                };
+                let (sum, count) = if matches!(frame, 1 | 2) {
+                    (
+                        [125, 125, 375, 375, 225, 100, 350][index],
+                        [1, 1, 2, 2, 2, 2, 3][index],
+                    )
+                } else {
+                    (
+                        [125, 125, 375, 375, 350, 350, 350][index],
+                        [1, 1, 2, 2, 3, 3, 3][index],
+                    )
+                };
+                let scalar = |column| ScalarValue::try_from_array(out.column(column), 0).unwrap();
+                assert_eq!(
+                    scalar(4),
+                    ScalarValue::Decimal128(Some(sum), 38, 2),
+                    "frame={frame} row={index}"
+                );
+                assert_eq!(scalar(5), scalar(4));
+                assert_eq!(
+                    scalar(6),
+                    ScalarValue::Decimal128(Some((sum * 10_000 + count / 2) / count), 38, 6)
+                );
+                assert_eq!(scalar(7), ScalarValue::Int64(Some(count as i64)));
+                let snapshots = over
+                    .snapshot_partitions(8, &[-1])
+                    .into_values()
+                    .collect::<Vec<_>>();
+                over = OverWindowAggregator::restore_partitions(
+                    vec![3202; 4],
+                    vec![100, 122, 104, 103],
+                    1,
+                    vec![3; 4],
+                    vec![0],
+                    frame,
+                    offset,
+                    proctime,
+                    &snapshots,
+                    0,
+                    0,
+                );
+            }
+        }
+    }
+}

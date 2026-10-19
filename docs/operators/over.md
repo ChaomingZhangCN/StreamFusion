@@ -245,7 +245,7 @@ Bounded frames retain NULL membership with the declared column type through snap
 running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, CHAR/VARCHAR,
 DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ, retaining logical membership types in running
 state and bounded frame snapshots.
-Other DISTINCT aggregates retain the numeric value whitelist.
+DECIMAL also admits DISTINCT SUM/SUM0/AVG; other DISTINCT aggregates retain the numeric value whitelist.
 
 ### Bounded `ROWS BETWEEN n PRECEDING AND CURRENT ROW`
 
@@ -287,13 +287,16 @@ The matcher declines:
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
   and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
-  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits all these types;
-  other DISTINCT aggregates retain their numeric whitelist.
+  DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
+  admits all these types; other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
 - CHAR MIN/MAX/FIRST_VALUE/LAST_VALUE combinations rejected by the released aggregate factory.
   Flink 1.18 accepts only unbounded CHAR MIN among these selections; CHAR COUNT and
   COUNT(DISTINCT) remain admitted. Flink 2.2 accepts all four CHAR selections.
+- DECIMAL scale-38 SUM/SUM0/AVG, including DISTINCT: both released Flink lines fail
+  while constructing the zero accumulator, even for SUM. Scale 37 is admitted.
+  COUNT and value selections retain scale-38 support.
 - A `PARTITION BY` key outside bigint/int/string/boolean/date/timestamp/decimal.
 - A frame not of the form `… PRECEDING .. CURRENT ROW` (a `ROWS`/`RANGE` lower bound that isn't a
   constant preceding offset or UNBOUNDED PRECEDING).
@@ -531,8 +534,8 @@ types, frames, rows, keys, warmups and runs using the properties above.
 COUNT(DISTINCT) also uses the existing typed membership/count state for DECIMAL values,
 including precision 38 and scale 38. Membership retains the declared precision and scale;
 NULL does not enter the set. Running and bounded frames preserve that logical type across
-physical batches and memory/native RocksDB snapshots. Other decimal DISTINCT aggregates,
-order and input restrictions retain their existing gates.
+physical batches and memory/native RocksDB snapshots. Decimal DISTINCT SUM/AVG have the
+separate arithmetic coverage below; other order and input restrictions retain their existing gates.
 
 Twenty-nine SQL checks pass on each released Flink line. They cover three decimal layouts
 across four event-time and three admitted processing-time frames, duplicate pairs,
@@ -629,3 +632,73 @@ establish a universal speedup. Reproduce using `OverBasicValuesBenchmark` with
 `-Dover.values.distinctCount=true -Dover.values.engines=2` and types
 `string,timestamp,ltz,string_wide`; frame, row-count, key-count, warmup and trial properties
 are unchanged. The default three-engine benchmark remains available.
+
+
+## Exact DECIMAL DISTINCT SUM and AVG
+
+SUM(DISTINCT) and AVG(DISTINCT), including the planner's internal DISTINCT SUM0, admit exact
+DECIMAL values through precision 38 and scale 37. NULL and duplicate memberships do not update the
+arithmetic. Bounded frames retract only when the last occurrence expires, preserving Flink's
+arithmetic history: SUM can resume after an overflowed accumulator, while SUM0/AVG retain their
+sticky overflow. Recomputing a sum from the current unique values would lose this history.
+
+The bounded fold saves the existing sum/count fields and reconstructs multiplicities from
+retained frame rows when continuing a physical batch or restoring a checkpoint. It never
+replays arithmetic while rebuilding membership. Running frames retain the existing typed
+DISTINCT checkpoint representation. Memory and native RocksDB use the same fold and frame
+contracts, without a new JNI boundary or a separate persistent membership format for bounded
+frames. Existing frame, ordering, input and non-decimal DISTINCT gates are unchanged.
+
+
+Released Flink 2.2 and 1.18 reject SUM/AVG over DECIMAL(38,38) during planning, with or
+without DISTINCT: constructing the accumulator fails with `Cannot convert 0 to DECIMAL(38, 38)
+due to overflow`. Sixteen factory-boundary checks compare scale 37/38, SUM/AVG, ordinary/DISTINCT
+and running/bounded ROWS. Native admission preserves the same failure class, message and phase
+for the eight scale-38 cases; scale 37 runs natively. This also corrects the previous matcher
+which could bypass this released failure for ordinary SUM/AVG. Scale-38 COUNT and selections
+remain admitted.
+
+
+Forty-five new SQL checks pass on each released Flink line. Three decimal layouts
+(12,2; 38,0; 38,37) cover seven event/proctime frames, precision-limit overflow, duplicate
+pairs, NULL-only partitions and same-key peers. Eight mixed-scale profiles inject two
+restores on memory/native RocksDB; sixteen checks pin the factory boundary above.
+Together with 173 existing controls, Flink 2.2.1 has 210 passes/eight host capability skips
+and Flink 1.18.1 passes all 218. Eighty native OVER unit checks and 252 release fixtures
+separately validate arithmetic, membership expiry, physical chunks and repeated snapshots.
+
+
+Complete-job release+mimalloc comparisons use JDK 17, parallelism one, UTC, a 2 GiB heap,
+two warmups and three measured trials. The measured query combines DISTINCT SUM/AVG/COUNT;
+individual native fixtures cover SUM/SUM0/AVG separately. Runtime row sources, rowwise sinks,
+both transposes, JNI/state costs and execution metrics remain in the paired stock/current
+and separately compiled actual-prior jobs. Other local heavy work was excluded.
+
+| Type / frame / rows / keys | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| DECIMAL(12,2) / running RANGE / 500,000 / 64 | 1.593 (1.522–1.618) | 0.510 (0.489–0.518) | — |
+| DECIMAL(12,2) / bounded ROWS / 500,000 / 64 | 3.206 (3.184–3.403) | 0.765 (0.755–0.772) | 3.240 (3.071–3.344) |
+| DECIMAL(38,0), balanced signs / running RANGE / 500,000 / 64 | 1.044 (1.020–1.064) | 0.426 (0.425–0.428) | — |
+| DECIMAL(38,0), balanced signs / bounded ROWS / 500,000 / 64 | 3.293 (3.225–3.370) | 0.743 (0.742–0.743) | 3.336 (3.262–3.383) |
+| DECIMAL(12,2) / running ROWS / 1,000,000 / 1 | 3.015 (2.971–3.028) | 0.804 (0.737–0.817) | — |
+
+These five profiles improve 2.448–4.433x over stock. Actual previous revision `e675f7af`
+bounded-ROWS comparisons improve 4.235–4.490x. Separately paired previous-version stock
+controls are retained to expose process-to-process drift. Flink 1.18's wide bounded-ROWS
+profile measures 3.420s stock / 0.839s native (4.077x).
+
+The wide source alternates positive/negative 38-digit values over 514 memberships per
+partition, avoiding permanently overflowed sum state. AVG can still overflow its result
+precision on unbalanced frames; those results and costs remain measured. Compact decimals
+use 1,000 unscaled slots. Both layouts include NULLs and a NULL-only partition at 64 keys.
+The single-key profile measures one million rows. Timings sample rowtime, compact decimals
+and noncompact scale-zero values; admitted scale 37 and proctime are correctness-covered.
+Actual-prior controls sample bounded ROWS, as does the 1.18 check. These representative
+results do not establish a universal speedup.
+
+The [80-job artifact](../benchmarks/results/over-decimal-distinct-reductions-2026-10-19.json)
+retains every warmup/trial, baseline drift, source/native-library hashes and all 252 native
+allocation/buffer reports. Reproduce with `OverBasicValuesBenchmark
+-Dover.values.distinctReductions=true -Dover.values.engines=2`, selecting `decimal` or
+`decimal_wide_balanced` plus the frame/row/key properties above. Default three-engine
+benchmark behavior is unchanged.

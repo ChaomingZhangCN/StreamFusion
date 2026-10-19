@@ -1,6 +1,7 @@
 use super::*;
 mod cached_strings;
 mod cached_transport;
+mod decimal_distinct_reductions;
 mod distinct_counts;
 mod primitives;
 use streamfusion_benchmark_support::{measure, report};
@@ -111,17 +112,21 @@ fn validate(batch: &RecordBatch, code: i64, kind: i64, frame: i64, offset: i64, 
         "typed value checkpoint continuation"
     );
     assert_eq!(whole.num_rows(), batch.num_rows());
-    assert_eq!(
-        whole.column(3).data_type(),
-        if kind == 103 {
-            &DataType::Int64
-        } else {
-            batch.column(2).data_type()
-        }
-    );
+    let result_type = if kind == 103 {
+        DataType::Int64
+    } else if matches!(kind, 100 | 104 | 122) {
+        let DataType::Decimal128(_, scale) = batch.column(2).data_type() else {
+            unreachable!()
+        };
+        DataType::Decimal128(38, if kind == 104 { (*scale).max(6) } else { *scale })
+    } else {
+        batch.column(2).data_type().clone()
+    };
+    assert_eq!(whole.column(3).data_type(), &result_type);
 }
 
 pub(super) fn bench(c: &mut Criterion) {
+    decimal_distinct_reductions::bench(c);
     primitives::bench(c);
     string_tree::bench(c);
     cached_strings::bench(c);

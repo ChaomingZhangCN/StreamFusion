@@ -242,6 +242,13 @@ final class OverAggregateMatcher {
           && valueType.getSqlTypeName() != SqlTypeName.DECIMAL) {
         return null;
       }
+      if (valueType.getSqlTypeName() == SqlTypeName.DECIMAL
+          && valueType.getScale() == 38
+          && (kind == WindowAggregateMatcher.KIND_SUM
+              || kind == WindowAggregateMatcher.KIND_SUM_ZERO
+              || kind == WindowAggregateMatcher.KIND_AVG)) {
+        return null;
+      }
       if (!supportedValueType(valueType.getSqlTypeName(), kind, aggCalls.get(a).distinct)
           && !(index >= inputType.getFieldCount()
               && window.constants.get(index - inputType.getFieldCount()).isNull())) {
@@ -299,7 +306,10 @@ final class OverAggregateMatcher {
           || kind == 6;
     }
     if (type == SqlTypeName.DECIMAL) {
-      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == WindowAggregateMatcher.KIND_SUM
+          || kind == WindowAggregateMatcher.KIND_SUM_ZERO
+          || kind == WindowAggregateMatcher.KIND_AVG;
       return kind == WindowAggregateMatcher.KIND_SUM
           || kind == WindowAggregateMatcher.KIND_SUM_ZERO
           || kind == WindowAggregateMatcher.KIND_AVG

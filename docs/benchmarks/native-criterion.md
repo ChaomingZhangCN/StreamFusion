@@ -2443,3 +2443,15 @@ snapshot/restored-state destruction stay outside timing. Checkpoints return byte
 and state rather than Arrow arrays, so their Arrow output-buffer reports are empty.
 All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are retained
 in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).
+
+
+The `over_basic_values` target's `over_decimal_distinct_reductions` group covers production
+DISTINCT SUM/SUM0/AVG at DECIMAL(12,2), (38,0) and (38,37), 64/4096 rows, one/64 keys and seven
+admitted event/proctime frame shapes (252 fixtures). Independent ordered-set/frame oracles
+check NULL/duplicate membership, expiry, exact result scale and signed HALF_UP division on
+values that avoid overflow. Whole batches are compared with 17-row physical chunks and
+repeated checkpoint restores before timing. SQL parity separately checks precision-limit
+overflow, sticky accumulators and both memory/native RocksDB recovery. Setup is outside the
+measured production update/output boundary; all fixtures report allocation requests and
+Arrow buffer sharing. Run `--bench over_basic_values --filter over_decimal_distinct_reductions
+--smoke` for this focused selection.

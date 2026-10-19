@@ -397,10 +397,11 @@ impl OverAggState {
     }
 
     fn retract(&mut self, value: Num) {
-        assert!(
-            self.distinct.is_none(),
-            "persistent bounded DISTINCT reduction"
-        );
+        if let Some(seen) = &mut self.distinct {
+            if !seen.remove_scalar(&num_to_scalar(&self.value_type, Some(value))) {
+                return;
+            }
+        }
         self.agg.retract(value);
         if self.has_count_state() {
             self.non_null = self.non_null.wrapping_sub(1);
@@ -1062,7 +1063,7 @@ impl BoundedOverAggregator {
             .map(|&code| value_data_type(code))
             .collect::<Vec<_>>();
         let decimal_arithmetic = kinds.iter().zip(&value_types).any(|(&kind, ty)| {
-            matches!(kind, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
+            matches!(kind % 100, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
         });
         let arithmetic_slots = kinds
             .iter()
@@ -1070,7 +1071,9 @@ impl BoundedOverAggregator {
             .enumerate()
             .filter_map(|(slot, (&kind, ty))| {
                 (decimal_arithmetic
-                    && (kind == 3
+                    && (matches!(kind, 100 | 104 | 122)
+                        && matches!(ty, DataType::Decimal128(_, _))
+                        || kind == 3
                         || kind == 4
                         || kind == 22
                         || (kind == 0 && matches!(ty, DataType::Decimal128(_, _)))))
@@ -1359,10 +1362,24 @@ impl BoundedOverAggregator {
                                 .fold_state()
                                 .expect("bounded arithmetic fold state");
                             let mut column = 0;
-                            for state in &mut states {
+                            for (&slot, state) in
+                                self.arithmetic_slots.iter().zip(states.iter_mut())
+                            {
                                 let width = state.state_types().len();
                                 state.restore_state(&saved[column..column + width]);
                                 column += width;
+                                if state.distinct.is_some() {
+                                    // Fold state preserves arithmetic history; retained rows rebuild
+                                    // multiplicities without applying that arithmetic a second time.
+                                    for previous in &buffer[..i] {
+                                        if let Some(value) = previous.values[slot] {
+                                            state.remember_distinct(num_to_scalar(
+                                                &state.value_type,
+                                                Some(value),
+                                            ));
+                                        }
+                                    }
+                                }
                             }
                         }
                         (0, i, states)

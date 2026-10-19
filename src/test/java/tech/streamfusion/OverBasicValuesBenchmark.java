@@ -74,6 +74,8 @@ class OverBasicValuesBenchmark {
       reductions += ", FIRST_VALUE(v) OVER w, LAST_VALUE(v) OVER w";
     }
     if (!distinctCount && !countOnly && type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
+    if (Boolean.getBoolean("over.values.distinctReductions"))
+      reductions = "SUM(DISTINCT v) OVER w, AVG(DISTINCT v) OVER w, COUNT(DISTINCT v) OVER w";
     String query =
         "SELECT k, "
             + reductions
@@ -168,6 +170,7 @@ class OverBasicValuesBenchmark {
         valueType = DataTypes.DECIMAL(12, 2);
         break;
       case "decimal_wide":
+      case "decimal_wide_balanced":
         valueType = DataTypes.DECIMAL(38, 0);
         break;
       case "string":
@@ -209,6 +212,10 @@ class OverBasicValuesBenchmark {
                         break;
                       case "decimal_wide":
                         value = new BigDecimal(WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257)));
+                        break;
+                      case "decimal_wide_balanced":
+                        var wide = WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257));
+                        value = new BigDecimal(id / keys % 2 == 0 ? wide : wide.negate());
                         break;
                       case "string":
                       case "string_wide":

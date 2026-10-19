@@ -313,3 +313,11 @@ through extra key lookups. Restores and persistent probes derive the footprint f
 membership; the derived byte counter is not serialized. Native RocksDB probes include text
 memberships, closing the numeric-only probe hole exposed by cross-batch running string counts.
 These changes keep the existing Arrow boundaries, JNI API and checkpoint wire format.
+
+
+Bounded decimal DISTINCT SUM/SUM0/AVG use the existing incremental arithmetic slots, with
+multiplicity transitions controlling fold/retract. Recomputing each unique frame would violate
+Flink's overflow history, so checkpoints retain arithmetic sum/count fields and membership is
+rebuilt from already-retained frame rows. Rebuilding membership never replays arithmetic. This
+extends the same incremental divergence from Arroyo's watermark-finalized window execution;
+there is no second native window engine or new Java/native ownership boundary.
