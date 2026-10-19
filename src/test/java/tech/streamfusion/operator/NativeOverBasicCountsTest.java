@@ -23,10 +23,13 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.BigIntType;
+import org.apache.flink.table.types.logical.BooleanType;
+import org.apache.flink.table.types.logical.DateType;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,6 +44,9 @@ class NativeOverBasicCountsTest {
           new VarCharType(VarCharType.MAX_LENGTH),
           new TimestampType(9),
           new LocalZonedTimestampType(9),
+          new DateType(),
+          new TimeType(3),
+          new BooleanType(),
           new LocalZonedTimestampType(3));
   private static final RowType OUTPUT =
       RowType.of(
@@ -48,7 +54,13 @@ class NativeOverBasicCountsTest {
           new VarCharType(VarCharType.MAX_LENGTH),
           new TimestampType(9),
           new LocalZonedTimestampType(9),
+          new DateType(),
+          new TimeType(3),
+          new BooleanType(),
           new LocalZonedTimestampType(3),
+          new BigIntType(),
+          new BigIntType(),
+          new BigIntType(),
           new BigIntType(),
           new BigIntType(),
           new BigIntType(),
@@ -88,7 +100,7 @@ class NativeOverBasicCountsTest {
       before.open();
       before.processElement(new StreamRecord<>(batch(allocator, row(true, 100), row(false, 100))));
       if (!proctime) before.processWatermark(new Watermark(100));
-      assertEquals(List.of(List.of(1L, 1L, 1L, 1L), List.of(1L, 1L, 1L, 1L)), drain(before));
+      assertEquals(List.of(counts(1), counts(1)), drain(before));
       snapshot =
           writer == reader
               ? before.snapshot(1, 1)
@@ -108,8 +120,7 @@ class NativeOverBasicCountsTest {
       long expected = frame == 0 || frame == 3 ? 2L : 1L;
       long first = frame == 2 ? 2L : expected;
       assertEquals(
-          List.of(
-              List.of(first, first, first, first), List.of(expected, expected, expected, expected)),
+          List.of(counts(first), counts(expected)),
           drain(restored));
     }
     assertEquals(reservation, TaskOffHeapMemory.reservedBytes());
@@ -125,6 +136,9 @@ class NativeOverBasicCountsTest {
         valid ? StringData.fromString("😀\ue000".repeat(128)) : null,
         valid ? timestamp : null,
         valid ? timestamp : null,
+        valid ? 19723 : null,
+        valid ? 45296123 : null,
+        valid ? false : null,
         TimestampData.fromEpochMillis(time));
   }
 
@@ -136,11 +150,11 @@ class NativeOverBasicCountsTest {
       int frame, boolean proctime, boolean rocks) throws Exception {
     var operator =
         new NativeOverAggregateOperator(
-            4,
-            new int[] {0, 1, 2, 3},
+            7,
+            new int[] {0, 1, 2, 3, 4, 5, 6},
             new int[0],
-            new int[] {5838, 3, 1009, 1009},
-            new int[] {3, 3, 3, 3},
+            new int[] {5838, 3, 1009, 1009, 8, 9, 10},
+            new int[] {3, 3, 3, 3, 3, 3, 3},
             frame,
             frame == 1 ? 1 : 100,
             proctime,
@@ -166,11 +180,19 @@ class NativeOverBasicCountsTest {
       if (event instanceof StreamRecord) {
         try (var root = ((ArrowBatch) ((StreamRecord<?>) event).getValue()).root()) {
           for (var row : RowDataArrowConverter.read(root, OUTPUT)) {
-            results.add(List.of(row.getLong(5), row.getLong(6), row.getLong(7), row.getLong(8)));
+            List<Long> values = new ArrayList<>();
+            for (int column = INPUT.getFieldCount(); column < OUTPUT.getFieldCount(); column++) {
+              values.add(row.getLong(column));
+            }
+            results.add(values);
           }
         }
       }
     }
     return results;
+  }
+
+  private static List<Long> counts(long count) {
+    return java.util.Collections.nCopies(7, count);
   }
 }

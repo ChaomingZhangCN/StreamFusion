@@ -3,6 +3,10 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
 impl TumblingAggregator {
+    fn cumulative_prefix(&self) -> bool {
+        self.cumulative && self.slide_millis != self.window_millis
+    }
+
     fn shared_base(&self, end: i64) -> i64 {
         (end - 1).div_euclid(self.window_millis) * self.window_millis
     }
@@ -10,7 +14,7 @@ impl TumblingAggregator {
     fn shared_assignments(&mut self, slice_ends: &[i64]) -> Vec<Option<(i64, i64)>> {
         let calendar = self.calendar.as_ref().expect("shared slice calendar");
         let last_end = |end| {
-            if self.cumulative {
+            if self.cumulative_prefix() {
                 self.shared_base(end) + self.window_millis
             } else {
                 end - self.slide_millis + self.window_millis
@@ -36,7 +40,7 @@ impl TumblingAggregator {
             while calendar.end_thresholds([timer])[&timer] <= self.current_watermark {
                 timer += self.slide_millis;
             }
-            let target = if self.cumulative {
+            let target = if self.cumulative_prefix() {
                 self.shared_base(end) + self.slide_millis
             } else {
                 end
@@ -322,7 +326,7 @@ impl TumblingAggregator {
         key: &OwnedRow,
         key_group: i32,
     ) -> Result<Option<Vec<Box<dyn Accumulator>>>, DataFusionError> {
-        let namespaces = if self.cumulative {
+        let namespaces = if self.cumulative_prefix() {
             let first = self.shared_base(end) + self.slide_millis;
             if first == end {
                 vec![first]
@@ -439,7 +443,7 @@ impl TumblingAggregator {
                             values.push(accumulator.as_mut())?;
                         }
                     }
-                    if self.cumulative {
+                    if self.cumulative_prefix() {
                         let first = self.shared_base(end) + self.slide_millis;
                         let replacement_bytes = self
                             .memory
@@ -468,7 +472,7 @@ impl TumblingAggregator {
                     }
                 }
                 let next = end + self.slide_millis;
-                if (self.cumulative && next <= self.shared_base(end) + self.window_millis)
+                if (self.cumulative_prefix() && next <= self.shared_base(end) + self.window_millis)
                     || (!self.cumulative && live)
                 {
                     let first_for_end = !self.slice_timers.contains_key(&next);
@@ -480,7 +484,7 @@ impl TumblingAggregator {
                         queue.push(Reverse((epoch, next)));
                     }
                 }
-                if self.cumulative {
+                if self.cumulative_prefix() {
                     let first = self.shared_base(end) + self.slide_millis;
                     if end != first {
                         self.remove_slice(end, &key, key_group)?;
@@ -622,5 +626,41 @@ impl TumblingAggregator {
             .unwrap()
             .adopt_restored(self.current_watermark, timer_deadline);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attached_cumulative_window_partials_keep_independent_ends_after_restore() {
+        let batch = RecordBatch::try_from_iter(vec![
+            (
+                "window_start",
+                Arc::new(Int64Array::from(vec![2000, 2000])) as ArrayRef,
+            ),
+            (
+                "window_end",
+                Arc::new(Int64Array::from(vec![3000, 4000])) as ArrayRef,
+            ),
+            ("key0", Arc::new(Int64Array::from(vec![1, 1])) as ArrayRef),
+            ("value0", Arc::new(Int64Array::from(vec![4, 6])) as ArrayRef),
+        ])
+        .unwrap();
+        let mut before = TumblingAggregator::new(2000, 2000, true, vec![0], vec![22]);
+        before.update_attached_final(&batch).unwrap();
+        before.shared_slices = true;
+        let bytes = before.snapshot();
+        let mut restored = TumblingAggregator::restore(2000, 2000, true, vec![0], vec![22], &bytes);
+        assert!(restored.shared_slices);
+        let key = restored.windows[&3000].keys.keys().next().unwrap().clone();
+        for (end, expected) in [(3000, 4), (4000, 6)] {
+            let mut states = restored.merged_slices(end, &key, -1).unwrap().unwrap();
+            assert_eq!(
+                states[0].evaluate().unwrap(),
+                ScalarValue::Int64(Some(expected))
+            );
+        }
     }
 }

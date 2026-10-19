@@ -1,7 +1,5 @@
 package tech.streamfusion.planner;
 
-import tech.streamfusion.operator.ArrowBatch;
-import tech.streamfusion.operator.ArrowToRowDataOperator;
 import java.util.Collections;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
@@ -16,6 +14,8 @@ import org.apache.flink.table.planner.plan.nodes.exec.stream.StreamExecNode;
 import org.apache.flink.table.planner.plan.nodes.exec.utils.ExecNodeUtil;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
+import tech.streamfusion.operator.ArrowBatch;
+import tech.streamfusion.operator.ArrowToRowDataOperator;
 
 /** Wraps the Arrow→row transpose operator into the plan, returning the stream to rows. */
 public class ArrowToRowDataExecNode extends ExecNodeBase<RowData>
@@ -24,9 +24,22 @@ public class ArrowToRowDataExecNode extends ExecNodeBase<RowData>
   private static final String TRANSFORMATION = "arrow-to-row";
 
   private final RowType rowType;
+  private final boolean cachedBinaryRows;
 
   public ArrowToRowDataExecNode(
-      ReadableConfig tableConfig, InputProperty inputProperty, RowType rowType, String description) {
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType rowType,
+      String description) {
+    this(tableConfig, inputProperty, rowType, description, false);
+  }
+
+  public ArrowToRowDataExecNode(
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType rowType,
+      String description,
+      boolean cachedBinaryRows) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-arrow-to-row_1"),
@@ -35,6 +48,7 @@ public class ArrowToRowDataExecNode extends ExecNodeBase<RowData>
         rowType,
         description);
     this.rowType = rowType;
+    this.cachedBinaryRows = cachedBinaryRows;
   }
 
   @Override
@@ -46,7 +60,7 @@ public class ArrowToRowDataExecNode extends ExecNodeBase<RowData>
     return ExecNodeUtil.createOneInputTransformation(
         input,
         createTransformationMeta(TRANSFORMATION, config),
-        new ArrowToRowDataOperator(rowType),
+        new ArrowToRowDataOperator(rowType, cachedBinaryRows),
         InternalTypeInfo.of(rowType),
         input.getParallelism(),
         false);

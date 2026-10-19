@@ -37,7 +37,9 @@ final class FilterCalcMatcher {
     return calc.getProgram().getCondition() != null && projection(calc) != null;
   }
 
-  /** The condition encoded for the native engine, or null if it contains an unsupported operation. */
+  /**
+   * The condition encoded for the native engine, or null if it contains an unsupported operation.
+   */
   static RexExpression encodedCondition(Calc calc) {
     if (CollectionValueIdentity.requiresGeneratedEvaluation(calc.getProgram())) return null;
     RexProgram program = calc.getProgram();
@@ -122,18 +124,25 @@ final class FilterCalcMatcher {
   static RelNode substitute(Calc calc, PlanContext ctx) {
     RexExpression condition = FilterCalcMatcher.encodedCondition(calc);
     ctx.functionExecution("NativeFilter", condition);
-    return new StreamPhysicalNativeFilter(
-        calc.getCluster(),
-        calc.getTraitSet(),
-        calc.getInputs().get(0),
-        calc.getRowType(),
-        FilterCalcMatcher.projection(calc),
-        condition.kinds(),
-        condition.payload(),
-        condition.childCounts(),
-        condition.longs(),
-        condition.doubles(),
-        condition.strings(),
-        condition.udfBinding());
+    StreamPhysicalNativeFilter filter =
+        new StreamPhysicalNativeFilter(
+            calc.getCluster(),
+            calc.getTraitSet(),
+            calc.getInputs().get(0),
+            calc.getRowType(),
+            FilterCalcMatcher.projection(calc),
+            condition.kinds(),
+            condition.payload(),
+            condition.childCounts(),
+            condition.longs(),
+            condition.doubles(),
+            condition.strings(),
+            condition.udfBinding());
+    if (filter.getInput() instanceof StreamPhysicalNativeUnnest) {
+      int[] identity =
+          java.util.stream.IntStream.range(0, calc.getRowType().getFieldCount()).toArray();
+      return filter.withProjection(calc.getTraitSet(), calc.getRowType(), identity);
+    }
+    return filter;
   }
 }

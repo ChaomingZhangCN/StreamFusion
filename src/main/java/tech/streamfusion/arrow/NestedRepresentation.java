@@ -11,11 +11,13 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 /** Physical children that preserve Flink value semantics without changing SQL field ordinals. */
 public final class NestedRepresentation {
   private static final String STRING = "streamfusion.nested-string";
+  private static final String BINARY_ROW_BYTES = "streamfusion.nested-row-binary";
   private static final String KIND = "streamfusion.nested-row-kind";
   public static final String ARRAY = "streamfusion.array-copy";
   private static final String ELEMENT = "streamfusion.array-element";
   public static final int BINARY_ROW = 4;
   public static final int BINARY_ARRAY = 8;
+  public static final int NESTED_ROW = 16;
 
   private NestedRepresentation() {}
 
@@ -93,6 +95,48 @@ public final class NestedRepresentation {
     while (containsName(fields, name)) name += "_";
     return new Field(
         name, new FieldType(true, new ArrowType.Int(8, true), null, Map.of(KIND, "1")), null);
+  }
+
+  /** Adds optional owned binary payloads only where a ROW already carries its representation. */
+  public static org.apache.arrow.vector.types.pojo.Schema withBinaryRows(
+      org.apache.arrow.vector.types.pojo.Schema schema) {
+    return new org.apache.arrow.vector.types.pojo.Schema(
+        schema.getFields().stream()
+            .map(NestedRepresentation::withBinaryRows)
+            .collect(java.util.stream.Collectors.toList()),
+        schema.getCustomMetadata());
+  }
+
+  private static Field withBinaryRows(Field field) {
+    var children =
+        field.getChildren().stream()
+            .map(NestedRepresentation::withBinaryRows)
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+    if (!children.isEmpty()
+        && "1".equals(children.get(children.size() - 1).getMetadata().get(KIND))
+        && children.stream().noneMatch(NestedRepresentation::isBinaryRowBytes)) {
+      String name = "__sf_binary_row";
+      while (containsName(children, name)) name += "_";
+      children.add(
+          children.size() - 1,
+          new Field(
+              name,
+              new FieldType(true, ArrowType.Binary.INSTANCE, null, Map.of(BINARY_ROW_BYTES, "1")),
+              null));
+    }
+    return new Field(field.getName(), field.getFieldType(), children);
+  }
+
+  public static boolean isBinaryRowBytes(Field field) {
+    return field.getType() instanceof ArrowType.Binary
+        && "1".equals(field.getMetadata().get(BINARY_ROW_BYTES));
+  }
+
+  public static org.apache.arrow.vector.VarBinaryVector binaryRows(StructVector vector) {
+    for (var child : vector.getChildrenFromFields())
+      if (isBinaryRowBytes(child.getField()))
+        return (org.apache.arrow.vector.VarBinaryVector) child;
+    return null;
   }
 
   private static boolean containsName(List<Field> fields, String name) {

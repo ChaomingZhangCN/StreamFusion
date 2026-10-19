@@ -83,6 +83,7 @@ nav:
       - Union: operators/union.md
       - Expand: operators/expand.md
       - Changelog normalize: operators/changelog-normalize.md
+      - Drop update-before: operators/drop-update-before.md
       - Unnest / Correlate: operators/unnest-correlate.md
       - GROUP BY: operators/group-by.md
       - Window aggregate: operators/window-aggregate.md

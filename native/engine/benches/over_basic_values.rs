@@ -5,6 +5,9 @@ use criterion::{
 };
 use std::sync::Arc;
 use streamfusion::bench::Over;
+use streamfusion_benchmark_support::CountingAllocator;
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 mod over_counts;
 mod over_range_order;

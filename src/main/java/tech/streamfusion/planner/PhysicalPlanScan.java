@@ -16,6 +16,7 @@ import org.apache.flink.table.api.config.OptimizerConfigOptions;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCalc;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalChangelogNormalize;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate;
+import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalDropUpdateBefore;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalExpand;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalGlobalGroupAggregate;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalGlobalWindowAggregate;
@@ -211,6 +212,14 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
                   : "collection value representation requires a row sink");
       return root;
     }
+    if (CollectionValueIdentity.generatedUnnestCrossesBoundary(substituted, finalOutput)) {
+      substitutions = previousSubstitutions;
+      rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
+      recordFallback(
+          "generated UNNEST collection representation requires a final projection or fused"
+              + " consumer");
+      return root;
+    }
     // Whole-query all-or-nothing: every native operator but a source/sink is Arrow → Arrow.
     // If any operator other than a source (a leaf) or the sink (the plan root) is still row-wise,
     // the
@@ -220,6 +229,16 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
     if (substitutions > previousSubstitutions && !fullyColumnar(substituted, true)) {
       substitutions = previousSubstitutions; // retain counts from other admitted roots
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
+      return root;
+    }
+    if (substitutions == previousSubstitutions + 1
+        && !NativeConfig.standaloneDropUpdateBeforeEnabled()
+        && standaloneDropUpdateBefore(substituted)) {
+      substitutions = previousSubstitutions;
+      rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
+      recordFallback(
+          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow"
+              + " conversion overhead");
       return root;
     }
     // Pass 2 inserts a row↔columnar transpose at each perimeter edge (rowwise source/sink ↔
@@ -295,6 +314,16 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
             .keyedState()
             .matching(GlobalGroupAggregateMatcher::matches)
             .reason(GlobalGroupAggregateMatcher::unsupportedReason)
+            .changelogSafe());
+
+    entries.add(
+        Substitution.of(
+                StreamPhysicalDropUpdateBefore.class,
+                "dropUpdateBefore",
+                (node, ctx) ->
+                    new StreamPhysicalNativeDropUpdateBefore(
+                        node.getCluster(), node.getTraitSet(), node.getInput()))
+            .matching(node -> FilterCalcMatcher.convertibleRow(node.getRowType()))
             .changelogSafe());
 
     // The MiniBatchAssigner emits the mini-batch marker that drives the local aggregate's bundle
@@ -417,6 +446,13 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
         Substitution.of(StreamPhysicalCorrelate.class, "unnest", UnnestMatcher::substitute)
             .matching(UnnestMatcher::matches)
             .reason(UnnestMatcher::unsupportedReason)
+            .changelogSafe());
+
+    entries.add(
+        Substitution.of(StreamPhysicalCorrelate.class, "unnest", GeneratedUnnestMatcher::substitute)
+            .shaped(GeneratedUnnestMatcher::hasShape)
+            .matching(GeneratedUnnestMatcher::matches)
+            .reason(GeneratedUnnestMatcher::unsupportedReason)
             .changelogSafe());
 
     // GROUPING SETS / CUBE / ROLLUP expansion: fan each row out to one row per grouping set (copy
@@ -783,9 +819,13 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
 
   private RelNode insertTransitions(RelNode node, boolean preserveCollections) {
     boolean preserve =
-        node instanceof StreamPhysicalNativeCalc
+        node instanceof StreamPhysicalNativeGeneratedUnnest
+            || node instanceof StreamPhysicalNativeCalc
                 && ((StreamPhysicalNativeCalc) node).preservesCollections()
-            || preserveCollections && node instanceof StreamPhysicalNativeMiniBatchAssigner;
+            || preserveCollections
+                && (node instanceof StreamPhysicalNativeMiniBatchAssigner
+                    || node instanceof StreamPhysicalNativeDropUpdateBefore
+                    || node instanceof StreamPhysicalNativeWatermarkAssigner);
     List<RelNode> inputs = new ArrayList<>(node.getInputs().size());
     boolean changed = false;
     for (RelNode input : node.getInputs()) {
@@ -825,6 +865,15 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
           producer.getCluster(), producer.getTraitSet(), producer);
     }
     return producer;
+  }
+
+  private static boolean standaloneDropUpdateBefore(RelNode node) {
+    if (node instanceof StreamPhysicalNativeDropUpdateBefore) {
+      return !emitsColumnar(node.getInput(0));
+    }
+    return !consumesColumnar(node)
+        && node.getInputs().size() == 1
+        && standaloneDropUpdateBefore(node.getInput(0));
   }
 
   /** Whether a rel produces Arrow batches (a native columnar operator, a columnar source, or a transpose). */

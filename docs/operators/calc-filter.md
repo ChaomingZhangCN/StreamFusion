@@ -1943,7 +1943,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | CARDINALITY on ARRAY/MAP | Rust outer-offset count, returning INT; NULL container produces NULL |
 | ARRAY_APPEND, ARRAY_PREPEND, ARRAY_CONTAINS, ARRAY_POSITION, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
-| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
+| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 
 The generated route evaluates the complete filter and projection together, preserving failure
 order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
@@ -1951,6 +1951,16 @@ It retains Arrow batch inputs/outputs and production JNI costs. A NativeCalc con
 functions does **not** imply that its scalar work executes in Rust; the function-engine diagnostic
 reports the assignment, including ARRAY/MAP/ROW constructors. Programs with user scalar
 functions retain their existing admission gates.
+
+An ARRAY materialized solely for [UNNEST](unnest-correlate.md) can use released DataFusion's scalar
+array constructor because the container's generic/binary identity does not escape that consumer.
+The admitted scalar element types preserve raw floating values and the released timestamp writer's
+compact/expanded storage rules. BIGINT millisecond epoch conversion and TIMESTAMP_LTZ-to-DATE/TIME
+casts also have native kernels in that operand context, with SQL epoch bounds and per-version TIME
+truncation preserved. Non-UTC offsets come from JDK ZoneRules through the batch bridge and are
+cached between transitions, preserving historical and daylight-saving behavior. This total lookup
+does not trigger whole-Calc row evaluation; other JVM calls retain their error-order safeguards.
+Ordinary projected ARRAYs retain their existing routes.
 
 Primitive bridge types and recursively supported ARRAY/MAP/ROW values are admitted, including
 nullable typed map keys, decimal and timestamp values. Fixed BINARY leaves inside generated
@@ -1966,7 +1976,12 @@ caches. NOT NULL elements use an explicit carrier so a NULL first slot cannot hi
 The extended schemas belong only to generated collection programs and are serialized to tasks.
 Other operators and connector schemas keep their ordinary layouts.
 
-String/ROW/MAP-bearing and NOT NULL-element array results currently require a final projection or a fused consumer.
+The UTF-16 units move with checked bulk copies, preserving malformed surrogates. Optional scalar
+cache sidecars appear only in batches with a present Java cache; absent sidecars mean binary-only
+strings. A cache first seen later in the batch retains NULL entries for the earlier rows.
+
+String/ROW/MAP-bearing and NOT NULL-element array results currently require a final projection,
+a fused consumer or a verified generated [UNNEST](unnest-correlate.md) consumer.
 They fall back before stateful, ordering or exchange boundaries that have not verified this
 representation. Sensitive inputs from other columnar producers also retain fallback until their
 cache/kind contract is verified, including an ordinary native Calc or transpose without the
@@ -1975,6 +1990,13 @@ operators. Representation-sensitive final results require a row sink: native sin
 with the extended layouts retain whole-query fallback until their writer contract is verified.
 Nullable primitive array results keep ordinary native sinks. These are representation gates
 even when the experimental option is enabled.
+
+Generated UNNEST outputs can additionally carry an owned binary payload for nested binary ROWs.
+The helper is marked Arrow metadata outside SQL field ordinals and survives IPC. Readers retain
+BinaryRowData versus NestedRowData copy behavior; generic ROWs retain their string caches and
+serializer semantics. An immediate exit transpose can use the payload in Flink's binary projection
+only when every non-null ROW in that batch has a verified binary payload. Missing or generic
+payloads keep the ordinary reader path.
 
 ARRAY_SLICE uses inclusive, one-based Flink bounds. Negative positions count from the end;
 zero normalizes to the first element. NULL containers or bounds produce NULL. Whole slices retain

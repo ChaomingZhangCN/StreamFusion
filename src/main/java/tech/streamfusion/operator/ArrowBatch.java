@@ -4,6 +4,7 @@ import java.lang.ref.Cleaner;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntPredicate;
 import java.util.function.LongConsumer;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -204,6 +205,32 @@ public final class ArrowBatch {
         rowOrdinals == null ? null : Arrays.copyOf(rowOrdinals, length),
         parentKeyGroups == null ? null : Arrays.copyOf(parentKeyGroups, length),
         sourceWatermarkMillis);
+  }
+
+  /** Wraps selected rows, retaining routing, lineage and source metadata. */
+  ArrowBatch filtered(VectorSchemaRoot selected, IntPredicate keep) {
+    return new ArrowBatch(
+        selected,
+        keyGroup,
+        handleOwner,
+        encodeTiming,
+        nativeScanMetrics,
+        parentEpochHigh,
+        parentEpochLow,
+        parentSequence,
+        selectMetadata(rowOrdinals, selected.getRowCount(), keep),
+        selectMetadata(parentKeyGroups, selected.getRowCount(), keep),
+        sourceWatermarkMillis);
+  }
+
+  private static int[] selectMetadata(int[] values, int rows, IntPredicate keep) {
+    if (values == null) return null;
+    int[] selected = new int[rows];
+    int target = 0;
+    for (int i = 0; i < values.length; i++) {
+      if (keep.test(i)) selected[target++] = values[i];
+    }
+    return selected;
   }
 
   /** A new root whose vectors share (and retain) this batch's buffers — Arrow's zero-copy split. */

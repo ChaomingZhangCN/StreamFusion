@@ -73,7 +73,8 @@ See [the timestamp contract](https://github.com/datafusion-contrib/StreamFusion/
 - **`-Dstreamfusion.operator.<name>.enabled=false`** — keep one specific operator on the host. See
   [Configuration](../configuration.md) for the full flag surface.
 - **Insert-only guard** — every operator except the changelog-aware ones (`GROUP BY`, regular join,
-  a CDC source, `Calc`, `UNION ALL`, `Expand`, changelog normalize, streaming Top-N/`LIMIT`)
+  a CDC source, `Calc`, `UNION ALL`, `Expand`, UNNEST, changelog normalize, `DropUpdateBefore`,
+  streaming Top-N/`LIMIT`)
   requires an insert-only input; a retracting/updating input falls it back.
 - **`table.optimizer.delta-join.strategy = FORCE`** — no substitutions are made in an optimizer
   block containing an ordinary join and no delta join. Flink validates this strategy *after* our

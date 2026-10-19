@@ -1,4 +1,5 @@
 use super::*;
+use arrow::array::{BooleanArray, Date32Array, Time32MillisecondArray};
 use streamfusion_bridge::timestamp::{timestamp_array, TimestampValue};
 
 fn fixture(rows: usize, keys: usize, type_code: i64, width: usize) -> RecordBatch {
@@ -9,6 +10,15 @@ fn fixture(rows: usize, keys: usize, type_code: i64, width: usize) -> RecordBatc
         )),
         3 => Arc::new(StringArray::from_iter(
             (0..rows).map(|row| valid(row).then(|| "x".repeat(width))),
+        )),
+        8 => Arc::new(Date32Array::from_iter(
+            (0..rows).map(|row| valid(row).then_some(row as i32)),
+        )),
+        9 => Arc::new(Time32MillisecondArray::from_iter(
+            (0..rows).map(|row| valid(row).then_some((row % 86_400_000) as i32)),
+        )),
+        10 => Arc::new(BooleanArray::from_iter(
+            (0..rows).map(|row| valid(row).then_some(row % 2 == 0)),
         )),
         3202 | 5838 => {
             let (precision, scale) = if type_code == 3202 { (12, 2) } else { (38, 38) };
@@ -80,6 +90,9 @@ pub(super) fn bench(c: &mut Criterion) {
                 ("decimal12", 3202, 16),
                 ("decimal38", 5838, 16),
                 ("timestamp9", 1009, 12),
+                ("date", 8, 4),
+                ("time", 9, 4),
+                ("boolean", 10, 1),
             ] {
                 let batch = fixture(rows, keys, code, width);
                 for proctime in [false, true] {

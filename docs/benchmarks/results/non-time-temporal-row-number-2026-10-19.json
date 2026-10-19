@@ -1,0 +1,1753 @@
+{
+  "date": "2026-10-19",
+  "status": "Qualified representative timestamp-order extension for insert-only ordinary ROW_NUMBER on released Flink 2.2.1. Existing TTL/updating/order-shape/type gates remain.",
+  "flink": "2.2.1",
+  "jdk": 17,
+  "native": "release+mimalloc",
+  "parallelism": 1,
+  "heap_gib": 2,
+  "timezone": "UTC",
+  "hardware": "Intel Core i7-12650H, Linux/WSL",
+  "candidate_base": "03f03b2555c774c7f3c34d41e6a69de7d47c23e1",
+  "source_sha256": {
+    "src/main/java/tech/streamfusion/planner/NonTimeRowNumberMatcher.java": "31da03e97b35b5b0eb9fdd03324a503a799e3b0e625b332d90e523516065c905",
+    "src/test/java/tech/streamfusion/NonTimeRowNumberBenchmark.java": "969e48d8863e9e474d32e8a2e16a450afce1b9d5b0a4adc7d92d4e3fafb85781",
+    "src/test/java/tech/streamfusion/FlinkTemporalRowNumberSqlHarnessTest.java": "98f917a01da62e8f04e54c201783b80174e54f293a8206fd500c3c2cf29d5298",
+    "src/test/java/tech/streamfusion/FlinkNonTimeRowNumberTypeSqlHarnessTest.java": "5ea5f22c39758dd026b4507d7ac7729b5a8d11dedbcec72ead8dc401c9e9f44c",
+    "native/engine/benches/non_time_row_number.rs": "5efd2b74227044578a95ab2526797d12269f0f26be0249876167102797a56113",
+    "native/engine/src/topn.rs": "1bfeb998aad6495438545e14cb87e48c9af2e7d430839e624df7e6ecd8562624",
+    "native/engine/src/topn/non_time_row_number_tests.rs": "8414f98e9347018b0ae8c33509d50f62024fe05321b1ec013b55a8af7eafeab0"
+  },
+  "native_production_topn_unchanged": true,
+  "native_dso_sha256": "1007fcee8ba0d078b6d1248eeacc866db7b8b565b8260e7ffc034eeec6ed521b",
+  "actual_previous_commit": "90fa370d3425242577d786e605ffa21d69858e8a",
+  "previous_fixture_identical": true,
+  "method": "Interleaved engines, identical queries/data/resources, two warmups/five measured trials; runtime row source, rowwise sink and production transposes/JNI/state retained. Current native rank and both transposes plus consumed-input metrics asserted. Previous control verifies rank stays on Flink while retaining any other substitutions it supports. No concurrent local build/test/profile/timing; all warmups/ranges retained. Timestamp order derives from runtime integer milliseconds in whole jobs; exact nanoseconds and pre-epoch values have separate SQL/native coverage.",
+  "validation": {
+    "java22_pass": 42,
+    "java118_pass": 2,
+    "java118_host_skips": 40,
+    "criterion_pass": 88,
+    "recovery": "Two memory/RocksDB restores; exact runtime TIMESTAMP9/LTZ9, null placements, physical splits, ties and retained floating payload fields. Flink1.18 itself rejects non-time OVER."
+  },
+  "raw_job_count": 112,
+  "profiles": [
+    {
+      "phase": "current",
+      "type": "TIMESTAMP(9)",
+      "arrival": "ascending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        1.001589391,
+        0.996920753,
+        1.446789274,
+        1.094389517,
+        1.011555578
+      ],
+      "streamfusion_seconds": [
+        0.392471869,
+        0.36684864,
+        0.198468669,
+        0.197850895,
+        0.225199122
+      ],
+      "stock_median": 1.011555578,
+      "streamfusion_median": 0.225199122,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.711849
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.514306
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.458517
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.122033
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.001589
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.392472
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.366849
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.996921
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.446789
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.198469
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.197851
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.09439
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.011556
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.225199
+        }
+      ],
+      "stock_over_native": 4.491827361564936,
+      "previous_over_native": 4.743538640439282
+    },
+    {
+      "phase": "current",
+      "type": "TIMESTAMP(9)",
+      "arrival": "descending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        6.488868494,
+        6.836705719,
+        6.957484597,
+        6.815740585,
+        7.228182922
+      ],
+      "streamfusion_seconds": [
+        1.88769388,
+        1.830918958,
+        1.94213105,
+        1.743330884,
+        1.922757604
+      ],
+      "stock_median": 6.836705719,
+      "streamfusion_median": 1.88769388,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 6.221406
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.805408
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.760102
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 6.413504
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.488868
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.887694
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.830919
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 6.836706
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 6.957485
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.942131
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.743331
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 6.815741
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 7.228183
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.922758
+        }
+      ],
+      "stock_over_native": 3.6217237293792572,
+      "previous_over_native": 3.6762768961247043
+    },
+    {
+      "phase": "current",
+      "type": "TIMESTAMP_LTZ(9)",
+      "arrival": "ascending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.84990825,
+        1.4069322,
+        1.096952148,
+        1.0689544,
+        1.038633372
+      ],
+      "streamfusion_seconds": [
+        0.453237096,
+        0.338031264,
+        0.277104628,
+        0.237644804,
+        0.211893881
+      ],
+      "stock_median": 1.0689544,
+      "streamfusion_median": 0.277104628,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.8605
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.235335
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.201146
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.827163
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.849908
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.453237
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.338031
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.406932
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.096952
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.277105
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.237645
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.068954
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.038633
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.211894
+        }
+      ],
+      "stock_over_native": 3.8575840747055294,
+      "previous_over_native": 3.520552211780454
+    },
+    {
+      "phase": "current",
+      "type": "TIMESTAMP_LTZ(9)",
+      "arrival": "descending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        6.092810874,
+        6.143307813,
+        6.031240015,
+        6.131013018,
+        6.305022523
+      ],
+      "streamfusion_seconds": [
+        1.832270679,
+        1.746306877,
+        1.835156127,
+        1.750956722,
+        1.836851612
+      ],
+      "stock_median": 6.131013018,
+      "streamfusion_median": 1.832270679,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 5.982024
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.811994
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.773423
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 5.999539
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.092811
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.832271
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.746307
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 6.143308
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 6.03124
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.835156
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.750957
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 6.131013
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 6.305023
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.836852
+        }
+      ],
+      "stock_over_native": 3.346128434116584,
+      "previous_over_native": 3.777708725207407
+    },
+    {
+      "phase": "prior90fa",
+      "type": "TIMESTAMP(9)",
+      "arrival": "ascending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        1.128985267,
+        0.955685175,
+        0.989611473,
+        0.980075285,
+        0.993690108
+      ],
+      "streamfusion_seconds": [
+        1.068240737,
+        1.017696304,
+        1.16511387,
+        1.160608193,
+        1.012573737
+      ],
+      "stock_median": 0.989611473,
+      "streamfusion_median": 1.068240737,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.774295
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.141122
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.161175
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.176449
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.128985
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.068241
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.017696
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.955685
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.989611
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.165114
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.160608
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.980075
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.99369
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.012574
+        }
+      ]
+    },
+    {
+      "phase": "prior90fa",
+      "type": "TIMESTAMP(9)",
+      "arrival": "descending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        6.854169155,
+        6.911567165,
+        7.093581169,
+        8.670474908,
+        7.663971944
+      ],
+      "streamfusion_seconds": [
+        6.932944275,
+        6.934234266,
+        7.302871558,
+        7.765692495,
+        6.939685398
+      ],
+      "stock_median": 7.093581169,
+      "streamfusion_median": 6.939685398,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 7.376373
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 7.693975
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 8.551061
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 7.211951
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.854169
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.932944
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 6.934234
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 6.911567
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 7.093581
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 7.302872
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 7.765692
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 8.670475
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 7.663972
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 6.939685
+        }
+      ]
+    },
+    {
+      "phase": "prior90fa",
+      "type": "TIMESTAMP_LTZ(9)",
+      "arrival": "ascending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.906512365,
+        1.157826787,
+        1.092672812,
+        0.968804059,
+        0.885587582
+      ],
+      "streamfusion_seconds": [
+        0.825313997,
+        1.039459668,
+        0.975561311,
+        1.020080836,
+        0.864232399
+      ],
+      "stock_median": 0.968804059,
+      "streamfusion_median": 0.975561311,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.970907
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.906876
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.850231
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.992298
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.906512
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.825314
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.03946
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.157827
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.092673
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.975561
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.020081
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.968804
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.885588
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.864232
+        }
+      ]
+    },
+    {
+      "phase": "prior90fa",
+      "type": "TIMESTAMP_LTZ(9)",
+      "arrival": "descending",
+      "sql_order": "ASC NULLS FIRST",
+      "rows": 131072,
+      "keys": 1024,
+      "null_every": 31,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        6.809501915,
+        7.100317706,
+        7.560925886,
+        6.953157961,
+        6.814040674
+      ],
+      "streamfusion_seconds": [
+        6.888213241,
+        6.899887554,
+        8.09663948,
+        7.438228419,
+        6.921784931
+      ],
+      "stock_median": 6.953157961,
+      "streamfusion_median": 6.921784931,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 7.714011
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 8.30504
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 7.173674
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 7.013233
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.809502
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 6.888213
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 6.899888
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 7.100318
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 7.560926
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 8.096639
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 7.438228
+        },
+        {
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 6.953158
+        },
+        {
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 6.814041
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 6.921785
+        }
+      ]
+    }
+  ],
+  "allocation_records": [
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "14131",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "456"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "13739",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "13493",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "330"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "13575",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "348"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "14915",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "600"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=16/keys=1/reverse=false",
+      "allocation_calls": "234",
+      "requested_bytes": "22297",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "534"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "13739",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=16/keys=1/reverse=false",
+      "allocation_calls": "148",
+      "requested_bytes": "13739",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=16/keys=1/reverse=false",
+      "allocation_calls": "151",
+      "requested_bytes": "15139",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1078"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=16/keys=1/reverse=false",
+      "allocation_calls": "155",
+      "requested_bytes": "14803",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "508"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=16/keys=1/reverse=false",
+      "allocation_calls": "155",
+      "requested_bytes": "37715",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4228"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "25435",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5050"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "24315",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4250"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "23523",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3650"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "23787",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3850"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "27675",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "6650"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=16/keys=1/reverse=true",
+      "allocation_calls": "243",
+      "requested_bytes": "34353",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5900"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "24315",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4250"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=16/keys=1/reverse=true",
+      "allocation_calls": "157",
+      "requested_bytes": "24315",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4250"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=16/keys=1/reverse=true",
+      "allocation_calls": "151",
+      "requested_bytes": "15139",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1078"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=16/keys=1/reverse=true",
+      "allocation_calls": "164",
+      "requested_bytes": "26835",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5830"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=16/keys=1/reverse=true",
+      "allocation_calls": "164",
+      "requested_bytes": "94883",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "54686"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "20267",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "456"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19629",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "330"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19711",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "348"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "21051",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "600"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=16/keys=64/reverse=false",
+      "allocation_calls": "261",
+      "requested_bytes": "28433",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "534"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=16/keys=64/reverse=false",
+      "allocation_calls": "175",
+      "requested_bytes": "19659",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "315"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=16/keys=64/reverse=false",
+      "allocation_calls": "182",
+      "requested_bytes": "20939",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "508"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=16/keys=64/reverse=false",
+      "allocation_calls": "182",
+      "requested_bytes": "43851",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4228"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "20267",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "456"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19629",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "330"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19711",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "348"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "21051",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "600"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=16/keys=64/reverse=true",
+      "allocation_calls": "261",
+      "requested_bytes": "28433",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "534"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=16/keys=64/reverse=true",
+      "allocation_calls": "175",
+      "requested_bytes": "19659",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "315"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=16/keys=64/reverse=true",
+      "allocation_calls": "182",
+      "requested_bytes": "20939",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "508"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=16/keys=64/reverse=true",
+      "allocation_calls": "182",
+      "requested_bytes": "43851",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4228"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "3694867",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1282550"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "3471211",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1079374"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3237",
+      "requested_bytes": "24147093",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8152678"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "3359383",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "977786"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "4142179",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1688902"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3314",
+      "requested_bytes": "4007761",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1498426"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "3471211",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1079374"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3228",
+      "requested_bytes": "3471211",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1079374"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3234",
+      "requested_bytes": "12410875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4347852"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3235",
+      "requested_bytes": "3521603",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1087082"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=1024/keys=1/reverse=false",
+      "allocation_calls": "3235",
+      "requested_bytes": "4993027",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1325906"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "53213611",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "21352108"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "49810619",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "17969596"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3237",
+      "requested_bytes": "24156301",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8165380"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "48109123",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "16278340"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "60019595",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "28117132"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3326",
+      "requested_bytes": "56904521",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "24946028"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "49810619",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "17969596"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3240",
+      "requested_bytes": "49810619",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "17969596"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3234",
+      "requested_bytes": "12410875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4347852"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3247",
+      "requested_bytes": "56219683",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "24335976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=1024/keys=1/reverse=true",
+      "allocation_calls": "3247",
+      "requested_bytes": "254809939",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "221693632"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "619091",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "55752"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "589779",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "46920"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3473",
+      "requested_bytes": "1088481",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "182026"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "575123",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "42504"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "677715",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "73416"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3553",
+      "requested_bytes": "725489",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "65136"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "589779",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "46920"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "589779",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "46920"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3467",
+      "requested_bytes": "581827",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "62065"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3474",
+      "requested_bytes": "640171",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "54628"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=1024/keys=64/reverse=false",
+      "allocation_calls": "3474",
+      "requested_bytes": "2111595",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "293452"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/bigint/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "1935723",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "481922"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/int/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "1838899",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "405578"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/tinyint/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3473",
+      "requested_bytes": "1076037",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "164872"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/smallint/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "1790487",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "367406"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/decimal/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "2129371",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "634610"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/timestamp9/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3562",
+      "requested_bytes": "2113857",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "563038"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/date/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "1838899",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "405578"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/time/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3476",
+      "requested_bytes": "1838899",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "405578"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/boolean/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3467",
+      "requested_bytes": "581827",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "62065"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string8/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3483",
+      "requested_bytes": "2024315",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "548310"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "non_time_row_number",
+      "case": "non_time_row_number/string256/rows=1024/keys=64/reverse=true",
+      "allocation_calls": "3483",
+      "requested_bytes": "7681483",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4972878"
+    }
+  ],
+  "logs": [
+    {
+      "name": "sf-temporal-rank-current-performance.log",
+      "sha256": "538410b23fa1e0b1bbca2a9e5d8cc4183371ac8388f1eaa30fa726a382f38921"
+    },
+    {
+      "name": "sf-temporal-rank-prior90fa-performance.log",
+      "sha256": "85fddd41f00b98dc59a5f56ead15aca65ed697b1db1ced9d59e23bd88e0f1a48"
+    }
+  ],
+  "limits": "Two timestamp types, ascending/descending arrivals, 131072 input rows and1024keys. All SQLorders are ASC, not descending ORDER BY. Does not establish universal speedup, bounded state size or support for updating input/TTL/floating sort."
+}

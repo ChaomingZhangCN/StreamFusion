@@ -26,17 +26,17 @@ import tech.streamfusion.compat.FlinkStreamOperator;
  * native columnar operator feeds a rowwise (host) one, so the Arrow→row conversion happens once at
  * the boundary. It consumes (and closes) each batch it receives.
  *
- * <p>Primitive and binary outputs use Flink's generated binary-row projection so downstream copying avoids
- * generic field getters and boxing. Other outputs retain the reusable Arrow-backed row view.
+ * <p>Primitive and binary outputs use Flink's generated binary-row projection so downstream copying
+ * avoids generic field getters and boxing. Other outputs retain the reusable Arrow-backed row view.
  * Chained Flink operators may retain a collected {@code RowData}. With object reuse disabled,
  * Flink's chained output copies the reusable row synchronously; with reuse enabled this boundary
- * supplies the owned copy.
- * Network outputs serialize synchronously before the batch closes.
+ * supplies the owned copy. Network outputs serialize synchronously before the batch closes.
  */
 public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
     implements OneInputStreamOperator<ArrowBatch, RowData> {
   private final RowType rowType;
   private final GeneratedProjection generatedProjection;
+  private final boolean requiresBinaryRowCache;
   private transient Projection<RowData, BinaryRowData> projection;
   private transient RowDataSerializer outputSerializer;
   private transient Counter numInputBatches;
@@ -44,12 +44,25 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
   private transient Counter convertTime;
 
   public ArrowToRowDataOperator(RowType rowType) {
+    this(rowType, false);
+  }
+
+  public ArrowToRowDataOperator(RowType rowType, boolean cachedBinaryRows) {
     this.rowType = rowType;
+    requiresBinaryRowCache =
+        cachedBinaryRows
+            && rowType.getChildren().stream()
+                .anyMatch(
+                    type ->
+                        type.getTypeRoot()
+                            == org.apache.flink.table.types.logical.LogicalTypeRoot.ROW);
     boolean projectBinaryRow =
         rowType.getChildren().stream()
             .allMatch(
                 type -> {
                   switch (type.getTypeRoot()) {
+                    case ROW:
+                      return cachedBinaryRows;
                     case BINARY:
                     case VARBINARY:
                     case BOOLEAN:
@@ -70,21 +83,26 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
                       return false;
                   }
                 });
-    generatedProjection = projectBinaryRow
-        ? ProjectionCodeGenerator.generateProjection(
-            new CodeGeneratorContext(new Configuration(), getClass().getClassLoader()),
-            "NativeExitRow", rowType, rowType,
-            IntStream.range(0, rowType.getFieldCount()).toArray())
-        : null;
+    generatedProjection =
+        projectBinaryRow
+            ? ProjectionCodeGenerator.generateProjection(
+                new CodeGeneratorContext(new Configuration(), getClass().getClassLoader()),
+                "NativeExitRow",
+                rowType,
+                rowType,
+                IntStream.range(0, rowType.getFieldCount()).toArray())
+            : null;
   }
 
   @Override
   public void open() throws Exception {
     super.open();
-    projection = generatedProjection == null ? null
-        : generatedProjection.newInstance(getUserCodeClassloader());
-    outputSerializer = getExecutionConfig().isObjectReuseEnabled()
-        ? new RowDataSerializer(rowType) : null;
+    projection =
+        generatedProjection == null
+            ? null
+            : generatedProjection.newInstance(getUserCodeClassloader());
+    outputSerializer =
+        getExecutionConfig().isObjectReuseEnabled() ? new RowDataSerializer(rowType) : null;
     numInputBatches = getMetricGroup().counter("numInputBatches");
     numOutputRows = getMetricGroup().counter("numOutputRows");
     convertTime = getMetricGroup().counter("convertTime");
@@ -96,7 +114,9 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
     numInputBatches.inc();
     long started = System.nanoTime();
     try (VectorSchemaRoot root = element.getValue().root()) {
-      ArrowReader reader = ArrowConversion.createArrowReader(root, rowType);
+      boolean project = projection != null && (!requiresBinaryRowCache || hasBinaryRowCaches(root));
+      ArrowReader reader =
+          ArrowConversion.createArrowReader(root, rowType, project && requiresBinaryRowCache);
       TinyIntVector kinds = (TinyIntVector) root.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
       int rowCount = root.getRowCount();
       numOutputRows.inc(rowCount);
@@ -105,14 +125,37 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
         if (kinds != null) {
           row.setRowKind(RowKind.fromByteValue(kinds.get(i)));
         }
-        if (projection != null) {
+        if (project) {
           BinaryRowData projected = projection.apply(row);
           projected.setRowKind(row.getRowKind());
           row = projected;
         }
-        output.collect(new StreamRecord<>(outputSerializer == null ? row : outputSerializer.copy(row)));
+        output.collect(
+            new StreamRecord<>(outputSerializer == null ? row : outputSerializer.copy(row)));
       }
     }
     convertTime.inc(System.nanoTime() - started);
+  }
+
+  private boolean hasBinaryRowCaches(VectorSchemaRoot root) {
+    for (int field = 0; field < rowType.getFieldCount(); field++) {
+      if (rowType.getTypeAt(field).getTypeRoot()
+          != org.apache.flink.table.types.logical.LogicalTypeRoot.ROW) continue;
+      var rows = (org.apache.arrow.vector.complex.StructVector) root.getVector(field);
+      var cache = tech.streamfusion.arrow.NestedRepresentation.binaryRows(rows);
+      var kinds = tech.streamfusion.arrow.NestedRepresentation.kinds(rows);
+      if (cache == null || kinds == null) return false;
+      for (int row = 0; row < root.getRowCount(); row++) {
+        if (rows.isNull(row)) {
+          if (!rowType.getTypeAt(field).isNullable()) return false;
+        } else if (cache.isNull(row)
+            || kinds.isNull(row)
+            || (kinds.get(row)
+                    & (tech.streamfusion.arrow.NestedRepresentation.BINARY_ROW
+                        | tech.streamfusion.arrow.NestedRepresentation.NESTED_ROW))
+                == 0) return false;
+      }
+    }
+    return true;
   }
 }

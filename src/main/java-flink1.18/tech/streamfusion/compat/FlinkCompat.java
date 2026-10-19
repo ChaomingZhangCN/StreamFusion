@@ -24,6 +24,10 @@ public final class FlinkCompat {
     return millis;
   }
 
+  public static int timestampToTimeTruncationFactor(int precision) {
+    return 1;
+  }
+
   public static org.apache.flink.table.functions.ScalarFunction scalarFunction(
       org.apache.calcite.sql.SqlOperator operator) {
     Object scalarCandidate;

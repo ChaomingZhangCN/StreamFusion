@@ -15,6 +15,17 @@ fn merge_into(
     aggregates: &[WindowAggregate],
 ) {
     for ((target, source), aggregate) in into.iter_mut().zip(from.iter_mut()).zip(aggregates) {
+        if matches!(aggregate, WindowAggregate::ScalarExtreme { .. }) {
+            let value = (source.as_ref() as &dyn std::any::Any)
+                .downcast_ref::<crate::aggregates::ScalarExtremeAccumulator>()
+                .expect("scalar extrema factory")
+                .value();
+            (target.as_mut() as &mut dyn std::any::Any)
+                .downcast_mut::<crate::aggregates::ScalarExtremeAccumulator>()
+                .expect("scalar extrema factory")
+                .merge_value(value);
+            continue;
+        }
         if matches!(aggregate, WindowAggregate::TimestampExtreme { .. }) {
             let timestamp = (target.as_mut() as &mut dyn std::any::Any)
                 .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()
@@ -208,6 +219,12 @@ impl SessionAggregator {
             .zip(&values)
             .map(|(aggregate, value)| aggregate.timestamp_column(value))
             .collect::<Result<_, _>>()?;
+        let scalar_columns: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(&values)
+            .map(|(aggregate, value)| aggregate.scalar_column(value))
+            .collect();
         let key_arrays = key_arrays(batch);
         self.key_types = key_types(&key_arrays);
         let keys_encoded = encode_keys(&mut self.key_converter, &key_arrays, batch.num_rows());
@@ -320,8 +337,9 @@ impl SessionAggregator {
                 let run_values: Vec<Option<ArrayRef>> = values
                     .iter()
                     .zip(&timestamps)
-                    .map(|(value, timestamp)| {
-                        if timestamp.is_some() {
+                    .zip(&scalar_columns)
+                    .map(|((value, timestamp), scalar)| {
+                        if timestamp.is_some() || scalar.is_some() {
                             Ok(None)
                         } else {
                             take(value, &indices, None).map(Some)
@@ -362,6 +380,13 @@ impl SessionAggregator {
                     merge_into(&mut accumulators, session.accumulators, &self.aggregates);
                 }
                 for (i, accumulator) in accumulators.iter_mut().enumerate() {
+                    if let Some(column) = &scalar_columns[i] {
+                        (accumulator.as_mut() as &mut dyn std::any::Any)
+                            .downcast_mut::<crate::aggregates::ScalarExtremeAccumulator>()
+                            .expect("scalar extrema factory")
+                            .update_rows(column, indices.values());
+                        continue;
+                    }
                     if let Some(column) = &timestamps[i] {
                         (accumulator.as_mut() as &mut dyn std::any::Any)
                             .downcast_mut::<crate::aggregates::TimestampExtremeAccumulator>()

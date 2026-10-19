@@ -1120,3 +1120,235 @@ fn mixed_decimal_and_cached_string_folds_share_expired_timestamp_membership() {
     inner.recompute_bytes();
     assert_eq!(inner.bytes, measured);
 }
+
+#[test]
+fn selected_string_caches_survive_later_batches_without_cache_columns() {
+    let cached = string_cache_array([Some(&[97u16][..]), Some(&[122u16][..])]);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("k", DataType::Int64, false),
+        Field::new("rt", DataType::Int64, false),
+        Field::new("v", DataType::Utf8, true),
+        string_cache_field(2, cached.data_type().clone()),
+    ]));
+    let seed = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(Int64Array::from(vec![0, 0])),
+            Arc::new(Int64Array::from(vec![100, 101])),
+            Arc::new(StringArray::from(vec!["a", "z"])),
+            cached,
+        ],
+    )
+    .unwrap();
+    let tail = RecordBatch::try_from_iter(vec![
+        ("k", Arc::new(Int64Array::from(vec![0, 0])) as ArrayRef),
+        ("rt", Arc::new(Int64Array::from(vec![102, 103])) as ArrayRef),
+        (
+            "v",
+            Arc::new(StringArray::from(vec![Some("m"), None])) as ArrayRef,
+        ),
+    ])
+    .unwrap();
+    assert!(!has_string_caches(&tail));
+    for frame in 0..4 {
+        let mut aggregate = OverWindowAggregator::new(
+            vec![3; 4],
+            vec![1, 2, 5, 6],
+            1,
+            vec![2; 4],
+            vec![0],
+            frame,
+            10,
+            false,
+        );
+        aggregate.push(seed.clone(), 0).unwrap();
+        aggregate.flush(101, 0).unwrap();
+        aggregate.push(tail.clone(), 0).unwrap();
+        let output = aggregate.flush(103, 0).unwrap();
+        assert_eq!(output.num_rows(), 2);
+        for (slot, text, units) in [
+            (0, "a", Some(&[97u16][..])),
+            (1, "z", Some(&[122u16][..])),
+            (2, "a", Some(&[97u16][..])),
+            (3, "m", None),
+        ] {
+            let values = output
+                .column(slot + 3)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            for row in 0..2 {
+                assert_eq!(values.value(row), text, "frame {frame} slot {slot}");
+                let cache = string_cache_column(&output, slot + 3).map(JavaStringCacheColumn::new);
+                assert_eq!(
+                    cache.as_ref().and_then(|cache| cache.value(row)),
+                    units,
+                    "frame {frame} slot {slot} row {row}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn distinct_text_counts_use_binary_membership_and_account_retained_keys() {
+    let long = "😀".repeat(4096);
+    let projected = |time, value| {
+        let batch = string_values(&[time], vec![Some(value)]);
+        RecordBatch::try_from_iter(vec![
+            ("key0", batch.column(0).clone()),
+            ("rt", batch.column(1).clone()),
+            ("value0", batch.column(2).clone()),
+        ])
+        .unwrap()
+    };
+    let mut running = OverAggregator::new(vec![3], vec![103]);
+    running.track = true;
+    let first = running.update(&projected(100, &long));
+    assert_eq!(
+        first
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .value(0),
+        1
+    );
+    assert!(running.bytes >= long.len());
+    let once = running.bytes;
+    running.update(&projected(200, &long));
+    assert_eq!(running.bytes, once);
+    running.update(&projected(300, ""));
+    running.update(&projected(400, "?"));
+    let measured = running.bytes;
+    running.recompute_bytes();
+    assert_eq!(running.bytes, measured);
+    let raw = running.snapshot(None);
+    let mut restored = OverAggregator::restore(vec![3], vec![103], &raw, &mut HashMap::default());
+    restored.track = true;
+    restored.recompute_bytes();
+    assert!(restored.bytes >= long.len());
+    let restored_bytes = restored.bytes;
+    let continuation = restored.update(&projected(500, "?"));
+    assert_eq!(
+        continuation
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .value(0),
+        3
+    );
+    assert_eq!(restored.bytes, restored_bytes);
+    let key = restored.keys.keys().next().unwrap().clone();
+    let mut inner = OverInner::Aggregates(restored);
+    inner.clear_key(&key.0);
+    assert_eq!(inner.state_bytes(), 0);
+}
+
+#[test]
+fn distinct_numeric_membership_grows_the_tracked_footprint() {
+    let mut running = OverAggregator::new(vec![0], vec![103]);
+    running.track = true;
+    let input = |start: i64, end: i64| {
+        RecordBatch::try_from_iter(vec![
+            (
+                "rt",
+                Arc::new(Int64Array::from_iter_values(start..end)) as ArrayRef,
+            ),
+            (
+                "value0",
+                Arc::new(Int64Array::from_iter_values(start..end)) as ArrayRef,
+            ),
+        ])
+        .unwrap()
+    };
+    running.update(&input(0, 1));
+    let small = running.bytes;
+    running.update(&input(1, 1024));
+    assert!(running.bytes > small + 1024 * std::mem::size_of::<i64>());
+    let measured = running.bytes;
+    running.recompute_bytes();
+    assert_eq!(running.bytes, measured);
+}
+
+#[test]
+fn decimal_distinct_arithmetic_rebuilds_multiplicities_without_replaying_the_sum() {
+    for frame in 0..4 {
+        for proctime in [false, true] {
+            if proctime && frame == 2 {
+                continue;
+            }
+            let offset = if frame == 1 { 2 } else { 200 };
+            let mut over = OverWindowAggregator::new(
+                vec![3202; 4],
+                vec![100, 122, 104, 103],
+                1,
+                vec![3; 4],
+                vec![0],
+                frame,
+                offset,
+                proctime,
+            );
+            let values = [
+                Some(125),
+                Some(125),
+                Some(250),
+                None,
+                Some(-25),
+                Some(125),
+                Some(250),
+            ];
+            for (index, value) in values.into_iter().enumerate() {
+                let time = 100 + index as i64 * 100;
+                let input = reductions(&[time], vec![None], vec![value], 12, 2);
+                let out = if proctime {
+                    over.push_proctime(input, 0).unwrap()
+                } else {
+                    over.push(input, 0).unwrap();
+                    over.flush(time, 0).unwrap()
+                };
+                let (sum, count) = if matches!(frame, 1 | 2) {
+                    (
+                        [125, 125, 375, 375, 225, 100, 350][index],
+                        [1, 1, 2, 2, 2, 2, 3][index],
+                    )
+                } else {
+                    (
+                        [125, 125, 375, 375, 350, 350, 350][index],
+                        [1, 1, 2, 2, 3, 3, 3][index],
+                    )
+                };
+                let scalar = |column| ScalarValue::try_from_array(out.column(column), 0).unwrap();
+                assert_eq!(
+                    scalar(4),
+                    ScalarValue::Decimal128(Some(sum), 38, 2),
+                    "frame={frame} row={index}"
+                );
+                assert_eq!(scalar(5), scalar(4));
+                assert_eq!(
+                    scalar(6),
+                    ScalarValue::Decimal128(Some((sum * 10_000 + count / 2) / count), 38, 6)
+                );
+                assert_eq!(scalar(7), ScalarValue::Int64(Some(count as i64)));
+                let snapshots = over
+                    .snapshot_partitions(8, &[-1])
+                    .into_values()
+                    .collect::<Vec<_>>();
+                over = OverWindowAggregator::restore_partitions(
+                    vec![3202; 4],
+                    vec![100, 122, 104, 103],
+                    1,
+                    vec![3; 4],
+                    vec![0],
+                    frame,
+                    offset,
+                    proctime,
+                    &snapshots,
+                    0,
+                    0,
+                );
+            }
+        }
+    }
+}

@@ -136,7 +136,12 @@ public final class ArrowConversion {
 
   /** The Arrow schema for a row type, with the two-component timestamp convention above. */
   public static Schema toArrowSchema(RowType rowType) {
-    return schema(rowType, false, false);
+    return toArrowSchema(rowType, false);
+  }
+
+  /** Canonical scalar columns with optional representation-preserving nested children. */
+  public static Schema toArrowSchema(RowType rowType, boolean preserveNested) {
+    return schema(rowType, preserveNested, false);
   }
 
   public static Schema toArrowInputSchema(RowType rowType, boolean preserve) {
@@ -262,6 +267,10 @@ public final class ArrowConversion {
       return false;
     }
     List<Field> actualChildren = actual.getChildren();
+    actualChildren =
+        actualChildren.stream()
+            .filter(field -> !NestedRepresentation.isBinaryRowBytes(field))
+            .collect(Collectors.toList());
     if (actualChildren.size() == expected.getChildren().size() + 1
         && actualChildren
             .get(actualChildren.size() - 1)
@@ -284,12 +293,21 @@ public final class ArrowConversion {
    * A reader that exposes the batch's rows as {@link RowData} backed directly by the Arrow buffers.
    */
   public static ArrowReader createArrowReader(VectorSchemaRoot root, RowType rowType) {
+    return createArrowReader(root, rowType, false);
+  }
+
+  /** Binary ROW payloads are used only by an immediate, verified exit projection. */
+  public static ArrowReader createArrowReader(
+      VectorSchemaRoot root, RowType rowType, boolean binaryRows) {
     List<ColumnVector> columnVectors = new ArrayList<>();
     List<FieldVector> fieldVectors = root.getFieldVectors();
     // Iterate the row type's columns, not the root's: a batch may carry trailing system columns (the
     // hidden $row_kind$) the row type does not name, which the caller reads separately.
     for (int i = 0; i < rowType.getFieldCount(); i++) {
-      columnVectors.add(createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i)));
+      var column = createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i));
+      if (binaryRows && column instanceof ArrowRowColumnVector)
+        ((ArrowRowColumnVector) column).binaryRowsForExit();
+      columnVectors.add(column);
     }
     org.apache.arrow.vector.complex.ListVector[] caches = StringCacheColumns.readers(root, rowType.getFieldCount());
     return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches);

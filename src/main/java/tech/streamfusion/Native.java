@@ -421,6 +421,10 @@ public final class Native {
       long proctimeNowMillis,
       long boundaryOffsetMillis);
 
+  /** Discards UPDATE_BEFORE rows while preserving the full Arrow schema and retained row order. */
+  public static native void dropUpdateBefore(
+      long inArrayAddress, long inSchemaAddress, long outArrayAddress, long outSchemaAddress);
+
   /**
    * Stateless GROUPING SETS / CUBE / ROLLUP expansion: fans each input row out to {@code
    * numExpandRows} output rows, one per grouping set. For output column {@code c} and expand row
@@ -460,6 +464,18 @@ public final class Native {
       boolean isLeft,
       boolean isMultiset);
 
+  /** UNNEST with a projection over its logical output, retaining the changelog tag separately. */
+  public static native void unnestProjected(
+      long inArrayAddress,
+      long inSchemaAddress,
+      long outArrayAddress,
+      long outSchemaAddress,
+      int arrayCol,
+      boolean withOrdinality,
+      boolean isLeft,
+      boolean isMultiset,
+      int[] projection);
+
   /**
    * Creates a buffering local half of a two-phase non-windowed {@code GROUP BY} and returns an opaque
    * handle. It accumulates rows by key across batches in memory (each aggregate folds its {@code
@@ -481,6 +497,9 @@ public final class Native {
       int[] distinctViewSources,
       int[] keyTimestampPrecisions,
       long memoryBudgetBytes);
+
+  /** Configures optional secondary argument columns before the local consumes its first batch. */
+  public static native void configureLocalGroupAggregateArguments(long handle, int[] auxiliaryColumns);
 
   /** Folds a batch into the buffered per-key accumulators; emits nothing. */
   public static native void updateLocalGroupAggregator(

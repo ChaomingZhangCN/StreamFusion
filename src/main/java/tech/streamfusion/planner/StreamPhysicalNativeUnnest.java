@@ -25,6 +25,7 @@ public class StreamPhysicalNativeUnnest extends StreamPhysicalNativeSingleRel
   private final boolean withOrdinality;
   private final boolean isLeft;
   private final boolean isMultiset;
+  private final int[] projection;
 
   public StreamPhysicalNativeUnnest(
       RelOptCluster cluster,
@@ -35,11 +36,34 @@ public class StreamPhysicalNativeUnnest extends StreamPhysicalNativeSingleRel
       boolean withOrdinality,
       boolean isLeft,
       boolean isMultiset) {
+    this(
+        cluster,
+        traitSet,
+        input,
+        outputRowType,
+        arrayColumn,
+        withOrdinality,
+        isLeft,
+        isMultiset,
+        null);
+  }
+
+  private StreamPhysicalNativeUnnest(
+      RelOptCluster cluster,
+      RelTraitSet traitSet,
+      RelNode input,
+      RelDataType outputRowType,
+      int arrayColumn,
+      boolean withOrdinality,
+      boolean isLeft,
+      boolean isMultiset,
+      int[] projection) {
     super(cluster, traitSet, input, outputRowType);
     this.arrayColumn = arrayColumn;
     this.withOrdinality = withOrdinality;
     this.isLeft = isLeft;
     this.isMultiset = isMultiset;
+    this.projection = projection;
   }
 
   @Override
@@ -57,7 +81,25 @@ public class StreamPhysicalNativeUnnest extends StreamPhysicalNativeSingleRel
         arrayColumn,
         withOrdinality,
         isLeft,
-        isMultiset);
+        isMultiset,
+        projection);
+  }
+
+  StreamPhysicalNativeUnnest withProjection(RelTraitSet traits, RelDataType output, int[] columns) {
+    int[] combined =
+        java.util.Arrays.stream(columns)
+            .map(index -> projection == null ? index : projection[index])
+            .toArray();
+    return new StreamPhysicalNativeUnnest(
+        getCluster(),
+        traits,
+        getInput(),
+        output,
+        arrayColumn,
+        withOrdinality,
+        isLeft,
+        isMultiset,
+        combined);
   }
 
   @Override
@@ -70,7 +112,7 @@ public class StreamPhysicalNativeUnnest extends StreamPhysicalNativeSingleRel
         arrayColumn,
         withOrdinality,
         isLeft,
-        isMultiset);
+        isMultiset,
+        projection);
   }
 }
-

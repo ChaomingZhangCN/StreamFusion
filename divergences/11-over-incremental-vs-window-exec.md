@@ -279,7 +279,8 @@ reuse StreamFusion's Arrow-row sorted rank state and key-group/checkpoint repres
 an explicit row-identity emission mode. No generic OVER time guard is removed. Native operators
 still consume and emit Arrow batches, and existing Top-N slot updates remain unchanged.
 
-Initial admission is one ascending INT/BIGINT key, one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
+Admission includes the verified ordinary scalar keys and exact TIMESTAMP/TIMESTAMP_LTZ
+precision, one ascending key, and one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
 through CURRENT ROW, insert-only input and disabled TTL. NULL placement is explicit; ties remain
 stable across physical batches and recovery. Every row remains in state; there is no implicit
 Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
@@ -290,3 +291,33 @@ The released heap operator failed an injected restore with a NULL prior accumula
 update emission. Native checkpoint validation therefore compares its twice-restored output
 with an uninterrupted stock run, independently verifying restored offsets and source cleanup;
 it does not claim parity between two successfully restored host/native jobs.
+
+DATE, TIME and BOOLEAN OVER value state stores the selected physical 32-bit value plus
+its logical Arrow type, following the existing typed decimal/timestamp selection pattern.
+Frame rows and snapshots retain logical DATE/TIME/BOOLEAN scalar fields rather than exposing
+an integer carrier. Readers and restored frames fold into the same native state; no new JNI
+or checkpoint framing is introduced. Arroyo's watermark-finalized window exec cannot replace
+Flink's immediate running and bounded-frame selection, as described above.
+
+
+STRING and timestamp OVER distinct counts reuse the existing typed membership state rather
+than adding a second aggregate engine. Following the borrowed-key membership pattern already
+used by GROUP BY, running string counts probe borrowed bytes and own a key on first membership;
+timestamps probe their full nanosecond value directly, avoiding a temporary scalar/Arrow array.
+String count equality follows Flink binary string bytes, while mixed selections retain their
+own UTF-16 representation. Bounded frame storage still retains the existing string cache.
+
+As in Comet's owned native memory accounting, retained hash capacity and owned payload enter
+the native budget. Per-row growth is measured on the borrowed aggregate state rather than
+through extra key lookups. Restores and persistent probes derive the footprint from decoded
+membership; the derived byte counter is not serialized. Native RocksDB probes include text
+memberships, closing the numeric-only probe hole exposed by cross-batch running string counts.
+These changes keep the existing Arrow boundaries, JNI API and checkpoint wire format.
+
+
+Bounded decimal DISTINCT SUM/SUM0/AVG use the existing incremental arithmetic slots, with
+multiplicity transitions controlling fold/retract. Recomputing each unique frame would violate
+Flink's overflow history, so checkpoints retain arithmetic sum/count fields and membership is
+rebuilt from already-retained frame rows. Rebuilding membership never replays arithmetic. This
+extends the same incremental divergence from Arroyo's watermark-finalized window execution;
+there is no second native window engine or new Java/native ownership boundary.

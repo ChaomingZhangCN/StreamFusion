@@ -235,8 +235,6 @@ class FlinkWindowCountDistinctSqlHarnessTest {
       strings = {
         "SUM(DISTINCT i)",
         "AVG(DISTINCT i)",
-        "COUNT(DISTINCT CAST(i AS DOUBLE))",
-        "COUNT(DISTINCT CAST(i AS DOUBLE)) FILTER (WHERE i > 0)",
         "SUM(DISTINCT i) FILTER (WHERE i > 0)",
         "AVG(DISTINCT i) FILTER (WHERE i > 0)"
       })

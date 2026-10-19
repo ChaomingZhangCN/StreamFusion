@@ -155,13 +155,12 @@ class FlinkStringWindowSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void ordinaryStringCountRemainsOutsideAdmission(String phase) throws Exception {
-    NativeParity.assertFallbackReasonContains(
-        () -> environment(phase),
+  void ordinaryStringCountUsesNativeValidityState(String phase) throws Exception {
+    check(
+        phase,
         "SELECT k, window_start, window_end, COUNT(text_value) FROM TABLE("
             + window("TUMBLE")
-            + ") GROUP BY k, window_start, window_end",
-        "window aggregate:");
+            + ") GROUP BY k, window_start, window_end");
   }
 
   private static void check(String phase, String sql) throws Exception {

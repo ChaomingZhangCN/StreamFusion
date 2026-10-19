@@ -1,0 +1,466 @@
+{
+  "date": "2026-10-18",
+  "source_base": "d85b241a970c7c246f3959166986b60411292cac",
+  "flink": "2.2.1",
+  "jdk": "OpenJDK17",
+  "platform": "Linux/WSL2 x86-64",
+  "cpu": "Intel Core i7-12650H",
+  "profile": "release+mimalloc, production Arrow IPC",
+  "heap": "2 GiB",
+  "parallelism": 1,
+  "warmups": 2,
+  "measurements": 5,
+  "query": "SELECT k, AVG(DISTINCT CAST(t AS FLOAT)), AVG(DISTINCT CAST(b AS DOUBLE)) FROM src GROUP BY k",
+  "source": "Runtime row source with nullable byte/long values; casts remain in measured query; null every seventh row; 127 FLOAT and up to 1024 DOUBLE values per key",
+  "perimeter": "Full job with row source, row blackhole, both row/Arrow transposes, casts, JNI, membership and changelog; job-specific native consumption asserted",
+  "correctness": {
+    "flink2_2": 18,
+    "flink1_18": 18,
+    "criterion_floating_distinct_avg": 16
+  },
+  "native_library_sha256": "5437aa7d6d4fb789026008ba0d45ad2d08a14833088850cc2b95034bc39deb2c",
+  "fixture_sha256": "7b444c943d53f6c4df0f6c70ee3dfb96e8c34e7a0531f045fed1d05631d0234e",
+  "runs": [
+    {
+      "version": "candidate",
+      "rows": 2000000,
+      "keys": 64,
+      "stock_median_seconds": 0.894357,
+      "streamfusion_median_seconds": 0.787801,
+      "stock_samples_seconds": [
+        1.024014474,
+        0.872150542,
+        0.987889682,
+        0.894356754,
+        0.867606103
+      ],
+      "streamfusion_samples_seconds": [
+        0.884580582,
+        0.822699526,
+        0.775586717,
+        0.776098472,
+        0.787800954
+      ],
+      "trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.026879
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.301307
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.998429
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.21357
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.024014
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.884581
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.8227
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.872151
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.98789
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.775587
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.776098
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.894357
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.867606
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.787801
+        }
+      ],
+      "streamfusion_route": "native aggregate with both transposes and consumed records asserted",
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true -Ddistinct.rows=2000000 -Ddistinct.keys=64 -Ddistinct.warmup=2 -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g"
+    },
+    {
+      "version": "origin",
+      "rows": 2000000,
+      "keys": 64,
+      "stock_median_seconds": 0.895359,
+      "streamfusion_median_seconds": 0.87194,
+      "stock_samples_seconds": [
+        0.895359407,
+        0.918911482,
+        0.988447255,
+        0.875067875,
+        0.870690123
+      ],
+      "streamfusion_samples_seconds": [
+        0.95858031,
+        0.962481184,
+        0.856832374,
+        0.837297096,
+        0.871939805
+      ],
+      "trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.808626
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.230201
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.045385
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.96435
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.895359
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.95858
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.962481
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.918911
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.988447
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.856832
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.837297
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.875068
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.87069
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.87194
+        }
+      ],
+      "streamfusion_route": "original-origin aggregate fallback asserted; native planning remains enabled",
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true -Ddistinct.rows=2000000 -Ddistinct.keys=64 -Ddistinct.warmup=2 -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g -Ddistinct.expectNative=false"
+    },
+    {
+      "version": "candidate",
+      "rows": 2000000,
+      "keys": 4096,
+      "stock_median_seconds": 2.909029,
+      "streamfusion_median_seconds": 1.674566,
+      "stock_samples_seconds": [
+        2.912426081,
+        2.73330817,
+        2.909028648,
+        2.88177841,
+        3.095015725
+      ],
+      "streamfusion_samples_seconds": [
+        1.715133451,
+        1.703425285,
+        1.659499652,
+        1.63473939,
+        1.674565802
+      ],
+      "trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.964815
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 2.128643
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.730112
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.412419
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.912426
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 1.715133
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 1.703425
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.733308
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.909029
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 1.6595
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 1.634739
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 2.881778
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 3.095016
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 1.674566
+        }
+      ],
+      "streamfusion_route": "native aggregate with both transposes and consumed records asserted",
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true -Ddistinct.rows=2000000 -Ddistinct.keys=4096 -Ddistinct.warmup=2 -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g"
+    },
+    {
+      "version": "origin",
+      "rows": 2000000,
+      "keys": 4096,
+      "stock_median_seconds": 2.79591,
+      "streamfusion_median_seconds": 2.744675,
+      "stock_samples_seconds": [
+        2.766683622,
+        2.785026814,
+        2.901557357,
+        2.855018931,
+        2.795910056
+      ],
+      "streamfusion_samples_seconds": [
+        2.638888651,
+        2.744674535,
+        3.098242979,
+        2.90889202,
+        2.696582578
+      ],
+      "trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.769458
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 3.228188
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.844925
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 2.842893
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.766684
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 2.638889
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.744675
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 2.785027
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 2.901557
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 3.098243
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 2.908892
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds": 2.855019
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 2.79591
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds": 2.696583
+        }
+      ],
+      "streamfusion_route": "original-origin aggregate fallback asserted; native planning remains enabled",
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true -Ddistinct.rows=2000000 -Ddistinct.keys=4096 -Ddistinct.warmup=2 -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g -Ddistinct.expectNative=false"
+    }
+  ],
+  "notes": [
+    "Origin controls use a separate JVM and have their own paired stock measurements; retain control drift.",
+    "These are complete-job measurements including startup.",
+    "An earlier keys64 pilot, before exposing the key-count parameter, measured stock0.968302/native0.818374 seconds; it is not pooled with retained identical-fixture runs."
+  ]
+}
