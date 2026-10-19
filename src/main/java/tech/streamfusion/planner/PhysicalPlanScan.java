@@ -814,10 +814,17 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
 
   /** Inserts transpose rels at every columnar↔rowwise edge of the (already substituted) tree. */
   private RelNode insertTransitions(RelNode node) {
-    return insertTransitions(node, false);
+    return insertTransitions(node, false, 1024);
   }
 
-  private RelNode insertTransitions(RelNode node, boolean preserveCollections) {
+  private RelNode insertTransitions(
+      RelNode node, boolean preserveCollections, int inheritedBatchRows) {
+    int preferredBatchRows =
+        node instanceof StreamPhysicalNativeOverAggregate
+            ? Math.max(
+                inheritedBatchRows,
+                ((StreamPhysicalNativeOverAggregate) node).preferredInputBatchRows())
+            : consumesColumnar(node) && emitsColumnar(node) ? inheritedBatchRows : 1024;
     boolean preserve =
         node instanceof StreamPhysicalNativeGeneratedUnnest
             || node instanceof StreamPhysicalNativeCalc
@@ -829,12 +836,20 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
     List<RelNode> inputs = new ArrayList<>(node.getInputs().size());
     boolean changed = false;
     for (RelNode input : node.getInputs()) {
-      RelNode transitioned = insertTransitions(input, preserve);
+      RelNode transitioned = insertTransitions(input, preserve, preferredBatchRows);
       RelNode adapted = adapt(node, transitioned, preserve);
+      if (adapted instanceof StreamPhysicalRowDataToArrow) {
+        adapted =
+            ((StreamPhysicalRowDataToArrow) adapted).withPreferredBatchRows(preferredBatchRows);
+      }
       inputs.add(adapted);
       changed |= adapted != input;
     }
-    return changed ? node.copy(node.getTraitSet(), inputs) : node;
+    RelNode result = changed ? node.copy(node.getTraitSet(), inputs) : node;
+    if (result instanceof StreamPhysicalRowDataToArrow) {
+      result = ((StreamPhysicalRowDataToArrow) result).withPreferredBatchRows(inheritedBatchRows);
+    }
+    return result;
   }
 
   /**

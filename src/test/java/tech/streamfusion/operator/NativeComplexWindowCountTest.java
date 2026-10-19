@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class NativeComplexWindowCountTest {
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> cases() {
-    return java.util.stream.Stream.of("array", "map", "row")
+    return java.util.stream.Stream.of("array", "map", "row", "multiset")
         .flatMap(
             type ->
                 java.util.stream.IntStream.range(0, 3)
@@ -46,6 +46,13 @@ class NativeComplexWindowCountTest {
         var map = new java.util.HashMap<StringData, Long>();
         map.put(StringData.fromString("nil"), null);
         childNull = new GenericMapData(map);
+        break;
+      case "multiset":
+        payloadType = new MultisetType(new VarCharType());
+        empty = new GenericMapData(java.util.Map.of());
+        var multiset = new java.util.HashMap<StringData, Integer>();
+        multiset.put(null, 3);
+        childNull = new GenericMapData(multiset);
         break;
       case "row":
         payloadType = RowType.of(new BigIntType());

@@ -87,6 +87,21 @@ final class CollectionValueIdentity {
   }
 
   static boolean requiresRowSink(RelNode node) {
+    RelNode input = node.getInputs().isEmpty() ? node : node.getInput(0);
+    if (tech.streamfusion.arrow.MapListRepresentation.containsMap(
+            org.apache.flink.table.planner.calcite.FlinkTypeFactory$.MODULE$.toLogicalRowType(
+                input.getRowType()))
+        && containsMapListOver(node)) return true;
+    return requiresRepresentedRowSink(node);
+  }
+
+  private static boolean containsMapListOver(RelNode node) {
+    return node instanceof StreamPhysicalNativeOverAggregate
+            && ((StreamPhysicalNativeOverAggregate) node).usesMapListTransport()
+        || node.getInputs().stream().anyMatch(CollectionValueIdentity::containsMapListOver);
+  }
+
+  private static boolean requiresRepresentedRowSink(RelNode node) {
     if (node instanceof StreamPhysicalNativeGeneratedUnnest
         && node.getRowType().getFieldList().stream().anyMatch(field -> sensitive(field.getType())))
       return true;
@@ -96,7 +111,7 @@ final class CollectionValueIdentity {
           && calc.getRowType().getFieldList().stream()
               .anyMatch(field -> sensitive(field.getType()))) return true;
     }
-    return node.getInputs().stream().anyMatch(CollectionValueIdentity::requiresRowSink);
+    return node.getInputs().stream().anyMatch(CollectionValueIdentity::requiresRepresentedRowSink);
   }
 
   static boolean generatedUnnestCrossesBoundary(RelNode root, boolean finalOutput) {

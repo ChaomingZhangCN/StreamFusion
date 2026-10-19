@@ -46,6 +46,9 @@ final class NonTimeRowNumberMatcher {
 
   static String unsupportedReason(StreamPhysicalOverAggregate over) {
     if (!hasShape(over)) return "non-time ROW_NUMBER: requires one ROW_NUMBER group";
+    if (!tech.streamfusion.compat.RuntimeCompat.supportsNonTimeOverRowNumber()) {
+      return "non-time ROW_NUMBER: unavailable on this released Flink line";
+    }
     Window.Group group = over.logicWindow().groups.get(0);
     var inputType = over.getInput().getRowType();
     var order = group.orderKeys.getFieldCollations().get(0);
@@ -91,11 +94,19 @@ final class NonTimeRowNumberMatcher {
   }
 
   private static boolean supportedOrderType(RelDataType type) {
+    return supportedOrderType(type, true);
+  }
+
+  private static boolean supportedOrderType(RelDataType type, boolean allowFloating) {
     switch (type.getSqlTypeName()) {
       case ARRAY:
-        return supportedOrderType(type.getComponentType());
+        return supportedOrderType(type.getComponentType(), false);
       case ROW:
-        return type.getFieldList().stream().allMatch(field -> supportedOrderType(field.getType()));
+        return type.getFieldList().stream().allMatch(field -> supportedOrderType(field.getType(), false));
+      case FLOAT:
+      case REAL:
+      case DOUBLE:
+        return allowFloating;
       case TINYINT:
       case SMALLINT:
       case INTEGER:

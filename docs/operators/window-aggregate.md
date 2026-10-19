@@ -184,8 +184,8 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 ## COUNT over values
 
 Ordinary `COUNT(value)` accepts character, DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ
-values alongside the existing numeric types, and ordinary COUNT also accepts ARRAY, MAP and
-ROW parents. Empty containers and non-NULL parents with NULL children count once. It reads Arrow validity without decoding the
+values alongside the existing numeric types, and ordinary COUNT also accepts ARRAY, MAP, ROW and
+MULTISET parents. Empty containers and non-NULL parents with NULL children count once. It reads Arrow validity without decoding the
 payload. All-NULL groups report zero. Filtered counts retain group liveness even without a
 companion `COUNT(*)`; groups whose rows have all retracted produce no window result.
 The existing window assignment, filtering and changelog restrictions still apply.
@@ -201,9 +201,9 @@ DATE, TIME, BOOLEAN and nanosecond timestamps.
 Complex-value SQL comparisons cover both phases of event-time TUMBLE/HOP/CUMULATE, filters,
 legacy TUMBLE/HOP/SESSION and the session table function where the released host supports it.
 Retraction cases cover updates, complete group removal and NULL-only groups on Flink 2.2;
-Flink 1.18 retains its host restriction on retracting window table functions. Twelve profiles
-force two restores across both phases, the three parent types and memory/native RocksDB.
-Eighteen direct processing-time cases check all three aligned shapes and restored timers on
+Flink 1.18 retains its host restriction on retracting window table functions. Sixteen profiles
+force two restores across both phases, the four parent types and memory/native RocksDB.
+Twenty-four direct processing-time cases check all three aligned shapes and restored timers on
 both backends. The existing scalar COUNT controls run alongside these cases. Retracting COUNT
 normalizes parent validity to the same owned BIGINT bitmap carrier used by append COUNT;
 aggregate result state remains BIGINT. DISTINCT still excludes these complex types.
@@ -754,7 +754,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - A value type/aggregate mismatch.
   DATE/TIME/BOOLEAN and TIMESTAMP/TIMESTAMP_LTZ values are admitted for insert-only MIN/MAX
   and COUNT(DISTINCT).
-  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP and ROW values;
+  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
   it counts validity without interpreting the payload.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
@@ -1555,3 +1555,48 @@ TUMBLE, SESSION, RocksDB and split CUMULATE; only the final 30 jobs use the fina
 library. Reproduce with `WindowBasicTypeBenchmark -Dwindow.cases=float,double`, phase/shape,
 row/key, warmup/run and backend properties above. `-Dwindow.splitDistinct=true` enables the
 optional split rewrite; the default remains false.
+
+
+### MULTISET COUNT
+
+Ordinary MULTISET COUNT uses the same parent-validity path as ARRAY/MAP/ROW. Empty bags,
+a bag containing the NULL element and bags with different element multiplicities each count
+as one non-NULL parent; element occurrences do not contribute separately. DISTINCT retains
+fallback. Existing window assignment, aggregate phase, filtering and changelog gates remain.
+The physical entry schema is MAP-of-element-to-non-null-INT, while aggregate state is BIGINT.
+
+Released SQL coverage adds twelve append and twelve retracting/filter/phase cases, legacy
+TUMBLE/HOP/SESSION, the available session table function, four two-restore phase/backend
+profiles and six processing-time restored-timer controls. Flink 1.18 keeps its existing signed
+window restrictions. The combined window/OVER selection passes 181 checks on Flink 2.2;
+Flink 1.18 passes 127 with 54 host capability skips. Release fixtures expand the existing
+window suite to 48 cases with independently counted parent validity and chunked/local-global
+updates. The [OVER page](over.md#multiset-count) describes the matching event-time coverage.
+
+
+Complete-job release+mimalloc timings use JDK 17, UTC, parallelism two, a 2 GiB heap,
+1,024-row entry batches and production IPC. Nullable runtime bags contain empty values, a NULL
+element and positive occurrence counts. Both row/Arrow transposes, JNI, state, startup and a
+row blackhole sink remain measured. Two warmups precede three alternating trials. Native
+plans/counters verify execution; separately compiled actual previous revision `a038f539`
+asserts its window/OVER fallback. Other local heavy work was excluded.
+
+| Profile / rows / keys / elements | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| ONE_PHASE TUMBLE / 1,000,000 / 64 / 4 | 1.002 (0.967–1.005) | 0.923 (0.911–0.928) | 1.006 (1.005–1.015) |
+| ONE_PHASE HOP / 1,000,000 / 64 / 4 | 0.954 (0.923–0.989) | 0.822 (0.814–0.827) | 0.962 (0.940–0.974) |
+| ONE_PHASE CUMULATE / 1,000,000 / 64 / 4 | 0.876 (0.853–0.920) | 0.825 (0.816–0.829) | 0.892 (0.875–0.933) |
+| TWO_PHASE TUMBLE / 1,000,000 / 64 / 4 | 0.990 (0.981–0.991) | 0.740 (0.737–0.747) | 0.984 (0.981–0.985) |
+| TWO_PHASE HOP / 1,000,000 / 64 / 4 | 0.980 (0.967–0.990) | 0.745 (0.744–0.752) | 0.915 (0.909–0.985) |
+| TWO_PHASE CUMULATE / 1,000,000 / 64 / 4 | 0.930 (0.902–0.984) | 0.742 (0.739–0.752) | 0.919 (0.912–0.996) |
+| TWO_PHASE HOP / 250,000 / 4,096 / 32 | 1.013 (0.981–1.075) | 0.951 (0.912–0.970) | 0.982 (0.954–0.999) |
+
+These profiles improve 1.062–1.338x over paired stock and 1.033–1.331x
+over actual previous StreamFusion. The Flink 1.18 two-phase TUMBLE control improves
+1.293x over stock (1.048/0.811 s). Wide-bag gains are modest and
+ranges overlap previous execution; startup/source allocation remain measured. These are
+representative complete jobs, not universal or sustained-throughput claims. The
+[260-job artifact](../benchmarks/results/multiset-count-2026-10-19.json) retains every warmup,
+trial, prior stock control, source/library hash and all 308 native allocation/buffer reports.
+Reproduce with `WindowComplexCountBenchmark -Dwindow.cases=multiset`
+and the row/key/width/phase/frame properties shown above.

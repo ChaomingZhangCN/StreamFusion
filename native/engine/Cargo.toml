@@ -214,3 +214,7 @@ harness = false
 [[bench]]
 name = "non_time_complex_rank"
 harness = false
+
+[[bench]]
+name = "over_complex_count"
+harness = false

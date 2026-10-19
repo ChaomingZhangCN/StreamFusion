@@ -104,6 +104,9 @@ class WindowComplexCountBenchmark {
             case "map":
               payloadType = DataTypes.MAP(DataTypes.STRING(), DataTypes.BIGINT());
               break;
+            case "multiset":
+              payloadType = DataTypes.MULTISET(DataTypes.STRING());
+              break;
             case "row":
               payloadType = DataTypes.ROW(DataTypes.FIELD("child", DataTypes.BIGINT()));
               break;
@@ -135,6 +138,13 @@ class WindowComplexCountBenchmark {
                                 for (int j = 0; j < width; j++)
                                   map.put("k" + j, j % 3 == 0 ? null : i % 256);
                               payload = map;
+                              break;
+                            case "multiset":
+                              var multiset = new java.util.LinkedHashMap<String, Integer>();
+                              if (i % 3 != 0)
+                                for (int j = 0; j < width; j++)
+                                  multiset.put(j == 0 ? null : "k" + j, 1 + j % 5);
+                              payload = multiset;
                               break;
                             case "row":
                               payload = Row.of(i % 3 == 0 ? null : i % 256);

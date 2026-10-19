@@ -157,5 +157,8 @@ fn bench_non_time_row_number(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_non_time_row_number);
+#[path = "non_time_row_number/floating.rs"]
+mod floating;
+
+criterion_group!(benches, bench_non_time_row_number, floating::bench);
 criterion_main!(benches);

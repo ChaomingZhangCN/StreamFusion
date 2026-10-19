@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayRef, Int64Array, Int64Builder, ListBuilder, MapBuilder, RecordBatch, StringBuilder,
-    StructArray,
+    Array, ArrayRef, Int32Builder, Int64Array, Int64Builder, ListBuilder, MapBuilder, RecordBatch,
+    StringBuilder, StructArray,
 };
 use arrow::buffer::NullBuffer;
 use arrow::datatypes::{DataType, Field};
@@ -38,6 +38,17 @@ fn payload(kind: &str, valid: &[bool]) -> ArrayRef {
                     } else {
                         builder.values().append_value(row as i64);
                     }
+                }
+                builder.append(present).unwrap();
+            }
+            Arc::new(builder.finish())
+        }
+        "multiset" => {
+            let mut builder = MapBuilder::new(None, StringBuilder::new(), Int32Builder::new());
+            for (row, &present) in valid.iter().enumerate() {
+                if present && row % 3 != 0 {
+                    builder.keys().append_value("element");
+                    builder.values().append_value(1 + (row % 5) as i32);
                 }
                 builder.append(present).unwrap();
             }
@@ -87,7 +98,7 @@ fn bench(c: &mut Criterion) {
                     )
                 })
                 .collect();
-            for kind in ["array", "map", "row"] {
+            for kind in ["array", "map", "row", "multiset"] {
                 let input = RecordBatch::try_from_iter(vec![
                     (
                         "ts",

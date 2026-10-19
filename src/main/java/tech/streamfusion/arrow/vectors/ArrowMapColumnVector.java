@@ -18,6 +18,7 @@
 
 package tech.streamfusion.arrow.vectors;
 
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
@@ -33,8 +34,8 @@ import tech.streamfusion.arrow.RepresentedArrayData;
 @Internal
 public final class ArrowMapColumnVector implements MapColumnVector {
 
-    /** Container which is used to store the map values of a column to read. */
-    private final MapVector mapVector;
+  /** Container which is used to store the map values of a column to read. */
+  private final ListVector mapVector;
 
     private final ColumnVector keyVector;
 
@@ -43,6 +44,11 @@ public final class ArrowMapColumnVector implements MapColumnVector {
 
     public ArrowMapColumnVector(
             MapVector mapVector, ColumnVector keyVector, ColumnVector valueVector) {
+    this((ListVector) mapVector, keyVector, valueVector);
+  }
+
+  public ArrowMapColumnVector(
+      ListVector mapVector, ColumnVector keyVector, ColumnVector valueVector) {
         this.mapVector = Preconditions.checkNotNull(mapVector);
         this.keyVector = Preconditions.checkNotNull(keyVector);
         this.valueVector = Preconditions.checkNotNull(valueVector);

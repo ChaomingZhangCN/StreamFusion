@@ -48,3 +48,30 @@ full row-source jobs. Setting it false restores host execution for the extension
 [Issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) tracks performance improvements. Coverage, restrictions and
 performance evidence belong in [Calc/filter](../docs/operators/calc-filter.md#collection-expressions)
 and the [scalar benchmark page](../docs/benchmarks/scalar-functions.md#extended-function-coverage).
+
+
+Ordinary OVER COUNT over a newly admitted complex argument needs an IPC-safe retained carrier
+when its input schema contains MAP, including MAP columns only passed through as payload.
+Arrow Java's MAP key declaration is non-nullable even when Flink supplies NULL keys. Rust IPC
+validates it during restore. For these newly admitted queries, a metadata-only schema view aliases
+MAP buffers as List-of-entry-Struct with nullable keys before native import. Map and List share
+offset/validity/value layout; Comet's C export/load ownership pattern retains the original buffers
+before Java closes its input view. No borrowed root closes those vectors independently.
+The logical MAP reader accepts this physical carrier after native output and restore, including
+nested maps. Existing scalar-count queries merely carrying MAP payloads keep their previous
+schema/state representation. MAP-valued native sink output remains gated; numeric counts can
+still use a native sink. Released Flink comparisons cover nullable keys, payload emission,
+three-way exchange and two memory/RocksDB restores.
+
+Nested MULTISET uses the same physical Map storage and requires the same alias, even if the
+input contains no logical MAP. A four-case released-SQL regression checks ARRAY-of-MAP,
+ARRAY-of-MULTISET and ROW-of-MULTISET with NULL keys through two restores on each backend.
+Before including MULTISET in physical-map detection, the two multiset-only cases failed
+with the same IPC non-nullable-key validation error. No primitive or logical MAP benchmark
+fixture changes; the additional alias applies only to those previously unverified descendants.
+
+
+Standalone event-time OVER COUNT over MULTISET uses this same nullable-key entry-list carrier,
+with non-null INT occurrence counts. Window aggregates instead consume parent validity and
+retain only their BIGINT aggregate state. Neither path sums occurrences. Released Flink
+checks return original bags and restore pending/frame state twice on both backends.

@@ -52,9 +52,10 @@ serialized operator configuration rather than process-global state before a stab
   (two branches scanning the same native source normally collapse into one read); restores one
   source per branch. Flink's `table.optimizer.reuse-source-enabled=false` and
   `table.optimizer.reuse-sub-plan-enabled=false` also disable native source sharing.
-- **`streamfusion.transpose.batchRows`** (default 1024) — maximum rows buffered by each
+- **`streamfusion.transpose.batchRows`** (default 1024; proctime complex COUNT input islands prefer 4096) — maximum rows buffered by each
   row-to-Arrow boundary. Must be positive. Read from the job's Flink configuration at planning
-  time and serialized into the operator; the same-named JVM property is a fallback. Watermarks,
+  time and serialized into the operator; the same-named JVM property is a fallback. Explicit
+  table/JVM settings override the preferred batch size. Watermarks,
   checkpoints, end-of-input and the latency timer can flush a smaller batch. This does not set
   Flink's logical mini-batch size or the post-exchange coalescer's target size. Accepted rows are
   copied directly into owned Arrow storage, including partial batches; operator close releases

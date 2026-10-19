@@ -285,7 +285,8 @@ through CURRENT ROW, insert-only input and disabled TTL. NULL placement is expli
 stable across physical batches and recovery. Every row remains in state; there is no implicit
 Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
 Updating input, TTL, other order specifications and other non-time analytic functions retain
-fallback. Flink 1.18 rejects this query itself, before native admission.
+fallback. Flink 1.18 rejects this query at its released factory boundary; native admission
+preserves that failure for all ordinary sort types.
 
 The released heap operator failed an injected restore with a NULL prior accumulator in its
 update emission. Native checkpoint validation therefore compares its twice-restored output
@@ -339,3 +340,29 @@ Top-N and previously admitted scalar ranks keep their original sort-key layouts.
 nested field names are reconciled with the declared payload schema by the existing recursive
 Arrow cast helper; renaming children retains offsets, validity and value buffers. Normal
 changelog gathering still owns its output allocations.
+
+
+### Mutable floating sort groups
+
+Released Flink's generated numeric comparator uses `left > right ? 1 : left < right ? -1 : 0`.
+Both signed zeros and every NaN/non-NULL pair compare equal. Its ordinary non-time ROWS
+operator linearly scans retained groups and replaces a matched group's key on every insertion.
+After NaN arrives, those groups can cease to be numerically sorted. Arroyo/DataFusion's total
+window sort and ordinary Arrow-row binary ordering cannot model this contract.
+
+Scalar FLOAT/DOUBLE ROW_NUMBER therefore keeps the existing ranker's rows in retained group
+order, uses each group's last row as its current key, and marks the first row with its length.
+The existing optional sort-count field encodes these headers as `-(length + 2)`; `-1` stays absent
+and ordinary nonnegative OFFSET counts keep their meaning. This introduces no JNI API or new
+operator. The raw byte codec preserves the new negative values, and restore normalizes signed
+zero keys while preserving tagged group order. Every row's original payload stays independent
+of its comparison key; raw NaN bits survive emission and checkpoints. Header counts live in the
+existing fixed-size row metadata and participate in the existing managed state serialization.
+
+An initial proxy-key candidate retained the first group representative. Its unit model made
+the same mistaken assumption; released SQL rejected eight NaN cases and all eight recovery
+profiles. The corrected oracle follows the host's latest-key replacement, including group-order
+mutations, and checks complete emitted identities across snapshots. Released raw-bit, memory/
+RocksDB recovery, mini-batch and shuffle tests qualify the final implementation. Flink 1.18
+receives an explicit compatibility gate: native substitution must not bypass its non-time
+OVER factory rejection. Performance evidence and remaining gates live on the OVER page.

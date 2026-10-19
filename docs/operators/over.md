@@ -6,7 +6,7 @@ shape, with the gaps enumerated below.
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
-TIMESTAMP and TIMESTAMP_LTZ. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
 retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
@@ -26,20 +26,20 @@ control the input order separately.
 ## Ordinary ROW_NUMBER (Flink 2.2)
 
 An unfiltered `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY v ASC)` also runs over an ordinary
-TINYINT, SMALLINT, INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP or
+TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP or
 TIMESTAMP_LTZ column. Timestamp ordering retains all declared fractional nanoseconds.
 This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
 PRECEDING through CURRENT ROW, insert-only input, supported partition/payload types and disabled
 idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
 its validation is unchanged. Other non-time analytic functions and order specifications retain
-fallback, including floating-point sort values and MAP/MULTISET. Descending ordinary
+fallback, including MAP/MULTISET. Descending ordinary
 OVER ordering and multiple ORDER BY columns are rejected by released Flink itself,
 including otherwise valid ordinary scalar keys. Sixteen released-SQL failure-parity checks
 pin both planning restrictions on Flink 2.2.1 and 1.18.1; these are not acceleration gaps.
 See the [released ordering audit](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/non-time-over-ordering.md).
 
-ARRAY and ROW sort values are also admitted recursively when every child has one of the
-supported scalar order types above, or another admitted ARRAY/ROW. Floating children and
+ARRAY and ROW sort values are also admitted recursively over the non-floating scalar order
+types above, or another admitted ARRAY/ROW. Floating children and
 MAP/MULTISET retain fallback. Parent NULLS FIRST/LAST are independent of child ordering:
 released Flink always sorts nested NULLs first. For NULLS LAST, two native projections add
 and remove a derived parent-NULL flag; the existing ranker orders that flag before the
@@ -292,7 +292,7 @@ state, TTL and checkpoint paths. This works for all four admitted frame shapes, 
 mixed aggregates, nullable partition keys and unpartitioned input.
 
 Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP,
-TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
+TIMESTAMP_LTZ, DATE, TIME, BOOLEAN, ARRAY, MAP and ROW values. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
 running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, CHAR/VARCHAR,
@@ -339,7 +339,9 @@ The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
-  and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
+  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET.
+  Proctime complex arguments containing MAP/MULTISET retain Flink for conversion performance. Complex DISTINCT
+  and complex value selections retain fallback. The scalar types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
   admits all these types; other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
@@ -755,3 +757,191 @@ allocation/buffer reports. Reproduce with `OverBasicValuesBenchmark
 -Dover.values.distinctReductions=true -Dover.values.engines=2`, selecting `decimal` or
 `decimal_wide_balanced` plus the frame/row/key properties above. Default three-engine
 benchmark behavior is unchanged.
+
+
+## Complex ordinary COUNT
+
+Ordinary `COUNT` over ARRAY, MAP and ROW reads only the parent validity bitmap. Empty containers
+and a non-NULL ROW with NULL children count as one; NULL parents count as zero. DISTINCT and
+other complex-valued reductions retain fallback. All four event-time frames admit these three types; running ROWS/RANGE and bounded ROWS
+over proctime admit ARRAY/ROW without MAP/MULTISET descendants. Proctime MAP-containing COUNT arguments
+retain Flink ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)): profiled Arrow/conversion costs did not reliably beat stock, including larger-batch
+diagnostics. The verified paths use the existing BIGINT membership/frame state.
+
+Flink permits NULL map keys. Arrow Java declares map keys non-nullable, and Rust IPC enforces
+that declaration during restore. Newly admitted MAP-count inputs therefore use a tagged
+List-of-key/value-struct schema with nullable keys, borrowing the identical offsets, validity
+and value buffers. Existing C export/import retains buffer references. This transport is scoped
+to newly admitted complex COUNT with MAP anywhere in its input schema; merely passing MAP payloads through an
+already-admitted scalar query does not change its checkpoint format. Logical MAP/MULTISET readers
+recover the declared value after emission and restore. Numeric results retain native columnar
+sinks; MAP-valued outputs reaching an unverified native sink require the existing row-sink route.
+See the [representation decision](../../divergences/48-flink-collection-representation.md).
+
+Proctime complex COUNT prefers 4,096-row entry batches to amortize Calc, Arrow C Data and JNI
+setup. The preference follows its columnar input island, including an already-pruned entry
+transpose, and stops at host boundaries. Explicit table/JVM `streamfusion.transpose.batchRows`
+settings take precedence; other queries retain the 1,024-row default. Timer, watermark,
+end-input and checkpoint flushes remain active, including the default 50 ms latency backstop.
+
+Seventy primary checks and four nested recovery cases pass on each released Flink line. SQL comparisons cover all seven frame/order contexts, nullable containers/children/map keys,
+NULL-only partitions, empty values, returned original payloads, a three-way shuffle, both sink
+routes and two successive memory/native RocksDB restores. Default proctime batches and explicit
+seven-row batches have independent parity checks. Release native coverage adds 196 fixtures
+with 64/4,096 rows, one/64 keys and 4/64-entry containers. Setup stays outside native timing;
+frame output, pending peers and checkpoint continuation are independently checked.
+
+Complete jobs use released Flink, JDK 17, a 2 GiB heap, parallelism two, UTC, release+mimalloc,
+production IPC, runtime nullable containers and a row blackhole sink. Both transposes, JNI,
+state and startup stay measured; every native job must report consumed OVER records. Two
+warmups precede three alternating measured trials. Event-time cases use 500,000 running rows
+or 50,000 bounded rows; the wide MAP case uses 4,096 keys/32 entries instead of 64 keys/four
+entries. Bounded stock execution at 500,000 rows took roughly 34 seconds per job; that
+interrupted diagnostic is retained separately rather than extrapolated into final ratios.
+
+| Event-time type / frame | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| ARRAY / running | 0.941 (0.900–1.048) | 0.471 (0.311–0.489) | 0.876 (0.822–0.931) |
+| MAP / running | 1.162 (1.113–1.230) | 0.587 (0.586–0.619) | 1.114 (1.083–1.164) |
+| ROW / running | 0.874 (0.823–0.888) | 0.324 (0.318–0.329) | 0.853 (0.748–0.947) |
+| ARRAY / bounded | 0.310 (0.305–0.403) | 0.173 (0.171–0.194) | 0.328 (0.307–0.331) |
+| MAP / bounded | 0.309 (0.250–0.336) | 0.134 (0.126–0.162) | 0.250 (0.250–0.316) |
+| ROW / bounded | 0.210 (0.209–0.210) | 0.102 (0.095–0.105) | 0.248 (0.226–0.255) |
+| ARRAY / range | 0.326 (0.295–0.506) | 0.213 (0.169–0.222) | 0.325 (0.306–0.340) |
+| MAP / wide-map | 0.393 (0.372–0.472) | 0.334 (0.244–0.354) | 0.362 (0.356–0.390) |
+
+These event-time profiles improve 1.178–2.699x over paired stock. Flink 1.18's bounded ARRAY,
+MAP and ROW profiles improve 2.052–3.025x. Measurements include startup and allocation;
+the shorter bounded cases are not sustained-throughput claims or universal guarantees.
+The [complete evidence](../benchmarks/results/over-complex-count-2026-10-19.json) retains
+warmups, trials, actual-prior controls, allocation reports, source/library hashes and rejected
+proctime diagnostics. Reproduce with `OverComplexCountBenchmark`; `over.cases`, `over.frames`,
+`over.proctime`, `over.rows`, `over.keys` and `over.width` select the profiles above.
+
+
+The final 500,000-row proctime ARRAY/ROW matrix measures 1.271–1.728x over stock and
+1.204–1.967x over actual previous StreamFusion. Full medians and ranges are in the
+[entry batching ledger](../optimizations/row-major-transpose.md#batch-preference-for-proctime-complex-count).
+Its 80 additional complete jobs include matching previous-version bounded-ROWS controls;
+previous running controls remain in the earlier 180-job batching matrix. Earlier 50,000-row
+bounded and rejected MAP proctime candidates remain available, including unfavorable samples.
+
+
+## MULTISET COUNT
+
+Event-time ordinary COUNT also admits standalone MULTISET values across all four existing
+frames. It counts parent validity, independently of element occurrences, empty bags and NULL
+elements. The existing nullable-key List-of-entry transport carries element-to-INT pairs,
+so original MULTISET payloads remain readable after emission and repeated IPC restore. No
+new frame, membership, checkpoint or JNI format is introduced beyond that existing transport.
+
+Eight released-SQL cases combine four event-time frames and two restores on each memory/native
+RocksDB backend. They return the original bags as well as counts, covering NULL parents,
+empty bags, NULL elements, varying occurrence counts and NULL-only partitions. Three more
+checks preserve proctime's MAP-storage performance fallback ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)).
+DISTINCT also retains fallback. Both released Flink lines pass these eleven cases.
+
+The existing release OVER fixture suite adds 64 cases over 64/4,096 rows, one/64 keys,
+4/64 elements, four event-time frames and both regular MAP-of-UTF8-to-INT and IPC-safe
+nullable-element List carriers. Independent frame/peer/checkpoint oracles validate the
+260-case suite. Native setup stays outside timing; allocation requests and buffer sharing
+are recorded without equating either with copied bytes.
+
+
+Complete-job release+mimalloc timings use JDK 17, UTC, parallelism two, a 2 GiB heap,
+1,024-row entry batches and production IPC. Nullable runtime bags contain empty values, a NULL
+element and positive occurrence counts. Both row/Arrow transposes, JNI, state, startup and a
+row blackhole sink remain measured. Two warmups precede three alternating trials. Native
+plans/counters verify execution; separately compiled actual previous revision `a038f539`
+asserts its window/OVER fallback. Other local heavy work was excluded.
+
+| Profile / rows / keys / elements | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| running ROWS / 500,000 / 64 / 4 | 1.188 (1.164–1.270) | 0.650 (0.631–0.659) | 1.128 (1.104–1.163) |
+| running RANGE / 500,000 / 64 / 4 | 1.175 (1.120–1.296) | 0.641 (0.563–0.795) | 1.044 (0.979–1.082) |
+| 3 preceding ROWS / 50,000 / 64 / 4 | 0.389 (0.328–0.473) | 0.203 (0.115–0.215) | 0.346 (0.336–0.358) |
+| 300 ms RANGE / 50,000 / 64 / 4 | 0.316 (0.258–0.437) | 0.127 (0.125–0.136) | 0.248 (0.248–0.274) |
+| 3 preceding ROWS / 50,000 / 4,096 / 32 | 0.364 (0.364–0.455) | 0.357 (0.307–0.359) | 0.370 (0.349–0.373) |
+
+These profiles improve 1.021–2.495x over paired stock and 1.036–1.959x
+over actual previous StreamFusion. The Flink 1.18 bounded ROWS control improves
+1.853x over stock (0.411/0.222 s). Wide-bag gains are modest and
+ranges overlap previous execution; startup/source allocation remain measured. These are
+representative complete jobs, not universal or sustained-throughput claims. The
+[260-job artifact](../benchmarks/results/multiset-count-2026-10-19.json) retains every warmup,
+trial, prior stock control, source/library hash and all 308 native allocation/buffer reports.
+Reproduce with `OverComplexCountBenchmark -Dover.cases=multiset`
+and the row/key/width/phase/frame properties shown above.
+
+
+## Ordinary FLOAT/DOUBLE ROW_NUMBER (Flink 2.2)
+
+Scalar FLOAT/DOUBLE keys use the released ordinary non-time ROW_NUMBER contract. Signed zeros
+compare equal. A NaN compares equal to any non-NULL key in Flink's generated numeric comparator;
+this differs from the boxed-value equality used by DISTINCT. The host scans groups from the
+start and replaces a matched group's comparison key with the latest row's key. Consequently,
+NaNs can make the retained group order nonmonotonic. A total floating sort or one permanently
+canonical NaN key would produce different rank updates.
+
+The existing ranker preserves that group order, scans actual last-member keys using the host
+comparison, and emits the inserted row before each shifted row's UPDATE_BEFORE/UPDATE_AFTER.
+Every row keeps its original key/payload bytes, including NaN payloads and signed zeros.
+Tagged group lengths use the existing optional count metadata: `-(length + 2)` identifies a
+floating OVER group header; `-1` remains absent and nonnegative OFFSET counts retain their
+existing meaning. Raw/canonical restore preserves these headers and group order rather than
+sorting them again. Existing scalar/complex non-floating ranks and filtered Top-N keep their
+previous contracts. See the [rank-state decision](../../divergences/11-over-incremental-vs-window-exec.md).
+
+Admission still requires insert-only input, one ascending key, ROWS UNBOUNDED PRECEDING through
+CURRENT ROW and disabled idle-state TTL. Floating ARRAY/ROW children retain fallback. Released
+Flink 1.18's ordinary non-time factory rejection is preserved for every type; explicit FLOAT,
+DOUBLE and existing BIGINT controls verify failure class, message and phase with native planning.
+
+The combined released SQL/context suite has 79 passes and three host-capability skips on Flink
+2.2.1, and five passes/77 skips on Flink 1.18.1. New cases compare every changelog event and raw
+floating payload bits under both NULL placements and physical batch sizes one/seven. Eight
+memory/RocksDB cases inject two restores. Four more contexts check mini-batches and a three-way
+shuffle. Existing scalar/complex ranking controls run with the same library. All 28 native
+Top-N unit checks pass, including an independent linear-group model with changing representative
+keys and repeated snapshots.
+
+The existing `non_time_row_number` release fixture suite has 120 cases, including 32 new
+FLOAT/DOUBLE cases over 16/256 rows, one/64 partitions, both NULL placements and initial/later
+NaNs. Independent group-list oracles validate every row identity, rank and changelog kind,
+including seven-row physical chunks and two restores. Fixture construction stays outside the
+measured production update/output path; allocation and buffer-sharing reports are retained.
+
+### Floating rank performance
+
+Release+mimalloc complete-job measurements use Flink 2.2.1, JDK 17, UTC, a 2 GiB heap,
+parallelism one, 131,072 runtime rows, 1,024 partitions and 1,024-row entry batches. Both
+row/Arrow transposes, production IPC, JNI, all rank changes, startup and the row blackhole sink
+remain measured. Each engine has two warmups and three alternating trials. Plans and per-job
+counters verify native execution; actual previous revision `bd87a085` runs the identical fixture
+with its preceding library and floating fallback asserted. SQL ordering is always ascending;
+arrival labels describe only the finite component of the input. Other heavy local work was excluded.
+
+| Type / arrival / corpus | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| FLOAT / ascending / mixed | 2.897 (2.790–2.999) | 1.098 (1.068–1.123) | 2.626 (2.620–2.742) |
+| FLOAT / descending / mixed | 4.594 (4.517–4.662) | 1.668 (1.586–1.677) | 5.297 (5.258–5.527) |
+| DOUBLE / ascending / mixed | 2.722 (2.621–2.730) | 1.155 (1.114–1.168) | 2.543 (2.541–2.575) |
+| DOUBLE / descending / mixed | 4.534 (4.433–4.656) | 1.781 (1.751–1.859) | 5.326 (4.305–6.042) |
+| DOUBLE / ascending / all_nan | 0.360 (0.230–0.415) | 0.175 (0.155–0.188) | 0.234 (0.210–0.238) |
+| BIGINT / ascending / finite | 0.772 (0.640–0.866) | 0.253 (0.252–0.271) | 0.243 (0.209–0.287) |
+
+The five floating profiles improve 2.056–2.754x over paired stock and 1.340–3.176x over
+actual previous StreamFusion. The unchanged BIGINT control is 4.1% slower by median than
+the preceding native ranker, with overlapping ranges; no scalar speedup is claimed. These
+complete-job observations include startup and do not establish universal or sustained throughput.
+The [120-job artifact](../benchmarks/results/floating-ordinary-rank-2026-10-19.json) retains all
+warmups/trials, paired previous stock controls, source/library hashes, 120 native allocation
+reports, initial NaN-parity failures and the rejected fixed-representative prototype.
+
+Reproduce with `SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench` and
+`-Dtest=NonTimeFloatingRankBenchmark -Drank.float.types=FLOAT,DOUBLE`
+`-Drank.float.arrivals=ascending,descending -Drank.float.corpus=mixed`
+`-Drank.float.rows=131072 -Drank.float.keys=1024 -Drank.float.warmup=2 -Drank.float.runs=3`
+and `-Dsf.extraJvmArgs="-Xmx2g -Duser.timezone=UTC"`. The all-NaN control uses
+`-Drank.float.types=DOUBLE -Drank.float.arrivals=ascending -Drank.float.corpus=all_nan`
+and `-Drank.float.nullEvery=0`; the scalar control uses BIGINT and `finite`.

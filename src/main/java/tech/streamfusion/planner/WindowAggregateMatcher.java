@@ -384,7 +384,8 @@ final class WindowAggregateMatcher {
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
                 || type == SqlTypeName.DATE || type == SqlTypeName.TIME
                 || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)
-                || type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW))
+                || type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW
+                || type == SqlTypeName.MULTISET))
         || ((kind == KIND_MIN || kind == KIND_MAX)
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
                 || type == SqlTypeName.DATE || type == SqlTypeName.TIME
