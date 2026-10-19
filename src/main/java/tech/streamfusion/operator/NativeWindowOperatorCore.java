@@ -545,7 +545,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     List<FieldVector> vectors = new ArrayList<>();
     vectors.add(ts);
     for (int a = 0; a < valueColumns.length; a++) {
-      countValues[a] = aggregateKinds[a] == KIND_COUNT;
+      countValues[a] = aggregateKinds[a] == KIND_COUNT || aggregateKinds[a] == KIND_RETRACT_COUNT;
       if (countValues[a]) {
         values[a] = new BigIntVector("value" + a, allocator);
       } else if (isTimestamp(valueTypes[a]) && timestampPrecision(valueTypes[a]) <= 3

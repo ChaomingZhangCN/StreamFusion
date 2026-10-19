@@ -182,6 +182,13 @@ one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timesta
 retain NULL-only groups and are checked against an independent per-key validity oracle.
 Batch construction stays outside the timed production window update/firing boundary.
 
+The standalone `window_complex_counts` target adds 36 ordinary COUNT fixtures for ARRAY,
+MAP and ROW parents at 128/4096 rows and one/64/1024 keys. Parent NULLs, empty containers,
+NULL children and all-NULL groups are checked against an independent per-key validity oracle.
+Whole-batch and 17-row chunked input must agree, including local partial drains and global
+merges. Fixture construction stays outside the measured production update/firing boundary;
+untimed probes report allocation requests and output Arrow buffers separately.
+
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
 serialization, a held snapshot, and completion between input and firing. It has 128 fixtures.
