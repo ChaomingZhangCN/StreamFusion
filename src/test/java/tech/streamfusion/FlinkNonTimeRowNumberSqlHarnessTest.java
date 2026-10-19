@@ -158,7 +158,7 @@ class FlinkNonTimeRowNumberSqlHarnessTest {
     NativeParity.assertFallbackReasonContains(
         FlinkNonTimeRowNumberSqlHarnessTest::environment,
         SQL.replace("v ASC NULLS FIRST", "CAST(v AS DOUBLE) ASC NULLS FIRST"),
-        "ascending supported scalar order column");
+        "ascending supported order column");
   }
 
   @org.junit.jupiter.params.ParameterizedTest

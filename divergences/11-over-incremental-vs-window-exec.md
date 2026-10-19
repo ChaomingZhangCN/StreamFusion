@@ -321,3 +321,21 @@ Flink's overflow history, so checkpoints retain arithmetic sum/count fields and 
 rebuilt from already-retained frame rows. Rebuilding membership never replays arithmetic. This
 extends the same incremental divergence from Arroyo's watermark-finalized window execution;
 there is no second native window engine or new Java/native ownership boundary.
+
+### Complex ordinary ranks keep parent and child NULL ordering separate
+
+Released Flink's generated ARRAY/ROW comparisons always order child NULLs first, independently
+of the top-level NULLS clause. Arrow's row codec propagates that clause to children. For
+ordinary ARRAY/ROW ROW_NUMBER with NULLS LAST, lower the query to a native projection of
+`value IS NULL`, then the existing retained ranker ordered by that flag and the original value
+with NULLS FIRST, then a native projection removing the flag. ARRAY/ROW with NULLS FIRST
+uses the original single key. This extends the retained-buffer design above; Arroyo's
+per-instant window execution cannot provide Flink's cumulative row-identity updates.
+
+Scalar children retain the existing verified order whitelist. Floating and MAP/MULTISET
+children stay outside it. The hidden flag is part of the same retained row and checkpoint
+schema, so heap and persistent restore use the existing sort/payload codec. Existing bounded
+Top-N and previously admitted scalar ranks keep their original sort-key layouts. Restored
+nested field names are reconciled with the declared payload schema by the existing recursive
+Arrow cast helper; renaming children retains offsets, validity and value buffers. Normal
+changelog gathering still owns its output allocations.

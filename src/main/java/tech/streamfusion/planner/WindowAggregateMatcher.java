@@ -383,7 +383,8 @@ final class WindowAggregateMatcher {
         || (kind == KIND_COUNT
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
                 || type == SqlTypeName.DATE || type == SqlTypeName.TIME
-                || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)))
+                || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)
+                || type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW))
         || ((kind == KIND_MIN || kind == KIND_MAX)
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
                 || type == SqlTypeName.DATE || type == SqlTypeName.TIME
@@ -875,7 +876,7 @@ final class WindowAggregateMatcher {
       }
     }
     return "window aggregate: requires a supported window/time and grouping-key type, and"
-        + " numeric SUM/MIN/MAX/AVG, supported scalar COUNT, string/timestamp MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
+        + " numeric SUM/MIN/MAX/AVG, supported COUNT, string/timestamp MIN/MAX, or COUNT(DISTINCT) over exact, string, or"
         + " temporal values (docs/operators/window-aggregate.md)";
   }
 

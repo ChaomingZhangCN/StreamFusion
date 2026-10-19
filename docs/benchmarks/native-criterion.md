@@ -182,6 +182,13 @@ one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timesta
 retain NULL-only groups and are checked against an independent per-key validity oracle.
 Batch construction stays outside the timed production window update/firing boundary.
 
+The standalone `window_complex_counts` target adds 36 ordinary COUNT fixtures for ARRAY,
+MAP and ROW parents at 128/4096 rows and one/64/1024 keys. Parent NULLs, empty containers,
+NULL children and all-NULL groups are checked against an independent per-key validity oracle.
+Whole-batch and 17-row chunked input must agree, including local partial drains and global
+merges. Fixture construction stays outside the measured production update/firing boundary;
+untimed probes report allocation requests and output Arrow buffers separately.
+
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
 serialization, a held snapshot, and completion between input and firing. It has 128 fixtures.
@@ -2517,3 +2524,15 @@ state, a partial replay after the short end closes, final drain and memory accou
 validated. Operator/JVM/input setup stays outside timing. No new checkpoint layout is used.
 The helper stays in a nested directory with an explicit module path; Cargo discovers the
 registered target alone. The final selection has 72 fixture successes/allocation reports.
+
+### Complex ordinary ROW_NUMBER fixtures
+
+`non_time_complex_rank` has 32 release fixtures: ARRAY, ROW, nested ARRAY and ROW-of-ARRAY;
+16/256 rows; one/64 partitions; and both parent NULL placements. Independent Rust value
+comparisons order nested NULLs first and emit every expected INSERT/UPDATE_BEFORE/UPDATE_AFTER
+by retained row identity. Whole batches agree with seven-row chunks that checkpoint and
+restore after the first chunk. Custom list child names exercise restored payload-schema
+alignment. Fixture construction and the derived parent flag are outside timing; production
+rank insertion, retained state and complete changelog construction are measured. Untimed
+allocation probes retain separate Arrow-buffer reports; complete Java jobs include the native
+flag projections and both perimeter transposes.

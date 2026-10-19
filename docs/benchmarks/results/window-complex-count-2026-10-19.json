@@ -1,0 +1,881 @@
+{
+  "date": "2026-10-19",
+  "feature": "Ordinary ARRAY/MAP/ROW window COUNT",
+  "source_identity": {
+    "prior": "ddf8154e92e464303920fe24ec9451410b2bd7ba",
+    "dso_sha256": "2bb1864e9dbdb7c7fef848bfc567ffe306613a2fe3747d666e646060a3d5c249",
+    "production_rust_unchanged": true,
+    "sources": {
+      "src/test/java/tech/streamfusion/WindowComplexCountBenchmark.java": "25a1331e8761cb3c6859ab2d2b8a1fe955e787afd93a5c499444eda86e53a4de",
+      "src/main/java/tech/streamfusion/planner/WindowAggregateMatcher.java": "175d323bfb20c9626b82846c8d6b1ea5978c477ffb4fab7d9918a0959ff420ec",
+      "native/engine/src/aggregates.rs": "4fcc9724408576c6cc890628a31b87fb2d7055e346ac6e2855f894942f191d1e",
+      "src/main/java/tech/streamfusion/operator/NativeWindowOperatorCore.java": "31e6b697edd2eb314e1c41278f1eaf2027ec835ef38a56425d1dcc7a8e863229"
+    }
+  },
+  "configuration": {
+    "flink": [
+      "2.2.1",
+      "1.18.1"
+    ],
+    "jdk": 17,
+    "native": "release+mimalloc; same frozen library for current and actual prior; production Rust unchanged",
+    "heap": "2 GiB",
+    "parallelism": 2,
+    "rows": 1000000,
+    "keys": [
+      64,
+      16384
+    ],
+    "payload_entries": [
+      4,
+      32
+    ],
+    "batch_rows": 1024,
+    "warmup_jobs_per_engine": 2,
+    "measured_jobs_per_engine": 3,
+    "order": "alternating stock/StreamFusion",
+    "boundary": "complete bounded jobs, row source, both transposes, production Arrow IPC, JNI, aggregate state, row blackhole sink",
+    "exclusive_local_heavy_work": true,
+    "environment": "Intel Core i7-12650H; Linux WSL2",
+    "reproduce": "SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=WindowComplexCountBenchmark -Dwindow.cases=array,map,row -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.width=4 -Dwindow.warmup=2 -Dwindow.runs=3 -Dsf.extraJvmArgs=-Xmx2g",
+    "prior": "Exact frozen integration commit with only the identical benchmark fixture copied; expectNative=false asserts aggregate fallback",
+    "native_proof": "Both perimeter transposes and local/global plans asserted; nonempty execution metrics required"
+  },
+  "qualification": {
+    "22": [
+      "[INFO] Tests run: 96, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 36.07 s -- in tech.streamfusion.FlinkWindowComplexCountSqlHarnessTest",
+      "[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.565 s -- in tech.streamfusion.operator.NativeComplexWindowCountTest",
+      "[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.495 s -- in tech.streamfusion.FlinkWindowCountTypesSqlHarnessTest",
+      "[INFO] Tests run: 132, Failures: 0, Errors: 0, Skipped: 0"
+    ],
+    "118": [
+      "[WARNING] Tests run: 96, Failures: 0, Errors: 0, Skipped: 36, Time elapsed: 24.75 s -- in tech.streamfusion.FlinkWindowComplexCountSqlHarnessTest",
+      "[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.525 s -- in tech.streamfusion.operator.NativeComplexWindowCountTest",
+      "[WARNING] Tests run: 18, Failures: 0, Errors: 0, Skipped: 6, Time elapsed: 4.266 s -- in tech.streamfusion.FlinkWindowCountTypesSqlHarnessTest",
+      "[WARNING] Tests run: 132, Failures: 0, Errors: 0, Skipped: 42"
+    ]
+  },
+  "native_fixture_allocation_records": [
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1/split=false\",71,9472,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1/split=true\",132,15464,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1/split=false\",72,9592,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1/split=true\",133,15584,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1/split=false\",73,9592,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1/split=true\",134,15584,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=64/split=false\",474,72183,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=64/split=true\",1060,133916,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=64/split=false\",475,72303,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=64/split=true\",1061,134036,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=64/split=false\",476,72303,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=64/split=true\",1062,134036,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1024/split=false\",866,146527,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1024/split=true\",1970,274268,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1024/split=false\",867,146647,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1024/split=true\",1971,274388,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1024/split=false\",868,146647,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1024/split=true\",1972,274388,0,4096",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1/split=false\",76,108672,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1/split=true\",137,114664,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1/split=false\",77,108792,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1/split=true\",138,114784,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1/split=false\",78,108792,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1/split=true\",139,114784,0,32",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=64/split=false\",730,170359,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=64/split=true\",1316,232092,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=64/split=false\",731,170479,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=64/split=true\",1317,232212,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=64/split=false\",732,170479,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=64/split=true\",1318,232212,0,2048",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1024/split=false\",6263,1197103,0,32768",
+    "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1024/split=true\",14550,2191436,0,32768",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1024/split=false\",6264,1197223,0,32768",
+    "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1024/split=true\",14551,2191556,0,32768",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1024/split=false\",6265,1197223,0,32768",
+    "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1024/split=true\",14552,2191556,0,32768"
+  ],
+  "profiles": [
+    {
+      "case": "array",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.595011674,
+        0.554867163,
+        0.536568556
+      ],
+      "host_median": 0.554867163,
+      "host_mean": 0.562149131,
+      "host_range": [
+        0.536568556,
+        0.595011674
+      ],
+      "native_seconds": [
+        0.47869978,
+        0.502399052,
+        0.409548986
+      ],
+      "native_median": 0.47869978,
+      "native_mean": 0.4635492726666667,
+      "native_range": [
+        0.409548986,
+        0.502399052
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 1.1591130520260529
+    },
+    {
+      "case": "array",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.5993407,
+        0.576288181,
+        0.590961958
+      ],
+      "host_median": 0.590961958,
+      "host_mean": 0.588863613,
+      "host_range": [
+        0.576288181,
+        0.5993407
+      ],
+      "native_seconds": [
+        0.275328777,
+        0.26767675,
+        0.277365243
+      ],
+      "native_median": 0.275328777,
+      "native_mean": 0.2734569233333333,
+      "native_range": [
+        0.26767675,
+        0.277365243
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 2.1463864563637673
+    },
+    {
+      "case": "map",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.99935668,
+        0.973702662,
+        0.982467028
+      ],
+      "host_median": 0.982467028,
+      "host_mean": 0.9851754566666666,
+      "host_range": [
+        0.973702662,
+        0.99935668
+      ],
+      "native_seconds": [
+        0.99062247,
+        0.93628831,
+        0.91686741
+      ],
+      "native_median": 0.93628831,
+      "native_mean": 0.9479260633333334,
+      "native_range": [
+        0.91686741,
+        0.99062247
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 1.0493210451383292
+    },
+    {
+      "case": "map",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        1.071561745,
+        0.984517037,
+        1.053795491
+      ],
+      "host_median": 1.053795491,
+      "host_mean": 1.0366247576666667,
+      "host_range": [
+        0.984517037,
+        1.071561745
+      ],
+      "native_seconds": [
+        0.813944782,
+        0.828930994,
+        0.832485138
+      ],
+      "native_median": 0.828930994,
+      "native_mean": 0.8251203046666666,
+      "native_range": [
+        0.813944782,
+        0.832485138
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 1.2712704659707779
+    },
+    {
+      "case": "row",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.516244228,
+        0.509592391,
+        0.526466512
+      ],
+      "host_median": 0.516244228,
+      "host_mean": 0.5174343770000001,
+      "host_range": [
+        0.509592391,
+        0.526466512
+      ],
+      "native_seconds": [
+        0.357645813,
+        0.367812373,
+        0.366304753
+      ],
+      "native_median": 0.366304753,
+      "native_mean": 0.36392097966666664,
+      "native_range": [
+        0.357645813,
+        0.367812373
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 1.4093298647424322
+    },
+    {
+      "case": "row",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.603765911,
+        0.564746807,
+        0.55821413
+      ],
+      "host_median": 0.564746807,
+      "host_mean": 0.575575616,
+      "host_range": [
+        0.55821413,
+        0.603765911
+      ],
+      "native_seconds": [
+        0.328907282,
+        0.332603932,
+        0.338810702
+      ],
+      "native_median": 0.332603932,
+      "native_mean": 0.3334406386666667,
+      "native_range": [
+        0.328907282,
+        0.338810702
+      ],
+      "run": "current-types",
+      "stock_native_median_ratio": 1.6979558948810023
+    },
+    {
+      "case": "array",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.571083399,
+        0.540407653,
+        0.538317875
+      ],
+      "host_median": 0.540407653,
+      "host_mean": 0.549936309,
+      "host_range": [
+        0.538317875,
+        0.571083399
+      ],
+      "native_seconds": [
+        0.562067957,
+        0.600443717,
+        0.547790636
+      ],
+      "native_median": 0.562067957,
+      "native_mean": 0.57010077,
+      "native_range": [
+        0.547790636,
+        0.600443717
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 0.9614631936757071
+    },
+    {
+      "case": "array",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.558901254,
+        0.571742817,
+        0.622152819
+      ],
+      "host_median": 0.571742817,
+      "host_mean": 0.58426563,
+      "host_range": [
+        0.558901254,
+        0.622152819
+      ],
+      "native_seconds": [
+        0.582933738,
+        0.562711318,
+        0.558871579
+      ],
+      "native_median": 0.562711318,
+      "native_mean": 0.5681722116666666,
+      "native_range": [
+        0.558871579,
+        0.582933738
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 1.016049968627075
+    },
+    {
+      "case": "map",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.956541857,
+        0.958363049,
+        0.958693482
+      ],
+      "host_median": 0.958363049,
+      "host_mean": 0.9578661293333334,
+      "host_range": [
+        0.956541857,
+        0.958693482
+      ],
+      "native_seconds": [
+        0.976405863,
+        0.952421494,
+        0.957102028
+      ],
+      "native_median": 0.957102028,
+      "native_mean": 0.9619764616666666,
+      "native_range": [
+        0.952421494,
+        0.976405863
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 1.0013175408296178
+    },
+    {
+      "case": "map",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.991678667,
+        0.985054716,
+        1.022620222
+      ],
+      "host_median": 0.991678667,
+      "host_mean": 0.999784535,
+      "host_range": [
+        0.985054716,
+        1.022620222
+      ],
+      "native_seconds": [
+        1.067510777,
+        1.066441083,
+        1.058987339
+      ],
+      "native_median": 1.066441083,
+      "native_mean": 1.0643130663333333,
+      "native_range": [
+        1.058987339,
+        1.067510777
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 0.92989540895247
+    },
+    {
+      "case": "row",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.560739969,
+        0.516413874,
+        0.521547014
+      ],
+      "host_median": 0.521547014,
+      "host_mean": 0.5329002856666667,
+      "host_range": [
+        0.516413874,
+        0.560739969
+      ],
+      "native_seconds": [
+        0.518524182,
+        0.661712584,
+        0.525159895
+      ],
+      "native_median": 0.525159895,
+      "native_mean": 0.5684655536666666,
+      "native_range": [
+        0.518524182,
+        0.661712584
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 0.9931204171636145
+    },
+    {
+      "case": "row",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "false",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.544522593,
+        0.56011333,
+        0.54106858
+      ],
+      "host_median": 0.544522593,
+      "host_mean": 0.5485681676666667,
+      "host_range": [
+        0.54106858,
+        0.56011333
+      ],
+      "native_seconds": [
+        0.571796609,
+        0.57041608,
+        0.5474031
+      ],
+      "native_median": 0.57041608,
+      "native_mean": 0.563205263,
+      "native_range": [
+        0.5474031,
+        0.571796609
+      ],
+      "run": "actual-prior-types",
+      "stock_native_median_ratio": 0.9546059658766984
+    },
+    {
+      "case": "array",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "16384",
+      "host_seconds": [
+        0.929281012,
+        0.865502907,
+        0.857108689
+      ],
+      "host_median": 0.865502907,
+      "host_mean": 0.8839642026666666,
+      "host_range": [
+        0.857108689,
+        0.929281012
+      ],
+      "native_seconds": [
+        0.573697238,
+        0.572475492,
+        0.523905257
+      ],
+      "native_median": 0.572475492,
+      "native_mean": 0.5566926623333334,
+      "native_range": [
+        0.523905257,
+        0.573697238
+      ],
+      "run": "current-wide",
+      "stock_native_median_ratio": 1.511860191562576
+    },
+    {
+      "case": "map",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "16384",
+      "host_seconds": [
+        3.182523315,
+        3.173310264,
+        3.203805766
+      ],
+      "host_median": 3.182523315,
+      "host_mean": 3.1865464483333334,
+      "host_range": [
+        3.173310264,
+        3.203805766
+      ],
+      "native_seconds": [
+        3.139925736,
+        3.059104161,
+        3.047643148
+      ],
+      "native_median": 3.059104161,
+      "native_mean": 3.0822243483333334,
+      "native_range": [
+        3.047643148,
+        3.139925736
+      ],
+      "run": "current-wide",
+      "stock_native_median_ratio": 1.0403448681393233
+    },
+    {
+      "case": "array",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.666592817,
+        0.690877538,
+        0.628280722
+      ],
+      "host_median": 0.666592817,
+      "host_mean": 0.6619170256666667,
+      "host_range": [
+        0.628280722,
+        0.690877538
+      ],
+      "native_seconds": [
+        0.384802322,
+        0.367031931,
+        0.375327373
+      ],
+      "native_median": 0.375327373,
+      "native_mean": 0.375720542,
+      "native_range": [
+        0.367031931,
+        0.384802322
+      ],
+      "run": "released118",
+      "stock_native_median_ratio": 1.7760303802835076
+    },
+    {
+      "case": "map",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        1.142984,
+        1.116128746,
+        1.102027993
+      ],
+      "host_median": 1.116128746,
+      "host_mean": 1.1203802463333334,
+      "host_range": [
+        1.102027993,
+        1.142984
+      ],
+      "native_seconds": [
+        0.842519419,
+        0.829272101,
+        0.846270714
+      ],
+      "native_median": 0.842519419,
+      "native_mean": 0.8393540780000001,
+      "native_range": [
+        0.829272101,
+        0.846270714
+      ],
+      "run": "released118",
+      "stock_native_median_ratio": 1.324751359825927
+    },
+    {
+      "case": "row",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": "true",
+      "rows": "1000000",
+      "keys": "64",
+      "host_seconds": [
+        0.638469432,
+        0.623707754,
+        0.649788954
+      ],
+      "host_median": 0.638469432,
+      "host_mean": 0.6373220466666667,
+      "host_range": [
+        0.623707754,
+        0.649788954
+      ],
+      "native_seconds": [
+        0.329694919,
+        0.324778851,
+        0.332936301
+      ],
+      "native_median": 0.329694919,
+      "native_mean": 0.3291366903333333,
+      "native_range": [
+        0.324778851,
+        0.332936301
+      ],
+      "run": "released118",
+      "stock_native_median_ratio": 1.9365461680044878
+    }
+  ],
+  "raw_runs": [
+    {
+      "run": "current-types",
+      "trials": [
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.375421",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.820557",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.595538",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.732263",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.595012",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.478700",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.502399",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.554867",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.536569",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.409549",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.596396",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.419771",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.354042",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.577799",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.599341",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.275329",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.267677",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.576288",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.590962",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.277365",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.197252",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.031389",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.928382",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.962228",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.999357",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.990622",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.936288",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.973703",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.982467",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.916867",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.118246",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.834889",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.813602",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.058983",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=1.071562",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.813945",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.828931",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.984517",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=1.053795",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.832485",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.536057",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.387612",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.367298",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.508965",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.516244",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.357646",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.367812",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.509592",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.526467",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.366305",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.543091",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.328787",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.326216",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.549518",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.603766",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.328907",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.332604",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.564747",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.558214",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.338811"
+      ],
+      "summaries": [
+        "[complex-window] case=array phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.562149s native_mean=0.463549s host_trials=[0.595011674, 0.554867163, 0.536568556] native_trials=[0.47869978, 0.502399052, 0.409548986]",
+        "[complex-window] case=array phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.588864s native_mean=0.273457s host_trials=[0.5993407, 0.576288181, 0.590961958] native_trials=[0.275328777, 0.26767675, 0.277365243]",
+        "[complex-window] case=map phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.985175s native_mean=0.947926s host_trials=[0.99935668, 0.973702662, 0.982467028] native_trials=[0.99062247, 0.93628831, 0.91686741]",
+        "[complex-window] case=map phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=1.036625s native_mean=0.825120s host_trials=[1.071561745, 0.984517037, 1.053795491] native_trials=[0.813944782, 0.828930994, 0.832485138]",
+        "[complex-window] case=row phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.517434s native_mean=0.363921s host_trials=[0.516244228, 0.509592391, 0.526466512] native_trials=[0.357645813, 0.367812373, 0.366304753]",
+        "[complex-window] case=row phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.575576s native_mean=0.333441s host_trials=[0.603765911, 0.564746807, 0.55821413] native_trials=[0.328907282, 0.332603932, 0.338810702]"
+      ]
+    },
+    {
+      "run": "actual-prior-types",
+      "trials": [
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.363128",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.723350",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.613859",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.613704",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.571083",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.562068",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.600444",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.540408",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.538318",
+        "[complex-window-trial] case=array phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.547791",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.649890",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.580840",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.581074",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.563316",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.558901",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.582934",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.562711",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.571743",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.622153",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.558872",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.165171",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.062992",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.946255",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.953729",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.956542",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.976406",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.952421",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.958363",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.958693",
+        "[complex-window-trial] case=map phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.957102",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.083077",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.083757",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=1.057272",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.998426",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.991679",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=1.067511",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=1.066441",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.985055",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=1.022620",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=1.058987",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.561078",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.537367",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.532634",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.536769",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.560740",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.518524",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.661713",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.516414",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.521547",
+        "[complex-window-trial] case=row phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.525160",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.547107",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.556128",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.552289",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.539891",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.544523",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.571797",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.570416",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.560113",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.541069",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.547403"
+      ],
+      "summaries": [
+        "[complex-window] case=array phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.549936s native_mean=0.570101s host_trials=[0.571083399, 0.540407653, 0.538317875] native_trials=[0.562067957, 0.600443717, 0.547790636]",
+        "[complex-window] case=array phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.584266s native_mean=0.568172s host_trials=[0.558901254, 0.571742817, 0.622152819] native_trials=[0.582933738, 0.562711318, 0.558871579]",
+        "[complex-window] case=map phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.957866s native_mean=0.961976s host_trials=[0.956541857, 0.958363049, 0.958693482] native_trials=[0.976405863, 0.952421494, 0.957102028]",
+        "[complex-window] case=map phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.999785s native_mean=1.064313s host_trials=[0.991678667, 0.985054716, 1.022620222] native_trials=[1.067510777, 1.066441083, 1.058987339]",
+        "[complex-window] case=row phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.532900s native_mean=0.568466s host_trials=[0.560739969, 0.516413874, 0.521547014] native_trials=[0.518524182, 0.661712584, 0.525159895]",
+        "[complex-window] case=row phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.548568s native_mean=0.563205s host_trials=[0.544522593, 0.56011333, 0.54106858] native_trials=[0.571796609, 0.57041608, 0.5474031]"
+      ]
+    },
+    {
+      "run": "current-wide",
+      "trials": [
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.919676",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.955345",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.621744",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.007131",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.929281",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.573697",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.572475",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.865503",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.857109",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.523905",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=3.594030",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=3.279771",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=3.047372",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=3.198932",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=3.182523",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=3.139926",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=3.059104",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=3.173310",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=3.203806",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=3.047643"
+      ],
+      "summaries": [
+        "[complex-window] case=array phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=16384 host_mean=0.883964s native_mean=0.556693s host_trials=[0.929281012, 0.865502907, 0.857108689] native_trials=[0.573697238, 0.572475492, 0.523905257]",
+        "[complex-window] case=map phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=16384 host_mean=3.186546s native_mean=3.082224s host_trials=[3.182523315, 3.173310264, 3.203805766] native_trials=[3.139925736, 3.059104161, 3.047643148]"
+      ]
+    },
+    {
+      "run": "released118",
+      "trials": [
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.331075",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.819693",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.410564",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.804775",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.666593",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.384802",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.367032",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.690878",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.628281",
+        "[complex-window-trial] case=array phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.375327",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.342689",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.932609",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.853867",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.115667",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=1.142984",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.842519",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.829272",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=1.116129",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=1.102028",
+        "[complex-window-trial] case=map phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.846271",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=0.674231",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.457037",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.330572",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.642500",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.638469",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.329695",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.324779",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.623708",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.649789",
+        "[complex-window-trial] case=row phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.332936"
+      ],
+      "summaries": [
+        "[complex-window] case=array phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.661917s native_mean=0.375721s host_trials=[0.666592817, 0.690877538, 0.628280722] native_trials=[0.384802322, 0.367031931, 0.375327373]",
+        "[complex-window] case=map phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=1.120380s native_mean=0.839354s host_trials=[1.142984, 1.116128746, 1.102027993] native_trials=[0.842519419, 0.829272101, 0.846270714]",
+        "[complex-window] case=row phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.637322s native_mean=0.329137s host_trials=[0.638469432, 0.623707754, 0.649788954] native_trials=[0.329694919, 0.324778851, 0.332936301]"
+      ]
+    }
+  ],
+  "diagnostics": [
+    "Initial signed computed-time fixture fell back; source metadata rowtime selected the intended retracting operator. This exposed an invalid complex-to-BIGINT payload cast. The final implementation routes retracting COUNT through the existing parent-validity carrier; all retraction cases and scalar controls passed.",
+    "Flink 1.18 does not support session TVFs or retracting TVFs; unsupported session outcomes are compared explicitly and 42 retraction tests are skipped.",
+    "Complete jobs include startup and source payload allocation; ratios are workload observations, not confidence intervals."
+  ]
+}

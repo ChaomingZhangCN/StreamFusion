@@ -152,10 +152,11 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 # Previous origin additionally uses window.expectNative=false.
 ```
 
-## COUNT over scalar values
+## COUNT over values
 
 Ordinary `COUNT(value)` accepts character, DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ
-values alongside the existing numeric types. It reads Arrow validity without decoding the
+values alongside the existing numeric types, and ordinary COUNT also accepts ARRAY, MAP and
+ROW parents. Empty containers and non-NULL parents with NULL children count once. It reads Arrow validity without decoding the
 payload. All-NULL groups report zero. Filtered counts retain group liveness even without a
 companion `COUNT(*)`; groups whose rows have all retracted produce no window result.
 The existing window assignment, filtering and changelog restrictions still apply.
@@ -167,6 +168,53 @@ counts alongside extrema and BOOLEAN/TIME counts across raw checkpoints and cano
 memory/RocksDB transitions. Thirty-six release Criterion fixtures compare an independent
 validity-by-key oracle at 128/4096 rows, one/64/1024 keys, NULL-only keys, 8/256-byte strings,
 DATE, TIME, BOOLEAN and nanosecond timestamps.
+
+Complex-value SQL comparisons cover both phases of event-time TUMBLE/HOP/CUMULATE, filters,
+legacy TUMBLE/HOP/SESSION and the session table function where the released host supports it.
+Retraction cases cover updates, complete group removal and NULL-only groups on Flink 2.2;
+Flink 1.18 retains its host restriction on retracting window table functions. Twelve profiles
+force two restores across both phases, the three parent types and memory/native RocksDB.
+Eighteen direct processing-time cases check all three aligned shapes and restored timers on
+both backends. The existing scalar COUNT controls run alongside these cases. Retracting COUNT
+normalizes parent validity to the same owned BIGINT bitmap carrier used by append COUNT;
+aggregate result state remains BIGINT. DISTINCT still excludes these complex types.
+
+### Complex-value COUNT measurements (2026-10-19)
+
+`WindowComplexCountBenchmark` uses one million runtime rows, parallelism two, 64 keys,
+nullable ARRAY/MAP/ROW parents, empty containers and NULL children. Array/map payloads have up
+to four entries. Complete release+mimalloc jobs retain both transposes, Arrow IPC, JNI, window
+state and a row blackhole sink. JDK 17 uses a 2 GiB heap; two warmups precede three measured
+jobs per engine with alternating order. Plans and execution counters require the intended
+native local/global stages. The previous control is exact integration revision `ddf8154e`,
+with only the identical benchmark fixture copied and aggregate fallback asserted. Both use
+the same native library because production Rust is unchanged.
+
+| Parent | Phase | Stock median (s) | Previous SF median (s) | Native median (s) | Stock/native |
+|---|---|---:|---:|---:|---:|
+| ARRAY | ONE_PHASE | 0.555 | 0.562 | 0.479 | 1.159× |
+| ARRAY | TWO_PHASE | 0.591 | 0.563 | 0.275 | 2.146× |
+| MAP | ONE_PHASE | 0.982 | 0.957 | 0.936 | 1.049× |
+| MAP | TWO_PHASE | 1.054 | 1.066 | 0.829 | 1.271× |
+| ROW | ONE_PHASE | 0.516 | 0.525 | 0.366 | 1.409× |
+| ROW | TWO_PHASE | 0.565 | 0.570 | 0.333 | 1.698× |
+
+At 16,384 keys and up to 32 entries per payload, two-phase ARRAY/MAP stock/native medians
+are 0.866/0.572 s (1.512×), 3.183/3.059 s (1.040×).
+Released Flink 1.18 two-phase profiles span 1.325–1.937× stock/native.
+Single-phase MAP and wide MAP gains are modest; these complete-job observations do not
+establish universal throughput gains. The [170-job artifact](../benchmarks/results/window-complex-count-2026-10-19.json)
+retains all warmups/trials, ranges, source/library hashes, actual previous controls, 36 native
+allocation probes and both released qualification summaries (132 checks on 2.2; 90 passed
+and 42 host-capability skips on 1.18).
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench \
+  -Dtest=WindowComplexCountBenchmark -Dwindow.cases=array,map,row \
+  -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE \
+  -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.width=4 \
+  -Dwindow.warmup=2 -Dwindow.runs=3 -Dsf.extraJvmArgs=-Xmx2g
+```
 
 The October 18, 2026 complete-job comparison uses released Flink 2.2.1/JDK 17,
 release+mimalloc, production IPC, a 2 GiB heap, parallelism two, one million runtime rows
@@ -677,7 +725,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - A value type/aggregate mismatch.
   DATE/TIME/BOOLEAN and TIMESTAMP/TIMESTAMP_LTZ values are admitted for insert-only MIN/MAX
   and COUNT(DISTINCT).
-  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN and timestamp values;
+  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP and ROW values;
   it counts validity without interpreting the payload.
 - Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
   The flag is experimental and defaults off; local/global string extrema do not require it.
@@ -694,7 +742,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
 - Retracting input outside aligned event-time TUMBLE/HOP/CUMULATE with grouping-only,
-  numeric SUM/AVG (including shared exact SUM0), admitted scalar COUNT(value), and COUNT(*) with optional FILTER.
+  numeric SUM/AVG (including shared exact SUM0), admitted COUNT(value), and COUNT(*) with optional FILTER.
   DISTINCT, MIN/MAX, processing-time, attached, session
   and legacy windows still fall back on updating input. Admission checks the **input**
   changelog even when final output is append-only.
