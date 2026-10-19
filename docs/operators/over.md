@@ -26,19 +26,47 @@ control the input order separately.
 ## Ordinary scalar ROW_NUMBER (Flink 2.2)
 
 An unfiltered `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY v ASC)` also runs over an ordinary
-TINYINT, SMALLINT, INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME or BOOLEAN column.
+TINYINT, SMALLINT, INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP or
+TIMESTAMP_LTZ column. Timestamp ordering retains all declared fractional nanoseconds.
 This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
 PRECEDING through CURRENT ROW, insert-only input, supported partition/payload types and disabled
 idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
 its validation is unchanged. Other non-time analytic functions and order specifications retain
-fallback, including floating-point, timestamp and complex sort values. Descending ordinary
+fallback, including floating-point and complex sort values. Descending ordinary
 OVER ordering is rejected by Flink itself.
 
 Each new row emits INSERT at its rank, followed by UPDATE_BEFORE/UPDATE_AFTER pairs for the
-same existing rows whose ranks shifted. Ties retain arrival order. The implementation reuses
+same existing rows whose ranks shifted. Ties retain arrival order. Timestamp comparison
+distinguishes sub-millisecond values. NULL placement, pre-epoch values and nanosecond
+fractions survive physical batch splits and two memory/RocksDB restores. The implementation reuses
 [Top-N](top-n.md)'s sorted Arrow-row state with an explicit emission mode; ordinary filtered
 Top-N keeps its existing rank-slot update contract. Mini-batching does not collapse these
 row-identity updates. The generic event-time/proctime OVER guard is unchanged.
+
+`NonTimeRowNumberBenchmark` accepts `rank.orderTypes=TIMESTAMP(9);TIMESTAMP_LTZ(9)`.
+The prior-revision control requires the rank itself to remain on Flink while preserving any
+other native substitutions that revision supports. Both measured implementations retain the
+runtime row source, rowwise sink and their production conversion/state paths.
+
+The timestamp extension passes 42 SQL/operator checks on Flink 2.2.1 and all 88 native
+Criterion fixtures. Flink 1.18 passes its two validation/control checks with 40 host-capability
+skips. Whole-job release+mimalloc comparisons use JDK 17, parallelism 1, a 2 GiB heap, UTC,
+131,072 runtime rows, 1,024 keys, NULL every 31st row, two warmups and five measured trials.
+Input arrival varies; all SQL ORDER BY clauses remain ascending.
+
+| Type / arrival | Stock median (range), s | Native median (range), s | Previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| TIMESTAMP(9) / ascending | 1.012 (0.997–1.447) | 0.225 (0.198–0.392) | 1.068 (1.013–1.165) |
+| TIMESTAMP(9) / descending | 6.837 (6.489–7.228) | 1.888 (1.743–1.942) | 6.940 (6.933–7.766) |
+| TIMESTAMP_LTZ(9) / ascending | 1.069 (0.850–1.407) | 0.277 (0.212–0.453) | 0.976 (0.825–1.039) |
+| TIMESTAMP_LTZ(9) / descending | 6.131 (6.031–6.305) | 1.832 (1.746–1.837) | 6.922 (6.888–8.097) |
+
+The measured cases improve 3.346–4.492x over paired stock and 3.521–4.744x over the actual
+preceding StreamFusion revision. The [112-job artifact](../benchmarks/results/non-time-temporal-row-number-2026-10-19.json)
+retains every warmup/trial, configuration, source/DSO hash and 88 allocation/buffer reports.
+Exact nanoseconds and pre-epoch values are checked separately by SQL/native fixtures; the
+whole-job source derives timestamp order from runtime milliseconds. These measurements do
+not establish a universal speedup or bounded retained state.
 
 Every input row remains in state, including duplicate rows; state grows with the input rather
 than a configured Top-N bound. Watermarks do not retire this rank state. Native memory

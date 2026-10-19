@@ -279,7 +279,8 @@ reuse StreamFusion's Arrow-row sorted rank state and key-group/checkpoint repres
 an explicit row-identity emission mode. No generic OVER time guard is removed. Native operators
 still consume and emit Arrow batches, and existing Top-N slot updates remain unchanged.
 
-Initial admission is one ascending INT/BIGINT key, one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
+Admission includes the verified ordinary scalar keys and exact TIMESTAMP/TIMESTAMP_LTZ
+precision, one ascending key, and one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
 through CURRENT ROW, insert-only input and disabled TTL. NULL placement is explicit; ties remain
 stable across physical batches and recovery. Every row remains in state; there is no implicit
 Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
