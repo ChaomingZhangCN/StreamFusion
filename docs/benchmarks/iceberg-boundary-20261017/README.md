@@ -1,5 +1,9 @@
 # Iceberg boundary optimization and fast iteration
 
+This report records the 2026-10-17 investigation. The
+[evidence index](../evidence.md) distinguishes its component runs, focused
+streaming checks and the subsequent complete matrix.
+
 Supported Iceberg streaming contracts accelerate by default. These changes reduce
 source/sink setup, Arrow handoff and Java routing costs. Java still owns discovery,
 partition transforms, rolling checks, deletes, checkpoints and commits; Rust reads
@@ -95,6 +99,21 @@ raw observations, graphs, final metadata, checkpoint sizes and logs. These resul
 remain slower than stock and do not establish an overall dynamic writer win.
 [Issue #387](https://github.com/datafusion-contrib/StreamFusion/issues/387) tracks
 remaining dynamic routing costs. Acceleration remains on by default.
+
+## Retained cohort reports
+
+These are separate measurements, not additional cells to merge into a headline
+matrix. The raw observations and environment files remain in each cohort's
+directory. The tables above identify the final comparisons used in this report.
+
+| Measured boundary | Retained reports |
+| --- | --- |
+| Initial and repeated file-task checks | [Initial current](quick-current/results.md), [repeat](quick-current-2/results.md), [matched current](quick-matched-current/results.md), [matched repeat](quick-matched-current-2/results.md), [final check](quick-final/results.md), [release comparison](quick-release/results.md) |
+| Routing component checks | [Initial routing](quick-route/results.md), [final routing](quick-route-final/results.md), [allocation-profile diagnostic](quick-route-alloc/results.md) |
+| Focused streaming checks | [Before](before/results.md), [after](nexmark-after/results.md), [after routing](nexmark-routing-after/results.md), [20M-row baseline](before-20m/results.md) |
+| Profiled baseline jobs | [CPU](before-cpu/results.md), [allocations](before-alloc/results.md); profiled times are diagnostic |
+| Intermediate shared-work candidates | [Shared batch](shared-batch/results.md), [shared JSON](shared-json/results.md) |
+| Dynamic writer checks | [Before](dynamic-before/results.md), [after](dynamic-after/results.md); separate from the Nexmark comparison |
 
 ## Where time and allocations went
 

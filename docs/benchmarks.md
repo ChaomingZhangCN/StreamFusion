@@ -1,5 +1,10 @@
 # Benchmarks
 
+Use the [evidence index](benchmarks/evidence.md) to find complete comparisons,
+component measurements, profiles and superseded experiments. Each recorded result
+applies to its stated revision and environment; current support is documented on
+the [operator](operators/index.md) and [connector](connectors/index.md) pages.
+
 ## Methodology
 
 - **Nexmark, end to end.** The headline numbers below are an end-to-end, exactly-once Kafka

@@ -1,5 +1,17 @@
 # Scalar function benchmarks
 
+| Question | Start here |
+| --- | --- |
+| Is a function currently admitted? | [Calc coverage](../operators/calc-filter.md) |
+| What is the recorded fixture and timing method? | [Inputs](#inputs), [reproduction](#reproduce), [raw data](#raw-data) |
+| What was measured for collection and metadata extensions? | [Extended coverage](#extended-function-coverage) |
+| Where are the SQL/JSON comparisons? | [SQL/JSON measurements](#sqljson-measurements), [nested boundaries](#nested-sqljson-batch-boundaries-2026-09-19), [string consumers](#json-string-consumers) |
+| Which measurements are experiments or diagnostics? | [Evidence index](evidence.md), [array extrema experiment](#array-extrema-admission-experiment-2026-09-28), [BINARY exit experiments](#rejected-manual-binary-exit-projection) |
+
+Each section records its own implementation and environment. Historical timings
+and fallback observations remain evidence for that cohort; use the coverage page
+for the current supported contract.
+
 The original measurements below were made on 2026-09-09 against the production implementation in `69122d2b`, using Apple M4 Pro,
 JDK 17, UTC, Flink 2.2.1 and DataFusion 54.0.0. The native library uses the standard Maven
 `bench` profile: release mode, mimalloc, and the development connector features.

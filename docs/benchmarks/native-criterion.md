@@ -1,5 +1,18 @@
 # Native Criterion suites
 
+| Task | Start here |
+| --- | --- |
+| Discover suites and reproduce a comparison | [Running and comparing](#running-and-comparing) |
+| Check which production paths have fixtures | [Coverage inventory](#coverage-inventory) |
+| Inspect memory behavior | [Allocation and buffer diagnostics](#allocation-and-buffer-diagnostics) |
+| Interpret a complete-job result or an abandoned prototype | [Evidence index](evidence.md) |
+
+The inventories describe benchmark fixtures; the dated diagnostics below retain
+their original revisions and measurement boundaries. A passing fixture or a
+kernel speedup does not establish current operator admission or complete-job
+acceleration. See [operator coverage](../operators/index.md) for support and
+[complete-job methodology](../benchmarks.md) for performance admission.
+
 `scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
 as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
 formatting and output allocation; fixture and schema setup remain outside timing. Full-job
