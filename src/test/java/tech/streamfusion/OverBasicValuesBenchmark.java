@@ -25,6 +25,7 @@ import tech.streamfusion.planner.NativePlanner;
 
 @EnabledIfEnvironmentVariable(named = "SF_BENCHMARK", matches = "true")
 class OverBasicValuesBenchmark {
+  private static final java.math.BigInteger WIDE_BASE = java.math.BigInteger.TEN.pow(37);
   @Test
   void completeJobsKeepRowSourceSinkAndBothTransposes() throws Exception {
     for (String type :
@@ -59,6 +60,8 @@ class OverBasicValuesBenchmark {
     }
     if (rows < 1 || keys < 1 || warmups < 1 || runs < 3)
       throw new IllegalArgumentException("Invalid fixture");
+    int engines = Integer.getInteger("over.values.engines", 3);
+    if (engines < 2 || engines > 3) throw new IllegalArgumentException("Expected two or three engines");
     boolean countOnly = Boolean.getBoolean("over.values.countOnly");
     boolean distinctCount = Boolean.getBoolean("over.values.distinctCount");
     boolean expectNative =
@@ -76,11 +79,11 @@ class OverBasicValuesBenchmark {
             + " FROM src WINDOW w AS (PARTITION BY k ORDER BY rt "
             + bounds
             + ")";
-    double[][] samples = new double[3][runs];
+    double[][] samples = new double[engines][runs];
     try (var metrics = new RecoveryExecutionMetrics()) {
       for (int trial = 0; trial < warmups + runs; trial++) {
-        for (int turn = 0; turn < 3; turn++) {
-          int engine = (trial + turn) % 3;
+        for (int turn = 0; turn < engines; turn++) {
+          int engine = (trial + turn) % engines;
           var table = environment(metrics, type, rows, keys);
           if (engine == 2) table.getConfig().set("streamfusion.operator.over.enabled", "false");
           var scan = engine > 0 ? NativePlanner.install(table) : null;
@@ -139,11 +142,11 @@ class OverBasicValuesBenchmark {
         keys,
         median(samples[0]),
         median(samples[1]),
-        median(samples[2]),
+        engines == 3 ? median(samples[2]) : Double.NaN,
         median(samples[0]) / median(samples[1]),
         Arrays.toString(samples[0]),
         Arrays.toString(samples[1]),
-        Arrays.toString(samples[2]));
+        engines == 3 ? Arrays.toString(samples[2]) : "[]");
   }
 
   private static double median(double[] values) {
@@ -162,6 +165,9 @@ class OverBasicValuesBenchmark {
     switch (type) {
       case "decimal":
         valueType = DataTypes.DECIMAL(12, 2);
+        break;
+      case "decimal_wide":
+        valueType = DataTypes.DECIMAL(38, 0);
         break;
       case "string":
         valueType = DataTypes.STRING();
@@ -198,6 +204,9 @@ class OverBasicValuesBenchmark {
                     switch (type) {
                       case "decimal":
                         value = BigDecimal.valueOf(id % 1000 - 500, 2);
+                        break;
+                      case "decimal_wide":
+                        value = new BigDecimal(WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257)));
                         break;
                       case "string":
                         value =

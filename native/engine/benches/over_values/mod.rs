@@ -1,7 +1,9 @@
 use super::*;
 mod cached_strings;
 mod cached_transport;
+mod decimal_distinct;
 mod primitives;
+use streamfusion_benchmark_support::{measure, report};
 mod string_tree;
 mod string_view_checkpoints;
 use arrow::compute::concat_batches;
@@ -31,10 +33,17 @@ fn fixture(rows: usize, keys: usize, code: i64) -> RecordBatch {
             })
         })))
     } else {
+        let maximum = 10_i128.pow(((code - 2000) / 100) as u32) - 1;
         Arc::new(
-            Decimal128Array::from_iter(
-                (0..rows).map(|row| present(row).then_some((row % 31) as i128 - 15)),
-            )
+            Decimal128Array::from_iter((0..rows).map(|row| {
+                present(row).then_some(match row / (2 * keys) % 5 {
+                    0 => maximum,
+                    1 => -maximum,
+                    2 => 0,
+                    3 => 1,
+                    _ => -1,
+                })
+            }))
             .with_precision_and_scale(((code - 2000) / 100) as u8, ((code - 2000) % 100) as i8)
             .unwrap(),
         )
@@ -78,6 +87,9 @@ fn validate(batch: &RecordBatch, code: i64, kind: i64, frame: i64, offset: i64, 
         batch.clone(),
         proctime,
     );
+    if kind == 103 && matches!(batch.column(2).data_type(), DataType::Decimal128(_, _)) {
+        decimal_distinct::check(batch, &whole, frame, offset);
+    }
     let mut operator = Over::framed(code, kind, frame, offset, proctime);
     let mut fragments = Vec::new();
     for start in (0..batch.num_rows()).step_by(17) {
@@ -122,7 +134,10 @@ pub(super) fn bench(c: &mut Criterion) {
                 ("string_variable", 3),
             ] {
                 let batch = fixture(rows, keys, code);
-                for kind in [1, 2, 5, 6] {
+                for kind in [1, 2, 5, 6, 103] {
+                    if kind == 103 && code < 2000 {
+                        continue;
+                    }
                     for proctime in [false, true] {
                         for frame in 0..4 {
                             if proctime && frame == 2 {
@@ -130,6 +145,13 @@ pub(super) fn bench(c: &mut Criterion) {
                             }
                             let offset = if frame == 1 { 3 } else { 10 };
                             validate(&batch, code, kind, frame, offset, proctime);
+                            if kind == 103 {
+                                let mut probe = Over::framed(code, kind, frame, offset, proctime);
+                                let (output, allocations) =
+                                    measure(|| execute(&mut probe, batch.clone(), proctime));
+                                let label = format!("over_typed_values/{name}/rows{rows}_keys{keys}_kind{kind}_frame{frame}_proctime{proctime}");
+                                report(&label, batch.columns(), output.columns(), allocations);
+                            }
                             group.bench_function(BenchmarkId::new(name,
                                 format!("rows{rows}_keys{keys}_kind{kind}_frame{frame}_proctime{proctime}")), |b| {
                                 b.iter_batched_ref(|| Over::framed(code, kind, frame, offset, proctime),

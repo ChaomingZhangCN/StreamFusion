@@ -135,6 +135,11 @@ The primitive value suite also checks 84 COUNT(DISTINCT) cases over these types 
 an independent set/frame oracle, BIGINT results, duplicate pairs, expiry and repeated
 physical-chunk snapshot restores. Together with ordinary MIN/MAX/FIRST/LAST, its
 420 primitive fixtures retain allocation and Arrow-buffer reports.
+The typed-value group adds 84 DECIMAL COUNT(DISTINCT) fixtures for precisions/scales
+12/2, 38/0 and 38/38 across the same batch/key/frame shapes. An independent set oracle
+checks counts before timing; duplicate pairs, precision limits, NULL-only partitions,
+logical snapshot fields and repeated physical-chunk restores are retained. Allocation
+requests and output-buffer sharing are reported for these new cases.
 
 The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
 DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).

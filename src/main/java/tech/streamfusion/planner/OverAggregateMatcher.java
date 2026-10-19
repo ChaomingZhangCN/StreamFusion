@@ -292,8 +292,8 @@ final class OverAggregateMatcher {
           || kind == 5
           || kind == 6;
     }
-    if (distinct) return false;
     if (type == SqlTypeName.DECIMAL) {
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
       return kind == WindowAggregateMatcher.KIND_SUM
           || kind == WindowAggregateMatcher.KIND_SUM_ZERO
           || kind == WindowAggregateMatcher.KIND_AVG
@@ -303,6 +303,7 @@ final class OverAggregateMatcher {
           || kind == 5
           || kind == 6;
     }
+    if (distinct) return false;
     if (type == SqlTypeName.CHAR
         || type == SqlTypeName.VARCHAR
         || type == SqlTypeName.TIMESTAMP

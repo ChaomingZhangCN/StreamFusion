@@ -242,7 +242,7 @@ Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP
 TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
-running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DATE, TIME and
+running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, DATE, TIME and
 BOOLEAN, retaining logical membership types in running state and bounded frame snapshots.
 Other DISTINCT aggregates retain the numeric value whitelist.
 
@@ -286,7 +286,7 @@ The matcher declines:
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
   and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
-  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits DATE, TIME
+  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits DECIMAL, DATE, TIME
   and BOOLEAN; other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
@@ -521,3 +521,48 @@ representative rowtime workloads; proctime is covered by SQL/native correctness 
 Actual-prior and 1.18 comparisons sample bounded ROWS, rather than every current frame.
 Reproduce with `OverBasicValuesBenchmark -Dover.values.distinctCount=true`, selecting
 types, frames, rows, keys, warmups and runs using the properties above.
+
+## Exact DECIMAL distinct counts
+
+COUNT(DISTINCT) also uses the existing typed membership/count state for DECIMAL values,
+including precision 38 and scale 38. Membership retains the declared precision and scale;
+NULL does not enter the set. Running and bounded frames preserve that logical type across
+physical batches and memory/native RocksDB snapshots. Other decimal DISTINCT aggregates,
+order and input restrictions retain their existing gates.
+
+Twenty-nine SQL checks pass on each released Flink line. They cover three decimal layouts
+across four event-time and three admitted processing-time frames, duplicate pairs,
+precision limits, all-NULL partitions and same-key timestamp peers. Eight mixed-scale
+profiles inject two checkpoint restores on each state backend. The existing 57 typed
+OVER controls also pass: the combined selection has 82 passes/four host skips on Flink
+2.2.1 and 86 passes on 1.18.1.
+
+Complete-job release+mimalloc measurements use JDK 17, parallelism one, a 2 GiB heap,
+UTC, two warmups and three measured trials. Paired stock/current jobs and a separately
+compiled actual-prior revision retain the runtime row source, rowwise sink, both
+transposes, JNI/state costs and actual native execution metrics.
+
+| Layout / frame / rows / keys | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| DECIMAL(12,2) / running RANGE / 500,000 / 64 | 0.872 (0.862–0.974) | 0.370 (0.332–0.410) | — |
+| DECIMAL(12,2) / bounded ROWS / 500,000 / 64 | 3.066 (3.058–3.129) | 0.601 (0.594–0.660) | 3.161 (2.852–3.234) |
+| DECIMAL(38,0) / running RANGE / 500,000 / 64 | 0.844 (0.828–1.024) | 0.332 (0.324–0.333) | — |
+| DECIMAL(38,0) / bounded ROWS / 500,000 / 64 | 3.086 (2.904–3.203) | 0.591 (0.587–0.610) | 3.364 (3.006–3.491) |
+| DECIMAL(12,2) / running ROWS / 1,000,000 / 1 | 1.545 (1.399–1.579) | 0.545 (0.516–0.554) | — |
+
+These five profiles improve 2.359–5.223x over stock.
+Actual previous `4f87826e` bounded-ROWS controls improve 5.256–5.692x;
+their separately paired stock samples expose cross-process drift. Released Flink 1.18's
+wide bounded-ROWS sample measures 3.253s stock / 0.609s native (5.343x).
+
+The [80-job artifact](../benchmarks/results/over-decimal-distinct-count-2026-10-19.json)
+retains every warmup and trial, source/library identities, paired baseline drift and 84
+new allocation/buffer reports. Precision/scale 38/38 and proctime are correctness-covered;
+these timings sample rowtime, compact decimals and 38-digit noncompact decimals.
+Actual-prior timings sample bounded ROWS, and the 1.18 timing samples the wide layout.
+These representative results do not establish a universal speedup.
+
+`OverBasicValuesBenchmark -Dover.values.distinctCount=true -Dover.values.engines=2`
+selects the paired method; types include `decimal` and `decimal_wide`. The default remains
+three engines. A missing disabled-OVER control is printed as `NaN` with empty samples
+and recorded as null in the artifact, rather than as a measured zero.
