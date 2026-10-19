@@ -211,7 +211,9 @@ Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP
 TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
-running COUNT state remains a BIGINT. DISTINCT retains the numeric value whitelist.
+running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DATE, TIME and
+BOOLEAN, retaining logical membership types in running state and bounded frame snapshots.
+Other DISTINCT aggregates retain the numeric value whitelist.
 
 ### Bounded `ROWS BETWEEN n PRECEDING AND CURRENT ROW`
 
@@ -253,7 +255,8 @@ The matcher declines:
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
   and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
-  DECIMAL also admits SUM/SUM0/AVG. DISTINCT retains its numeric whitelist.
+  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits DATE, TIME
+  and BOOLEAN; other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
 - A `PARTITION BY` key outside bigint/int/string/boolean/date/timestamp/decimal.
@@ -407,8 +410,8 @@ Properties select `over.values.types`, `over.values.frames` (0 running RANGE, 1 
 Ordinary MIN/MAX/FIRST_VALUE/LAST_VALUE now use a typed 32-bit selected value with its logical
 DATE/TIME/BOOLEAN type. Frame rows, output and checkpoints retain the declared type; they
 do not expose an integer carrier. NULL-only groups remain NULL, boolean false remains a
-value, and bounded frames evict NULL rows as well as contributing rows. Existing DISTINCT,
-order and input gates remain unchanged. Flink 1.18 keeps its temporal FIRST/LAST factory
+value, and bounded frames evict NULL rows as well as contributing rows. DISTINCT value
+selection remains gated; the order and input gates remain unchanged. Flink 1.18 keeps its temporal FIRST/LAST factory
 failures; COUNT/MIN/MAX and boolean FIRST/LAST run natively where that release accepts them.
 
 The focused selection has 96 passing checks and eight released-host skips on Flink 2.2.1,
@@ -440,3 +443,50 @@ Released Flink 1.18 bounded-ROWS profiles improve 5.218–6.030x over paired sto
 warmup/trial, all controls, configurations, source/DSO hashes and 336 allocation records.
 Correctness also covers proctime; these whole-job timings are rowtime workloads. Results
 are representative rather than a universal speed guarantee.
+
+## DATE, TIME and BOOLEAN distinct counts
+
+COUNT(DISTINCT value) uses the existing OVER membership set and BIGINT result state for
+these three logical types. NULL does not enter the set; false remains a distinct value.
+Running frames preserve membership across inputs, while bounded frames count only the
+retained rows, including duplicate removal and later reinsertion. Logical DATE/TIME/BOOLEAN
+membership survives both memory and native RocksDB recovery. No new native production path,
+JNI entry point, checkpoint layout, or frame shape is introduced.
+
+The expanded SQL suite has 29 passing checks and four released-host skips on Flink 2.2.1,
+and 33 passing checks on 1.18.1. Seven event/processing-time shapes per type run alongside
+ordinary reductions; eight mixed profiles exercise two successive restores on both state
+backends. The independent native set oracle covers each type, empty/all-NULL partitions,
+duplicates, expiry and physical chunks with repeated snapshots.
+
+Whole-job release+mimalloc measurements retain the runtime row source, rowwise sink,
+both transposes, JNI/state costs and native execution metrics. They use JDK 17,
+parallelism one, a 2 GiB heap, UTC, two warmups and three interleaved measured trials
+per engine. The three engines are stock, native and same-revision OVER-disabled.
+
+| Type / frame / rows / keys | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| DATE / running RANGE / 1,000,000 / 64 | 1.589 (1.440–1.665) | 0.566 (0.540–0.572) | — |
+| DATE / bounded ROWS / 1,000,000 / 64 | 5.293 (5.036–5.406) | 1.235 (1.220–1.236) | 5.869 (5.689–6.479) |
+| TIME / running RANGE / 1,000,000 / 64 | 1.521 (1.487–1.577) | 0.583 (0.581–0.586) | — |
+| TIME / bounded ROWS / 1,000,000 / 64 | 5.265 (5.227–5.338) | 1.249 (1.228–1.252) | 5.781 (5.329–5.851) |
+| BOOLEAN / running RANGE / 1,000,000 / 64 | 1.483 (1.457–1.498) | 0.531 (0.530–0.545) | — |
+| BOOLEAN / bounded ROWS / 1,000,000 / 64 | 5.188 (5.143–5.394) | 0.811 (0.809–0.843) | 5.807 (5.495–5.868) |
+| DATE / bounded RANGE / 1,000,000 / 64 | 5.970 (5.730–6.410) | 0.862 (0.797–0.878) | — |
+| DATE / running ROWS / 500,000 / 1 | 0.781 (0.772–0.830) | 0.316 (0.307–0.344) | — |
+| BOOLEAN / bounded RANGE / 500,000 / 256 | 2.083 (1.972–2.159) | 0.389 (0.380–0.477) | — |
+
+These nine profiles improve 2.468–6.928x over paired stock.
+Actual previous revision `a3181672` is checked separately for bounded ROWS on all three
+types and improves 4.629–7.164x; its rank-independent native library is identical.
+The earlier revision's paired stock controls are retained to expose cross-process drift.
+Released Flink 1.18 bounded-ROWS profiles improve 4.562–7.025x over stock:
+DATE 5.718s stock / 1.253s native; TIME 5.768s stock / 1.253s native; BOOLEAN 5.649s stock / 0.804s native.
+
+The [225-job artifact](../benchmarks/results/over-primitive-distinct-count-2026-10-19.json)
+retains all warmups, repeated samples, disabled controls, source/library identities and
+420 allocation/buffer records, including 84 new distinct-count fixtures. These are
+representative rowtime workloads; proctime is covered by SQL/native correctness checks.
+Actual-prior and 1.18 comparisons sample bounded ROWS, rather than every current frame.
+Reproduce with `OverBasicValuesBenchmark -Dover.values.distinctCount=true`, selecting
+types, frames, rows, keys, warmups and runs using the properties above.

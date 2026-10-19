@@ -94,7 +94,14 @@ fn validate(batch: &RecordBatch, code: i64, kind: i64, frame: i64, offset: i64, 
         "typed value checkpoint continuation"
     );
     assert_eq!(whole.num_rows(), batch.num_rows());
-    assert_eq!(whole.column(3).data_type(), batch.column(2).data_type());
+    assert_eq!(
+        whole.column(3).data_type(),
+        if kind == 103 {
+            &DataType::Int64
+        } else {
+            batch.column(2).data_type()
+        }
+    );
 }
 
 pub(super) fn bench(c: &mut Criterion) {

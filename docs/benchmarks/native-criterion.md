@@ -128,6 +128,10 @@ boundary. Smoke checks establish fixture correctness, without producing timing e
 The DATE/TIME/BOOLEAN COUNT additions contribute 84 fixtures across 64/4096 rows, one/64
 keys, four event-time frames and three processing-time frames. Each checks an independent
 validity-and-frame oracle before timing the production push/flush path.
+The primitive value suite also checks 84 COUNT(DISTINCT) cases over these types with
+an independent set/frame oracle, BIGINT results, duplicate pairs, expiry and repeated
+physical-chunk snapshot restores. Together with ordinary MIN/MAX/FIRST/LAST, its
+420 primitive fixtures retain allocation and Arrow-buffer reports.
 
 The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
 DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).

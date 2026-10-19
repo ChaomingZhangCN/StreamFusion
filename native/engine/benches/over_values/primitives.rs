@@ -8,8 +8,8 @@ fn value(row: usize, keys: usize, code: i64) -> Option<i32> {
     }
     let position = row / keys;
     Some(match code {
-        8 => (position % 17) as i32 - 8,
-        9 => (position % 17) as i32 * 12345,
+        8 => (position / 2 % 17) as i32 - 8,
+        9 => (position / 2 % 17) as i32 * 12345,
         10 => i32::from(position % 3 == 0),
         _ => unreachable!(),
     })
@@ -54,6 +54,7 @@ fn check(
     let mut history: BTreeMap<usize, VecDeque<(usize, Option<i32>)>> = BTreeMap::new();
     let mut running: BTreeMap<usize, Option<i32>> = BTreeMap::new();
     let mut expected = Vec::new();
+    let mut membership: BTreeMap<usize, BTreeSet<i32>> = BTreeMap::new();
     for row in 0..rows {
         let key = row % keys;
         let value = value(row, keys, code);
@@ -65,7 +66,13 @@ fn check(
                 _ => candidate,
             })
         };
-        let selected = if frame == 0 || frame == 3 {
+        let selected = if kind == 103 && (frame == 0 || frame == 3) {
+            let values = membership.entry(key).or_default();
+            if let Some(value) = value {
+                values.insert(value);
+            }
+            Some(values.len() as i32)
+        } else if frame == 0 || frame == 3 {
             let selected = running.entry(key).or_default();
             if let Some(value) = value {
                 *selected = fold(*selected, value);
@@ -83,10 +90,20 @@ fn check(
             } {
                 records.pop_front();
             }
-            records
-                .iter()
-                .filter_map(|(_, value)| *value)
-                .fold(None, fold)
+            if kind == 103 {
+                Some(
+                    records
+                        .iter()
+                        .filter_map(|(_, value)| *value)
+                        .collect::<BTreeSet<_>>()
+                        .len() as i32,
+                )
+            } else {
+                records
+                    .iter()
+                    .filter_map(|(_, value)| *value)
+                    .fold(None, fold)
+            }
         };
         expected.push(selected);
     }
@@ -96,7 +113,14 @@ fn check(
         proctime,
     );
     assert_eq!(output.num_rows(), rows);
-    assert_eq!(output.column(3).data_type(), batch.column(2).data_type());
+    assert_eq!(
+        output.column(3).data_type(),
+        if kind == 103 {
+            &DataType::Int64
+        } else {
+            batch.column(2).data_type()
+        }
+    );
     let times = output
         .column(1)
         .as_any()
@@ -110,25 +134,33 @@ fn check(
         let actual = if column.is_null(index) {
             None
         } else {
-            Some(match code {
-                8 => column
+            Some(if kind == 103 {
+                column
                     .as_any()
-                    .downcast_ref::<Date32Array>()
+                    .downcast_ref::<Int64Array>()
                     .unwrap()
-                    .value(index),
-                9 => column
-                    .as_any()
-                    .downcast_ref::<Time32MillisecondArray>()
-                    .unwrap()
-                    .value(index),
-                10 => i32::from(
-                    column
+                    .value(index) as i32
+            } else {
+                match code {
+                    8 => column
                         .as_any()
-                        .downcast_ref::<BooleanArray>()
+                        .downcast_ref::<Date32Array>()
                         .unwrap()
                         .value(index),
-                ),
-                _ => unreachable!(),
+                    9 => column
+                        .as_any()
+                        .downcast_ref::<Time32MillisecondArray>()
+                        .unwrap()
+                        .value(index),
+                    10 => i32::from(
+                        column
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .value(index),
+                    ),
+                    _ => unreachable!(),
+                }
             })
         };
         assert_eq!(
@@ -146,7 +178,7 @@ pub(super) fn bench(c: &mut Criterion) {
         for keys in [1, 64] {
             for (name, code) in [("date", 8), ("time", 9), ("boolean", 10)] {
                 let batch = input(rows, keys, code);
-                for kind in [1, 2, 5, 6] {
+                for kind in [1, 2, 5, 6, 103] {
                     for proctime in [false, true] {
                         for frame in 0..4 {
                             if proctime && frame == 2 {

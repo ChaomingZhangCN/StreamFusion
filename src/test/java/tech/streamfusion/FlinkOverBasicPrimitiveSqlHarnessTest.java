@@ -138,7 +138,7 @@ class FlinkOverBasicPrimitiveSqlHarnessTest {
 
   private static String reductions(String column) {
     String result =
-        "COUNT(" + column + ") OVER w, MIN(" + column + ") OVER w, MAX(" + column + ") OVER w";
+        "COUNT(" + column + ") OVER w, COUNT(DISTINCT " + column + ") OVER w, MIN(" + column + ") OVER w, MAX(" + column + ") OVER w";
     if (column.equals("b")
         || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
       result += ", FIRST_VALUE(" + column + ") OVER w, LAST_VALUE(" + column + ") OVER w";

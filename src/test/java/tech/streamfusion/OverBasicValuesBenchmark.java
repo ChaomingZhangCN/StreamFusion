@@ -60,14 +60,16 @@ class OverBasicValuesBenchmark {
     if (rows < 1 || keys < 1 || warmups < 1 || runs < 3)
       throw new IllegalArgumentException("Invalid fixture");
     boolean countOnly = Boolean.getBoolean("over.values.countOnly");
+    boolean distinctCount = Boolean.getBoolean("over.values.distinctCount");
     boolean expectNative =
         Boolean.parseBoolean(System.getProperty("over.values.expectNative", "true"));
     String reductions = countOnly ? "COUNT(v) OVER w" : "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
-    if (!countOnly && (!(type.equals("timestamp") || type.equals("ltz") || type.equals("date") || type.equals("time"))
+    if (distinctCount) reductions = "COUNT(DISTINCT v) OVER w";
+    if (!distinctCount && !countOnly && (!(type.equals("timestamp") || type.equals("ltz") || type.equals("date") || type.equals("time"))
         || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast())) {
       reductions += ", FIRST_VALUE(v) OVER w, LAST_VALUE(v) OVER w";
     }
-    if (!countOnly && type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
+    if (!distinctCount && !countOnly && type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
     String query =
         "SELECT k, "
             + reductions
