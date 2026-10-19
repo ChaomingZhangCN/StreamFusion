@@ -7,6 +7,35 @@ and the two-phase local/global split — and the windowing-TVF operator that ass
 window(s) ahead of a downstream consumer (an aggregate, a [window join](joins/window-join.md), or
 window Top-N/dedup).
 
+## Parallelism and state key groups
+
+The two-phase global window aggregate without business grouping keys is a SINGLETON:
+new plans use parallelism and maximum parallelism of one, even when the execution
+environment has a larger maximum parallelism. Its columnar exchange uses the same
+single target key group, including unaligned-checkpoint reassembly. The upstream
+splitter and local aggregate remain parallel and retain their own maximum parallelism.
+Global aggregates with business grouping keys continue to honor the configured
+maximum parallelism.
+
+Deployment integrations must supply their effective maximum parallelism before SQL
+translation, not rewrite it after native operators have bound their state namespaces.
+StreamFusion honors Flink's configured maximum and does not hardcode a platform-wide
+default. Resource-only changes may adjust eligible parallelism within that fixed
+namespace; they must not change the namespace or replace the columnar shuffle.
+
+Regenerate saved resource plans after this change. A previous keyless global state
+with maximum parallelism 128 (or another value above one) is not automatically
+compatible with the new single-key-group plan. Retain the old deployment for recovery
+or use a separately verified state migration; regenerating JSON alone does not migrate
+a checkpoint/savepoint. Runtime namespace validation remains enabled.
+
+`WindowAggregateMaxParallelismTest` checks the parallel Source/Local chain and
+keyed/keyless Global JobGraphs with maximum 32768. `SingletonColumnarWindowShuffleTest`
+executes stock/native CUMULATE parity and checkpoint completion with ordinary
+maxima 128, 256, and 32768. `SingletonGlobalWindowRecoveryTest` verifies results
+after two checkpoint restores with both heap-backed and native RocksDB state;
+the execution tests cover aligned and unaligned-enabled configurations.
+
 Grouping-only windows (a windowed `GROUP BY` without aggregate calls) retain each distinct group
 on disk as well as in memory. RocksDB persists their window bounds even though there are no
 accumulator columns; duplicate groups, watermark firing, and checkpoint recovery preserve the

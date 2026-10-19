@@ -78,8 +78,8 @@ public class NativeColumnarExchangeExecNode extends ExecNodeBase<ArrowBatch>
     // separates an UPDATE_BEFORE from its earlier INSERT/UPDATE_AFTER.
     boolean singleton = keyColumns.length == 0;
     int numChannels = singleton ? 1 : Math.max(1, planner.getExecEnv().getParallelism());
-    // Match the consumer's state namespace: sorts/keyless joins use one group, global
-    // aggregates use the configured count. Both still have exactly one destination.
+    // Match the consumer's state namespace. Fixed-namespace singleton consumers use one group;
+    // other consumers honor the configured count, independently of the destination count.
     int maxParallelism =
         singleKeyGroup ? 1 : FlinkKeyGroupUtils.maxParallelism(planner.getExecEnv(), numChannels);
     boolean recoverable = planner.getExecEnv().getCheckpointConfig().isUnalignedCheckpointsEnabled();
