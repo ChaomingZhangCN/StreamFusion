@@ -49,6 +49,26 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
       boolean carryRowKind,
       RowType sourceType,
       boolean preserveCollections) {
+    this(
+        tableConfig,
+        inputProperty,
+        rowType,
+        description,
+        carryRowKind,
+        sourceType,
+        preserveCollections,
+        1024);
+  }
+
+  RowDataToArrowExecNode(
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType rowType,
+      String description,
+      boolean carryRowKind,
+      RowType sourceType,
+      boolean preserveCollections,
+      int preferredBatchRows) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-row-to-arrow_1"),
@@ -56,7 +76,7 @@ public class RowDataToArrowExecNode extends ExecNodeBase<ArrowBatch>
         Collections.singletonList(inputProperty),
         rowType,
         description);
-    this.batchRows = NativeConfig.transposeBatchRows(tableConfig);
+    this.batchRows = NativeConfig.transposeBatchRows(tableConfig, preferredBatchRows);
     this.rowType = rowType;
     this.carryRowKind = carryRowKind;
     this.sourceType = sourceType;

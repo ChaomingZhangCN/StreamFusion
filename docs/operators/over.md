@@ -6,7 +6,7 @@ shape, with the gaps enumerated below.
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
-TIMESTAMP and TIMESTAMP_LTZ. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW and event-time MAP. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
 retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
@@ -292,7 +292,7 @@ state, TTL and checkpoint paths. This works for all four admitted frame shapes, 
 mixed aggregates, nullable partition keys and unpartitioned input.
 
 Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP,
-TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
+TIMESTAMP_LTZ, DATE, TIME, BOOLEAN, ARRAY, MAP and ROW values. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
 running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, CHAR/VARCHAR,
@@ -339,7 +339,9 @@ The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
-  and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
+  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW and event-time MAP.
+  Proctime complex arguments containing MAP/MULTISET retain Flink for conversion performance. Complex DISTINCT
+  and complex value selections retain fallback. The scalar types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
   admits all these types; other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
@@ -755,3 +757,72 @@ allocation/buffer reports. Reproduce with `OverBasicValuesBenchmark
 -Dover.values.distinctReductions=true -Dover.values.engines=2`, selecting `decimal` or
 `decimal_wide_balanced` plus the frame/row/key properties above. Default three-engine
 benchmark behavior is unchanged.
+
+
+## Complex ordinary COUNT
+
+Ordinary `COUNT` over ARRAY, MAP and ROW reads only the parent validity bitmap. Empty containers
+and a non-NULL ROW with NULL children count as one; NULL parents count as zero. Standalone
+MULTISET arguments, DISTINCT and
+other complex-valued reductions retain fallback. All four event-time frames admit these three types; running ROWS/RANGE and bounded ROWS
+over proctime admit ARRAY/ROW without MAP/MULTISET descendants. Proctime MAP-containing COUNT arguments
+retain Flink ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)): profiled Arrow/conversion costs did not reliably beat stock, including larger-batch
+diagnostics. The verified paths use the existing BIGINT membership/frame state.
+
+Flink permits NULL map keys. Arrow Java declares map keys non-nullable, and Rust IPC enforces
+that declaration during restore. Newly admitted MAP-count inputs therefore use a tagged
+List-of-key/value-struct schema with nullable keys, borrowing the identical offsets, validity
+and value buffers. Existing C export/import retains buffer references. This transport is scoped
+to newly admitted complex COUNT with MAP anywhere in its input schema; merely passing MAP payloads through an
+already-admitted scalar query does not change its checkpoint format. Logical MAP/MULTISET readers
+recover the declared value after emission and restore. Numeric results retain native columnar
+sinks; MAP-valued outputs reaching an unverified native sink require the existing row-sink route.
+See the [representation decision](../../divergences/48-flink-collection-representation.md).
+
+Proctime complex COUNT prefers 4,096-row entry batches to amortize Calc, Arrow C Data and JNI
+setup. The preference follows its columnar input island, including an already-pruned entry
+transpose, and stops at host boundaries. Explicit table/JVM `streamfusion.transpose.batchRows`
+settings take precedence; other queries retain the 1,024-row default. Timer, watermark,
+end-input and checkpoint flushes remain active, including the default 50 ms latency backstop.
+
+Seventy primary checks and four nested recovery cases pass on each released Flink line. SQL comparisons cover all seven frame/order contexts, nullable containers/children/map keys,
+NULL-only partitions, empty values, returned original payloads, a three-way shuffle, both sink
+routes and two successive memory/native RocksDB restores. Default proctime batches and explicit
+seven-row batches have independent parity checks. Release native coverage adds 196 fixtures
+with 64/4,096 rows, one/64 keys and 4/64-entry containers. Setup stays outside native timing;
+frame output, pending peers and checkpoint continuation are independently checked.
+
+Complete jobs use released Flink, JDK 17, a 2 GiB heap, parallelism two, UTC, release+mimalloc,
+production IPC, runtime nullable containers and a row blackhole sink. Both transposes, JNI,
+state and startup stay measured; every native job must report consumed OVER records. Two
+warmups precede three alternating measured trials. Event-time cases use 500,000 running rows
+or 50,000 bounded rows; the wide MAP case uses 4,096 keys/32 entries instead of 64 keys/four
+entries. Bounded stock execution at 500,000 rows took roughly 34 seconds per job; that
+interrupted diagnostic is retained separately rather than extrapolated into final ratios.
+
+| Event-time type / frame | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| ARRAY / running | 0.941 (0.900–1.048) | 0.471 (0.311–0.489) | 0.876 (0.822–0.931) |
+| MAP / running | 1.162 (1.113–1.230) | 0.587 (0.586–0.619) | 1.114 (1.083–1.164) |
+| ROW / running | 0.874 (0.823–0.888) | 0.324 (0.318–0.329) | 0.853 (0.748–0.947) |
+| ARRAY / bounded | 0.310 (0.305–0.403) | 0.173 (0.171–0.194) | 0.328 (0.307–0.331) |
+| MAP / bounded | 0.309 (0.250–0.336) | 0.134 (0.126–0.162) | 0.250 (0.250–0.316) |
+| ROW / bounded | 0.210 (0.209–0.210) | 0.102 (0.095–0.105) | 0.248 (0.226–0.255) |
+| ARRAY / range | 0.326 (0.295–0.506) | 0.213 (0.169–0.222) | 0.325 (0.306–0.340) |
+| MAP / wide-map | 0.393 (0.372–0.472) | 0.334 (0.244–0.354) | 0.362 (0.356–0.390) |
+
+These event-time profiles improve 1.178–2.699x over paired stock. Flink 1.18's bounded ARRAY,
+MAP and ROW profiles improve 2.052–3.025x. Measurements include startup and allocation;
+the shorter bounded cases are not sustained-throughput claims or universal guarantees.
+The [complete evidence](../benchmarks/results/over-complex-count-2026-10-19.json) retains
+warmups, trials, actual-prior controls, allocation reports, source/library hashes and rejected
+proctime diagnostics. Reproduce with `OverComplexCountBenchmark`; `over.cases`, `over.frames`,
+`over.proctime`, `over.rows`, `over.keys` and `over.width` select the profiles above.
+
+
+The final 500,000-row proctime ARRAY/ROW matrix measures 1.271–1.728x over stock and
+1.204–1.967x over actual previous StreamFusion. Full medians and ranges are in the
+[entry batching ledger](../optimizations/row-major-transpose.md#batch-preference-for-proctime-complex-count).
+Its 80 additional complete jobs include matching previous-version bounded-ROWS controls;
+previous running controls remain in the earlier 180-job batching matrix. Earlier 50,000-row
+bounded and rejected MAP proctime candidates remain available, including unfavorable samples.

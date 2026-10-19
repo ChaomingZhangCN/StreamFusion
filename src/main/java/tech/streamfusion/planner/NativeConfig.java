@@ -169,10 +169,16 @@ public final class NativeConfig {
 
   /** Maximum rows in a row-to-Arrow batch, captured in the serialized operator configuration. */
   public static int transposeBatchRows(ReadableConfig config) {
+    return transposeBatchRows(config, 1024);
+  }
+
+  static int transposeBatchRows(ReadableConfig config, int preferredRows) {
     String key = "streamfusion.transpose.batchRows";
     int rows =
-        config.getOptional(ConfigOptions.key(key).intType().noDefaultValue())
-            .orElseGet(() -> Integer.parseInt(System.getProperty(key, "1024")));
+        config
+            .getOptional(ConfigOptions.key(key).intType().noDefaultValue())
+            .orElseGet(
+                () -> Integer.parseInt(System.getProperty(key, Integer.toString(preferredRows))));
     if (rows <= 0) throw new IllegalArgumentException(key + " must be positive");
     return rows;
   }

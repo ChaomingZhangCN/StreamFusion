@@ -14,14 +14,15 @@ import org.apache.flink.table.planner.utils.ShortcutUtils;
 /**
  * Transpose entering a columnar region: a rowwise input becomes Arrow batches. Inserted by the
  * transition pass where a columnar operator consumes from a rowwise one. The logical row type is
- * unchanged — only the physical carrier becomes columnar. When the edge carries a changelog,
- * {@code carryRowKind} keeps each row's {@code RowKind} as a hidden column so the native consumer
- * sees it (an insert-only edge omits it — every row is an INSERT).
+ * unchanged — only the physical carrier becomes columnar. When the edge carries a changelog, {@code
+ * carryRowKind} keeps each row's {@code RowKind} as a hidden column so the native consumer sees it
+ * (an insert-only edge omits it — every row is an INSERT).
  *
- * <p>When {@code prunedType} is set the transpose also prunes (nested projection pushdown): it is the
- * input type narrowed to the columns and struct sub-fields a downstream native calc reads, so only
- * those become Arrow columns — the unread fields of a wide source row never get materialized. The
- * consumer's top-level column references are remapped to the compacted positions by the planner.
+ * <p>When {@code prunedType} is set the transpose also prunes (nested projection pushdown): it is
+ * the input type narrowed to the columns and struct sub-fields a downstream native calc reads, so
+ * only those become Arrow columns — the unread fields of a wide source row never get materialized.
+ * The consumer's top-level column references are remapped to the compacted positions by the
+ * planner.
  */
 public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
     implements ColumnarOutput {
@@ -29,6 +30,7 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
   private final boolean carryRowKind;
   private final RelDataType prunedType;
   private final boolean preserveCollections;
+  private final int preferredBatchRows;
 
   public StreamPhysicalRowDataToArrow(
       RelOptCluster cluster, RelTraitSet traitSet, RelNode input, boolean carryRowKind) {
@@ -51,10 +53,35 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
       boolean carryRowKind,
       RelDataType prunedType,
       boolean preserveCollections) {
+    this(cluster, traitSet, input, carryRowKind, prunedType, preserveCollections, 1024);
+  }
+
+  private StreamPhysicalRowDataToArrow(
+      RelOptCluster cluster,
+      RelTraitSet traitSet,
+      RelNode input,
+      boolean carryRowKind,
+      RelDataType prunedType,
+      boolean preserveCollections,
+      int preferredBatchRows) {
     super(cluster, traitSet, input);
+    this.preferredBatchRows = preferredBatchRows;
     this.carryRowKind = carryRowKind;
     this.prunedType = prunedType;
     this.preserveCollections = preserveCollections;
+  }
+
+  StreamPhysicalRowDataToArrow withPreferredBatchRows(int rows) {
+    return rows == preferredBatchRows
+        ? this
+        : new StreamPhysicalRowDataToArrow(
+            getCluster(),
+            getTraitSet(),
+            getInput(),
+            carryRowKind,
+            prunedType,
+            preserveCollections,
+            rows);
   }
 
   boolean preservesCollections() {
@@ -74,7 +101,13 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new StreamPhysicalRowDataToArrow(
-        getCluster(), traitSet, inputs.get(0), carryRowKind, prunedType, preserveCollections);
+        getCluster(),
+        traitSet,
+        inputs.get(0),
+        carryRowKind,
+        prunedType,
+        preserveCollections,
+        preferredBatchRows);
   }
 
   @Override
@@ -88,7 +121,8 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
         prunedType == null
             ? null
             : FlinkTypeFactory$.MODULE$.toLogicalRowType(getInput().getRowType()),
-        preserveCollections);
+        preserveCollections,
+        preferredBatchRows);
   }
 
   @Override
@@ -97,10 +131,10 @@ public class StreamPhysicalRowDataToArrow extends StreamPhysicalNativeSingleRel
     // display-only — the digest already carries the full row type.
     return super.explainTerms(pw)
         .itemIf("collectionRepresentation", true, preserveCollections)
+        .itemIf("preferredBatchRows", preferredBatchRows, preferredBatchRows != 1024)
         .itemIf(
             "fields",
             getRowType().getFieldCount(),
             pw.getDetailLevel() != org.apache.calcite.sql.SqlExplainLevel.DIGEST_ATTRIBUTES);
   }
 }
-

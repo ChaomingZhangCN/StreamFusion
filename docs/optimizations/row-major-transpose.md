@@ -91,3 +91,37 @@ control is 3.829 s native / 3.151 s Flink. That entry-only implementation still 
 larger size; startup alone does not explain the deficit. The subsequent
 [generated exit projection](zero-copy-exit-transpose.md#generated-projection-for-primitive-and-binary-outputs)
 closes the measured Boolean gap while retaining both conversions.
+
+
+## Batch preference for proctime complex COUNT
+
+CPU sampling of the initial complex OVER COUNT candidate identified Calc, C Data import/export,
+allocation and transpose setup as the proctime perimeter cost. Its ARRAY running-ROWS profile
+measured 0.377 s native versus 0.332 s stock with 1,024-row batches. Proctime ARRAY/ROW COUNT
+input islands now prefer 4,096 rows. The transition pass carries this preference through native
+operators to entry transposes, including previously pruned entries, and stops at host boundaries.
+Explicit table/JVM batch limits still win. The existing 50 ms latency backstop and watermark,
+checkpoint and end-input flushes remain active. Other queries keep their previous default.
+
+Release+mimalloc complete jobs retain nullable runtime containers, both transposes, production
+IPC, JNI, state, startup and the row blackhole sink. JDK 17/Flink 2.2.1, parallelism two, 2 GiB
+heap and 64 keys are shared with stock and the separately compiled actual previous revision
+`7513ed7b`. Two warmups precede three alternating trials. Final running and bounded profiles use 500,000 rows. Earlier 50,000-row
+bounded diagnostics remain in the artifact. Median (range) seconds follow; the artifact retains every trial.
+
+| Proctime type / frame | Stock | Native | Actual previous SF |
+| --- | ---: | ---: | ---: |
+| ARRAY / running ROWS | 0.358 (0.320–0.373) | 0.269 (0.264–0.292) | 0.324 (0.313–0.336) |
+| ARRAY / running RANGE | 0.241 (0.231–0.302) | 0.181 (0.181–0.191) | 0.344 (0.314–0.366) |
+| ARRAY / 3 preceding ROWS | 0.310 (0.292–0.313) | 0.180 (0.176–0.187) | 0.353 (0.351–0.374) |
+| ROW / running ROWS | 0.271 (0.262–0.276) | 0.213 (0.212–0.253) | 0.281 (0.276–0.356) |
+| ROW / running RANGE | 0.283 (0.271–0.287) | 0.216 (0.211–0.217) | 0.267 (0.260–0.268) |
+| ROW / 3 preceding ROWS | 0.284 (0.276–0.290) | 0.211 (0.202–0.214) | 0.328 (0.275–0.339) |
+
+These admitted profiles beat stock and actual previous execution. Startup and source allocation
+remain measured; these results are not sustained throughput or
+a universal guarantee. MAP-backed proctime did not show a reliable improvement at 4,096, 8,192 or
+16,384 rows, so those arguments retain Flink ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)). The larger-batch diagnostics change no defaults.
+[Complete evidence](../benchmarks/results/over-complex-count-2026-10-19.json) includes the
+unfavorable candidates, paired previous-version stock controls and final source/library identity.
+Coverage and reproduction are documented under [OVER](../operators/over.md#complex-ordinary-count).

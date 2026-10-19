@@ -83,6 +83,16 @@ final class OverAggregateMatcher {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
           + " DECIMAL";
     }
+    if (proctimeOrder) {
+      for (int column : valueColumns(window, group, inputType)) {
+        if (column < inputType.getFieldCount()
+            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
+                FlinkTypeFactory$.MODULE$.toLogicalType(
+                    inputType.getFieldList().get(column).getType()))) {
+          return "OVER: proctime MAP-valued COUNT retains Flink until conversion costs improve";
+        }
+      }
+    }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
       return "OVER: frame must have a PRECEDING lower bound";
@@ -297,6 +307,9 @@ final class OverAggregateMatcher {
 
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
+    if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW) {
+      return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
+    }
     if (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN) {
       if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
       return kind == WindowAggregateMatcher.KIND_COUNT

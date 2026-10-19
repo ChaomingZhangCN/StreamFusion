@@ -262,7 +262,8 @@ public final class ArrowConversion {
       return true;
     }
     boolean convertibleOnRead =
-        actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time;
+        actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time
+            || MapListRepresentation.isMapList(actual) && expectedType instanceof ArrowType.Map;
     if (!convertibleOnRead && !actualType.equals(expectedType)) {
       return false;
     }
@@ -386,6 +387,15 @@ public final class ArrowConversion {
           mapVector,
           createColumnVector(structVector.getChild(MapVector.KEY_NAME), keyType),
           createColumnVector(structVector.getChild(MapVector.VALUE_NAME), valueType));
+    } else if (vector instanceof ListVector
+        && (fieldType instanceof MapType || fieldType instanceof MultisetType)) {
+      ListVector mapVector = (ListVector) vector;
+      LogicalType[] kv = mapKeyValue(fieldType);
+      StructVector entries = (StructVector) mapVector.getDataVector();
+      return new ArrowMapColumnVector(
+          mapVector,
+          createColumnVector(entries.getChild(MapVector.KEY_NAME), kv[0]),
+          createColumnVector(entries.getChild(MapVector.VALUE_NAME), kv[1]));
     } else if (vector instanceof ListVector) {
       ListVector listVector = (ListVector) vector;
       var data = listVector.getDataVector();

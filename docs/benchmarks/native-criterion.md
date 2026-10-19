@@ -319,6 +319,7 @@ Some historical suites use
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST with projected/repeated/ordinal outputs, nullable timestamp and one-field ROW expansion, UPDATE_BEFORE filtering with absent/retained/mixed/discarded row kinds at 16/1024/16384 rows and narrow/wide nullable payloads, Arrow IPC encode/decode; cached nested ROW payloads through production IPC encode/decode and changelog filtering, including generic/missing-cache rows, null parents, all root RowKinds, widths 8/264 and 16/1024/16384 rows |
+| Complex OVER COUNT | `over_complex_count` | 196 ARRAY/MAP/ROW parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
@@ -2536,3 +2537,14 @@ alignment. Fixture construction and the derived parent flag are outside timing; 
 rank insertion, retained state and complete changelog construction are measured. Untimed
 allocation probes retain separate Arrow-buffer reports; complete Java jobs include the native
 flag projections and both perimeter transposes.
+
+
+### Complex OVER COUNT fixtures
+
+`over_complex_count` exercises the existing production framed OVER aggregator through nullable
+ARRAY/MAP/ROW COUNT and the IPC-safe nullable-key map-list carrier. Its 196 release fixtures
+combine 64/4,096 rows, one/64 keys, 4/64-entry containers and seven event/proctime contexts.
+An independent per-key time/frame oracle checks BIGINT counts, pending peer flushes and
+snapshot/restore continuation before timing. Input/operator construction remains outside the
+measured update/output path. All fixtures report allocation requests and Arrow buffer sharing;
+these metrics are not copied-byte estimates. Run `--bench over_complex_count --smoke`.
