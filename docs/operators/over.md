@@ -33,7 +33,10 @@ PRECEDING through CURRENT ROW, insert-only input, supported partition/payload ty
 idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
 its validation is unchanged. Other non-time analytic functions and order specifications retain
 fallback, including floating-point and complex sort values. Descending ordinary
-OVER ordering is rejected by Flink itself.
+OVER ordering and multiple ORDER BY columns are rejected by released Flink itself,
+including otherwise valid ordinary scalar keys. Sixteen released-SQL failure-parity checks
+pin both planning restrictions on Flink 2.2.1 and 1.18.1; these are not acceleration gaps.
+See the [released ordering audit](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/non-time-over-ordering.md).
 
 Each new row emits INSERT at its rank, followed by UPDATE_BEFORE/UPDATE_AFTER pairs for the
 same existing rows whose ranks shifted. Ties retain arrival order. Timestamp comparison
