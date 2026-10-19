@@ -276,7 +276,7 @@ final class GlobalWindowAggregateMatcher {
     return new StreamPhysicalNativeColumnarGlobalWindowAggregate(
         agg.getCluster(),
         agg.getTraitSet(),
-        ctx.columnarInput(agg.getInputs().get(0), keyColumns),
+        ctx.columnarInput(agg.getInputs().get(0), keyColumns, keyColumns.length == 0),
         agg.getRowType(),
         GlobalWindowAggregateMatcher.windowMillis(agg),
         GlobalWindowAggregateMatcher.slideMillis(agg),

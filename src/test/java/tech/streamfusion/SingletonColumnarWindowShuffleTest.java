@@ -32,7 +32,7 @@ class SingletonColumnarWindowShuffleTest {
   private static final List<Row> RESULTS = Collections.synchronizedList(new ArrayList<>());
 
   @ParameterizedTest(name = "CUMULATE: recoverable={0}, maxParallelism={1}")
-  @CsvSource({"false,128", "false,256", "true,128", "true,256"})
+  @CsvSource({"false,128", "false,256", "false,32768", "true,128", "true,256", "true,32768"})
   void lateAdjustmentPreservesSingletonButAllowsParallelOutput(
       boolean recoverable, int maxParallelism) throws Exception {
     List<Row> expected = new ArrayList<>();
@@ -128,7 +128,7 @@ class SingletonColumnarWindowShuffleTest {
     var exchange = exchanges.get(0);
     var partitioner = (ColumnarKeyGroupPartitioner) exchange.getPartitioner();
     assertTrue(partitioner.requiresSingleton());
-    assertEquals(maxParallelism, partitioner.maxParallelism());
+    assertEquals(1, partitioner.maxParallelism());
     assertEquals(recoverable, partitioner.recoverable());
     StreamNode receiver = graph.getStreamNode(exchange.getTargetId());
     assertEquals(1, receiver.getParallelism());
@@ -152,10 +152,14 @@ class SingletonColumnarWindowShuffleTest {
     aggregate.getOutEdges().forEach(
         edge -> assertEquals(4, graph.getStreamNode(edge.getTargetId()).getParallelism()));
     for (var vertex : graph.getJobGraph().getVertices()) {
+      if (vertex.getName().contains("NativeColumnarLocalWindowAgg")) {
+        assertEquals(4, vertex.getParallelism());
+        assertEquals(maxParallelism, vertex.getMaxParallelism());
+      }
       if (vertex.getName().contains("NativeColumnarGlobalWindowAgg")
           || vertex.getName().contains("reassemble")) {
         assertEquals(1, vertex.getParallelism());
-        assertEquals(maxParallelism, vertex.getMaxParallelism());
+        assertEquals(1, vertex.getMaxParallelism());
       }
     }
   }
