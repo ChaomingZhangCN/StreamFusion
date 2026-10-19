@@ -19,6 +19,15 @@ kernel speedup does not establish current operator admission or complete-job
 acceleration. See [operator coverage](../operators/index.md) for support and
 [complete-job methodology](../benchmarks.md) for performance admission.
 
+The `array_search` suite exercises production ARRAY_CONTAINS/POSITION through compiled Calc,
+including result allocation, at 0/16/1,024 rows and 0/8/64 elements per array. Integer, BIGINT,
+BOOLEAN and precision-38 DECIMAL fixtures include NULL containers, NULL needles and elements,
+duplicates, misses and sliced input. Fixture construction and expected results stay outside
+timing; allocation and Arrow buffer reports accompany the checks. The scalar registry also
+covers their registrations (178/179), including constant-needle adaptation. Whole-job comparisons
+use `DynamicCollectionBenchmark` with both transposes and `collection.rustFunction` to verify
+the function engine instead of inferring Rust execution from NativeCalc alone.
+
 `scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
 as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
 formatting and output allocation; fixture and schema setup remain outside timing. Full-job
@@ -351,6 +360,7 @@ Some historical suites use
 | Collection expression kernels | `collection_expressions` | ARRAY_DISTINCT over Boolean, integer and string arrays; CARDINALITY over arrays and maps; ARRAY_REVERSE/ARRAY_SLICE over structs carrying string caches and row kinds; immediate-UNNEST scalar ARRAY construction over numeric, Boolean, decimal, DATE/TIME and compact/expanded timestamp elements; bounded epoch conversion and UTC/JDK-offset-adjusted temporal casts (offset lookup excluded from native fixture timing and retained in complete jobs); sliced/null input, empty/short/large containers, unique/repeated values and wide UTF-8; expected outputs asserted |
 | Exact scalar JNI upcalls | `jvm_truncate` | Production Rust Calc/C Data export, Java reflection/generated row evaluation and Arrow result import; bounded DOUBLE TRUNCATE shortcut versus released Flink; nullable sliced input and fallback profiles |
 | Registered Flink scalar functions | `scalar_registry` | Every registered numeric opcode; completeness assertion requires a fixture for new registrations; ASCII/null/Unicode profiles |
+| Basic ARRAY searches | `array_search` | Compiled production CONTAINS/POSITION, 0/16/1024 rows, widths 0/8/64, INTEGER/BIGINT/BOOLEAN/DECIMAL, NULL parents/elements/needles, duplicates, misses and sliced buffers; warm expression execution with allocation and buffer probes |
 | Parameterized scalar kernels | `scalar_registry` | Decimal cast/round/truncate/arithmetic/float conversion, integer parse/format/divide, FROM_UNIXTIME, array item, literal/dynamic map lookup, random, clock, float comparison |
 | JSON decode | `json_decode`, `json_codecs` | Direct production decode, projection, wide messages, historical nested Nexmark corpus |
 | Raw decode | `raw_decode` | All admitted primitive/string/binary types, endianness, null bodies, slices |

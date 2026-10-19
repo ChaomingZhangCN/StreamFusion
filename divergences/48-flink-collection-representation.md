@@ -49,7 +49,6 @@ full row-source jobs. Setting it false restores host execution for the extension
 performance evidence belong in [Calc/filter](../docs/operators/calc-filter.md#collection-expressions)
 and the [scalar benchmark page](../docs/benchmarks/scalar-functions.md#extended-function-coverage).
 
-
 Ordinary OVER COUNT over a newly admitted complex argument needs an IPC-safe retained carrier
 when its input schema contains MAP, including MAP columns only passed through as payload.
 Arrow Java's MAP key declaration is non-nullable even when Flink supplies NULL keys. Rust IPC
@@ -75,3 +74,18 @@ Standalone event-time OVER COUNT over MULTISET uses this same nullable-key entry
 with non-null INT occurrence counts. Window aggregates instead consume parent validity and
 retain only their BIGINT aggregate state. Neither path sums occurrences. Released Flink
 checks return original bags and restore pending/frame state twice on both backends.
+
+## Native basic-type searches
+
+ARRAY_CONTAINS and ARRAY_POSITION follow Comet's typed flat-values/offsets search structure,
+with one type dispatch per batch and no per-row subarray allocation. They do not reuse Spark's
+or DataFusion's results verbatim: Flink CONTAINS matches NULL needles to NULL elements, and
+POSITION returns INT zero when absent and NULL for a NULL needle. Matching BOOLEAN, integer and
+DECIMAL types have exact native equality; decimal precision and scale are checked before dispatch.
+Scalar needles are not expanded to the batch length. Potentially failing arguments retain the
+complete generated Calc to preserve Flink's evaluation schedule. The existing representation
+checks keep strings, nested values and NOT NULL-element arrays on their verified generated route.
+CONTAINS also retains generated evaluation for non-NULL literals or nonnullable needles: Flink
+constructs its array element getter from that needle type. For DECIMAL, a stock binary array's
+unchecked read of a NULL cell can throw where the Arrow-backed JVM view returns NULL; that
+combination retains the complete stock Calc rather than normalizing the error away.

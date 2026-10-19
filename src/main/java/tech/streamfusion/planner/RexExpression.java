@@ -429,6 +429,12 @@ final class RexExpression {
   private static CalcEncoding tryEncodeCalc(Calc calc, boolean unnestOperand) {
     RexExpression encoder = forCalc(calc);
     encoder.unnestOperand = unnestOperand;
+    if (NativeConfig.collectionExpressionsEnabled()
+        && unsafeDecimalArraySearch(calc.getProgram())) {
+      // The columnar JVM view cannot reproduce unchecked reads of NULL binary DECIMAL cells.
+      encoder.reject("ARRAY_CONTAINS requires Flink's binary DECIMAL array getter");
+      return new CalcEncoding(encoder, false);
+    }
     if ((NativeConfig.metadataExpressionsEnabled() || NativeConfig.collectionExpressionsEnabled())
         && calc.getProgram().getExprList().stream().anyMatch(encoder::unpairedMetadataIdentifier)) {
       encoder.reject("metadata identifiers containing unpaired UTF-16 require Flink");
@@ -500,6 +506,33 @@ final class RexExpression {
       supported = encoder.emitRowCalc(calc);
     }
     return new CalcEncoding(encoder, supported);
+  }
+
+  private static boolean unsafeArrayContains(RexCall call) {
+    var args = call.getOperands();
+    return "ARRAY_CONTAINS".equals(call.getOperator().getName())
+        && args.size() == 2
+        && args.get(0).getType().getSqlTypeName() == SqlTypeName.ARRAY
+        && args.get(0).getType().getComponentType().isNullable()
+        && (!args.get(1).getType().isNullable()
+            || RexUtil.isLiteral(args.get(1), true)
+                && !RexUtil.isNullLiteral(args.get(1), true));
+  }
+
+  private static boolean unsafeDecimalArraySearch(RexNode node) {
+    if (!(node instanceof RexCall)) return false;
+    var call = (RexCall) node;
+    return unsafeArrayContains(call)
+            && call.getOperands().get(0).getType().getComponentType().getSqlTypeName()
+                == SqlTypeName.DECIMAL
+        || call.getOperands().stream().anyMatch(RexExpression::unsafeDecimalArraySearch);
+  }
+
+  private static boolean unsafeDecimalArraySearch(RexProgram program) {
+    return program.getProjectList().stream()
+            .anyMatch(ref -> unsafeDecimalArraySearch(program.expandLocalRef(ref)))
+        || program.getCondition() != null
+            && unsafeDecimalArraySearch(program.expandLocalRef(program.getCondition()));
   }
 
   private boolean requiresFixedBinaryRow(RexProgram program) {
@@ -1899,6 +1932,29 @@ final class RexExpression {
     }
     if (jsonPredicate >= 0) {
       return emitIsJson(call, jsonPredicate, functionName.startsWith("IS NOT"));
+    }
+    if (NativeConfig.collectionExpressionsEnabled()
+        && ("ARRAY_CONTAINS".equals(functionName) || "ARRAY_POSITION".equals(functionName))) {
+      var args = call.getOperands();
+      if (args.size() != 2 || args.get(0).getType().getSqlTypeName() != SqlTypeName.ARRAY) {
+        return reject(functionName + " requires an ARRAY and a matching element");
+      }
+      var element = args.get(0).getType().getComponentType();
+      if (!java.util.Set.of(SqlTypeName.BOOLEAN, SqlTypeName.TINYINT, SqlTypeName.SMALLINT,
+                  SqlTypeName.INTEGER, SqlTypeName.BIGINT, SqlTypeName.DECIMAL)
+              .contains(element.getSqlTypeName())
+          || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
+              element, args.get(1).getType())) {
+        return reject(functionName + " uses Flink evaluation outside matching basic element types");
+      }
+      if (args.stream().anyMatch(this::requiresRowShortCircuit)) {
+        return reject(functionName + " uses Flink evaluation for fallible arguments");
+      }
+      // Flink derives CONTAINS' element getter from the needle, including its nullability.
+      if (unsafeArrayContains(call)) {
+        return reject(functionName + " uses Flink evaluation for non-null needles");
+      }
+      return emitBuiltinCall(call, "ARRAY_CONTAINS".equals(functionName) ? 178 : 179);
     }
     if ("ARRAY_DISTINCT".equals(functionName)) {
       if (call.getOperands().size() != 1

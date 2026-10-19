@@ -180,7 +180,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         (167, vec![lists.clone()]),
         (169, vec![lists.clone()]),
         (170, vec![lists.clone(), int(-2), int(-1)]),
-        (168, vec![lists, literal("ARRAY<BIGINT>")]),
+        (168, vec![lists.clone(), literal("ARRAY<BIGINT>")]),
         (171, vec![integers.clone(), long(42)]),
         (172, vec![times.clone(), times.clone()]),
         (173, vec![integers]),
@@ -188,6 +188,8 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         (175, vec![times.clone(), int(1000)]),
         (176, vec![times.clone(), offsets.clone()]),
         (177, vec![times, offsets, int(1000)]),
+        (178, vec![lists.clone(), long(1)]),
+        (179, vec![lists, long(1)]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

@@ -34,6 +34,7 @@ pub(crate) mod to_date;
 mod array_constructor;
 mod array_distinct;
 pub(crate) mod array_item;
+mod array_search;
 mod array_slice;
 mod ascii;
 mod binary_strings;
@@ -206,6 +207,8 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         175 => unnest_temporal::function(unnest_temporal::Operation::UtcTime),
         176 => unnest_temporal::function(unnest_temporal::Operation::ZonedDate),
         177 => unnest_temporal::function(unnest_temporal::Operation::ZonedTime),
+        178 => array_search::function(true),
+        179 => array_search::function(false),
         _ => return None,
     })
 }

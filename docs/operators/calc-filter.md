@@ -2073,7 +2073,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | --- | --- |
 | ARRAY_REVERSE, ARRAY_SLICE | Rust kernels for nullable primitive elements; generated Flink program for STRING/ROW/MAP-bearing or NOT NULL-element arrays and consumers requiring Java value semantics |
 | CARDINALITY on ARRAY/MAP | Rust outer-offset count, returning INT; NULL container produces NULL |
-| ARRAY_APPEND, ARRAY_PREPEND, ARRAY_CONTAINS, ARRAY_POSITION, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
+| ARRAY_CONTAINS, ARRAY_POSITION | Rust scans for matching BOOLEAN, integer and DECIMAL element/needle types with nullable elements; other signatures, representation-sensitive consumers and fallible arguments use the generated Flink program. Non-NULL literal or nonnullable CONTAINS needles retain Flink evaluation; DECIMAL arrays with such needles require whole-Calc fallback |
+| ARRAY_APPEND, ARRAY_PREPEND, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
 | Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 
@@ -2083,6 +2084,21 @@ It retains Arrow batch inputs/outputs and production JNI costs. A NativeCalc con
 functions does **not** imply that its scalar work executes in Rust; the function-engine diagnostic
 reports the assignment, including ARRAY/MAP/ROW constructors. Programs with user scalar
 functions retain their existing admission gates.
+
+Basic-type ARRAY_CONTAINS and ARRAY_POSITION scan the flattened values and offsets without
+constructing per-row arrays or invoking the JVM. Admitted scalar needles remain scalar instead of
+being broadcast across the batch. NULL arrays produce NULL; CONTAINS can match a NULL needle to a NULL
+element, whereas POSITION returns NULL for a NULL needle. POSITION returns the first one-based
+position as INT, or zero when absent. DECIMAL equality compares the exact unscaled value at the
+resolved precision and scale. Mixed element/needle types and potentially failing arguments retain
+Flink evaluation; NOT NULL-element and sensitive-string gates still apply to the complete Calc.
+Flink derives CONTAINS' element getter from the needle's type, including nullability. A non-NULL
+literal or nonnullable needle can therefore change the behavior of NULL array elements. These
+CONTAINS signatures retain Flink evaluation. For DECIMAL, the Arrow-backed JVM view also differs
+from the binary array's unchecked getter, so the complete Calc falls back to stock Flink. Tests
+compare both successful results and released-version exceptions, including all-filtered inputs.
+The [optimization evidence](../optimizations/native-array-search.md) compares these paths with
+stock Flink and the prior generated evaluator, including the remaining standalone regressions.
 
 An ARRAY materialized solely for [UNNEST](unnest-correlate.md) can use released DataFusion's scalar
 array constructor because the container's generic/binary identity does not escape that consumer.
