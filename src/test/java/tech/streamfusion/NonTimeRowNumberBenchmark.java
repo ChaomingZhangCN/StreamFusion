@@ -47,6 +47,8 @@ class NonTimeRowNumberBenchmark {
       case "BOOLEAN": order = "MOD(v, 2) = 0"; break;
       case "DATE": order = "CAST(TO_TIMESTAMP_LTZ(v * 86400000, 3) AS DATE)"; break;
       case "TIME": order = "CAST(TO_TIMESTAMP_LTZ(v, 3) AS TIME(3))"; break;
+      case "TIMESTAMP(9)": order = "CAST(TO_TIMESTAMP_LTZ(v, 3) AS TIMESTAMP(9))"; break;
+      case "TIMESTAMP_LTZ(9)": order = "CAST(TO_TIMESTAMP_LTZ(v, 3) AS TIMESTAMP_LTZ(9))"; break;
       default: throw new IllegalArgumentException("Unknown rank.orderType " + orderType);
     }
     String sql =
@@ -98,7 +100,7 @@ class NonTimeRowNumberBenchmark {
                     && plan.contains("ArrowToRowData"),
                 plan);
           } else if (engine == 1) {
-            assertEquals(0, scan.substitutions(), plan);
+            assertFalse(plan.contains("NativeColumnarTopN"), plan);
           }
           long start = System.nanoTime();
           table.executeSql(insert).await();

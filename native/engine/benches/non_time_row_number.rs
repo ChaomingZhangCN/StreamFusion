@@ -4,29 +4,37 @@ use arrow::array::{
 };
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use std::sync::Arc;
+use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
+use streamfusion_bridge::timestamp::{timestamp_array, TimestampValue};
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
 use streamfusion::bench::AppendTopN;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum SortValue {
-    Number(i64),
+    Number(i128),
     Text(String),
 }
 
 fn sort_value(ty: &str, value: i64) -> SortValue {
     match ty {
-        "tinyint" => SortValue::Number(value as i8 as i64),
-        "smallint" => SortValue::Number(value as i16 as i64),
-        "boolean" => SortValue::Number(i64::from(value % 2 == 0)),
+        "tinyint" => SortValue::Number(value as i8 as i128),
+        "smallint" => SortValue::Number(value as i16 as i128),
+        "boolean" => SortValue::Number(i128::from(value % 2 == 0)),
         "string8" | "string256" => {
             let width = if ty == "string8" { 8 } else { 256 };
             SortValue::Text(format!("{value:0width$}"))
         }
-        _ => SortValue::Number(value),
+        "timestamp9" => SortValue::Number(i128::from(value) * 1001 - 999999),
+        _ => SortValue::Number(i128::from(value)),
     }
 }
 
 fn column(ty: &str, values: &[Option<i64>]) -> ArrayRef {
     match ty {
+        "timestamp9" => Arc::new(timestamp_array(values.iter().map(|v| {
+            v.map(|v| TimestampValue::from_nanos(i128::from(v) * 1001 - 999999).unwrap())
+        }))),
         "tinyint" => Arc::new(Int8Array::from_iter(
             values.iter().map(|v| v.map(|v| v as i8)),
         )),
@@ -67,6 +75,7 @@ fn column(ty: &str, values: &[Option<i64>]) -> ArrayRef {
 }
 
 fn bench_non_time_row_number(c: &mut Criterion) {
+    header();
     let mut group = c.benchmark_group("non_time_row_number");
     for rows in [16usize, 1024] {
         for keys in [1usize, 64] {
@@ -77,6 +86,7 @@ fn bench_non_time_row_number(c: &mut Criterion) {
                     "tinyint",
                     "smallint",
                     "decimal",
+                    "timestamp9",
                     "date",
                     "time",
                     "boolean",
@@ -126,7 +136,9 @@ fn bench_non_time_row_number(c: &mut Criterion) {
                         }
                     }
                     let mut check = AppendTopN::non_time_row_number(vec![0], 1);
-                    assert_eq!(check.push(&input).num_rows(), expected);
+                    let (output, allocations) = measure(|| check.push(&input));
+                    assert_eq!(output.num_rows(), expected);
+                    report(&format!("non_time_row_number/{ty}/rows={rows}/keys={keys}/reverse={descending_input}"), input.columns(), output.columns(), allocations);
                     group.throughput(Throughput::Elements(rows as u64));
                     group.bench_function(
                         format!("{ty}/rows={rows}/keys={keys}/reverse={descending_input}"),

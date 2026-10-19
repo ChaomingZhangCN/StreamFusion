@@ -10,7 +10,7 @@ class FlinkNonTimeRowNumberTypeSqlHarnessTest {
   @ParameterizedTest
   @ValueSource(strings = {
     "CAST(-n AS TINYINT)", "CAST(-n AS SMALLINT)", "CAST(-n AS DECIMAL(20,2))",
-    "s", "CAST(s AS CHAR(8))", "day_value", "time_value", "flag"
+    "s", "CAST(s AS CHAR(8))", "day_value", "time_value", "flag", "t", "instant_value"
   })
   void ascendingScalarOrdersPreserveEveryRankUpdateAndNullPlacement(String order) throws Exception {
     org.junit.jupiter.api.Assumptions.assumeTrue(

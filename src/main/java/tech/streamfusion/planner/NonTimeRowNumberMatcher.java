@@ -81,6 +81,8 @@ final class NonTimeRowNumberMatcher {
       case INTEGER:
       case BIGINT:
       case DECIMAL:
+      case TIMESTAMP:
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
       case CHAR:
       case VARCHAR:
       case DATE:
