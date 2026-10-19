@@ -319,7 +319,7 @@ Some historical suites use
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST with projected/repeated/ordinal outputs, nullable timestamp and one-field ROW expansion, UPDATE_BEFORE filtering with absent/retained/mixed/discarded row kinds at 16/1024/16384 rows and narrow/wide nullable payloads, Arrow IPC encode/decode; cached nested ROW payloads through production IPC encode/decode and changelog filtering, including generic/missing-cache rows, null parents, all root RowKinds, widths 8/264 and 16/1024/16384 rows |
-| Complex OVER COUNT | `over_complex_count` | 196 ARRAY/MAP/ROW parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
+| Complex OVER COUNT | `over_complex_count` | 260 ARRAY/MAP/ROW/MULTISET parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
@@ -2548,3 +2548,11 @@ An independent per-key time/frame oracle checks BIGINT counts, pending peer flus
 snapshot/restore continuation before timing. Input/operator construction remains outside the
 measured update/output path. All fixtures report allocation requests and Arrow buffer sharing;
 these metrics are not copied-byte estimates. Run `--bench over_complex_count --smoke`.
+
+
+The existing `window_complex_counts` and `over_complex_count` suites also cover standalone
+MULTISET parent validity with element-to-INT entries. Windows add twelve cases (48 total);
+event-time OVER adds 64 (260 total), including nullable-element IPC list carriers, narrow/wide
+bags, 64/4,096 rows, one/64 keys and framed snapshot continuation. Occurrence counts are
+positive and non-null; they never become the COUNT result. Run either existing suite with
+`--smoke`; no new target or native production implementation is required.

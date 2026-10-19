@@ -20,7 +20,7 @@ import tech.streamfusion.compat.FlinkTestSources;
 class FlinkWindowComplexCountSqlHarnessTest {
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> eventTimeCases() {
     var cases = new java.util.ArrayList<org.junit.jupiter.params.provider.Arguments>();
-    for (String type : new String[] {"array", "map", "row"})
+    for (String type : new String[] {"array", "map", "row", "multiset"})
       for (String shape : new String[] {"TUMBLE", "HOP", "CUMULATE"})
         for (String phase : new String[] {"ONE_PHASE", "TWO_PHASE"})
           for (boolean filtered : new boolean[] {false, true})
@@ -168,7 +168,7 @@ class FlinkWindowComplexCountSqlHarnessTest {
   }
 
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> legacyCases() {
-    return java.util.stream.Stream.of("array", "map", "row")
+    return java.util.stream.Stream.of("array", "map", "row", "multiset")
         .flatMap(
             type ->
                 java.util.stream.Stream.of("TUMBLE", "HOP", "SESSION")
@@ -176,7 +176,7 @@ class FlinkWindowComplexCountSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"array", "map", "row"})
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"array", "map", "row", "multiset"})
   void sessionTableFunction(String type) {
     var result =
         NativeFailureParity.run(
@@ -218,7 +218,7 @@ class FlinkWindowComplexCountSqlHarnessTest {
   }
 
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> recoveryCases() {
-    return java.util.stream.Stream.of("array", "map", "row")
+    return java.util.stream.Stream.of("array", "map", "row", "multiset")
         .flatMap(
             type ->
                 java.util.stream.Stream.of("ONE_PHASE", "TWO_PHASE")
@@ -325,6 +325,15 @@ class FlinkWindowComplexCountSqlHarnessTest {
         map.put(null, 9L);
         childNull = map;
         value = Map.of("a", 1L, "b", 2L);
+        break;
+      case "multiset":
+        dataType = DataTypes.MULTISET(DataTypes.STRING());
+        info = org.apache.flink.table.runtime.typeutils.ExternalTypeInfo.of(dataType);
+        empty = Map.of();
+        var multiset = new LinkedHashMap<String, Integer>();
+        multiset.put(null, 3);
+        childNull = multiset;
+        value = Map.of("a", 5, "b", 2);
         break;
       case "row":
         info = Types.ROW_NAMED(new String[] {"child"}, Types.LONG);

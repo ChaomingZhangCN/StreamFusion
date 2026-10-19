@@ -23,6 +23,7 @@ public final class MapListRepresentation {
       switch (rowType.getTypeAt(columns[i]).getTypeRoot()) {
         case ARRAY:
         case MAP:
+        case MULTISET:
         case ROW:
           return containsMap(rowType);
         default:

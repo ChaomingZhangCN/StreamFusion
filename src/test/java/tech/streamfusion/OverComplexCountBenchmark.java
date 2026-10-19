@@ -55,9 +55,11 @@ class OverComplexCountBenchmark {
             ? DataTypes.ARRAY(DataTypes.BIGINT())
             : value.equals("map")
                 ? DataTypes.MAP(DataTypes.STRING(), DataTypes.BIGINT())
-                : value.equals("row")
-                    ? DataTypes.ROW(DataTypes.FIELD("child", DataTypes.BIGINT()))
-                    : null;
+                : value.equals("multiset")
+                    ? DataTypes.MULTISET(DataTypes.STRING())
+                    : value.equals("row")
+                        ? DataTypes.ROW(DataTypes.FIELD("child", DataTypes.BIGINT()))
+                        : null;
     if (payloadType == null) throw new IllegalArgumentException(value);
     var rowType =
         DataTypes.ROW(
@@ -97,6 +99,13 @@ class OverComplexCountBenchmark {
                                 for (int j = 0; j < width; j++)
                                   map.put("k" + j, j % 3 == 0 ? null : i % 256);
                               payload = map;
+                              break;
+                            case "multiset":
+                              var multiset = new java.util.LinkedHashMap<String, Integer>();
+                              if (i % 3 != 0)
+                                for (int j = 0; j < width; j++)
+                                  multiset.put(j == 0 ? null : "k" + j, 1 + j % 5);
+                              payload = multiset;
                               break;
                             case "row":
                               payload = Row.of(i % 3 == 0 ? null : i % 256);

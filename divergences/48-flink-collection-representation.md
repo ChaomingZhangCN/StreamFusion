@@ -69,3 +69,9 @@ ARRAY-of-MULTISET and ROW-of-MULTISET with NULL keys through two restores on eac
 Before including MULTISET in physical-map detection, the two multiset-only cases failed
 with the same IPC non-nullable-key validation error. No primitive or logical MAP benchmark
 fixture changes; the additional alias applies only to those previously unverified descendants.
+
+
+Standalone event-time OVER COUNT over MULTISET uses this same nullable-key entry-list carrier,
+with non-null INT occurrence counts. Window aggregates instead consume parent validity and
+retain only their BIGINT aggregate state. Neither path sums occurrences. Released Flink
+checks return original bags and restore pending/frame state twice on both backends.

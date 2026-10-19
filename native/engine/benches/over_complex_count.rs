@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayRef, Int64Array, Int64Builder, ListBuilder, MapBuilder, RecordBatch, StringBuilder,
-    StructArray, StructBuilder,
+    Array, ArrayRef, Int32Builder, Int64Array, Int64Builder, ListBuilder, MapBuilder, RecordBatch,
+    StringBuilder, StructArray, StructBuilder,
 };
 use arrow::buffer::NullBuffer;
 use arrow::datatypes::{DataType, Field};
@@ -81,6 +81,53 @@ fn payload(kind: &str, valid: &[bool], width: usize) -> ArrayRef {
             }
             Arc::new(builder.finish())
         }
+        "multiset" => {
+            let mut builder = MapBuilder::new(None, StringBuilder::new(), Int32Builder::new());
+            for (row, &present) in valid.iter().enumerate() {
+                if present && row % 3 != 0 {
+                    for entry in 0..width {
+                        builder.keys().append_value(format!("element{entry}"));
+                        builder.values().append_value(1 + (entry % 5) as i32);
+                    }
+                }
+                builder.append(present).unwrap();
+            }
+            Arc::new(builder.finish())
+        }
+        "multiset_list" => {
+            let fields = vec![
+                Arc::new(Field::new("key", DataType::Utf8, true)),
+                Arc::new(Field::new("value", DataType::Int32, false)),
+            ];
+            let entries = StructBuilder::new(
+                fields,
+                vec![
+                    Box::new(StringBuilder::new()),
+                    Box::new(Int32Builder::new()),
+                ],
+            );
+            let mut builder = ListBuilder::new(entries);
+            for (row, &present) in valid.iter().enumerate() {
+                if present && row % 3 != 0 {
+                    for entry in 0..width {
+                        let keys = builder.values().field_builder::<StringBuilder>(0).unwrap();
+                        if entry == 0 {
+                            keys.append_null();
+                        } else {
+                            keys.append_value(format!("element{entry}"));
+                        }
+                        builder
+                            .values()
+                            .field_builder::<Int32Builder>(1)
+                            .unwrap()
+                            .append_value(1 + (entry % 5) as i32);
+                        builder.values().append(true);
+                    }
+                }
+                builder.append(present);
+            }
+            Arc::new(builder.finish())
+        }
         "row" => Arc::new(StructArray::new(
             vec![Arc::new(Field::new("child", DataType::Int64, true))].into(),
             vec![Arc::new(Int64Array::from_iter(
@@ -154,6 +201,10 @@ fn bench(c: &mut Criterion) {
                 ("map_list", 4),
                 ("map_list", 64),
                 ("row", 1),
+                ("multiset", 4),
+                ("multiset", 64),
+                ("multiset_list", 4),
+                ("multiset_list", 64),
             ] {
                 let input = RecordBatch::try_from_iter(vec![
                     (
@@ -178,6 +229,9 @@ fn bench(c: &mut Criterion) {
                 ])
                 .unwrap();
                 for proctime in [false, true] {
+                    if proctime && kind.starts_with("multiset") {
+                        continue;
+                    }
                     for frame in 0..4 {
                         if proctime && frame == 2 {
                             continue;

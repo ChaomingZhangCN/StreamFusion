@@ -6,7 +6,7 @@ shape, with the gaps enumerated below.
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
-TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW and event-time MAP. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
 retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
@@ -339,7 +339,7 @@ The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
-  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW and event-time MAP.
+  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET.
   Proctime complex arguments containing MAP/MULTISET retain Flink for conversion performance. Complex DISTINCT
   and complex value selections retain fallback. The scalar types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
@@ -762,8 +762,7 @@ benchmark behavior is unchanged.
 ## Complex ordinary COUNT
 
 Ordinary `COUNT` over ARRAY, MAP and ROW reads only the parent validity bitmap. Empty containers
-and a non-NULL ROW with NULL children count as one; NULL parents count as zero. Standalone
-MULTISET arguments, DISTINCT and
+and a non-NULL ROW with NULL children count as one; NULL parents count as zero. DISTINCT and
 other complex-valued reductions retain fallback. All four event-time frames admit these three types; running ROWS/RANGE and bounded ROWS
 over proctime admit ARRAY/ROW without MAP/MULTISET descendants. Proctime MAP-containing COUNT arguments
 retain Flink ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)): profiled Arrow/conversion costs did not reliably beat stock, including larger-batch
@@ -826,3 +825,50 @@ The final 500,000-row proctime ARRAY/ROW matrix measures 1.271–1.728x over sto
 Its 80 additional complete jobs include matching previous-version bounded-ROWS controls;
 previous running controls remain in the earlier 180-job batching matrix. Earlier 50,000-row
 bounded and rejected MAP proctime candidates remain available, including unfavorable samples.
+
+
+## MULTISET COUNT
+
+Event-time ordinary COUNT also admits standalone MULTISET values across all four existing
+frames. It counts parent validity, independently of element occurrences, empty bags and NULL
+elements. The existing nullable-key List-of-entry transport carries element-to-INT pairs,
+so original MULTISET payloads remain readable after emission and repeated IPC restore. No
+new frame, membership, checkpoint or JNI format is introduced beyond that existing transport.
+
+Eight released-SQL cases combine four event-time frames and two restores on each memory/native
+RocksDB backend. They return the original bags as well as counts, covering NULL parents,
+empty bags, NULL elements, varying occurrence counts and NULL-only partitions. Three more
+checks preserve proctime's MAP-storage performance fallback ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)).
+DISTINCT also retains fallback. Both released Flink lines pass these eleven cases.
+
+The existing release OVER fixture suite adds 64 cases over 64/4,096 rows, one/64 keys,
+4/64 elements, four event-time frames and both regular MAP-of-UTF8-to-INT and IPC-safe
+nullable-element List carriers. Independent frame/peer/checkpoint oracles validate the
+260-case suite. Native setup stays outside timing; allocation requests and buffer sharing
+are recorded without equating either with copied bytes.
+
+
+Complete-job release+mimalloc timings use JDK 17, UTC, parallelism two, a 2 GiB heap,
+1,024-row entry batches and production IPC. Nullable runtime bags contain empty values, a NULL
+element and positive occurrence counts. Both row/Arrow transposes, JNI, state, startup and a
+row blackhole sink remain measured. Two warmups precede three alternating trials. Native
+plans/counters verify execution; separately compiled actual previous revision `a038f539`
+asserts its window/OVER fallback. Other local heavy work was excluded.
+
+| Profile / rows / keys / elements | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| running ROWS / 500,000 / 64 / 4 | 1.188 (1.164–1.270) | 0.650 (0.631–0.659) | 1.128 (1.104–1.163) |
+| running RANGE / 500,000 / 64 / 4 | 1.175 (1.120–1.296) | 0.641 (0.563–0.795) | 1.044 (0.979–1.082) |
+| 3 preceding ROWS / 50,000 / 64 / 4 | 0.389 (0.328–0.473) | 0.203 (0.115–0.215) | 0.346 (0.336–0.358) |
+| 300 ms RANGE / 50,000 / 64 / 4 | 0.316 (0.258–0.437) | 0.127 (0.125–0.136) | 0.248 (0.248–0.274) |
+| 3 preceding ROWS / 50,000 / 4,096 / 32 | 0.364 (0.364–0.455) | 0.357 (0.307–0.359) | 0.370 (0.349–0.373) |
+
+These profiles improve 1.021–2.495x over paired stock and 1.036–1.959x
+over actual previous StreamFusion. The Flink 1.18 bounded ROWS control improves
+1.853x over stock (0.411/0.222 s). Wide-bag gains are modest and
+ranges overlap previous execution; startup/source allocation remain measured. These are
+representative complete jobs, not universal or sustained-throughput claims. The
+[260-job artifact](../benchmarks/results/multiset-count-2026-10-19.json) retains every warmup,
+trial, prior stock control, source/library hash and all 308 native allocation/buffer reports.
+Reproduce with `OverComplexCountBenchmark -Dover.cases=multiset`
+and the row/key/width/phase/frame properties shown above.

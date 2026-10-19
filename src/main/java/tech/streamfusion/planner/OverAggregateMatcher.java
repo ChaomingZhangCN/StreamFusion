@@ -307,7 +307,8 @@ final class OverAggregateMatcher {
 
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
-    if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW) {
+    if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW
+        || type == SqlTypeName.MULTISET) {
       return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
     }
     if (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN) {
