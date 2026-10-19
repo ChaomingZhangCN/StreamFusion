@@ -929,3 +929,17 @@ retain another 120 jobs and the CPU diagnostic. Native correctness covers 104 gr
 Criterion validates 108 local/global partial fixtures and 110 typed-state fixtures, with
 allocation and buffer-sharing reports for the partial paths. Allocation requests are not
 copied-byte measurements.
+
+## Primitive OVER value state preserves logical types
+
+DATE, TIME and BOOLEAN MIN/MAX/FIRST/LAST use the same selected-value pattern as typed
+decimal/timestamp OVER state, with an inline optional 32-bit value and logical Arrow type.
+Bound column readers avoid scalar reconstruction during folding. Frame serialization,
+output and restore retain logical types, so integer carriers never leak through the JNI
+or checkpoint boundary. NULL validity remains separate from boolean false.
+
+The [OVER measurement](../operators/over.md#date-time-and-boolean-value-selection) records
+all four rowtime shapes across three types: 2.508–6.669x over paired stock for one-million-row
+jobs. Actual preceding-revision bounded-ROWS controls improve 5.058–5.452x. The raw artifact
+retains all variability, disabled-OVER controls and released-1.18 checks, with both transposes
+and rowwise edges measured. This does not change the existing input/order/DISTINCT gates.

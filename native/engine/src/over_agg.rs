@@ -203,6 +203,15 @@ fn over_value_column<'a>(
         DataType::Int32 => ValueColumn::I32(column.as_any().downcast_ref().expect("int32 value")),
         DataType::Int16 => ValueColumn::I16(column.as_any().downcast_ref().expect("int16 value")),
         DataType::Int8 => ValueColumn::I8(column.as_any().downcast_ref().expect("int8 value")),
+        DataType::Date32 => {
+            ValueColumn::Date(column.as_any().downcast_ref().expect("date OVER value"))
+        }
+        DataType::Time32(arrow::datatypes::TimeUnit::Millisecond) => {
+            ValueColumn::Time(column.as_any().downcast_ref().expect("time OVER value"))
+        }
+        DataType::Boolean => {
+            ValueColumn::Boolean(column.as_any().downcast_ref().expect("boolean OVER value"))
+        }
         DataType::Float64 => {
             ValueColumn::F64(column.as_any().downcast_ref().expect("float64 value"))
         }

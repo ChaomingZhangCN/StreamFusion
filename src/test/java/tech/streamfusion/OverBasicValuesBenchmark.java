@@ -63,7 +63,7 @@ class OverBasicValuesBenchmark {
     boolean expectNative =
         Boolean.parseBoolean(System.getProperty("over.values.expectNative", "true"));
     String reductions = countOnly ? "COUNT(v) OVER w" : "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
-    if (!countOnly && (!(type.equals("timestamp") || type.equals("ltz"))
+    if (!countOnly && (!(type.equals("timestamp") || type.equals("ltz") || type.equals("date") || type.equals("time"))
         || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast())) {
       reductions += ", FIRST_VALUE(v) OVER w, LAST_VALUE(v) OVER w";
     }
@@ -209,7 +209,7 @@ class OverBasicValuesBenchmark {
                         value = LocalTime.of(12, 34, 56, (int) (id % 1000) * 1000000);
                         break;
                       case "boolean":
-                        value = id % 2 == 0;
+                        value = id / keys % 2 == 0;
                         break;
                       default:
                         var time =

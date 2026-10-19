@@ -212,6 +212,13 @@ report input rows per second only with the stated output cardinality. Smoke mode
 `--test`, executes each fixture once, and produces no timing baseline. CI runs smoke checks and
 retains diagnostics without enforcing performance thresholds on shared runners.
 
+The typed-value suite adds 336 DATE/TIME/BOOLEAN MIN/MAX/FIRST/LAST fixtures across all
+four rowtime shapes and the three admitted proctime shapes, 64/4,096 rows and one/64 keys.
+An independent per-key logical frame oracle verifies every selected value, NULL-only groups
+and bounded-frame eviction. Physical splits and repeated snapshots must match the whole batch.
+Allocation requests and Arrow sharing are reported outside Criterion timing; construction and
+oracle work stay outside measurement.
+
 ## Allocation and buffer diagnostics
 
 New suites perform an untimed allocation probe outside Criterion's warmup and sampling. Stateful

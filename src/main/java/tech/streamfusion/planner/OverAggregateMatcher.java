@@ -68,7 +68,7 @@ final class OverAggregateMatcher {
     // well-defined over proctime (they depend on arrival order, not the clock value).
     if (proctimeOrder && !group.isRows && !group.lowerBound.isUnbounded()) {
       return "OVER: a bounded RANGE frame over proctime is not supported (use ROWS or an event-time"
-                 + " order)";
+          + " order)";
     }
     // Window functions (ROW_NUMBER) are computed per partition with no value column over the
     // default
@@ -81,7 +81,7 @@ final class OverAggregateMatcher {
     }
     if (valueColumns(window, group, inputType) == null) {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
-                 + " DECIMAL";
+          + " DECIMAL";
     }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
@@ -226,7 +226,9 @@ final class OverAggregateMatcher {
         valueType = literal.getType();
       }
       if ((kind == 5 || kind == 6)
-          && GroupAggregateMatcher.isTimestampType(valueType.getSqlTypeName())
+          && (GroupAggregateMatcher.isTimestampType(valueType.getSqlTypeName())
+              || valueType.getSqlTypeName() == SqlTypeName.DATE
+              || valueType.getSqlTypeName() == SqlTypeName.TIME)
           && !tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
         return null;
       }
@@ -283,9 +285,12 @@ final class OverAggregateMatcher {
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
     if (distinct) return false;
-    if (kind == WindowAggregateMatcher.KIND_COUNT
-        && (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN)) {
-      return true;
+    if (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN) {
+      return kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == 1
+          || kind == 2
+          || kind == 5
+          || kind == 6;
     }
     if (type == SqlTypeName.DECIMAL) {
       return kind == WindowAggregateMatcher.KIND_SUM

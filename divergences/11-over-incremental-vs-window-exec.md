@@ -290,3 +290,10 @@ The released heap operator failed an injected restore with a NULL prior accumula
 update emission. Native checkpoint validation therefore compares its twice-restored output
 with an uninterrupted stock run, independently verifying restored offsets and source cleanup;
 it does not claim parity between two successfully restored host/native jobs.
+
+DATE, TIME and BOOLEAN OVER value state stores the selected physical 32-bit value plus
+its logical Arrow type, following the existing typed decimal/timestamp selection pattern.
+Frame rows and snapshots retain logical DATE/TIME/BOOLEAN scalar fields rather than exposing
+an integer carrier. Readers and restored frames fold into the same native state; no new JNI
+or checkpoint framing is introduced. Arroyo's watermark-finalized window exec cannot replace
+Flink's immediate running and bounded-frame selection, as described above.

@@ -5,7 +5,9 @@ shape, with the gaps enumerated below.
 
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
-bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ.
+bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
+TIMESTAMP and TIMESTAMP_LTZ. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
 `ROW_NUMBER`/`RANK`/`DENSE_RANK` (no value column, unbounded frame) are admitted alongside the
@@ -249,10 +251,8 @@ per-batch timestamp, a wall-clock-interval frame has no meaningful definition.
 The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
-- A non-numeric value column outside DECIMAL, CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ,
-  except ordinary COUNT over DATE, TIME and BOOLEAN.
-  DECIMAL, character and timestamp values admit ordinary COUNT and typed
-  MIN/MAX/FIRST_VALUE/LAST_VALUE; DATE/TIME/BOOLEAN currently admit ordinary COUNT.
+- A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
+  and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG. DISTINCT retains its numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
@@ -401,3 +401,42 @@ SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
 
 Properties select `over.values.types`, `over.values.frames` (0 running RANGE, 1 bounded ROWS,
 2 bounded RANGE, 3 running ROWS), rows, keys, warmups, runs and watermark delay in milliseconds.
+
+## DATE, TIME and BOOLEAN value selection
+
+Ordinary MIN/MAX/FIRST_VALUE/LAST_VALUE now use a typed 32-bit selected value with its logical
+DATE/TIME/BOOLEAN type. Frame rows, output and checkpoints retain the declared type; they
+do not expose an integer carrier. NULL-only groups remain NULL, boolean false remains a
+value, and bounded frames evict NULL rows as well as contributing rows. Existing DISTINCT,
+order and input gates remain unchanged. Flink 1.18 keeps its temporal FIRST/LAST factory
+failures; COUNT/MIN/MAX and boolean FIRST/LAST run natively where that release accepts them.
+
+The focused selection has 96 passing checks and eight released-host skips on Flink 2.2.1,
+and 104 passing checks on 1.18.1. It includes same-key peers, physical splits, exact result
+types, two memory/RocksDB restores and host-failure parity. All 107 native OVER regressions
+and 2,656 release Criterion fixtures pass, including 336 new primitive cases with independent
+frame oracles, repeated snapshots and allocation/buffer reports.
+
+Whole-job release+mimalloc measurements use JDK 17, parallelism 1, a 2 GiB heap, UTC, one
+million runtime rows, 64 keys, two warmups and three measured trials. Values vary within
+keys, NULLs occur every seventh row and key zero has no contributing values. ROWS uses
+16 preceding rows; bounded RANGE uses one second. All twelve Flink 2.2 type/frame cases
+improve **2.508–6.669x** over paired stock. Both unbounded shapes and both bounded shapes
+retain the runtime row source, rowwise sink, production transposes/JNI/state and native
+execution assertions.
+
+The actual preceding revision is sampled on bounded ROWS for all three types, improving
+5.058–5.452x. Its controls use the identical fixture and resources; disabled-OVER controls
+are additionally retained for the full current matrix. These are separate comparisons.
+
+| Bounded ROWS type | Stock median (range), s | Native median (range), s | Actual previous median (range), s |
+| --- | ---: | ---: | ---: |
+| DATE | 6.385 (6.224–6.490) | 1.200 (1.199–1.206) | 6.068 (6.045–6.271) |
+| TIME | 6.530 (6.448–6.540) | 1.189 (1.189–1.235) | 6.484 (6.324–6.503) |
+| BOOLEAN | 6.388 (6.274–6.650) | 1.168 (1.137–1.176) | 6.321 (6.298–6.388) |
+
+Released Flink 1.18 bounded-ROWS profiles improve 5.218–6.030x over paired stock. The
+[270-job artifact](../benchmarks/results/over-primitive-values-2026-10-19.json) retains every
+warmup/trial, all controls, configurations, source/DSO hashes and 336 allocation records.
+Correctness also covers proctime; these whole-job timings are rowtime workloads. Results
+are representative rather than a universal speed guarantee.

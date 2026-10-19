@@ -1,6 +1,7 @@
 use super::*;
 mod cached_strings;
 mod cached_transport;
+mod primitives;
 mod string_tree;
 mod string_view_checkpoints;
 use arrow::compute::concat_batches;
@@ -97,6 +98,7 @@ fn validate(batch: &RecordBatch, code: i64, kind: i64, frame: i64, offset: i64, 
 }
 
 pub(super) fn bench(c: &mut Criterion) {
+    primitives::bench(c);
     string_tree::bench(c);
     cached_strings::bench(c);
     cached_transport::bench(c);
