@@ -108,23 +108,21 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 
 ## Experimental Window Coverage
 
-`streamfusion.window.string-extrema.single-phase.enabled` defaults to `false`. Set it to `true`
-in Flink table configuration to admit single-phase CHAR/VARCHAR MIN/MAX, including admitted
-processing-time, session and legacy windows. High-cardinality single-phase CUMULATE regressed
-against Flink in the complete-job comparison, so stock Flink remains the default for these
-string aggregates. Two-phase local/global string extrema do not require this option. See
-[Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+Single-phase event-time TVF TUMBLE/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
+The optional `streamfusion.window.string-extrema.single-phase.enabled` overrides admission:
+`false` forces stock execution, while `true` also admits otherwise supported HOP,
+processing-time, session and legacy string windows. HOP still loses at high cardinality.
+Two-phase local/global string extrema do not require this option.
+See [Window aggregate](operators/window-aggregate.md#string-minmax).
 
-Single-phase attached-window re-aggregation over a fixed grid now runs natively by default when
-its upstream native window contains only ordinary COUNT aggregates and the size is at most five
-slides/steps. This includes the verified
-COUNT-to-MAX and mixed outer SUM/MIN/MAX/AVG cascades. Regional calendar callbacks and other
-upstream aggregate layouts and wider overlap retain stock execution by default; existing AUTO/TWO_PHASE admission
-is unchanged. The optional `streamfusion.window.attached.single-phase.enabled` setting overrides
-this choice: `false` forces the single-phase attached path to stock, while `true` opts into all
-otherwise supported attached layouts, including the experimental persistent/regional paths.
-See [Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
-for coverage and the complete-job performance matrix.
+Single-phase attached-window re-aggregation now runs natively for all otherwise supported
+append-only event-time TUMBLE/HOP/CUMULATE layouts, including regional calendars, wider overlap
+and upstream aggregates beyond COUNT. The optional
+`streamfusion.window.attached.single-phase.enabled=false` forces stock execution; `true`
+now matches the default. FILTER, retracting inputs and unsupported types still fall back.
+[The admission audit](benchmarks/feature-admission-2026-10-19.md) compares stock RowData with
+matching prebuilt Arrow inputs, with intrinsic conversions included. Complete-job timings
+remain separate evidence, including retained slower wide-overlap jobs.
 
 ## Diagnostics
 

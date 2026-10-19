@@ -73,3 +73,10 @@ include the initial standalone regression and final fallback controls. That stan
 stock-fallback medians are 0.436 s StreamFusion and 0.442 s paired stock. This is avoided work,
 not native filtering throughput. [CPU diagnostics](../benchmarks/results/drop-update-before-profiles-2026-10-18.json)
 retain the conversion/copy evidence; profiled elapsed times are excluded from the comparison.
+
+
+The [2026-10-19 operator-format audit](../benchmarks/feature-admission-2026-10-19.md)
+also finds the mixed-kind standalone operator slower with prebuilt Arrow input: 17.0 ms
+versus Flink's 8.8 ms for 262,144 logical rows. Arrow filtering/copying and C Data handoffs
+remain intrinsic costs after perimeter transposes are excluded. The standalone opt-in
+therefore remains off; composed filter admission is unchanged.

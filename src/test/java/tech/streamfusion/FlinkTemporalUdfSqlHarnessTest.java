@@ -96,7 +96,7 @@ class FlinkTemporalUdfSqlHarnessTest {
       NativeParity.assertFallbackReasonContains(
           () -> environment(3, "UTC", 32, null, false),
           "SELECT " + expression + " FROM src",
-          "temporal scalar UDFs await whole-job performance admission");
+          "temporal scalar UDFs await operator performance admission");
     }
   }
 

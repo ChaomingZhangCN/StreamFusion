@@ -37,6 +37,10 @@ hosts, connectors, backends, exact SQL and explicitly labelled expression varian
 
 ## Component measurements and diagnostics
 
+[Feature admission, 2026-10-19](feature-admission-2026-10-19.md) compares production
+operators with each engine receiving its own prebuilt input format. It retains the
+five-switch inventory, both optimization passes, CPU profiles and all release trials.
+
 File-task loops and isolated routing measurements exclude parts of a streaming
 job. Profiled durations and one-pair preflights do not replace repeated, unprofiled
 complete-job observations. The linked reports explain which comparisons are valid.

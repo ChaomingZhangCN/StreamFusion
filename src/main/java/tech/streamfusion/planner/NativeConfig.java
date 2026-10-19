@@ -79,12 +79,12 @@ public final class NativeConfig {
     return booleanValue("streamfusion.native.enabled", true);
   }
 
-  /** Complete-row shared scalar evaluation is opt-in while standalone jobs lose to Flink. */
+  /** Complete-row shared scalar evaluation remains opt-in after operator-format comparisons. */
   public static boolean sharedStatefulUdfEnabled() {
     return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", false);
   }
 
-  /** Temporal scalar conversion is opt-in while row-source standalone jobs lose to Flink. */
+  /** Temporal scalar conversion remains opt-in while operator-format comparisons lose to Flink. */
   public static boolean temporalUdfEnabled() {
     return booleanValue("streamfusion.calc.temporalUdf.enabled", false);
   }
@@ -99,7 +99,7 @@ public final class NativeConfig {
     return booleanValue("streamfusion.experimental.metadataExpressions", true);
   }
 
-  /** A lone row-source changelog filter cannot repay a row/Arrow round trip. */
+  /** Mixed-kind standalone Arrow filtering remains slower than the stock row filter. */
   public static boolean standaloneDropUpdateBeforeEnabled() {
     return booleanValue("streamfusion.dropUpdateBefore.standalone.enabled", false);
   }

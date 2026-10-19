@@ -124,6 +124,38 @@ class NativeAttachedWindowStateTest {
     }
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "false,UTC",
+    "true,UTC",
+    "false,GMT+08:00",
+    "true,GMT+08:00",
+    "false,America/Los_Angeles",
+    "true,America/Los_Angeles"
+  })
+  void sharedInputBuffersRemainValidAndAreReleased(boolean rocks, String zone) throws Exception {
+    try (var allocator =
+            NativeAllocator.SHARED.newChildAllocator("attached-borrow-test", 0, 1 << 20);
+        var operator = harness(rocks, zone)) {
+      operator.setup(new ArrowBatchSerializer());
+      operator.open();
+      var input =
+          RowDataArrowConverter.write(
+              List.of(row(1L, 7L, -4000, 1000), row(null, null, -4000, 1000)), INPUT, allocator);
+      try (var retained = input.slice(0, 2)) {
+        operator.processElement(new StreamRecord<>(new ArrowBatch(input)));
+        var rows = RowDataArrowConverter.read(retained, INPUT);
+        assertEquals(7L, rows.get(0).getLong(1));
+        assertTrue(rows.get(1).isNullAt(1));
+        operator.processWatermark(new Watermark(epoch(999, zone)));
+        assertEquals(
+            List.of(change(1L, 7L, 7L, 1, -4000, 1000), change(null, null, null, 0, -4000, 1000)),
+            drain(operator));
+      }
+      assertEquals(0, allocator.getAllocatedMemory());
+    }
+  }
+
   private static KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch> harness(
       boolean rocks, String zone) throws Exception {
     var operator =

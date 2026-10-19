@@ -468,7 +468,7 @@ for LTZ, declared result types, NULL callbacks, shared function order and one ta
 Results remain Arrow columns for downstream native operators, including GROUP BY.
 
 The option defaults to **false** because standalone row-source projections lose to stock Flink.
-The diagnostic is `temporal scalar UDFs await whole-job performance admission`. Builtin temporal
+The diagnostic is `temporal scalar UDFs await operator performance admission`. Builtin temporal
 expressions retain their current native coverage. Specialized functions, unsupported conversion
 classes (including alternate timestamp result classes), fixed BINARY signatures and nested UDF
 types retain their own gates. Other expression contexts keep their existing admission rules.
@@ -2297,3 +2297,15 @@ both released lines. These are historical correctness results. Binary ELT remain
 on stock execution pending performance admission. STRING ARRAY_DISTINCT uses the verified
 generated collection route described above; fixed binary casts, Boolean ARRAY_DISTINCT,
 and the bounded DOUBLE TRUNCATE helper remain admitted.
+
+
+### Operator-format performance admission, 2026-10-19
+
+[The admission audit](../benchmarks/feature-admission-2026-10-19.md) excludes perimeter
+transposes and compares the same logical BinaryRowData/Arrow inputs. Shared stateful INT,
+BIGINT and STRING evaluators still do not establish a repeatable win; temporal identity,
+text and epoch UDFs remain slower. Their opt-ins stay off. A mixed temporal direct-evaluation
+candidate reduced native time but still lost to Flink and was rejected. Existing diagnostic
+execution switches retain their prior contracts. Collection and metadata feature switches
+already default on and do not block coverage. The earlier full-job timings remain diagnostic
+evidence rather than the small-functionality admission gate.

@@ -48,12 +48,7 @@ class FlinkMixedWindowAvgSqlHarnessTest {
     String sql = "SELECT window_start, window_end, AVG(total), COUNT(*), MIN(total) FROM ("
         + "SELECT k, window_start, window_end, SUM(v) AS total FROM TABLE(" + window("TUMBLE")
         + ") GROUP BY k, window_start, window_end) GROUP BY window_start, window_end";
-    if (phase.equals("ONE_PHASE")) {
-      NativeParity.assertFallbackReasonContains(() -> environment(phase, false), sql,
-          "attached-window aggregation requires two-phase execution");
-    } else {
-      check(phase, false, sql);
-    }
+    check(phase, false, sql);
   }
 
   @ParameterizedTest

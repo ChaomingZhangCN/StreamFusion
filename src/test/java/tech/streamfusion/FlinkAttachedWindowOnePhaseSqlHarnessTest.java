@@ -140,17 +140,17 @@ class FlinkAttachedWindowOnePhaseSqlHarnessTest {
   }
 
   @Test
-  void mixedUpstreamStateKeepsStockExecutionWithoutAnOverride() throws Exception {
+  void mixedUpstreamStateRunsNativelyWithoutAnOverride() throws Exception {
     validateOtherPlans("MIXED");
   }
 
   @Test
-  void regionalCalendarKeepsStockExecutionWithoutAnOverride() throws Exception {
+  void regionalCalendarRunsNativelyWithoutAnOverride() throws Exception {
     validateOtherPlans("REGIONAL");
   }
 
   @Test
-  void widerOverlapKeepsStockExecutionWithoutAnOverride() throws Exception {
+  void widerOverlapRunsNativelyWithoutAnOverride() throws Exception {
     validateOtherPlans("WIDE");
   }
 
@@ -231,6 +231,33 @@ class FlinkAttachedWindowOnePhaseSqlHarnessTest {
                 Row.of(
                     2L, LocalDateTime.of(2020, 1, 1, 0, 0), LocalDateTime.of(2020, 1, 1, 0, 0, 3))),
             actual);
+      } else if (regional || mixed || wide) {
+        assertTrue(
+            scan.substitutions() > 0 && scan.fallbackReasons().isEmpty(), scan.explainSummary());
+        assertTrue(plan.contains("NativeColumnarWindowAggregate"), plan);
+        if (wide) {
+          var expected = new java.util.HashSet<Row>();
+          for (int start = -28; start <= 0; start += 2)
+            expected.add(
+                Row.of(
+                    2L,
+                    LocalDateTime.of(2020, 1, 1, 0, 0).plusSeconds(start),
+                    LocalDateTime.of(2020, 1, 1, 0, 0).plusSeconds(start + 30)));
+          assertEquals(15, actual.size());
+          assertEquals(expected, new java.util.HashSet<>(actual));
+        } else {
+          var start =
+              regional ? LocalDateTime.of(2019, 12, 31, 16, 0) : LocalDateTime.of(2020, 1, 1, 0, 0);
+          assertEquals(List.of(Row.of(mixed ? 5L : 2L, start, start.plusSeconds(2))), actual);
+        }
+        String job = result.getJobClient().orElseThrow().getJobID().toString();
+        assertTrue(
+            metrics.nativeOperators().stream()
+                .anyMatch(
+                    row ->
+                        job.equals(row.get("jobId"))
+                            && row.get("operator").toString().contains("WindowAgg")
+                            && ((Number) row.get("recordsIn")).longValue() > 0));
       } else {
         assertEquals(0, scan.substitutions(), scan.explainSummary());
         assertTrue(
