@@ -13,10 +13,12 @@ mod ordered_value;
 mod single_append;
 use json_agg::{is_json_agg, JsonAggState, JsonAggregateError};
 mod list_agg;
+use distinct::DistinctColumn;
 pub(crate) use distinct::DistinctSet;
-use distinct::{DistinctColumn, DistinctValues};
+mod values;
 use list_agg::{is_list_agg, ListAggState, StringColumn};
 use ordered_value::{is_ordered_value, OrderedValueState};
+use values::ScalarValues;
 
 /// Java boxed comparison for retractable extrema: NaNs share one key and signed zeros differ.
 #[derive(Clone, Copy)]
@@ -1315,11 +1317,19 @@ pub(crate) fn group_key_state_bytes(state: &GroupKeyState) -> usize {
 
 struct GroupChanges {
     rows: Vec<u32>,
-    results: Vec<Vec<ScalarValue>>,
+    results: Vec<ScalarValues>,
     kinds: Vec<i8>,
 }
 
 impl GroupChanges {
+    fn push_ref(&mut self, kind: i8, row: usize, values: &[ScalarValue]) {
+        self.rows.push(row as u32);
+        for (column, value) in self.results.iter_mut().zip(values) {
+            column.push_ref(value);
+        }
+        self.kinds.push(kind);
+    }
+
     fn push(&mut self, kind: i8, row: usize, values: impl IntoIterator<Item = ScalarValue>) {
         self.rows.push(row as u32);
         for (column, value) in self.results.iter_mut().zip(values) {
@@ -1878,16 +1888,36 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 .expect("record count partial column must be bigint")
         });
 
+        // Immediate DISTINCT ordered aggregates can reuse the cached tuple one cell at a time.
+        let distinct_ordered = !self.mini_batch
+            && !ttl.enabled()
+            && self.kinds.iter().any(|kind| matches!(kind, 19 | 20))
+            && self.kinds.iter().enumerate().all(|(i, kind)| {
+                matches!(kind, 19 | 20 | 7)
+                    || *kind == 3 && self.value_columns[i] < 0 && self.count_columns[i] < 0
+            })
+            && self.distinct_view_columns.iter().all(|column| *column < 0);
+        let mut result_changed = vec![false; num_agg];
+        let mut replacements = vec![None; num_agg];
         // Output keys are gathered from the input row that caused each transition.
         let mut output = GroupChanges {
             rows: Vec::new(),
-            results: vec![Vec::new(); num_agg],
+            results: self
+                .result_types
+                .iter()
+                .map(|ty| {
+                    if distinct_ordered {
+                        ScalarValues::new(ty)
+                    } else {
+                        ScalarValues::Scalar(Vec::new(), ty.clone())
+                    }
+                })
+                .collect(),
             kinds: Vec::new(),
         };
 
         let track = self.memory.tracking();
-        // One unfiltered SINGLE_VALUE accumulator already holds the complete result. Emit it
-        // directly; filtered groups can have many noncontributing touches, so keep their cache.
+        // One unfiltered SINGLE_VALUE accumulator already holds the complete result.
         let single_value = self.kinds.as_slice() == [14] && self.filter_columns[0] < 0;
         let zero_sum_merges: Vec<bool> = self.kinds.iter().map(|&kind| kind == 23).collect();
         let staged_key_batch = self.staged_key_batches.len();
@@ -1992,6 +2022,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 }
                 staged_delta += buffer.bytes() - std::mem::size_of::<DecimalViewBuffer>() - before;
             }
+            result_changed.fill(false);
             let group_alive = {
                 let state = if exists {
                     self.store.get_mut(key).expect("key present")
@@ -2005,6 +2036,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                             continue;
                         }
                     }
+                    result_changed[i] = true;
                     if let GroupAggState::Json(json) = &mut state.aggs[i] {
                         let (value, key) =
                             json_columns[i].as_ref().expect("JSON aggregate columns");
@@ -2032,7 +2064,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                         if let Some(counts) = single_count_cols[i] {
                             ordered.merge_single(value, counts.value(row))?;
                         } else {
-                            ordered.update(value, retract)?;
+                            result_changed[i] = ordered.update(value, retract)?;
                         }
                         continue;
                     }
@@ -2100,7 +2132,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                     // COUNT(DISTINCT x) (kind 7) folds the value itself, not a Num — read its scalar
                     // (skipping nulls, which DISTINCT ignores) and add/remove it from the value set.
                     if let Some(column) = &distinct_columns[i] {
-                        column.update(&mut state.aggs[i], row, retract, 1);
+                        result_changed[i] = column.update(&mut state.aggs[i], row, retract, 1);
                         continue;
                     }
                     match &value_columns[i] {
@@ -2167,7 +2199,30 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 }
             } else if self.store.get(key).unwrap().records != 0 {
                 let state = self.store.get_mut(key).expect("key present");
-                if single_value {
+                if distinct_ordered && prev.is_some() {
+                    let mut previous = prev.take().expect("existing ordered output");
+                    let mut changed = !crate::flink_float::record_row_reflexive(&previous);
+                    for i in 0..num_agg {
+                        if result_changed[i] {
+                            let value = state.aggs[i].emit(&self.result_types[i]);
+                            changed |= !crate::flink_float::record_equal(&previous[i], &value);
+                            replacements[i] = Some(value);
+                        }
+                    }
+                    if changed && self.generate_update_before {
+                        output.push_ref(1, row, &previous);
+                    }
+                    for (old, replacement) in previous.iter_mut().zip(&mut replacements) {
+                        if let Some(value) = replacement.take() {
+                            *old = value;
+                        }
+                    }
+                    if changed {
+                        output.push_ref(2, row, &previous);
+                    }
+                    state.last_output_bytes = scalar_row_bytes(&previous);
+                    state.last_output = Some(previous);
+                } else if single_value {
                     let value = state.aggs[0].emit(&self.result_types[0]);
                     match prev {
                         None => output.push(0, row, [value]),
@@ -2188,7 +2243,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                         None => {
                             // +I — first row for the key; the emitted tuple seeds the cache.
                             state.last_output_bytes = scalar_row_bytes(&new);
-                            output.push(0, row, new.iter().cloned());
+                            output.push_ref(0, row, &new);
                             state.last_output = Some(new);
                         }
                         // With TTL on the no-change suppression is disabled: Flink always emits -U/+U
@@ -2201,7 +2256,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                             if self.generate_update_before {
                                 output.push(1, row, prev); // -U — moved out of the cache, not recomputed
                             }
-                            output.push(2, row, new.iter().cloned()); // +U
+                            output.push_ref(2, row, &new); // +U
                             state.last_output = Some(new);
                         }
                         Some(_) => {
@@ -2236,7 +2291,7 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
         }
         let GroupChanges {
             rows: out_rows,
-            results: mut out_results,
+            results: out_results,
             kinds: out_kinds,
         } = output;
         self.staged_bytes += staged_delta;
@@ -2278,9 +2333,9 @@ impl<S: KeyedStateStore<GroupKeyState>> GroupAggregator<S> {
                 take(batch.column(column), &indices, None).expect("take group output key")
             })
             .collect();
-        for (i, rt) in self.result_types.iter().enumerate() {
+        for (i, (rt, values)) in self.result_types.iter().zip(out_results).enumerate() {
             fields.push(Field::new(format!("result{i}"), rt.clone(), true));
-            columns.push(scalars_to_array(std::mem::take(&mut out_results[i]), rt));
+            columns.push(values.finish());
         }
         fields.push(Field::new(ROW_KIND_COLUMN, DataType::Int8, false));
         columns.push(Arc::new(Int8Array::from(out_kinds)));
@@ -3598,7 +3653,7 @@ impl LocalGroupAggregator {
             let value_type = &self.value_types[source];
             let mut offsets: Vec<i32> = Vec::with_capacity(order.len() + 1);
             offsets.push(0);
-            let mut values = DistinctValues::new(value_type);
+            let mut values = ScalarValues::new(value_type);
             let mut counts: Vec<i64> = Vec::new();
             for key in &order {
                 let entry = match key {

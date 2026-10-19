@@ -16,6 +16,8 @@ pub(super) enum DistinctColumn<'a> {
     I32(&'a Int32Array),
     I16(&'a arrow::array::Int16Array),
     I8(&'a Int8Array),
+    Date(&'a arrow::array::Date32Array),
+    Time(&'a arrow::array::Time32MillisecondArray),
     Decimal(&'a Decimal128Array),
     Boolean(&'a BooleanArray),
     Timestamp(streamfusion_bridge::timestamp::TimestampColumn<'a>),
@@ -30,6 +32,10 @@ impl<'a> DistinctColumn<'a> {
             DataType::Int32 => Self::I32(array.as_any().downcast_ref().unwrap()),
             DataType::Int16 => Self::I16(array.as_any().downcast_ref().unwrap()),
             DataType::Int8 => Self::I8(array.as_any().downcast_ref().unwrap()),
+            DataType::Date32 => Self::Date(array.as_any().downcast_ref().unwrap()),
+            DataType::Time32(arrow::datatypes::TimeUnit::Millisecond) => {
+                Self::Time(array.as_any().downcast_ref().unwrap())
+            }
             DataType::Decimal128(_, _) => Self::Decimal(array.as_any().downcast_ref().unwrap()),
             DataType::Boolean => Self::Boolean(array.as_any().downcast_ref().unwrap()),
             DataType::Utf8 => Self::String(array.as_any().downcast_ref().unwrap()),
@@ -64,6 +70,8 @@ impl<'a> DistinctColumn<'a> {
             Self::I32(a) => primitive!(a, I32, Int32),
             Self::I16(a) => primitive!(a, I16, Int16),
             Self::I8(a) => primitive!(a, I8, Int8),
+            Self::Date(a) => primitive!(a, Date, Date32),
+            Self::Time(a) => primitive!(a, Time, Time32Millisecond),
             Self::Boolean(a) => primitive!(a, Boolean, Boolean),
             Self::Decimal(a) => {
                 if a.is_null(row) {
@@ -117,13 +125,20 @@ impl<'a> DistinctColumn<'a> {
         }
     }
 
-    pub(super) fn update(&self, state: &mut GroupAggState, row: usize, retract: bool, count: i64) {
+    pub(super) fn update(
+        &self,
+        state: &mut GroupAggState,
+        row: usize,
+        retract: bool,
+        count: i64,
+    ) -> bool {
         let (set, live) = match state {
             GroupAggState::Distinct { set, live } => (set, live),
             GroupAggState::DistinctRunning { counts, live, .. } => (counts, live),
             _ => unreachable!("distinct state"),
         };
-        if self.change(set, row, retract, count) {
+        let changed = self.change(set, row, retract, count);
+        if changed {
             *live += if retract { -1 } else { 1 };
             if let GroupAggState::DistinctRunning { agg, .. } = state {
                 if retract {
@@ -133,77 +148,11 @@ impl<'a> DistinctColumn<'a> {
                 }
             }
         }
+        changed
     }
 }
 
-// Build local membership columns directly instead of allocating a scalar and a temporary
-// vector for every map. Ordered decimals append in the host's iteration order below.
-pub(super) enum DistinctValues {
-    I64(arrow::array::Int64Builder),
-    I32(arrow::array::Int32Builder),
-    I16(arrow::array::Int16Builder),
-    I8(arrow::array::Int8Builder),
-    Decimal(arrow::array::Decimal128Builder),
-    Boolean(arrow::array::BooleanBuilder),
-    Timestamp(streamfusion_bridge::timestamp::TimestampBuilder),
-    String(arrow::array::StringBuilder),
-    Scalar(Vec<ScalarValue>, DataType),
-}
-
-impl DistinctValues {
-    pub(super) fn new(ty: &DataType) -> Self {
-        match ty {
-            DataType::Int64 => Self::I64(Default::default()),
-            DataType::Int32 => Self::I32(Default::default()),
-            DataType::Int16 => Self::I16(Default::default()),
-            DataType::Int8 => Self::I8(Default::default()),
-            DataType::Decimal128(_, _) => {
-                Self::Decimal(arrow::array::Decimal128Builder::new().with_data_type(ty.clone()))
-            }
-            DataType::Boolean => Self::Boolean(Default::default()),
-            DataType::Utf8 => Self::String(Default::default()),
-            ty if streamfusion_bridge::timestamp::is_component_timestamp(ty) => {
-                Self::Timestamp(streamfusion_bridge::timestamp::TimestampBuilder::with_capacity(0))
-            }
-            _ => Self::Scalar(Vec::new(), ty.clone()),
-        }
-    }
-
-    pub(super) fn push(&mut self, scalar: ScalarValue) {
-        match (self, scalar) {
-            (Self::I64(b), ScalarValue::Int64(v)) => b.append_option(v),
-            (Self::I32(b), ScalarValue::Int32(v)) => b.append_option(v),
-            (Self::I16(b), ScalarValue::Int16(v)) => b.append_option(v),
-            (Self::I8(b), ScalarValue::Int8(v)) => b.append_option(v),
-            (Self::Decimal(b), ScalarValue::Decimal128(v, _, _)) => b.append_option(v),
-            (Self::Boolean(b), ScalarValue::Boolean(v)) => b.append_option(v),
-            (Self::String(b), ScalarValue::Utf8(v)) => b.append_option(v),
-            (Self::Timestamp(b), ScalarValue::Struct(a)) => {
-                let column = streamfusion_bridge::timestamp::TimestampColumn::try_new(a.as_ref())
-                    .expect("timestamp view");
-                if column.is_null(0) {
-                    b.append_null();
-                } else {
-                    b.append_value(column.value(0).expect("timestamp value"));
-                }
-            }
-            (Self::Scalar(values, _), scalar) => values.push(scalar),
-            (builder, scalar) => {
-                // A compact planner type may have promoted to a generic runtime key.
-                // Retain the scalar reconstruction/cast used by the general view path.
-                let previous =
-                    std::mem::replace(builder, Self::Scalar(Vec::new(), DataType::Null)).finish();
-                let mut values: Vec<_> = (0..previous.len())
-                    .map(|row| {
-                        ScalarValue::try_from_array(&previous, row).expect("distinct view value")
-                    })
-                    .collect();
-                values.push(scalar);
-                *builder = Self::Scalar(values, previous.data_type().clone());
-            }
-        }
-    }
-
+impl ScalarValues {
     pub(super) fn append(&mut self, set: &DistinctSet, counts: &mut Vec<i64>) {
         macro_rules! append {
             ($builder:expr, $map:expr) => {
@@ -218,6 +167,8 @@ impl DistinctValues {
             (Self::I32(b), DistinctSet::I32(m)) => append!(b, m),
             (Self::I16(b), DistinctSet::I16(m)) => append!(b, m),
             (Self::I8(b), DistinctSet::I8(m)) => append!(b, m),
+            (Self::Date(b), DistinctSet::Date(m)) => append!(b, m),
+            (Self::Time(b), DistinctSet::Time(m)) => append!(b, m),
             (Self::Decimal(b), DistinctSet::Decimal(m, _, _)) => append!(b, m),
             (Self::Boolean(b), DistinctSet::Boolean(m)) => append!(b, m),
             (Self::String(b), DistinctSet::String(m)) => {
@@ -233,20 +184,6 @@ impl DistinctValues {
                     counts.push(count);
                 }
             }
-        }
-    }
-
-    pub(super) fn finish(self) -> ArrayRef {
-        match self {
-            Self::I64(mut b) => Arc::new(b.finish()),
-            Self::I32(mut b) => Arc::new(b.finish()),
-            Self::I16(mut b) => Arc::new(b.finish()),
-            Self::I8(mut b) => Arc::new(b.finish()),
-            Self::Decimal(mut b) => Arc::new(b.finish()),
-            Self::Boolean(mut b) => Arc::new(b.finish()),
-            Self::String(mut b) => Arc::new(b.finish()),
-            Self::Timestamp(mut b) => Arc::new(b.finish()),
-            Self::Scalar(values, ty) => scalars_to_array(values, &ty),
         }
     }
 }
@@ -360,6 +297,8 @@ pub(crate) enum DistinctSet {
     I32(Multiplicities<i32>),
     I16(Multiplicities<i16>),
     I8(Multiplicities<i8>),
+    Date(Multiplicities<i32>),
+    Time(Multiplicities<i32>),
     Decimal(Multiplicities<i128>, u8, i8),
     String(Multiplicities<String>),
     Boolean(Multiplicities<bool>),
@@ -374,6 +313,8 @@ macro_rules! each_map {
             DistinctSet::I32($map) => $body,
             DistinctSet::I16($map) => $body,
             DistinctSet::I8($map) => $body,
+            DistinctSet::Date($map) => $body,
+            DistinctSet::Time($map) => $body,
             DistinctSet::Decimal($map, _, _) => $body,
             DistinctSet::String($map) => $body,
             DistinctSet::Boolean($map) => $body,
@@ -390,6 +331,10 @@ impl DistinctSet {
             DataType::Int32 => Self::I32(Multiplicities::new()),
             DataType::Int16 => Self::I16(Multiplicities::new()),
             DataType::Int8 => Self::I8(Multiplicities::new()),
+            DataType::Date32 => Self::Date(Multiplicities::new()),
+            DataType::Time32(arrow::datatypes::TimeUnit::Millisecond) => {
+                Self::Time(Multiplicities::new())
+            }
             DataType::Decimal128(p, s) => Self::Decimal(Multiplicities::new(), *p, *s),
             DataType::Utf8 => Self::String(Multiplicities::new()),
             DataType::Boolean => Self::Boolean(Multiplicities::new()),
@@ -430,6 +375,8 @@ impl DistinctSet {
             Self::I32(m) => m.entries(|v| ScalarValue::Int32(Some(*v))),
             Self::I16(m) => m.entries(|v| ScalarValue::Int16(Some(*v))),
             Self::I8(m) => m.entries(|v| ScalarValue::Int8(Some(*v))),
+            Self::Date(m) => m.entries(|v| ScalarValue::Date32(Some(*v))),
+            Self::Time(m) => m.entries(|v| ScalarValue::Time32Millisecond(Some(*v))),
             Self::Decimal(m, p, s) => m.entries(|v| ScalarValue::Decimal128(Some(*v), *p, *s)),
             Self::String(m) => m.entries(|v| ScalarValue::Utf8(Some(v.clone()))),
             Self::Boolean(m) => m.entries(|v| ScalarValue::Boolean(Some(*v))),
@@ -444,6 +391,8 @@ impl DistinctSet {
             Self::I32(m) => m.drain(|v| ScalarValue::Int32(Some(*v))),
             Self::I16(m) => m.drain(|v| ScalarValue::Int16(Some(*v))),
             Self::I8(m) => m.drain(|v| ScalarValue::Int8(Some(*v))),
+            Self::Date(m) => m.drain(|v| ScalarValue::Date32(Some(*v))),
+            Self::Time(m) => m.drain(|v| ScalarValue::Time32Millisecond(Some(*v))),
             Self::Decimal(m, p, s) => m.drain(|v| ScalarValue::Decimal128(Some(*v), *p, *s)),
             Self::String(m) => m.drain(|v| ScalarValue::Utf8(Some(v.clone()))),
             Self::Boolean(m) => m.drain(|v| ScalarValue::Boolean(Some(*v))),
@@ -478,13 +427,47 @@ impl DistinctSet {
     }
 
     pub(super) fn decimal_count(&self, value: &ScalarValue) -> i64 {
+        self.scalar_count(value)
+    }
+
+    pub(super) fn scalar_count(&self, value: &ScalarValue) -> i64 {
         match (self, value) {
+            (Self::I64(m), ScalarValue::Int64(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::I32(m), ScalarValue::Int32(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::I16(m), ScalarValue::Int16(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::I8(m), ScalarValue::Int8(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::Date(m), ScalarValue::Date32(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::Time(m), ScalarValue::Time32Millisecond(Some(v))) => {
+                m.counts.get(v).copied().unwrap_or(0)
+            }
             (Self::Decimal(m, p, s), ScalarValue::Decimal128(Some(v), vp, vs))
                 if p == vp && s == vs =>
             {
                 m.counts.get(v).copied().unwrap_or(0)
             }
-            (Self::Scalar(m), value) => m.counts.get(value).copied().unwrap_or(0),
+            (Self::String(m), ScalarValue::Utf8(Some(v))) => m.counts.get(v).copied().unwrap_or(0),
+            (Self::Boolean(m), ScalarValue::Boolean(Some(v))) => {
+                m.counts.get(v).copied().unwrap_or(0)
+            }
+            (Self::Timestamp(m), ScalarValue::Struct(array))
+                if streamfusion_bridge::timestamp::is_component_timestamp(array.data_type())
+                    && !array.is_null(0) =>
+            {
+                let column =
+                    streamfusion_bridge::timestamp::TimestampColumn::try_new(array.as_ref())
+                        .expect("timestamp membership");
+                m.counts
+                    .get(&column.value(0).expect("timestamp value").nanos())
+                    .copied()
+                    .unwrap_or(0)
+            }
+            (Self::Scalar(m), value) => {
+                let canonical = crate::flink_float::canonical_scalar(value);
+                m.counts
+                    .get(canonical.as_ref().unwrap_or(value))
+                    .copied()
+                    .unwrap_or(0)
+            }
             _ => 0,
         }
     }
@@ -513,6 +496,8 @@ impl DistinctSet {
             (Self::I32(m), ScalarValue::Int32(Some(v))) => m.change_owned(*v, change),
             (Self::I16(m), ScalarValue::Int16(Some(v))) => m.change_owned(*v, change),
             (Self::I8(m), ScalarValue::Int8(Some(v))) => m.change_owned(*v, change),
+            (Self::Date(m), ScalarValue::Date32(Some(v))) => m.change_owned(*v, change),
+            (Self::Time(m), ScalarValue::Time32Millisecond(Some(v))) => m.change_owned(*v, change),
             (Self::Decimal(m, p, s), ScalarValue::Decimal128(Some(v), vp, vs))
                 if *p == *vp && *s == *vs =>
             {
@@ -551,6 +536,9 @@ impl DistinctSet {
     pub(crate) fn add_scalar(&mut self, v: ScalarValue) -> bool {
         self.change_value(v, Change::Add(1))
     }
+    pub(super) fn add_scalar_ref(&mut self, value: &ScalarValue) -> bool {
+        self.change_scalar(value, Change::Add(1))
+    }
     pub(super) fn add_scalar_n(&mut self, v: ScalarValue, n: i64) -> bool {
         self.change_value(v, Change::Add(n))
     }
@@ -588,6 +576,8 @@ mod tests {
             ScalarValue::Int32(Some(i32::MIN)),
             ScalarValue::Int16(Some(i16::MIN)),
             ScalarValue::Int8(Some(i8::MIN)),
+            ScalarValue::Date32(Some(-719_528)),
+            ScalarValue::Time32Millisecond(Some(86_399_999)),
             ScalarValue::Decimal128(Some(-12345678901234567890), 20, 2),
             ScalarValue::Utf8(Some("a\0中😀".repeat(64))),
         ]
@@ -598,7 +588,7 @@ mod tests {
         let value = ScalarValue::LargeUtf8(Some("wide string".into()));
         let mut set = DistinctSet::new(&DataType::Utf8);
         set.add_scalar(value.clone());
-        let mut view = DistinctValues::new(&DataType::Utf8);
+        let mut view = ScalarValues::new(&DataType::Utf8);
         let mut counts = Vec::new();
         view.append(&set, &mut counts);
         assert_eq!(
@@ -660,6 +650,7 @@ mod tests {
             assert!(set.add_scalar(value.clone()));
             assert!(!set.add_scalar_n(value.clone(), 2));
             assert_eq!(set.scalar_entries(), vec![(value.clone(), 3)]);
+            assert_eq!(set.scalar_count(&value), 3);
             let mut restored = DistinctSet::new(&value.data_type());
             restored.insert_restored(value.clone(), 3);
             for expected in [false, false, true, false] {

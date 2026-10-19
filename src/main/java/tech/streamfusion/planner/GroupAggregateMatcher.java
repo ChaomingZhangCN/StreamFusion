@@ -131,9 +131,6 @@ final class GroupAggregateMatcher {
         }
         SqlTypeName valueType =
             inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
-        if (call.isDistinct() && valueType != SqlTypeName.VARCHAR) {
-          return "GROUP BY: DISTINCT FIRST_VALUE/LAST_VALUE require a string value";
-        }
         if (!orderedValueType(valueType)) {
           return "GROUP BY: FIRST_VALUE/LAST_VALUE/SINGLE_VALUE over an unsupported value type";
         }

@@ -1,0 +1,3350 @@
+{
+  "date": "2026-10-19",
+  "status": "Unshipped prototype. Confirmation retains two DATE regressions (1.6% COUNT DISTINCT only; 5.8% plus COUNT star); DOUBLE/STRING improve. Further DATE/TIME typed-membership optimization required.",
+  "technique": "Cached cell replacement and borrowed typed Arrow result builders for immediate zero-TTL DISTINCT ordered +COUNT groups",
+  "candidate_base": "90fa370d3425242577d786e605ffa21d69858e8a",
+  "source_sha256": {
+    "native/engine/src/group_agg.rs": "b39573ce9afc5775c0a09359b9179fb7a16d4fb618753e5df61da7d153b3ff21",
+    "native/engine/src/flink_float.rs": "cc11760cef51e03187f4b3c55fa3d99efc11e10b9fb25b58f97aac48a7668388",
+    "native/engine/src/group_agg/ordered_value.rs": "781ee59813471caaa89645986b4a15c673f2fa3ce65ed3cc9abd0de79a5c6cec",
+    "native/engine/src/group_agg/distinct.rs": "fa70e18b9690b812e85bcfa28dfa57595a5abd1f40b2d840bfece411f92545cc",
+    "native/engine/src/group_agg/values.rs": "a8b44a79857d0f9b484582f31c6de990464154590de5584fa99fa55b32047717",
+    "native/engine/benches/distinct_ordered_values.rs": "00341fbfa60f0cd56c557567bf6544790b2b9667f84be82e03093e54c5eb6431",
+    "src/main/java/tech/streamfusion/planner/GroupAggregateMatcher.java": "460617009385f67b5714d3f8bc5feb55fc0c307d1ae67f48c68e83bc26bdbbe0",
+    "src/test/java/tech/streamfusion/FlinkDistinctOrderedValueSqlHarnessTest.java": "ad35f6be6b356d59cd13ee9ead8fb9a6c71fcd9ad2c74c073c896e0422e17840",
+    "src/test/java/tech/streamfusion/FlinkGroupedValueSqlHarnessTest.java": "ce600df79f32fff26a1f56aa4d70ab2c6788a277cf55d7f38164ce84dfe2dd07",
+    "src/test/java/tech/streamfusion/GroupedValueBenchmark.java": "15bb93b3cfcaf49facb1931b24ea0550882e6db599ac1d619ebd1876b5a6b0d1"
+  },
+  "candidate_dso_sha256": "06c80544070bea17b76bb729a128d44cde7fd048b546279f47319fb3ab038048",
+  "runtime": {
+    "native": "release+mimalloc",
+    "flink": "2.2.1",
+    "jdk": 17,
+    "heap_gib": 2,
+    "parallelism": 1,
+    "keys": 64,
+    "source_value_modulus": 1024,
+    "timezone": "America/New_York"
+  },
+  "measurement": "Whole jobs retain runtime row source, both transposes, production JNI/IPC/state and rowwise blackhole sink. Matched queries/data/resources, interleaved engines, native-plan and consumed-input assertions; no concurrent local build/test/profile/timing. Screening and confirmation retained separately. No profiler in these jobs.",
+  "validation": {
+    "native_group_pass": 128,
+    "criterion_pass": 248,
+    "java22_pass": 149,
+    "java118_pass": 113,
+    "java118_host_skips": 36
+  },
+  "raw_job_count": 132,
+  "profiles": [
+    {
+      "stage": "screen",
+      "type": "DATE",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        0.843513559,
+        0.723436307,
+        0.614650685
+      ],
+      "native_seconds": [
+        0.671917003,
+        0.631603567,
+        0.621485667
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.622716
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.969661
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.671917
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.843514
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.723436
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.631604
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.621486
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.614651
+        }
+      ]
+    },
+    {
+      "stage": "screen",
+      "type": "DOUBLE",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        0.603757419,
+        0.593968876,
+        0.608733829
+      ],
+      "native_seconds": [
+        0.573032292,
+        0.566109963,
+        0.563126253
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.618714
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.601745
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.573032
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.603757
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.593969
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.56611
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.563126
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.608734
+        }
+      ]
+    },
+    {
+      "stage": "screen",
+      "type": "STRING",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        0.880580721,
+        0.857564791,
+        0.855965056
+      ],
+      "native_seconds": [
+        0.596260112,
+        0.605583652,
+        0.587530481
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.875809
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.61951
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.59626
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.880581
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.857565
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.605584
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.58753
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.855965
+        }
+      ]
+    },
+    {
+      "stage": "screen",
+      "type": "DATE",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        0.935907669,
+        0.82787287,
+        0.769892363
+      ],
+      "native_seconds": [
+        0.849757177,
+        0.813596037,
+        0.797325366
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.758244
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.159249
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.849757
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.935908
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.827873
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.813596
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.797325
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.769892
+        }
+      ]
+    },
+    {
+      "stage": "screen",
+      "type": "DOUBLE",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        0.789799734,
+        0.763954044,
+        0.751088998
+      ],
+      "native_seconds": [
+        0.738413479,
+        0.732510371,
+        0.744378838
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.809279
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.7688
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.738413
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.7898
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.763954
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.73251
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.744379
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.751089
+        }
+      ]
+    },
+    {
+      "stage": "screen",
+      "type": "STRING",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 1,
+      "runs": 3,
+      "stock_seconds": [
+        1.181619114,
+        1.159590246,
+        1.165715849
+      ],
+      "native_seconds": [
+        0.991276153,
+        0.975780963,
+        0.985427238
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.159144
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.050488
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 0.991276
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": false,
+          "seconds_printed": 1.181619
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.15959
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.975781
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.985427
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.165716
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "DATE",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.653662462,
+        0.630992015,
+        0.605542547,
+        0.61028489,
+        0.596925962
+      ],
+      "native_seconds": [
+        0.633830489,
+        0.622913131,
+        0.588015388,
+        0.603208236,
+        0.620014555
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.628569
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.012083
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.739176
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.869445
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.653662
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.63383
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.622913
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.630992
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.605543
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.588015
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.603208
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.610285
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.596926
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.620015
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "DOUBLE",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.612598068,
+        0.587078104,
+        0.59180141,
+        0.594834031,
+        0.599692199
+      ],
+      "native_seconds": [
+        0.57259446,
+        0.5605175,
+        0.560591659,
+        0.560221239,
+        0.566510577
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.612611
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.647232
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.577758
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.584639
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.612598
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.572594
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.560518
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.587078
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.591801
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.560592
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.560221
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.594834
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.599692
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.566511
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "STRING",
+      "count_star": false,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.81185659,
+        0.818002437,
+        0.819438115,
+        0.822810529,
+        0.826431125
+      ],
+      "native_seconds": [
+        0.593132087,
+        0.602802495,
+        0.604116426,
+        0.594580159,
+        0.599881129
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.844495
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.630628
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.595307
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.82603
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.811857
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.593132
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.602802
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.818002
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.819438
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.604116
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.59458
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.822811
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.826431
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.599881
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "DATE",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.775046048,
+        0.752193164,
+        0.749313249,
+        0.749726929,
+        0.738953824
+      ],
+      "native_seconds": [
+        0.81214427,
+        0.80959343,
+        0.785341445,
+        0.769095861,
+        0.793549126
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.797344
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.198364
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.879878
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.079028
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.775046
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.812144
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.809593
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.752193
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.749313
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.785341
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.769096
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.749727
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.738954
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.793549
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "DOUBLE",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        0.815561336,
+        0.810511534,
+        0.827923167,
+        0.813335958,
+        0.812074204
+      ],
+      "native_seconds": [
+        0.73315384,
+        0.740345568,
+        0.734949355,
+        0.739377782,
+        0.728243226
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.82574
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.762371
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.749116
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.810055
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.815561
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.733154
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.740346
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.810512
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.827923
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.734949
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.739378
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.813336
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.812074
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.728243
+        }
+      ]
+    },
+    {
+      "stage": "confirm",
+      "type": "STRING",
+      "count_star": true,
+      "rows": 2000000,
+      "warmups": 2,
+      "runs": 5,
+      "stock_seconds": [
+        1.136166095,
+        1.154037142,
+        1.127461613,
+        1.135440403,
+        1.107536943
+      ],
+      "native_seconds": [
+        0.982777213,
+        0.999144481,
+        0.989401007,
+        0.990505442,
+        0.979011434
+      ],
+      "raw_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.17168
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.016812
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.98693
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.158742
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 1.136166
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.982777
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.999144
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.154037
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.127462
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.989401
+        },
+        {
+          "engine": 1,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 0.990505
+        },
+        {
+          "engine": 0,
+          "trial": 5,
+          "warmup": false,
+          "seconds_printed": 1.13544
+        },
+        {
+          "engine": 0,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 1.107537
+        },
+        {
+          "engine": 1,
+          "trial": 6,
+          "warmup": false,
+          "seconds_printed": 0.979011
+        }
+      ]
+    }
+  ],
+  "allocation_records": [
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "8222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "103"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "5650",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "10270",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "121"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "7698",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "14366",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "22558",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "229"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "39326",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "373"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "73",
+      "requested_bytes": "16622",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "12842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1088"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "73",
+      "requested_bytes": "24814",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "21034",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1600"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "39326",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "373"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "15902",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "15902",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "65",
+      "requested_bytes": "5998",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "49"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "127",
+      "requested_bytes": "13790",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "301"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "4434",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "199",
+      "requested_bytes": "17990",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "277"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "109",
+      "requested_bytes": "14474",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys1/cardinality4/retractfalse",
+      "allocation_calls": "201",
+      "requested_bytes": "52838",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3749"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys1/cardinality4/retracttrue",
+      "allocation_calls": "109",
+      "requested_bytes": "27866",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "29406",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1227"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "6618",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "594"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "31454",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1445"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "8666",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "702"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "35550",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1881"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "12762",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "918"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "43742",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2753"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "20954",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1350"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "64094",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4497"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "37338",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2214"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "51246",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1501"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "59438",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2197"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "64094",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4497"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "37338",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2214"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "51422",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1881"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "12762",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "918"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "89",
+      "requested_bytes": "51422",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1881"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "12762",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "918"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "65",
+      "requested_bytes": "5998",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "49"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "171",
+      "requested_bytes": "73054",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3625"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "135",
+      "requested_bytes": "26954",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1782"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "419",
+      "requested_bytes": "44358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3601"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "171",
+      "requested_bytes": "15874",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1790"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys1/cardinality128/retractfalse",
+      "allocation_calls": "429",
+      "requested_bytes": "251686",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "56673"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys1/cardinality128/retracttrue",
+      "allocation_calls": "179",
+      "requested_bytes": "104098",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "28574"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "112390",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "720"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "6490",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "360"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "114438",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "848"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "8538",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "424"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "118534",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "126726",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "20826",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "808"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "150022",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "37210",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1320"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "154374",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "20826",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "808"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "150022",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "37210",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1320"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "110582",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "608"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "4682",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "304"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "677",
+      "requested_bytes": "139270",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2128"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "125",
+      "requested_bytes": "16602",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1064"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "933",
+      "requested_bytes": "130286",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "119",
+      "requested_bytes": "15314",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "992"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys64/cardinality4/retractfalse",
+      "allocation_calls": "941",
+      "requested_bytes": "272078",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "28760"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys64/cardinality4/retracttrue",
+      "allocation_calls": "125",
+      "requested_bytes": "57378",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "14384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "112390",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "720"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "6490",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "360"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "114438",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "848"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "8538",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "424"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "118534",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "126726",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "20826",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "808"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "150022",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "37210",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1320"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "154374",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "20826",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "808"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "150022",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "37210",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1320"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "146182",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1104"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "12634",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "603",
+      "requested_bytes": "110582",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "608"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "59",
+      "requested_bytes": "4682",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "304"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "677",
+      "requested_bytes": "139270",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2128"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "125",
+      "requested_bytes": "16602",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1064"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "933",
+      "requested_bytes": "130286",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "119",
+      "requested_bytes": "15314",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "992"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys64/cardinality128/retractfalse",
+      "allocation_calls": "941",
+      "requested_bytes": "272078",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "28760"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows64/keys64/cardinality128/retracttrue",
+      "allocation_calls": "125",
+      "requested_bytes": "57378",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "14384"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "8222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "103"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "5650",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "10270",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "121"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "7698",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "14366",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "22558",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "229"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "39326",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "373"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "97",
+      "requested_bytes": "280046",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "141261"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "134570",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "69632"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "97",
+      "requested_bytes": "402926",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "206773"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "191914",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "102400"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "39326",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "373"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "15902",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "69",
+      "requested_bytes": "15902",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "65",
+      "requested_bytes": "5998",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "49"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "127",
+      "requested_bytes": "13790",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "301"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "4434",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "7111",
+      "requested_bytes": "73286",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "277"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "3565",
+      "requested_bytes": "42122",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys1/cardinality4/retractfalse",
+      "allocation_calls": "7113",
+      "requested_bytes": "1822310",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3749"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys1/cardinality4/retracttrue",
+      "allocation_calls": "3565",
+      "requested_bytes": "912602",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "63934",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2893"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "5650",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "65982",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3407"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "7698",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "70078",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4435"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "78270",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "6491"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "110910",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "10603"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "95",
+      "requested_bytes": "90558",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3399"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "95",
+      "requested_bytes": "98750",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4975"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "110910",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "10603"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "135102",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4435"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "99",
+      "requested_bytes": "135102",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4435"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "65",
+      "requested_bytes": "5998",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "49"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "197",
+      "requested_bytes": "238142",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8547"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "4434",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "7639",
+      "requested_bytes": "152934",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8523"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "3565",
+      "requested_bytes": "42122",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys1/cardinality128/retractfalse",
+      "allocation_calls": "7649",
+      "requested_bytes": "2274822",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "135003"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys1/cardinality128/retracttrue",
+      "allocation_calls": "3565",
+      "requested_bytes": "912602",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "145310",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5176"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "5650",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "147358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "6096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "7698",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "151454",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "7936"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "159646",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "11616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "19986",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "200222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "18976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "665",
+      "requested_bytes": "419822",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "137724"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "134058",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "68544"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "665",
+      "requested_bytes": "542702",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "201596"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "191402",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "100800"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "200222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "18976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "36370",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "248222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "7936"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "771",
+      "requested_bytes": "248222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "7936"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "11794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "643",
+      "requested_bytes": "119774",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "869",
+      "requested_bytes": "327454",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "15296"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "4434",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "8701",
+      "requested_bytes": "253542",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "15000"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "3511",
+      "requested_bytes": "41690",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys64/cardinality4/retractfalse",
+      "allocation_calls": "8711",
+      "requested_bytes": "2725606",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "233736"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys64/cardinality4/retracttrue",
+      "allocation_calls": "3511",
+      "requested_bytes": "898778",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "1519262",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "77266"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/tinyint/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "86442",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "38016"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "1549982",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "91002"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/smallint/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "100778",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "44928"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "1611422",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "118474"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/int/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "129450",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "58752"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "1734302",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "173418"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/bigint/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "186794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "86400"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2230046",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "283306"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal_wide/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "301482",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "141696"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2617550",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131826"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/float/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "129450",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "58752"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2740430",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "192962"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/double/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "186794",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "86400"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2230046",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "283306"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/decimal/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "301482",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "141696"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2611358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "118474"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/date/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "129450",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "58752"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1673",
+      "requested_bytes": "2611358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "118474"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/time/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "129450",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "58752"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "643",
+      "requested_bytes": "119774",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1976"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/boolean/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "49",
+      "requested_bytes": "3842",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "1791",
+      "requested_bytes": "4262046",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "228362"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/timestamp9/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "195",
+      "requested_bytes": "1337114",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "114048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "22427",
+      "requested_bytes": "2287702",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "228066"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string8/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "7001",
+      "requested_bytes": "314018",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "114056"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys64/cardinality128/retractfalse",
+      "allocation_calls": "22437",
+      "requested_bytes": "15556694",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "3625170"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/string256/rows4096/keys64/cardinality128/retracttrue",
+      "allocation_calls": "7011",
+      "requested_bytes": "6091426",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1828232"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows64/recordsfalse/retractfalse",
+      "allocation_calls": "665",
+      "requested_bytes": "183999",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows64/recordsfalse/retracttrue",
+      "allocation_calls": "67",
+      "requested_bytes": "22875",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "808"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows64/recordstrue/retractfalse",
+      "allocation_calls": "671",
+      "requested_bytes": "202432",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2128"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows64/recordstrue/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "32092",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1064"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows64/recordsfalse/retractfalse",
+      "allocation_calls": "665",
+      "requested_bytes": "192191",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2128"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows64/recordsfalse/retracttrue",
+      "allocation_calls": "67",
+      "requested_bytes": "31067",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1064"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows64/recordstrue/retractfalse",
+      "allocation_calls": "671",
+      "requested_bytes": "210624",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows64/recordstrue/retracttrue",
+      "allocation_calls": "73",
+      "requested_bytes": "40284",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1320"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows64/recordsfalse/retractfalse",
+      "allocation_calls": "1057",
+      "requested_bytes": "313351",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "29272"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows64/recordsfalse/retracttrue",
+      "allocation_calls": "133",
+      "requested_bytes": "67619",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "14640"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows64/recordstrue/retractfalse",
+      "allocation_calls": "1063",
+      "requested_bytes": "331784",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "29784"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows64/recordstrue/retracttrue",
+      "allocation_calls": "139",
+      "requested_bytes": "76836",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "14896"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows4096/recordsfalse/retractfalse",
+      "allocation_calls": "905",
+      "requested_bytes": "330931",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "11616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows4096/recordsfalse/retracttrue",
+      "allocation_calls": "57",
+      "requested_bytes": "22035",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows4096/recordstrue/retractfalse",
+      "allocation_calls": "937",
+      "requested_bytes": "835156",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "270256"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/date/rows4096/recordstrue/retracttrue",
+      "allocation_calls": "99",
+      "requested_bytes": "254236",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "136192"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows4096/recordsfalse/retractfalse",
+      "allocation_calls": "739",
+      "requested_bytes": "698411",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "266068"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows4096/recordsfalse/retracttrue",
+      "allocation_calls": "83",
+      "requested_bytes": "250795",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "133056"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows4096/recordstrue/retractfalse",
+      "allocation_calls": "748",
+      "requested_bytes": "832540",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "335280"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/double/rows4096/recordstrue/retracttrue",
+      "allocation_calls": "99",
+      "requested_bytes": "311580",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "168960"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows4096/recordsfalse/retractfalse",
+      "allocation_calls": "9097",
+      "requested_bytes": "2836539",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "237416"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows4096/recordsfalse/retracttrue",
+      "allocation_calls": "3519",
+      "requested_bytes": "909019",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows4096/recordstrue/retractfalse",
+      "allocation_calls": "9137",
+      "requested_bytes": "11205196",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4357560"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "distinct_ordered_values",
+      "case": "distinct_ordered_values/mixed/string256/rows4096/recordstrue/retracttrue",
+      "allocation_calls": "3581",
+      "requested_bytes": "5331476",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2200584"
+    }
+  ],
+  "logs": [
+    {
+      "name": "sf-distinct-ordered-F3-mixed-screen-false.log",
+      "sha256": "db85da9d0d75d84482c28fbbc83863a8ebad559e41deebfe2e5f915943e4a77b"
+    },
+    {
+      "name": "sf-distinct-ordered-F3-mixed-screen-true.log",
+      "sha256": "ea0f7a43fbbb1f7272cd9dd433ca96ad1a9e715587a35b69656d58d0ff5728df"
+    },
+    {
+      "name": "sf-distinct-ordered-F3-mixed-confirm-false.log",
+      "sha256": "3987abab0d7e5904082bdcadae260bc5be0947cd7e4c0ee8a0e680c1be94ab6f"
+    },
+    {
+      "name": "sf-distinct-ordered-F3-mixed-confirm-true.log",
+      "sha256": "1894f1b88db98b82a88291a043245bcab4eb3a41a49936d61e059b88b986bdca"
+    }
+  ],
+  "previous_control_reference": "typed-distinct-ordered-tuple-cache-2026-10-19.json",
+  "historical_prototype": "typed-distinct-ordered-prototype-2026-10-18.json"
+}

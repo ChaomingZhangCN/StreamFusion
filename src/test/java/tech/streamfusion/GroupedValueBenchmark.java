@@ -20,8 +20,12 @@ class GroupedValueBenchmark {
   private static final int WARMUP = Integer.getInteger("grouped.value.warmup", 2);
   private static final int RUNS = Integer.getInteger("grouped.value.runs", 5);
   private static final boolean DISTINCT = Boolean.getBoolean("grouped.value.distinct");
+  private static final boolean RETRACT = Boolean.getBoolean("grouped.value.retract");
+  private static final int KEYS = Integer.getInteger("grouped.value.keys", 64);
+  private static final int CARDINALITY = Integer.getInteger("grouped.value.cardinality", 1024);
   private static final boolean SINGLE = Boolean.getBoolean("grouped.value.single");
   private static final boolean MIXED = Boolean.getBoolean("grouped.value.mixed");
+  private static final boolean RECORD_COUNT = Boolean.getBoolean("grouped.value.recordCount");
   private static final boolean EXPECT_NATIVE =
       Boolean.parseBoolean(System.getProperty("grouped.value.expectNative", "true"));
   private static final boolean TWO_PHASE =
@@ -35,13 +39,23 @@ class GroupedValueBenchmark {
               + (DISTINCT ? "DISTINCT " : "")
               + "v), LAST_VALUE("
               + (DISTINCT ? "DISTINCT " : "")
-              + "v) FROM inputs GROUP BY k";
+              + "v)"
+              + (MIXED ? ", COUNT(DISTINCT v)" : "")
+              + (RECORD_COUNT ? ", COUNT(*)" : "")
+              + " FROM inputs GROUP BY k";
 
   @Test
   void groupedValues() throws Exception {
     if (DISTINCT && SINGLE)
       throw new IllegalArgumentException("Select DISTINCT first/last or SINGLE_VALUE");
-    if (MIXED && !SINGLE) throw new IllegalArgumentException("Mixed mode requires SINGLE_VALUE");
+    if (RETRACT && (SINGLE || TWO_PHASE))
+      throw new IllegalArgumentException("Retractions require single-phase first/last");
+    if (KEYS < 1 || CARDINALITY < 1)
+      throw new IllegalArgumentException("Keys and cardinality must be positive");
+    if (MIXED && !SINGLE && !DISTINCT)
+      throw new IllegalArgumentException("Mixed mode requires SINGLE_VALUE or DISTINCT first/last");
+    if (RECORD_COUNT && (SINGLE || !DISTINCT))
+      throw new IllegalArgumentException("Record count requires DISTINCT first/last");
     for (String type :
         System.getProperty("grouped.value.types", DISTINCT || SINGLE ? "STRING" : "BIGINT,STRING")
             .split(",")) {
@@ -111,6 +125,14 @@ class GroupedValueBenchmark {
           host / nativeTime,
           Arrays.toString(times[0]),
           Arrays.toString(times[1]));
+      System.out.printf(
+          Locale.ROOT,
+          "[grouped-value-config] type=%s retract=%s keys=%d cardinality=%d record_count=%s%n",
+          type,
+          RETRACT,
+          KEYS,
+          CARDINALITY,
+          RECORD_COUNT);
     }
   }
 
@@ -233,11 +255,11 @@ class GroupedValueBenchmark {
         valueType = Types.LONG;
         break;
     }
-    table.createTemporaryView(
-        "inputs",
+    var source =
         env.fromSequence(0, ROWS - 1)
             .map(
-                i -> {
+                index -> {
+                  long i = RETRACT && index >= ROWS * 3 / 4 ? index - ROWS * 3 / 4 : index;
                   Object selectedValue;
                   if (i / 64 % 8 == 0) {
                     selectedValue = null;
@@ -245,25 +267,26 @@ class GroupedValueBenchmark {
                     switch (type) {
                       case "STRING":
                       case "CHAR":
-                        selectedValue = "value-" + (i % 1024);
+                        selectedValue = "value-" + (i % CARDINALITY);
                         break;
                       case "TINYINT":
                         selectedValue = (byte) (i % 127);
                         break;
                       case "SMALLINT":
-                        selectedValue = (short) (i % 1024);
+                        selectedValue = (short) (i % CARDINALITY);
                         break;
                       case "INT":
-                        selectedValue = (int) (i % 1024);
+                        selectedValue = (int) (i % CARDINALITY);
                         break;
                       case "FLOAT":
-                        selectedValue = (float) (i % 1024) / 8;
+                        selectedValue = (float) (i % CARDINALITY) / 8;
                         break;
                       case "DOUBLE":
-                        selectedValue = (double) (i % 1024) / 8;
+                        selectedValue = (double) (i % CARDINALITY) / 8;
                         break;
                       case "TIME":
-                        selectedValue = java.time.LocalTime.ofNanoOfDay(i % 1024 * 1_000_000);
+                        selectedValue =
+                            java.time.LocalTime.ofNanoOfDay(i % CARDINALITY * 1_000_000);
                         break;
                       case "BOOLEAN":
                         selectedValue = i / 64 % 2 == 0;
@@ -272,35 +295,45 @@ class GroupedValueBenchmark {
                         selectedValue = java.time.LocalDate.of(2024, 1, 1).plusDays(i % 31);
                         break;
                       case "DECIMAL":
-                        selectedValue = java.math.BigDecimal.valueOf(i % 1024, 3);
+                        selectedValue = java.math.BigDecimal.valueOf(i % CARDINALITY, 3);
                         break;
                       case "DECIMAL_WIDE":
                         selectedValue =
                             new java.math.BigDecimal("12345678901234567.000")
-                                .add(java.math.BigDecimal.valueOf(i % 1024, 3));
+                                .add(java.math.BigDecimal.valueOf(i % CARDINALITY, 3));
                         break;
                       case "TIMESTAMP":
                         selectedValue =
-                            java.time.LocalDateTime.of(2024, 1, 1, 0, 0).plusNanos(i % 1024);
+                            java.time.LocalDateTime.of(2024, 1, 1, 0, 0).plusNanos(i % CARDINALITY);
                         break;
                       case "TIMESTAMP_LTZ":
-                        selectedValue = java.time.Instant.ofEpochSecond(-1, i % 1024);
+                        selectedValue = java.time.Instant.ofEpochSecond(-1, i % CARDINALITY);
                         break;
                       default:
-                        selectedValue = i % 1024;
+                        selectedValue = i % CARDINALITY;
                         break;
                     }
                   }
-                  return Row.of(SINGLE ? i.intValue() : (int) (i % 64), selectedValue);
+                  return Row.ofKind(
+                      RETRACT && index >= ROWS * 3 / 4
+                          ? org.apache.flink.types.RowKind.DELETE
+                          : org.apache.flink.types.RowKind.INSERT,
+                      SINGLE ? (int) i : (int) (i % KEYS),
+                      selectedValue);
                 })
-            .returns(Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, valueType)),
-        Schema.newBuilder().column("k", DataTypes.INT()).column("v", dataType).build());
+            .returns(Types.ROW_NAMED(new String[] {"k", "v"}, Types.INT, valueType));
+    Schema schema = Schema.newBuilder().column("k", DataTypes.INT()).column("v", dataType).build();
+    table.createTemporaryView(
+        "inputs",
+        RETRACT ? table.fromChangelogStream(source, schema) : table.fromDataStream(source, schema));
     String sqlType = dataType.getLogicalType().asSerializableString();
     table.executeSql(
         "CREATE TABLE sink (k INT, first_v "
             + sqlType
             + (SINGLE ? "" : ", last_v " + sqlType)
-            + (MIXED ? ", avg_k INT, distinct_k BIGINT" : "")
+            + (MIXED && SINGLE ? ", avg_k INT, distinct_k BIGINT" : "")
+            + (MIXED && !SINGLE ? ", distinct_v BIGINT" : "")
+            + (RECORD_COUNT ? ", records BIGINT" : "")
             + ") WITH ('connector' = 'blackhole')");
     return table;
   }

@@ -241,12 +241,48 @@ append typed keys and counts directly into Arrow builders, avoiding intermediate
 The transpose timestamp writer also caches its validated child vectors across rows and resets,
 following Comet's per-field writer pattern. These changes preserve the existing Arrow view schema.
 
+DATE/TIME membership uses typed 32-bit maps and column readers while snapshots and journals
+retain their logical DATE/TIME scalar fields. Local membership output appends their values
+directly into the shared typed Arrow builders.
+
 All representations share multiplicity updates, last-occurrence deletion and journal handling.
 Snapshots and persistent element journals still serialize typed scalar values with the same
 encoding. Restore does not journal an already persisted entry; blob import does. An unexpected
 value type promotes the map to the generic scalar representation, preserving live counts and
 pending journal entries. FLOAT/DOUBLE and complex types retain generic scalar keys and their
-existing equality rules. Admission gates are unchanged.
+existing equality rules. Numeric DISTINCT admission follows the operator's type gates.
+
+DISTINCT FIRST_VALUE/LAST_VALUE reuse these multiplicity maps alongside their ordered queue
+of unique live values. The map avoids hashing a full scalar enum for typed keys; only a new
+live value owns a queue entry, and only its last removal searches that queue. Timestamp keys
+use the queue's exact inline nanosecond carrier. Floating membership canonicalizes NaNs while
+the queue preserves the first inserted payload and the distinction between signed zeros.
+Snapshots continue using the existing ordered value/count fields. Accounting includes map
+and queue capacity plus both copies of any dynamic string payload.
+
+Immediate zero-TTL groups containing DISTINCT first/last, optionally mixed with COUNT DISTINCT
+and COUNT(*), reuse their cached result tuple. Each accumulator reports whether its output
+may have changed; only those cells are reconstructed and compared. The tuple allocation and
+unchanged string payloads survive the update. Changed cells replace the cache even when
+primitive result equality suppresses an update, preserving the selected signed-zero payload.
+NaN outputs retain Flink's non-reflexive result comparison and emit the usual pre/postimages.
+Record counts, deletion, state accounting and restored preimages still update normally.
+
+These groups append borrowed cached cells directly into typed Arrow result builders. Dense
+COUNT(*) updates therefore avoid storing and cloning one scalar per output cell before
+constructing Arrow columns. The builders are shared with local DISTINCT membership output;
+other aggregate families retain their scalar result path. Finished arrays own their buffers
+through the existing RecordBatch/C Data release path. Mini-batch and positive-TTL groups
+retain their existing emission path and checkpoint fields remain unchanged.
+
+For the final scalar first/last increment, paired two-million-row whole jobs improve
+1.218–1.462x over stock for the five representative pure types and 1.062–1.435x for six
+mixed DATE/DOUBLE/STRING COUNT contexts. Three retracting profiles improve 2.107–2.251x.
+The corresponding retained preceding-StreamFusion controls improve 1.059–2.065x. The
+[operator coverage page](../operators/group-by.md#typed-distinct-firstlast) records resources,
+smaller/released-1.18 checks and workload limits; the [raw artifact](../benchmarks/results/typed-distinct-ordered-values-2026-10-19.json)
+keeps every trial, earlier regressions, CPU evidence, source/DSO hashes and allocation requests.
+Both row/Arrow transposes, the runtime row source and rowwise sink remain measured.
 
 The combined two-phase COUNT DISTINCT BOOLEAN/TIMESTAMP_LTZ(9) plus SUM DISTINCT
 DECIMAL(19,2) query now beats the matched Flink control at both measured sizes. These runs

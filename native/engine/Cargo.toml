@@ -193,3 +193,7 @@ harness = false
 [[bench]]
 name = "over_sparse_string_cache"
 harness = false
+
+[[bench]]
+name = "distinct_ordered_values"
+harness = false
