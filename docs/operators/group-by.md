@@ -193,9 +193,14 @@ the existing binary state representation; ordered arrays are not stored as unord
 multisets. JSON_ARRAYAGG also admits inline ORDER BY and WITHIN GROUP ordering clauses.
 Released Flink 2.2.1 and 1.18.1 retain arrival order for these clauses rather than sorting;
 the native accumulator preserves that released behavior, including retractions. These
-clauses therefore do not promise sorted JSON arrays. JSON_OBJECTAGG ordering, positive
-state TTL, DISTINCT and local/global JSON aggregation remain fallback. Both released
-parsers reject JSON aggregate FILTER syntax.
+clauses therefore do not promise sorted JSON arrays. Positive state TTL remains a
+native restriction for both functions. JSON_OBJECTAGG local/global aggregation also
+falls back. JSON_ARRAYAGG has no merge method in either released version: even a
+TWO_PHASE request retains a single-phase plan, which runs natively. Released Flink
+2.2.1 and 1.18.1 reject DISTINCT JSON aggregates, JSON_OBJECTAGG WITHIN GROUP ordering,
+and JSON aggregate FILTER syntax; these are host limitations rather than acceleration
+gaps. Eight additional released-SQL checks pin the actual phase plans, native execution,
+NULL modes, and parser/validator failures.
 Flink 1.18 decimal JSON_STRING expressions use the existing generated evaluator
 inside Calc because that line strips decimal scale; the grouped accumulator still runs
 natively. The 2.2 expression retains scale.
@@ -598,9 +603,10 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- LISTAGG and JSON aggregates with DISTINCT or positive state TTL. Explicit ordering
-  remains unsupported for LISTAGG and JSON_OBJECTAGG; JSON_ARRAYAGG ordering clauses
-  preserve the released host's arrival-order behavior described above.
+- LISTAGG with DISTINCT, and LISTAGG or JSON aggregates with positive state TTL.
+  Released Flink rejects LISTAGG WITHIN GROUP ordering and JSON DISTINCT/object-ordering
+  syntax; these are host limitations. JSON_ARRAYAGG ordering clauses preserve the
+  released host's arrival-order behavior described above.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, physical SINGLE_VALUE with a retained DISTINCT flag,
