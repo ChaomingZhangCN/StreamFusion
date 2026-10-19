@@ -58,6 +58,7 @@ nav:
   - Blogs:
       - blogs/index.md
       - Streaming for the AI age: blogs/streaming-for-the-ai-age.md
+      - StreamFusion Connectors: blogs/streamfusion-connectors.md
   - Connectors:
       - connectors/index.md
       - Kafka: connectors/kafka.md
