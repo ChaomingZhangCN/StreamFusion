@@ -776,7 +776,7 @@ to newly admitted complex COUNT with MAP anywhere in its input schema; merely pa
 already-admitted scalar query does not change its checkpoint format. Logical MAP/MULTISET readers
 recover the declared value after emission and restore. Numeric results retain native columnar
 sinks; MAP-valued outputs reaching an unverified native sink require the existing row-sink route.
-See the [representation decision](../../divergences/48-flink-collection-representation.md).
+See the [representation decision](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/48-flink-collection-representation.md).
 
 Proctime complex COUNT prefers 4,096-row entry batches to amortize Calc, Arrow C Data and JNI
 setup. The preference follows its columnar input island, including an already-pruned entry
@@ -890,7 +890,7 @@ Tagged group lengths use the existing optional count metadata: `-(length + 2)` i
 floating OVER group header; `-1` remains absent and nonnegative OFFSET counts retain their
 existing meaning. Raw/canonical restore preserves these headers and group order rather than
 sorting them again. Existing scalar/complex non-floating ranks and filtered Top-N keep their
-previous contracts. See the [rank-state decision](../../divergences/11-over-incremental-vs-window-exec.md).
+previous contracts. See the [rank-state decision](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/11-over-incremental-vs-window-exec.md).
 
 Admission still requires insert-only input, one ascending key, ROWS UNBOUNDED PRECEDING through
 CURRENT ROW and disabled idle-state TTL. Floating ARRAY/ROW children retain fallback. Released
