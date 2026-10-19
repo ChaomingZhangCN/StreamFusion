@@ -763,6 +763,52 @@ impl AppendTopN {
         operator
     }
 
+    pub fn non_time_row_number_orders(partitions: Vec<usize>, orders: &[(usize, bool)]) -> Self {
+        let mut ranker = TopNRanker::new(
+            partitions,
+            orders
+                .iter()
+                .map(|&(index, nulls_first)| SortColumn {
+                    index,
+                    ascending: true,
+                    nulls_first,
+                })
+                .collect(),
+            i64::MAX,
+            true,
+            false,
+        );
+        ranker.enable_non_time_row_number();
+        Self(ranker)
+    }
+
+    pub fn restore_non_time_row_number_orders(
+        partitions: Vec<usize>,
+        orders: &[(usize, bool)],
+        snapshots: &[Vec<u8>],
+    ) -> Self {
+        let key_types = vec![0; partitions.len()];
+        let mut ranker = TopNRanker::restore_partitions(
+            partitions,
+            key_types,
+            orders
+                .iter()
+                .map(|&(index, nulls_first)| SortColumn {
+                    index,
+                    ascending: true,
+                    nulls_first,
+                })
+                .collect(),
+            i64::MAX,
+            true,
+            false,
+            snapshots,
+            0,
+        );
+        ranker.enable_non_time_row_number();
+        Self(ranker)
+    }
+
     pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
         self.0.push(batch, 0).expect("budget exceeded")
     }

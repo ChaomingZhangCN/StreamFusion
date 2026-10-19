@@ -23,7 +23,7 @@ Event-time parity fixtures keep the watermark behind the entire input timestamp 
 end of input, so file enumeration order cannot introduce accidental late rows. Late-row tests
 control the input order separately.
 
-## Ordinary scalar ROW_NUMBER (Flink 2.2)
+## Ordinary ROW_NUMBER (Flink 2.2)
 
 An unfiltered `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY v ASC)` also runs over an ordinary
 TINYINT, SMALLINT, INT, BIGINT, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP or
@@ -32,11 +32,21 @@ This separate matcher requires one ROW_NUMBER group with ROWS UNBOUNDED
 PRECEDING through CURRENT ROW, insert-only input, supported partition/payload types and disabled
 idle-state TTL. NULLS FIRST/LAST are preserved. Flink 1.18 rejects ordinary non-time ordering;
 its validation is unchanged. Other non-time analytic functions and order specifications retain
-fallback, including floating-point and complex sort values. Descending ordinary
+fallback, including floating-point sort values and MAP/MULTISET. Descending ordinary
 OVER ordering and multiple ORDER BY columns are rejected by released Flink itself,
 including otherwise valid ordinary scalar keys. Sixteen released-SQL failure-parity checks
 pin both planning restrictions on Flink 2.2.1 and 1.18.1; these are not acceleration gaps.
 See the [released ordering audit](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/non-time-over-ordering.md).
+
+ARRAY and ROW sort values are also admitted recursively when every child has one of the
+supported scalar order types above, or another admitted ARRAY/ROW. Floating children and
+MAP/MULTISET retain fallback. Parent NULLS FIRST/LAST are independent of child ordering:
+released Flink always sorts nested NULLs first. For NULLS LAST, two native projections add
+and remove a derived parent-NULL flag; the existing ranker orders that flag before the
+original complex value with nested NULLS FIRST. This preserves row identity and arrival-order
+ties without changing the retained sort-state format. Restored list child field names are
+aligned with the declared output schema using the existing recursive Arrow cast helper;
+metadata alignment retains value buffers before the normal output gather.
 
 Each new row emits INSERT at its rank, followed by UPDATE_BEFORE/UPDATE_AFTER pairs for the
 same existing rows whose ranks shifted. Ties retain arrival order. Timestamp comparison
@@ -81,6 +91,49 @@ The released-host oracle covers ties, nullable partitions/order, nonmonotonic ar
 input and NULL placement. Native recovery compares two checkpoint restores on memory/RocksDB
 with uninterrupted stock output, because the released heap host failed an injected restore with
 a missing prior accumulator. See the [architecture note](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/11-over-incremental-vs-window-exec.md#non-time-row_number-uses-a-retained-sorted-buffer).
+
+### Complex rank measurements (2026-10-19)
+
+Release+mimalloc comparisons on Flink 2.2.1/JDK 17 use 65,536 runtime rows, 1,024 partitions,
+parallelism one, a 2 GiB heap, 1,024-row batches and production IPC. Nullable parents occur every
+31st input; ARRAY values have two children, nested arrays add a nullable child, and ROW values
+have two fields. All SQL ordering is ascending; input arrival varies. Complete jobs include
+the row source, both transposes, derived-flag projections, JNI, retained state and row blackhole
+sink. Two warmups precede three alternating measured stock/native pairs. Plans and profile
+counters require native consumption. Actual previous revision `a9035025` runs the identical
+fixture with its preceding release library and complex-rank fallback asserted.
+
+| Type | Arrival | Parent NULLs | Stock median (s) | Previous SF median (s) | Native median (s) | Stock/native |
+|---|---|---|---:|---:|---:|---:|
+| array | ascending | FIRST | 0.478 | 0.434 | 0.179 | 2.667× |
+| array | ascending | LAST | 0.401 | 0.321 | 0.155 | 2.582× |
+| array | descending | FIRST | 1.564 | 1.407 | 1.009 | 1.549× |
+| array | descending | LAST | 1.600 | 1.523 | 1.008 | 1.587× |
+| row | descending | LAST | 1.539 | 1.409 | 1.219 | 1.262× |
+| nested_array | descending | LAST | 1.570 | 1.386 | 1.296 | 1.212× |
+| row_array | descending | LAST | 1.515 | 1.488 | 1.436 | 1.055× |
+| row_array | descending | FIRST | 1.624 | 1.608 | 1.402 | 1.158× |
+
+Complex profiles improve 1.055–2.667× over paired stock and 1.036–2.422× over
+the actual previous medians. ROW-of-ARRAY gains are modest. These results cover the declared
+small container widths and do not establish a universal throughput gain. The already-native
+BIGINT control is 0.503 s current versus 0.488 s previous
+(3.1% higher current median); ranges overlap at
+0.494–0.506 s and 0.467–0.499 s. No scalar speedup is claimed.
+The [180-job artifact](../benchmarks/results/non-time-complex-rank-2026-10-19.json) retains every
+warmup/trial, variability, exact source/library hashes, the scalar control, 32 allocation probes
+and all released qualification summaries. Flink 2.2 passes 46 SQL/recovery checks and five additional default-NULL, global and
+three-way-shuffle checks, plus 27 native
+ranker unit tests; Flink 1.18 passes its two host controls with 44 capability skips. Native
+fixtures include named list children and raw restore; SQL recovery also covers native RocksDB.
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench \
+  -Dtest=NonTimeComplexRankBenchmark -Drank.orderTypes=array \
+  -Drank.nulls=FIRST,LAST -Drank.cases=ascending,descending \
+  -Drank.rows=65536 -Drank.keys=1024 -Drank.warmup=2 -Drank.runs=3 \
+  -Dsf.extraJvmArgs=-Xmx2g
+```
 
 ### Numeric ranking measurements
 

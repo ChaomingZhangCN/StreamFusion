@@ -1786,7 +1786,12 @@ fn emit_changelog(
     let indices = UInt32Array::from(positions);
     let mut columns: Vec<ArrayRef> = decoded
         .iter()
-        .map(|c| take(c, &indices, None).expect("gather top-n payloads"))
+        .zip(schema.fields())
+        .map(|(column, field)| {
+            let aligned = streamfusion_bridge::timestamp::cast_array(column, field.data_type())
+                .expect("align top-n payload fields");
+            take(&aligned, &indices, None).expect("gather top-n payloads")
+        })
         .collect();
     let mut fields: Vec<Field> = schema.fields().iter().map(|f| f.as_ref().clone()).collect();
     if output_rank_number {

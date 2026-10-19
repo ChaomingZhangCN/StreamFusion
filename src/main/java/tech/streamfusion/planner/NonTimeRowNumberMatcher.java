@@ -1,10 +1,17 @@
 package tech.streamfusion.planner;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Window;
+import org.apache.calcite.rel.logical.LogicalCalc;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexProgram;
 import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory$;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalOverAggregate;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalRel;
@@ -42,11 +49,10 @@ final class NonTimeRowNumberMatcher {
     Window.Group group = over.logicWindow().groups.get(0);
     var inputType = over.getInput().getRowType();
     var order = group.orderKeys.getFieldCollations().get(0);
-    SqlTypeName orderType =
-        inputType.getFieldList().get(order.getFieldIndex()).getType().getSqlTypeName();
+    RelDataType orderType = inputType.getFieldList().get(order.getFieldIndex()).getType();
     if (order.direction != RelFieldCollation.Direction.ASCENDING
         || !supportedOrderType(orderType)) {
-      return "non-time ROW_NUMBER: requires one ascending supported scalar order column";
+      return "non-time ROW_NUMBER: requires one ascending supported order column";
     }
     if (!group.isRows
         || !group.lowerBound.isUnbounded()
@@ -71,11 +77,25 @@ final class NonTimeRowNumberMatcher {
             FlinkTypeFactory$.MODULE$.toLogicalRowType(over.getRowType()))) {
       return "non-time ROW_NUMBER: unsupported Arrow row payload";
     }
+    if (complexNullsLast(over) && rankPlan(over, null) == null) {
+      return "non-time ROW_NUMBER: unsupported complex parent-validity projection";
+    }
     return null;
   }
 
-  private static boolean supportedOrderType(SqlTypeName type) {
-    switch (type) {
+  private static boolean complexNullsLast(StreamPhysicalOverAggregate over) {
+    var order = over.logicWindow().groups.get(0).orderKeys.getFieldCollations().get(0);
+    var type = over.getInput().getRowType().getFieldList().get(order.getFieldIndex()).getType();
+    return (type.isStruct() || type.getComponentType() != null)
+        && order.nullDirection == RelFieldCollation.NullDirection.LAST;
+  }
+
+  private static boolean supportedOrderType(RelDataType type) {
+    switch (type.getSqlTypeName()) {
+      case ARRAY:
+        return supportedOrderType(type.getComponentType());
+      case ROW:
+        return type.getFieldList().stream().allMatch(field -> supportedOrderType(field.getType()));
       case TINYINT:
       case SMALLINT:
       case INTEGER:
@@ -95,26 +115,77 @@ final class NonTimeRowNumberMatcher {
   }
 
   static RelNode substitute(StreamPhysicalOverAggregate over, PlanContext ctx) {
+    return Objects.requireNonNull(rankPlan(over, ctx));
+  }
+
+  private static RelNode rankPlan(StreamPhysicalOverAggregate over, PlanContext ctx) {
     Window.Group group = over.logicWindow().groups.get(0);
     var order = group.orderKeys.getFieldCollations().get(0);
     int[] partitions = group.keys.toArray();
-    return new StreamPhysicalNativeColumnarTopN(
-        over.getCluster(),
-        over.getTraitSet(),
-        ctx.columnarInput(over.getInput(), partitions),
-        over.getRowType(),
-        partitions,
-        new int[] {order.getFieldIndex()},
-        new int[] {1},
-        new int[] {order.nullDirection == RelFieldCollation.NullDirection.FIRST ? 1 : 0},
-        0,
-        Long.MAX_VALUE,
-        -1,
-        true,
-        false,
-        null,
-        true,
-        false,
-        true);
+    boolean parentNullFlag = complexNullsLast(over);
+    RelNode input = ctx == null ? over.getInput() : ctx.columnarInput(over.getInput(), partitions);
+    RelDataType outputType = over.getRowType();
+    int arity = input.getRowType().getFieldCount();
+    if (parentNullFlag) {
+      // Flink always orders nested NULLs first; only the parent follows NULLS LAST.
+      // Sort a derived parent flag first, then keep Arrow's nested NULLS FIRST encoding.
+      var builder = over.getCluster().getRexBuilder();
+      var fields = new ArrayList<RexNode>();
+      for (int i = 0; i < arity; i++) fields.add(builder.makeInputRef(input, i));
+      var flag =
+          builder.makeCall(
+              SqlStdOperatorTable.IS_NULL, builder.makeInputRef(input, order.getFieldIndex()));
+      fields.add(flag);
+      var typeBuilder =
+          over.getCluster().getTypeFactory().builder().addAll(input.getRowType().getFieldList());
+      typeBuilder.add("$rank_parent_null$", flag.getType());
+      input = projection(input, fields, typeBuilder.build());
+      if (input == null) return null;
+      var rankedType =
+          over.getCluster().getTypeFactory().builder().addAll(input.getRowType().getFieldList());
+      rankedType.add(over.getRowType().getFieldList().get(arity));
+      outputType = rankedType.build();
+    }
+    RelNode ranked =
+        new StreamPhysicalNativeColumnarTopN(
+            over.getCluster(),
+            over.getTraitSet(),
+            input,
+            outputType,
+            partitions,
+            parentNullFlag
+                ? new int[] {arity, order.getFieldIndex()}
+                : new int[] {order.getFieldIndex()},
+            parentNullFlag ? new int[] {1, 1} : new int[] {1},
+            parentNullFlag
+                ? new int[] {1, 1}
+                : new int[] {order.nullDirection == RelFieldCollation.NullDirection.FIRST ? 1 : 0},
+            0,
+            Long.MAX_VALUE,
+            -1,
+            true,
+            false,
+            null,
+            true,
+            false,
+            true);
+    if (!parentNullFlag) return ranked;
+    var fields = new ArrayList<RexNode>();
+    var builder = over.getCluster().getRexBuilder();
+    for (int i = 0; i < arity; i++) fields.add(builder.makeInputRef(ranked, i));
+    fields.add(builder.makeInputRef(ranked, arity + 1));
+    return projection(ranked, fields, over.getRowType());
+  }
+
+  private static RelNode projection(RelNode input, List<RexNode> fields, RelDataType outputType) {
+    var program =
+        RexProgram.create(
+            input.getRowType(), fields, null, outputType, input.getCluster().getRexBuilder());
+    var calc = LogicalCalc.create(input, program);
+    var encoded = RexExpression.encodeCalc(calc);
+    return encoded == null
+        ? null
+        : new StreamPhysicalNativeCalc(
+            input.getCluster(), input.getTraitSet(), input, outputType, encoded, program);
   }
 }

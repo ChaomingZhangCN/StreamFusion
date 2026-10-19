@@ -2524,3 +2524,15 @@ state, a partial replay after the short end closes, final drain and memory accou
 validated. Operator/JVM/input setup stays outside timing. No new checkpoint layout is used.
 The helper stays in a nested directory with an explicit module path; Cargo discovers the
 registered target alone. The final selection has 72 fixture successes/allocation reports.
+
+### Complex ordinary ROW_NUMBER fixtures
+
+`non_time_complex_rank` has 32 release fixtures: ARRAY, ROW, nested ARRAY and ROW-of-ARRAY;
+16/256 rows; one/64 partitions; and both parent NULL placements. Independent Rust value
+comparisons order nested NULLs first and emit every expected INSERT/UPDATE_BEFORE/UPDATE_AFTER
+by retained row identity. Whole batches agree with seven-row chunks that checkpoint and
+restore after the first chunk. Custom list child names exercise restored payload-schema
+alignment. Fixture construction and the derived parent flag are outside timing; production
+rank insertion, retained state and complete changelog construction are measured. Untimed
+allocation probes retain separate Arrow-buffer reports; complete Java jobs include the native
+flag projections and both perimeter transposes.

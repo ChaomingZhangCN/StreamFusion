@@ -210,3 +210,7 @@ harness = false
 [[bench]]
 name = "window_complex_counts"
 harness = false
+
+[[bench]]
+name = "non_time_complex_rank"
+harness = false
