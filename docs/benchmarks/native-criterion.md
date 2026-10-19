@@ -138,6 +138,9 @@ DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16
 They retain membership and widened sum/count work while keeping batch construction outside
 the timed update. SQL comparisons cover the exact changelog and checkpoint contract.
 
+The window-count helper lives under `window_counts/mod.rs` so Cargo discovers only
+its owning `operators` Criterion target. Helpers are not standalone benchmark crates.
+
 Its `window_count_validity` group adds 36 scalar COUNT fixtures at 128/4096 rows and
 one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timestamps
 retain NULL-only groups and are checked against an independent per-key validity oracle.
