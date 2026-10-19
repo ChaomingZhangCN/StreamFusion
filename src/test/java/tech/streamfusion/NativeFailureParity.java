@@ -343,6 +343,7 @@ final class NativeFailureParity {
             || method.equals("createStreamOperator")) return Phase.INITIALIZATION;
         if (method.equals("processElement") || method.equals("processElement1")
             || method.equals("processElement2") || method.equals("endInput")
+            || method.equals("finishBundle")
             || method.equals("eval") || method.equals("accumulate")) return Phase.ROW_EVALUATION;
       }
     }

@@ -439,6 +439,8 @@ final class WindowAggregateMatcher {
 
   static boolean supportedDistinctValueType(SqlTypeName type) {
     switch (type) {
+      case FLOAT:
+      case DOUBLE:
       case TINYINT:
       case SMALLINT:
       case INTEGER:

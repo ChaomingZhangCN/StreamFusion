@@ -47,6 +47,8 @@ class WindowBasicTypeBenchmark {
     switch (value) {
       case "string": aggregate = "MIN(s), MAX(s), COUNT(*)"; break;
       case "timestamp": aggregate = "MIN(t), MAX(t), COUNT(*)"; break;
+      case "float": aggregate = "COUNT(DISTINCT CAST(v AS FLOAT))"; break;
+      case "double": aggregate = "COUNT(DISTINCT CAST(v AS DOUBLE))"; break;
       case "boolean": aggregate = "COUNT(DISTINCT b)"; break;
       case "time": aggregate = "COUNT(DISTINCT clock)"; break;
       case "bigint": aggregate = "COUNT(v), AVG(v), SUM(v)"; break;
@@ -88,7 +90,8 @@ class WindowBasicTypeBenchmark {
           var table = StreamTableEnvironment.create(env);
           table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
           table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-          table.getConfig().set("table.optimizer.distinct-agg.split.enabled", "false");
+          table.getConfig().set("table.optimizer.distinct-agg.split.enabled",
+              Boolean.toString(Boolean.getBoolean("window.splitDistinct")));
           table.getConfig().set("table.exec.mini-batch.enabled", "true");
           table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
           table.getConfig().set("table.exec.mini-batch.size", "1024");
@@ -131,6 +134,12 @@ class WindowBasicTypeBenchmark {
           if (engine == 1 && !expectNative && plan.contains(operator)) {
             throw new IllegalStateException("Expected previous window aggregate fallback: " + plan);
           }
+          if (engine == 1 && expectNative && Boolean.getBoolean("window.splitDistinct")
+              && plan.split("NativeColumnarGlobalWindowAggregate", -1).length < 3) {
+            throw new IllegalStateException("Expected both split-window global stages: " + plan);
+          }
+          if (Boolean.getBoolean("window.splitDistinct") && trial == 0)
+            System.out.println("[basic-window-plan] engine=" + engine + " " + plan);
           long start = System.nanoTime();
           table.executeSql(insert).await();
           double seconds = (System.nanoTime() - start) / 1e9;

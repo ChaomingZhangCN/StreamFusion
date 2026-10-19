@@ -340,3 +340,11 @@ It does not require HotSpot's generated `booleanValue` detail message: a valid
 NPE can lack that diagnostic across JVM execution and exception transport.
 Assertions for explicit SQL error messages remain unchanged. Focused regression validation runs with helpful NPE messages disabled to
 exercise this message-independent failure contract.
+
+
+Aggregate errors raised while a mini-batch bundle is flushed are classified as row evaluation,
+including global SINGLE_VALUE merge failures delivered through the collect client. The
+originating `finishBundle` frame identifies the data-processing phase even when no
+`processElement` or `endInput` frame survives the asynchronous error transport. Collection
+remains the observed phase only when an originating operator frame cannot establish one.
+Repeated-recovery SINGLE_VALUE checks retain the exact released message and native routing.

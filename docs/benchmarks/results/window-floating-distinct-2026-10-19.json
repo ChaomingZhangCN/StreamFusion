@@ -1,0 +1,3171 @@
+{
+  "date": "2026-10-19",
+  "status": "Qualified floating window distinct membership plus independent complete CUMULATE partial merges; user functions excluded.",
+  "native": "release+mimalloc",
+  "jdk": 17,
+  "parallelism": 2,
+  "heap_gib": 2,
+  "timezone": "UTC",
+  "hardware": "Intel Core i7-12650H, Linux/WSL",
+  "candidate_base": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+  "actual_previous_commit": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+  "source_provenance": {
+    "S1_original160": {
+      "base": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+      "prior": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+      "dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "prior_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "sources": {
+        "native/engine/Cargo.toml": "342d80529a357c6517c233e90c37ba298360621df5a2154537a1b5a05e3b96ae",
+        "native/engine/src/aggregates.rs": "4fcc9724408576c6cc890628a31b87fb2d7055e346ac6e2855f894942f191d1e",
+        "native/engine/src/aggregates/floating_distinct.rs": "988831c21a9de1d9987bf4486766273a485bb4ed7e5497e2e1aa53df5570e3bb",
+        "native/engine/benches/window_floating_distinct.rs": "ef2fedacd3e1b76b8e4609de8757e56808305b129f677df3b7eeba987fe2f90b",
+        "src/main/java/tech/streamfusion/planner/WindowAggregateMatcher.java": "ac852f253620aba345fac6bffc105271a965f877abd676612972ce54db370876",
+        "src/test/java/tech/streamfusion/FlinkWindowFloatingDistinctSqlHarnessTest.java": "1e1f10c274a838556e3a4b5241d58e45a74c9e8c96e83d694694335ef9bf666f",
+        "src/test/java/tech/streamfusion/FlinkWindowCountDistinctSqlHarnessTest.java": "7e064899a7e6d3c1f4fdc23e34c7b9c791a98476775ccb7284d58ba1ad8ea64d",
+        "src/test/java/tech/streamfusion/operator/NativeFloatingWindowDistinctTest.java": "cf08d1a737d10d2f8cf8b2c2452449989276b59e90d45294a957554657a03f45",
+        "src/test/java/tech/streamfusion/WindowBasicTypeBenchmark.java": "2ebd1849d4c674e95b13ac60650986f9253a001a07ed43f849392073e6069f52"
+      }
+    },
+    "S1_unchanged_shared_window_source_sha256": "96542e28516e62a36a09a5298d2ce46260230ba9e804d98d71f1931f1a66d093",
+    "S2_final30": {
+      "base": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+      "prior": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+      "dso_sha256": "67ec92bcd3f046dc346fd6673988bc1a497aaedba64dbd97dae2416feae60ee6",
+      "prior_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "sources": {
+        "native/engine/Cargo.toml": "342d80529a357c6517c233e90c37ba298360621df5a2154537a1b5a05e3b96ae",
+        "native/engine/src/aggregates.rs": "4fcc9724408576c6cc890628a31b87fb2d7055e346ac6e2855f894942f191d1e",
+        "native/engine/src/aggregates/floating_distinct.rs": "988831c21a9de1d9987bf4486766273a485bb4ed7e5497e2e1aa53df5570e3bb",
+        "native/engine/benches/window_floating_distinct.rs": "65346118c36f45762dc106cb6f2993575e99e651db62a3c980a210ee81160a20",
+        "src/main/java/tech/streamfusion/planner/WindowAggregateMatcher.java": "ac852f253620aba345fac6bffc105271a965f877abd676612972ce54db370876",
+        "src/test/java/tech/streamfusion/FlinkWindowFloatingDistinctSqlHarnessTest.java": "7ad371aff4bb91bc59fa5ddcc2a5548151dbdcaf7763a99847e04dd3a335b074",
+        "src/test/java/tech/streamfusion/FlinkWindowCountDistinctSqlHarnessTest.java": "7e064899a7e6d3c1f4fdc23e34c7b9c791a98476775ccb7284d58ba1ad8ea64d",
+        "src/test/java/tech/streamfusion/operator/NativeFloatingWindowDistinctTest.java": "cf08d1a737d10d2f8cf8b2c2452449989276b59e90d45294a957554657a03f45",
+        "src/test/java/tech/streamfusion/WindowBasicTypeBenchmark.java": "d5ce4cb981b6bfe5f3e662968258c1eae4e1287fe3618b1701b8f604058871ef",
+        "native/engine/src/window_agg/shared.rs": "5a89d5202675956be49da40124eb4b46a2f87c29da5cac1ebd52b43fa81862e4",
+        "native/engine/benches/window_floating_distinct/attached_cumulative.rs": "24f19e6ce44f63957dfa4862ead88ed53413fb830badb9512af14079e9e35292",
+        "bin/bench-native.py": "bafe4d3625254f2a80b69faf1779d3174bca1a70a52a44e3c8abc8b0975fa6c5",
+        "src/test/java/tech/streamfusion/NativeFailureParity.java": "79f4525726fb66e45588ddd63fae8da64c3d36e2f79296a32392c5d976e81254"
+      },
+      "original160_metadata": {
+        "base": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+        "prior": "54f56699e3e8decc20427c14abdd866d4c3a2876",
+        "dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+        "prior_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+        "sources": {
+          "native/engine/Cargo.toml": "342d80529a357c6517c233e90c37ba298360621df5a2154537a1b5a05e3b96ae",
+          "native/engine/src/aggregates.rs": "4fcc9724408576c6cc890628a31b87fb2d7055e346ac6e2855f894942f191d1e",
+          "native/engine/src/aggregates/floating_distinct.rs": "988831c21a9de1d9987bf4486766273a485bb4ed7e5497e2e1aa53df5570e3bb",
+          "native/engine/benches/window_floating_distinct.rs": "ef2fedacd3e1b76b8e4609de8757e56808305b129f677df3b7eeba987fe2f90b",
+          "src/main/java/tech/streamfusion/planner/WindowAggregateMatcher.java": "ac852f253620aba345fac6bffc105271a965f877abd676612972ce54db370876",
+          "src/test/java/tech/streamfusion/FlinkWindowFloatingDistinctSqlHarnessTest.java": "1e1f10c274a838556e3a4b5241d58e45a74c9e8c96e83d694694335ef9bf666f",
+          "src/test/java/tech/streamfusion/FlinkWindowCountDistinctSqlHarnessTest.java": "7e064899a7e6d3c1f4fdc23e34c7b9c791a98476775ccb7284d58ba1ad8ea64d",
+          "src/test/java/tech/streamfusion/operator/NativeFloatingWindowDistinctTest.java": "cf08d1a737d10d2f8cf8b2c2452449989276b59e90d45294a957554657a03f45",
+          "src/test/java/tech/streamfusion/WindowBasicTypeBenchmark.java": "2ebd1849d4c674e95b13ac60650986f9253a001a07ed43f849392073e6069f52"
+        }
+      },
+      "reason": "Final prefix correction isolates already-complete attached CUMULATE ends when stride equals maximum size. Shared storage/checkpoint layout retained. Original160 profiles use split=false and ordinary CUMULATE step<size or other shapes; new190 total adds final-DLL default control and split path stock/current/actual-prior."
+    },
+    "explanation": "Original160 jobs measured the membership extension before a subsequently discovered generic attached-CUMULATE prefix correction. Those jobs have split=false and ordinary CUMULATE step<max or other shapes. Final30 jobs use the final library for a matched ordinary CUMULATE control and split-CUMULATE against stock and actual previous StreamFusion. No earlier job is relabeled as using the final library. S2 fixture adds only a default-false split flag and verifies both split global stages; data/resources remain identical."
+  },
+  "measurement": "Two interleaved engines,2warmups/3trials;runtime row source,rowwise blackhole,both transposes,production Arrow IPC exchange,JNI/state and nonempty native operator metrics retained. No concurrent local builds/tests/profiles/timings. Summary logs print means;artifact retains means,derived medians,ranges via full samples,and every warmup/trial.",
+  "fixture": "CAST existing nullable BIGINT v to FLOAT/DOUBLE;1000 global integer slots,finite-valued timings. Source also constructs the unchanged existing row payload.500krows64keys;1MrowsonekeyDoubleHOPcontrol. Source timestamps cycle over5000milliseconds. Memory and one nativeRocksDBsample, fixed windows,SESSION and optional split-CUMULATE. NaNs,payloads,zeros,infinities,subnormals validated separately in native/released SQL tests.",
+  "validation": {
+    "java22_pass": 95,
+    "java22_host_skips": 0,
+    "java118_pass": 94,
+    "java118_host_skips": 1,
+    "new_sql_cases_each_release": 28,
+    "new_backend_checkpoint_cases_each_release": 8,
+    "native_membership_unit_tests": 1,
+    "native_window_regressions_including_new_complete_partial_restore": 75,
+    "native_criterion_fixtures": 72,
+    "details": "28SQL:12fixedphase/shape/filter,6legacywindowphase/shape,2SESSIONTVFavailabilitycontracts,6optionalSplitphase/shape,2mixedFloat/Double/intcanonicalbitCUMsplit two-restorememory/nativeRocks. Direct8 raw/canonicalbackend migrations cover both plain/distinct counts and native memory release. 72nativefixtures=60typedFloatCOUNTD+12realJVMcalendar complete-partial/checkpoint/late/Rocks/accounting cases. Existing51COUNTD and8boolean/time controls pass."
+  },
+  "raw_job_count": 190,
+  "profiles": [
+    {
+      "stage": "current-float-tumble",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.555767233,
+        0.506374124,
+        0.47419634
+      ],
+      "streamfusion_seconds": [
+        0.428283799,
+        0.407934923,
+        0.397285016
+      ],
+      "stock_mean": 0.5121125656666666,
+      "streamfusion_mean": 0.4111679126666667,
+      "stock_median": 0.506374124,
+      "streamfusion_median": 0.407934923,
+      "stock_over_streamfusion_mean": 1.2455071271133835,
+      "stock_over_streamfusion_median": 1.241311041173104,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.365272
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.755279
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.502102
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.665634
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.555767
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.428284
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.407935
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.506374
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.474196
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.397285
+        }
+      ],
+      "actual_previous_over_current_mean": 1.2636192173420069,
+      "actual_previous_over_current_median": 1.2514854091077658,
+      "previous_paired_stock_mean": 0.5220759676666666,
+      "previous_stock_over_current_stock": 1.0194554921475705
+    },
+    {
+      "stage": "current-double-tumble",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.645330083,
+        0.598888382,
+        0.598402414
+      ],
+      "streamfusion_seconds": [
+        0.389463739,
+        0.381342952,
+        0.39912918
+      ],
+      "stock_mean": 0.6142069596666667,
+      "streamfusion_mean": 0.38997862366666664,
+      "stock_median": 0.598888382,
+      "streamfusion_median": 0.389463739,
+      "stock_over_streamfusion_mean": 1.5749759663536296,
+      "stock_over_streamfusion_median": 1.5377256520407414,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.520538
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.675166
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.526362
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.722629
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.64533
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.389464
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.381343
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.598888
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.598402
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.399129
+        }
+      ],
+      "actual_previous_over_current_mean": 1.5091543671456502,
+      "actual_previous_over_current_median": 1.5094082943624183,
+      "previous_paired_stock_mean": 0.6089450826666667,
+      "previous_stock_over_current_stock": 0.9914330553941367
+    },
+    {
+      "stage": "current-float-hop",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "TWO_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.769642733,
+        0.750795012,
+        0.65027056
+      ],
+      "streamfusion_seconds": [
+        0.398859328,
+        0.410401971,
+        0.415964901
+      ],
+      "stock_mean": 0.723569435,
+      "streamfusion_mean": 0.40840873333333333,
+      "stock_median": 0.750795012,
+      "streamfusion_median": 0.410401971,
+      "stock_over_streamfusion_mean": 1.7716796335239975,
+      "stock_over_streamfusion_median": 1.8294137578593648,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.539646
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.660654
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.47544
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.863972
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.769643
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.398859
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.410402
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.750795
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.650271
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.415965
+        }
+      ]
+    },
+    {
+      "stage": "current-double-hop",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "ONE_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.59548278,
+        0.555978848,
+        0.562179596
+      ],
+      "streamfusion_seconds": [
+        0.423101584,
+        0.39116724,
+        0.429576188
+      ],
+      "stock_mean": 0.5712137413333334,
+      "streamfusion_mean": 0.414615004,
+      "stock_median": 0.562179596,
+      "streamfusion_median": 0.423101584,
+      "stock_over_streamfusion_mean": 1.3776967447452368,
+      "stock_over_streamfusion_median": 1.328710686178854,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.460262
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.792825
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.530804
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.74875
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.595483
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.423102
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.391167
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.555979
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.56218
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.429576
+        }
+      ]
+    },
+    {
+      "stage": "current-float-cumulate",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "ONE_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.570904883,
+        0.542977944,
+        0.512548599
+      ],
+      "streamfusion_seconds": [
+        0.406137734,
+        0.402525214,
+        0.413887708
+      ],
+      "stock_mean": 0.5421438086666667,
+      "streamfusion_mean": 0.40751688533333336,
+      "stock_median": 0.542977944,
+      "streamfusion_median": 0.406137734,
+      "stock_over_streamfusion_mean": 1.3303591291026227,
+      "stock_over_streamfusion_median": 1.3369305497725559,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.354765
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.801452
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.572244
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.695575
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.570905
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.406138
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.402525
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.542978
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.512549
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.413888
+        }
+      ]
+    },
+    {
+      "stage": "current-double-cumulate",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.688472804,
+        0.639064323,
+        0.634427465
+      ],
+      "streamfusion_seconds": [
+        0.425907258,
+        0.404172804,
+        0.406547064
+      ],
+      "stock_mean": 0.6539881973333334,
+      "streamfusion_mean": 0.412209042,
+      "stock_median": 0.639064323,
+      "streamfusion_median": 0.406547064,
+      "stock_over_streamfusion_mean": 1.586545006776764,
+      "stock_over_streamfusion_median": 1.571931959641455,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.489705
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.698904
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.548548
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.775174
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.688473
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.425907
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.404173
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.639064
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.634427
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.406547
+        }
+      ]
+    },
+    {
+      "stage": "current-session",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "ONE_PHASE",
+      "shape": "SESSION",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.593177719,
+        0.531389678,
+        0.505636711
+      ],
+      "streamfusion_seconds": [
+        0.412254742,
+        0.426516891,
+        0.413517789
+      ],
+      "stock_mean": 0.5434013693333334,
+      "streamfusion_mean": 0.41742980733333335,
+      "stock_median": 0.531389678,
+      "streamfusion_median": 0.413517789,
+      "stock_over_streamfusion_mean": 1.3017790291612,
+      "stock_over_streamfusion_median": 1.2850467189937504,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.468652
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.826339
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.658516
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.934131
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.593178
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.412255
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.426517
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.53139
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.505637
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.413518
+        }
+      ],
+      "actual_previous_over_current_mean": 1.2886955153087605,
+      "actual_previous_over_current_median": 1.312251207649981,
+      "previous_paired_stock_mean": 0.51390054,
+      "previous_stock_over_current_stock": 0.9457107931665203
+    },
+    {
+      "stage": "current-session",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "ONE_PHASE",
+      "shape": "SESSION",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.498644714,
+        0.53176736,
+        0.525645041
+      ],
+      "streamfusion_seconds": [
+        0.317667897,
+        0.326146028,
+        0.335250199
+      ],
+      "stock_mean": 0.518685705,
+      "streamfusion_mean": 0.326354708,
+      "stock_median": 0.525645041,
+      "streamfusion_median": 0.326146028,
+      "stock_over_streamfusion_mean": 1.589331154983675,
+      "stock_over_streamfusion_median": 1.6116861647016594,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.564318
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.457692
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.395441
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.541461
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.498645
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.317668
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.326146
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.531767
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.525645
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.33525
+        }
+      ],
+      "actual_previous_over_current_mean": 1.5209144666810404,
+      "actual_previous_over_current_median": 1.5622134420107059,
+      "previous_paired_stock_mean": 0.4778434916666667,
+      "previous_stock_over_current_stock": 0.9212582630683194
+    },
+    {
+      "stage": "current-large-single-key",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "ONE_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 1000000,
+      "keys": 1,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.925273541,
+        0.922530086,
+        0.879443428
+      ],
+      "streamfusion_seconds": [
+        0.694375581,
+        0.660512515,
+        0.574028115
+      ],
+      "stock_mean": 0.9090823516666666,
+      "streamfusion_mean": 0.6429720703333333,
+      "stock_median": 0.922530086,
+      "streamfusion_median": 0.660512515,
+      "stock_over_streamfusion_mean": 1.41387533551088,
+      "stock_over_streamfusion_median": 1.3966882762244104,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.783775
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.029029
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.747256
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.095967
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.925274
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.694376
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.660513
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.92253
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.879443
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.574028
+        }
+      ]
+    },
+    {
+      "stage": "current-rocks",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "rocksdb",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.687435205,
+        0.636463218,
+        0.63790892
+      ],
+      "streamfusion_seconds": [
+        0.437344648,
+        0.420763938,
+        0.479366322
+      ],
+      "stock_mean": 0.653935781,
+      "streamfusion_mean": 0.4458249693333333,
+      "stock_median": 0.63790892,
+      "streamfusion_median": 0.437344648,
+      "stock_over_streamfusion_mean": 1.46679936293803,
+      "stock_over_streamfusion_median": 1.4585954645088053,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.609963
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.697222
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.554494
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.739397
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.687435
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.437345
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.420764
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.636463
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.637909
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.479366
+        }
+      ],
+      "actual_previous_over_current_mean": 1.393148274300186,
+      "actual_previous_over_current_median": 1.4288377321128212,
+      "previous_paired_stock_mean": 0.6191541446666666,
+      "previous_stock_over_current_stock": 0.9468118470591328
+    },
+    {
+      "stage": "actual-prior-float-tumble",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.543262703,
+        0.501149183,
+        0.521816017
+      ],
+      "streamfusion_seconds": [
+        0.54455,
+        0.510524604,
+        0.503604424
+      ],
+      "stock_mean": 0.5220759676666666,
+      "streamfusion_mean": 0.519559676,
+      "stock_median": 0.521816017,
+      "streamfusion_median": 0.510524604,
+      "stock_over_streamfusion_mean": 1.0048431234810968,
+      "stock_over_streamfusion_median": 1.0221172748806442,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.397543
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.667706
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.567354
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.544522
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.543263
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.54455
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.510525
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.501149
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.521816
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.503604
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-double-tumble",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.663160616,
+        0.587032847,
+        0.576641785
+      ],
+      "streamfusion_seconds": [
+        0.592743516,
+        0.587859798,
+        0.585010515
+      ],
+      "stock_mean": 0.6089450826666667,
+      "streamfusion_mean": 0.588537943,
+      "stock_median": 0.587032847,
+      "streamfusion_median": 0.587859798,
+      "stock_over_streamfusion_mean": 1.0346742973998309,
+      "stock_over_streamfusion_median": 0.9985932853329766,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.557873
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.808337
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.677498
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.639646
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.663161
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.592744
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.58786
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.587033
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.576642
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.585011
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-session",
+      "flink": "2.2.1",
+      "type": "float",
+      "phase": "ONE_PHASE",
+      "shape": "SESSION",
+      "backend": "memory",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.512888372,
+        0.519761466,
+        0.509051782
+      ],
+      "streamfusion_seconds": [
+        0.525242369,
+        0.545938175,
+        0.542639218
+      ],
+      "stock_mean": 0.51390054,
+      "streamfusion_mean": 0.5379399206666666,
+      "stock_median": 0.512888372,
+      "streamfusion_median": 0.542639218,
+      "stock_over_streamfusion_mean": 0.9553121459421068,
+      "stock_over_streamfusion_median": 0.9451738005416336,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.433526
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.779092
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.595895
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.556274
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.512888
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.525242
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.545938
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.519761
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.509052
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.542639
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-session",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "ONE_PHASE",
+      "shape": "SESSION",
+      "backend": "memory",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.489843654,
+        0.476397181,
+        0.46728964
+      ],
+      "streamfusion_seconds": [
+        0.509509709,
+        0.510880424,
+        0.468682657
+      ],
+      "stock_mean": 0.4778434916666667,
+      "streamfusion_mean": 0.4963575966666667,
+      "stock_median": 0.476397181,
+      "streamfusion_median": 0.509509709,
+      "stock_over_streamfusion_mean": 0.9627000672008788,
+      "stock_over_streamfusion_median": 0.935010997013209,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.509073
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.523357
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.495675
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.483443
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.489844
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.50951
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.51088
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.476397
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.46729
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.468683
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-rocks",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "rocksdb",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.636615142,
+        0.621158012,
+        0.59968928
+      ],
+      "streamfusion_seconds": [
+        0.624894535,
+        0.660417584,
+        0.577988741
+      ],
+      "stock_mean": 0.6191541446666666,
+      "streamfusion_mean": 0.6211002866666666,
+      "stock_median": 0.621158012,
+      "streamfusion_median": 0.624894535,
+      "stock_over_streamfusion_mean": 0.9968666219581952,
+      "stock_over_streamfusion_median": 0.9940205542043986,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.590555
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.845712
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.711412
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.653322
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.636615
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.624895
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.660418
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.621158
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.599689
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.577989
+        }
+      ]
+    },
+    {
+      "stage": "released118",
+      "flink": "1.18.1",
+      "type": "double",
+      "phase": "ONE_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.612513658,
+        0.552158454,
+        0.562748933
+      ],
+      "streamfusion_seconds": [
+        0.421829001,
+        0.429335201,
+        0.393253479
+      ],
+      "stock_mean": 0.575807015,
+      "streamfusion_mean": 0.41480589366666665,
+      "stock_median": 0.562748933,
+      "streamfusion_median": 0.421829001,
+      "stock_over_streamfusion_mean": 1.388136050599879,
+      "stock_over_streamfusion_median": 1.3340688564938188,
+      "streamfusion_dso_sha256": "9aba8df638d8a61fe256fc4f85c0453373e549729e9a331c5f023eee1f035859",
+      "fixture_source_version": "S1",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.35462
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.80211
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.537214
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.654613
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.612514
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.421829
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.429335
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.552158
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.562749
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.393253
+        }
+      ]
+    },
+    {
+      "stage": "final-control",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": false,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.698208303,
+        0.61345752,
+        0.627508269
+      ],
+      "streamfusion_seconds": [
+        0.412459037,
+        0.390776369,
+        0.388185635
+      ],
+      "stock_mean": 0.646391364,
+      "streamfusion_mean": 0.397140347,
+      "stock_median": 0.627508269,
+      "streamfusion_median": 0.390776369,
+      "stock_over_streamfusion_mean": 1.6276144412997653,
+      "stock_over_streamfusion_median": 1.6057989141098754,
+      "streamfusion_dso_sha256": "67ec92bcd3f046dc346fd6673988bc1a497aaedba64dbd97dae2416feae60ee6",
+      "fixture_source_version": "S2",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.512067
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.68766
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.497201
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.772557
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.698208
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.412459
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.390776
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.613458
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.627508
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.388186
+        }
+      ]
+    },
+    {
+      "stage": "final-split",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "native_expected": true,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": true,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.713092756,
+        0.681215981,
+        0.648271327
+      ],
+      "streamfusion_seconds": [
+        0.431114357,
+        0.408592906,
+        0.437459742
+      ],
+      "stock_mean": 0.6808600213333333,
+      "streamfusion_mean": 0.425722335,
+      "stock_median": 0.681215981,
+      "streamfusion_median": 0.431114357,
+      "stock_over_streamfusion_mean": 1.5993053813663156,
+      "stock_over_streamfusion_median": 1.5801282651322142,
+      "streamfusion_dso_sha256": "67ec92bcd3f046dc346fd6673988bc1a497aaedba64dbd97dae2416feae60ee6",
+      "fixture_source_version": "S2",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.653187
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.818144
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.544372
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.83979
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.713093
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.431114
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.408593
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.681216
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.648271
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.43746
+        }
+      ],
+      "actual_previous_over_current_mean": 1.539421977942501,
+      "actual_previous_over_current_median": 1.5652923732252322,
+      "previous_paired_stock_mean": 0.6518236893333333,
+      "previous_stock_over_current_stock": 0.9573534484472478
+    },
+    {
+      "stage": "actual-prior-split",
+      "flink": "2.2.1",
+      "type": "double",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "native_expected": false,
+      "rows": 500000,
+      "keys": 64,
+      "split_distinct": true,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.66504044,
+        0.651711044,
+        0.638719584
+      ],
+      "streamfusion_seconds": [
+        0.674820015,
+        0.681943824,
+        0.609335118
+      ],
+      "stock_mean": 0.6518236893333333,
+      "streamfusion_mean": 0.655366319,
+      "stock_median": 0.651711044,
+      "streamfusion_median": 0.674820015,
+      "stock_over_streamfusion_mean": 0.9945944282396566,
+      "stock_over_streamfusion_median": 0.9657553562634031,
+      "streamfusion_dso_sha256": "4281d71330d4b331a4d08c16c3b3efbe7690c696b96962267f2eeb14204ec069",
+      "fixture_source_version": "S2",
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.633581
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.892057
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.728978
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.69757
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.66504
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.67482
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.681944
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.651711
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.63872
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.609335
+        }
+      ]
+    }
+  ],
+  "matched_final_library_control": {
+    "ordinary_cumulate_before_mean": 0.412209042,
+    "ordinary_cumulate_after_mean": 0.397140347,
+    "before_over_after": 1.0379429970130938,
+    "stock_before_mean": 0.6539881973333334,
+    "stock_after_mean": 0.646391364,
+    "explanation": "Matched control quantifies the prefix-only final-library correction on the ordinary default configuration; earlier jobs retain their earlier library provenance."
+  },
+  "allocation_records_final": [
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys1_partialfalse",
+      "allocation_calls": "155",
+      "requested_bytes": "13278",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys1_partialtrue",
+      "allocation_calls": "488",
+      "requested_bytes": "39678",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys1_partialfalse",
+      "allocation_calls": "186",
+      "requested_bytes": "15290",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys1_partialtrue",
+      "allocation_calls": "681",
+      "requested_bytes": "53374",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys1_partialfalse",
+      "allocation_calls": "186",
+      "requested_bytes": "15290",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys1_partialtrue",
+      "allocation_calls": "659",
+      "requested_bytes": "51762",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys1_partialfalse",
+      "allocation_calls": "155",
+      "requested_bytes": "13390",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys1_partialtrue",
+      "allocation_calls": "488",
+      "requested_bytes": "40358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys1_partialfalse",
+      "allocation_calls": "186",
+      "requested_bytes": "15514",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys1_partialtrue",
+      "allocation_calls": "681",
+      "requested_bytes": "55086",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys1_partialfalse",
+      "allocation_calls": "186",
+      "requested_bytes": "15514",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys1_partialtrue",
+      "allocation_calls": "659",
+      "requested_bytes": "53362",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys64_partialfalse",
+      "allocation_calls": "601",
+      "requested_bytes": "83862",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys64_partialtrue",
+      "allocation_calls": "2078",
+      "requested_bytes": "208434",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys64_partialfalse",
+      "allocation_calls": "1055",
+      "requested_bytes": "159506",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys64_partialtrue",
+      "allocation_calls": "4404",
+      "requested_bytes": "450498",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys64_partialfalse",
+      "allocation_calls": "1055",
+      "requested_bytes": "159506",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys64_partialtrue",
+      "allocation_calls": "3960",
+      "requested_bytes": "409486",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys64_partialfalse",
+      "allocation_calls": "601",
+      "requested_bytes": "84726",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys64_partialtrue",
+      "allocation_calls": "2078",
+      "requested_bytes": "211242",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys64_partialfalse",
+      "allocation_calls": "1055",
+      "requested_bytes": "161234",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys64_partialtrue",
+      "allocation_calls": "4404",
+      "requested_bytes": "456978",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys64_partialfalse",
+      "allocation_calls": "1055",
+      "requested_bytes": "161234",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys64_partialtrue",
+      "allocation_calls": "3960",
+      "requested_bytes": "415102",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys1_partialfalse",
+      "allocation_calls": "179",
+      "requested_bytes": "114078",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys1_partialtrue",
+      "allocation_calls": "512",
+      "requested_bytes": "140486",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys1_partialfalse",
+      "allocation_calls": "234",
+      "requested_bytes": "148346",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys1_partialtrue",
+      "allocation_calls": "729",
+      "requested_bytes": "186462",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys1_partialfalse",
+      "allocation_calls": "234",
+      "requested_bytes": "148346",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys1_partialtrue",
+      "allocation_calls": "707",
+      "requested_bytes": "184850",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys1_partialfalse",
+      "allocation_calls": "179",
+      "requested_bytes": "114190",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys1_partialtrue",
+      "allocation_calls": "512",
+      "requested_bytes": "141174",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys1_partialfalse",
+      "allocation_calls": "234",
+      "requested_bytes": "148570",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys1_partialtrue",
+      "allocation_calls": "729",
+      "requested_bytes": "188206",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys1_partialfalse",
+      "allocation_calls": "234",
+      "requested_bytes": "148570",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys1_partialtrue",
+      "allocation_calls": "707",
+      "requested_bytes": "186482",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys64_partialfalse",
+      "allocation_calls": "3304",
+      "requested_bytes": "336962",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys64_partialtrue",
+      "allocation_calls": "8801",
+      "requested_bytes": "839806",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys64_partialfalse",
+      "allocation_calls": "6453",
+      "requested_bytes": "597034",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys64_partialtrue",
+      "allocation_calls": "19473",
+      "requested_bytes": "1756262",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys64_partialfalse",
+      "allocation_calls": "6453",
+      "requested_bytes": "597034",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys64_partialtrue",
+      "allocation_calls": "18126",
+      "requested_bytes": "1654470",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys64_partialfalse",
+      "allocation_calls": "3304",
+      "requested_bytes": "360402",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys64_partialtrue",
+      "allocation_calls": "8801",
+      "requested_bytes": "906734",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys64_partialfalse",
+      "allocation_calls": "6453",
+      "requested_bytes": "643914",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys64_partialtrue",
+      "allocation_calls": "19473",
+      "requested_bytes": "1897174",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys64_partialfalse",
+      "allocation_calls": "6453",
+      "requested_bytes": "643914",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys64_partialtrue",
+      "allocation_calls": "18126",
+      "requested_bytes": "1788326",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys4096_partialfalse",
+      "allocation_calls": "28310",
+      "requested_bytes": "5188846",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys4096_partialtrue",
+      "allocation_calls": "101359",
+      "requested_bytes": "12459050",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56419",
+      "requested_bytes": "10300546",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys4096_partialtrue",
+      "allocation_calls": "246574",
+      "requested_bytes": "28547442",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56419",
+      "requested_bytes": "10300546",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys4096_partialtrue",
+      "allocation_calls": "218476",
+      "requested_bytes": "25910302",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys4096_partialfalse",
+      "allocation_calls": "28310",
+      "requested_bytes": "5245006",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys4096_partialtrue",
+      "allocation_calls": "101359",
+      "requested_bytes": "12641570",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56419",
+      "requested_bytes": "10412866",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys4096_partialtrue",
+      "allocation_calls": "246574",
+      "requested_bytes": "28968642",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56419",
+      "requested_bytes": "10412866",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys4096_partialtrue",
+      "allocation_calls": "218476",
+      "requested_bytes": "26275342",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys1_rocksfalse_checkpointfalse",
+      "allocation_calls": "702",
+      "requested_bytes": "42827",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys1_rocksfalse_checkpointtrue",
+      "allocation_calls": "2158",
+      "requested_bytes": "269635",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys1_rockstrue_checkpointfalse",
+      "allocation_calls": "1954",
+      "requested_bytes": "119150",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys64_rocksfalse_checkpointfalse",
+      "allocation_calls": "1046",
+      "requested_bytes": "81869",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2106"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys64_rocksfalse_checkpointtrue",
+      "allocation_calls": "4463",
+      "requested_bytes": "573345",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2106"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows64_keys64_rockstrue_checkpointfalse",
+      "allocation_calls": "5083",
+      "requested_bytes": "307137",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2106"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys1_rocksfalse_checkpointfalse",
+      "allocation_calls": "2942",
+      "requested_bytes": "148129",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys1_rocksfalse_checkpointtrue",
+      "allocation_calls": "4398",
+      "requested_bytes": "374937",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys1_rockstrue_checkpointfalse",
+      "allocation_calls": "7342",
+      "requested_bytes": "316740",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "196"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys64_rocksfalse_checkpointfalse",
+      "allocation_calls": "5338",
+      "requested_bytes": "463133",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "12616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys64_rocksfalse_checkpointtrue",
+      "allocation_calls": "22955",
+      "requested_bytes": "2993101",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "12616"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "attached_cumulative_partials/rows512_keys64_rockstrue_checkpointfalse",
+      "allocation_calls": "33456",
+      "requested_bytes": "2140469",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "12616"
+    }
+  ],
+  "allocation_records_original": [
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys1_partialfalse",
+      "allocation_calls": "246",
+      "requested_bytes": "35570",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys1_partialtrue",
+      "allocation_calls": "642",
+      "requested_bytes": "82538",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys1_partialfalse",
+      "allocation_calls": "263",
+      "requested_bytes": "36720",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys1_partialtrue",
+      "allocation_calls": "835",
+      "requested_bytes": "96234",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys1_partialfalse",
+      "allocation_calls": "263",
+      "requested_bytes": "36720",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys1_partialtrue",
+      "allocation_calls": "813",
+      "requested_bytes": "94622",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys1_partialfalse",
+      "allocation_calls": "232",
+      "requested_bytes": "34820",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys1_partialtrue",
+      "allocation_calls": "642",
+      "requested_bytes": "83218",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys1_partialfalse",
+      "allocation_calls": "263",
+      "requested_bytes": "36944",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys1_partialtrue",
+      "allocation_calls": "835",
+      "requested_bytes": "97946",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys1_partialfalse",
+      "allocation_calls": "263",
+      "requested_bytes": "36944",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys1_partialtrue",
+      "allocation_calls": "813",
+      "requested_bytes": "96222",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys64_partialfalse",
+      "allocation_calls": "678",
+      "requested_bytes": "105292",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows64_keys64_partialtrue",
+      "allocation_calls": "2232",
+      "requested_bytes": "251294",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys64_partialfalse",
+      "allocation_calls": "1132",
+      "requested_bytes": "180936",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows64_keys64_partialtrue",
+      "allocation_calls": "4558",
+      "requested_bytes": "493358",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys64_partialfalse",
+      "allocation_calls": "1132",
+      "requested_bytes": "180936",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows64_keys64_partialtrue",
+      "allocation_calls": "4114",
+      "requested_bytes": "452346",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys64_partialfalse",
+      "allocation_calls": "678",
+      "requested_bytes": "106156",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows64_keys64_partialtrue",
+      "allocation_calls": "2232",
+      "requested_bytes": "254102",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys64_partialfalse",
+      "allocation_calls": "1132",
+      "requested_bytes": "182664",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows64_keys64_partialtrue",
+      "allocation_calls": "4558",
+      "requested_bytes": "499838",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys64_partialfalse",
+      "allocation_calls": "1132",
+      "requested_bytes": "182664",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows64_keys64_partialtrue",
+      "allocation_calls": "4114",
+      "requested_bytes": "457962",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys1_partialfalse",
+      "allocation_calls": "256",
+      "requested_bytes": "135508",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys1_partialtrue",
+      "allocation_calls": "666",
+      "requested_bytes": "183346",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys1_partialfalse",
+      "allocation_calls": "311",
+      "requested_bytes": "169776",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys1_partialtrue",
+      "allocation_calls": "883",
+      "requested_bytes": "229322",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys1_partialfalse",
+      "allocation_calls": "311",
+      "requested_bytes": "169776",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys1_partialtrue",
+      "allocation_calls": "861",
+      "requested_bytes": "227710",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys1_partialfalse",
+      "allocation_calls": "256",
+      "requested_bytes": "135620",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys1_partialtrue",
+      "allocation_calls": "666",
+      "requested_bytes": "184034",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "32"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys1_partialfalse",
+      "allocation_calls": "311",
+      "requested_bytes": "170000",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys1_partialtrue",
+      "allocation_calls": "883",
+      "requested_bytes": "231066",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys1_partialfalse",
+      "allocation_calls": "311",
+      "requested_bytes": "170000",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys1_partialtrue",
+      "allocation_calls": "861",
+      "requested_bytes": "229342",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "64"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys64_partialfalse",
+      "allocation_calls": "3381",
+      "requested_bytes": "358392",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys64_partialtrue",
+      "allocation_calls": "8955",
+      "requested_bytes": "882666",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys64_partialfalse",
+      "allocation_calls": "6530",
+      "requested_bytes": "618464",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys64_partialtrue",
+      "allocation_calls": "19627",
+      "requested_bytes": "1799122",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys64_partialfalse",
+      "allocation_calls": "6530",
+      "requested_bytes": "618464",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys64_partialtrue",
+      "allocation_calls": "18280",
+      "requested_bytes": "1697330",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys64_partialfalse",
+      "allocation_calls": "3381",
+      "requested_bytes": "381832",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys64_partialtrue",
+      "allocation_calls": "8955",
+      "requested_bytes": "949594",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2048"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys64_partialfalse",
+      "allocation_calls": "6530",
+      "requested_bytes": "665344",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys64_partialtrue",
+      "allocation_calls": "19627",
+      "requested_bytes": "1940034",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys64_partialfalse",
+      "allocation_calls": "6530",
+      "requested_bytes": "665344",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys64_partialtrue",
+      "allocation_calls": "18280",
+      "requested_bytes": "1831186",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4096"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys4096_partialfalse",
+      "allocation_calls": "28387",
+      "requested_bytes": "5210276",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/tumble/rows4096_keys4096_partialtrue",
+      "allocation_calls": "101513",
+      "requested_bytes": "12501910",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56496",
+      "requested_bytes": "10321976",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/hop/rows4096_keys4096_partialtrue",
+      "allocation_calls": "246728",
+      "requested_bytes": "28590302",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56496",
+      "requested_bytes": "10321976",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code6/cumulate/rows4096_keys4096_partialtrue",
+      "allocation_calls": "218630",
+      "requested_bytes": "25953162",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys4096_partialfalse",
+      "allocation_calls": "28387",
+      "requested_bytes": "5266436",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/tumble/rows4096_keys4096_partialtrue",
+      "allocation_calls": "101513",
+      "requested_bytes": "12684430",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131072"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56496",
+      "requested_bytes": "10434296",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/hop/rows4096_keys4096_partialtrue",
+      "allocation_calls": "246728",
+      "requested_bytes": "29011502",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys4096_partialfalse",
+      "allocation_calls": "56496",
+      "requested_bytes": "10434296",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    },
+    {
+      "package": "streamfusion",
+      "suite": "window_floating_distinct",
+      "case": "window_floating_distinct/code1/cumulate/rows4096_keys4096_partialtrue",
+      "allocation_calls": "218630",
+      "requested_bytes": "26318202",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "262144"
+    }
+  ],
+  "allocation_boundary": "Final72 records exclude operator construction from allocation probes, matching the production update/merge/flush boundary;original60 diagnostic probes included setup. Neither is interpreted as copied bytes. Criterion setup stays outside timing in both source versions. JVM allocations are not counted by the Rust allocator.",
+  "logs": [
+    {
+      "name": "sf-window-floating-distinct-current-float-tumble.log",
+      "sha256": "6c3f5c2243ea6fdb350ce900156078ceddfa8fc38a02bc30fba0a755e7214519"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-double-tumble.log",
+      "sha256": "2b9b78ac0682e57df3f065da8e501b70b20224b4765c9593d064a59bd82b0d77"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-float-hop.log",
+      "sha256": "493f043e9d9e64da7e20de476d770cbac48c0c34ff39e817920e34a8a232ba86"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-double-hop.log",
+      "sha256": "3af1f4dbb2334fcee38820f6cdcb369d74c5415e0538f434829dab8d864612e1"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-float-cumulate.log",
+      "sha256": "6672e500b443e4ca035f9ee40e506af4325a7425ac2e8c8dab3331a42e81eec3"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-double-cumulate.log",
+      "sha256": "6bb07a4d4991573f7bf9e35f422862c3ea249fcd75bac9f53d4d85508c337056"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-session.log",
+      "sha256": "6e6cbd39dfe217253a0dc675a7c82a9acdfdbfb0706c696b5091f61290543c1f"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-large-single-key.log",
+      "sha256": "21105700cb46b59f95cefa5c14ecb4614f0fb73a1798756d4d06ddf6e313926d"
+    },
+    {
+      "name": "sf-window-floating-distinct-current-rocks.log",
+      "sha256": "67f02a0d8e1c032f5c5724653b7faafe6a7bac5943550af46c5a413cdf3611fe"
+    },
+    {
+      "name": "sf-window-floating-distinct-actual-prior-float-tumble.log",
+      "sha256": "eb175ab555a4bfcc481422f721a22e74fa476109e555de48e3e628a63a84adaa"
+    },
+    {
+      "name": "sf-window-floating-distinct-actual-prior-double-tumble.log",
+      "sha256": "9026ec50e470767b5245d743be4f8fe7fa039cf9b407fb212719bfc90c80be0a"
+    },
+    {
+      "name": "sf-window-floating-distinct-actual-prior-session.log",
+      "sha256": "cfedec0bb1f2645d8f13f2aecc22002bb85468de03c0969919a2b4f337269e14"
+    },
+    {
+      "name": "sf-window-floating-distinct-actual-prior-rocks.log",
+      "sha256": "e0acffa2c28f08fcd20e85aed54ce33cd64d2fd9ea7212f322d9d42b2185da91"
+    },
+    {
+      "name": "sf-window-floating-distinct-released118.log",
+      "sha256": "d81fe4aaba8c2e875cfbf6540e1eaf506ba632ac989e154d834271326f53c3c1"
+    },
+    {
+      "name": "sf-window-floating-distinct-final-control.log",
+      "sha256": "90138041e80d8f70baf7b4f4825d588cb12c35cab2545486aa292fef527c7f40"
+    },
+    {
+      "name": "sf-window-floating-distinct-final-split.log",
+      "sha256": "0c94a22ccdfad31ba0c220bad86dc2651aeaceb12ddb12eadceec8852aaccd6f"
+    },
+    {
+      "name": "sf-window-floating-distinct-actual-prior-split.log",
+      "sha256": "3d42b3ea2fb860281e2502caecef65a10a730325742995c98a7874b553ceef08"
+    }
+  ],
+  "limits": "Representative jobs,not universal speedup. Timings contain finite casts;NaN/zero semantics are correctness-covered. Fixed shapes sample alternating type/phase combinations,not the full matrix. Actual-prior controls sample TUMBLE,SESSION,nativeRocks and splitCUM;1.18 timing samples DoubleHOP. Legacy syntax and proctime are not separately timed. Source/library versions are preserved per profile;only final30 are final-library timings."
+}

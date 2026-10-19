@@ -131,3 +131,21 @@ Counts use the same non-null Int64 partial state as DataFusion, including logica
 unions for multi-argument updates. Owned extrema and counts have fixed size; accounting
 charges new groups once and releases their recorded footprint when a window closes.
 Persistent stores still hydrate and write through each affected window group.
+
+
+Floating window COUNT DISTINCT retains this same incremental partial/final structure from
+Arroyo. DataFusion's generic floating distinct buffer hashes raw payload bytes; Flink's boxed
+floating keys canonicalize all NaNs and distinguish signed zero. A compact typed bit-key
+accumulator supplies that equality, while reusing DataFusion's declared FLOAT/DOUBLE list
+state fields and result type. Existing local/global, session and checkpoint paths consume
+those lists unchanged. This changes aggregate semantics, rather than introducing another
+window engine. Its owned hash capacity contributes to the existing native reservation,
+following Comet's retained-memory accounting pattern.
+
+
+Complete CUMULATE partials use stride equal to the maximum size. Their end identifies a final
+window, rather than a reusable cumulative prefix. Shared-state merging therefore selects
+only that end and retires only its own namespace; ordinary smaller-step CUMULATE keeps the
+prefix optimization. Late complete partials compare against their own deadline. Cumulative
+start rendering and the existing shared store/checkpoint layout remain unchanged, preserving
+restore semantics while avoiding a second roll-up of already-final counts.

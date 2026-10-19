@@ -198,3 +198,7 @@ harness = false
 name = "over_distinct_store"
 harness = false
 required-features = ["rocksdb-state"]
+
+[[bench]]
+name = "window_floating_distinct"
+harness = false

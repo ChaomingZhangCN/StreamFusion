@@ -2455,3 +2455,24 @@ overflow, sticky accumulators and both memory/native RocksDB recovery. Setup is 
 measured production update/output boundary; all fixtures report allocation requests and
 Arrow buffer sharing. Run `--bench over_basic_values --filter over_decimal_distinct_reductions
 --smoke` for this focused selection.
+
+
+The explicit `window_floating_distinct` target covers production FLOAT/DOUBLE window COUNT
+DISTINCT with Flink boxed equality. Its 60 fixtures combine 64/4096 rows, one/64/unique keys,
+TUMBLE/HOP/CUMULATE and single/local-global execution. Inputs include distinct positive and
+negative NaN payloads, both zero signs, infinities, subnormals, extreme finite values, NULLs
+and NULL-only keys. An independent integer-bit set oracle checks every key/window count.
+Four physical updates and, for partial cases, four typed list exports/unions stay timed along
+with final output; operator/input construction stays outside timing. The budgeted production
+operator accounts retained membership. Allocation requests and Arrow buffer sharing are
+reported without treating them as copied bytes. Run `--bench window_floating_distinct --smoke`
+for this focused selection; the suite is explicitly registered in Cargo.
+
+The same target adds 12 `attached_cumulative_partials` fixtures that initialize the actual
+released-Flink WindowCalendar JVM callback. They merge already-complete short/long windows
+with stride=max-size, checking independent bounds against an event-list oracle at 64/512
+rows and one/64 UTF-8 keys. Four partial batches, heap checkpoint continuation, memory/RocksDB
+state, a partial replay after the short end closes, final drain and memory accounting are
+validated. Operator/JVM/input setup stays outside timing. No new checkpoint layout is used.
+The helper stays in a nested directory with an explicit module path; Cargo discovers the
+registered target alone. The final selection has 72 fixture successes/allocation reports.

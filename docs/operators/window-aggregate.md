@@ -514,7 +514,7 @@ state transfer. Updating DISTINCT and other remaining forms stay on Flink.
 
 ## Window COUNT(DISTINCT)
 
-Unfiltered `COUNT(DISTINCT value)` is native for integer, DECIMAL, CHAR/VARCHAR, DATE,
+Unfiltered `COUNT(DISTINCT value)` is native for integer, FLOAT/DOUBLE, DECIMAL, CHAR/VARCHAR, DATE,
 BOOLEAN, TIME, TIMESTAMP and TIMESTAMP_LTZ values. It ignores NULLs and counts each value once per key/window.
 TUMBLE, HOP and CUMULATE support single-phase and local/global execution; attached window
 results use the existing two-phase path. SESSION and admitted legacy group windows reuse the
@@ -689,7 +689,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
   forces fallback for all single-phase attached bounds.
   Wider in-memory HOP still loses to Flink in the complete-job comparison.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:
-  SUM/AVG DISTINCT, FLOAT/DOUBLE and complex values.
+  SUM/AVG DISTINCT and complex values.
   Non-windowed DISTINCT has separate coverage; see [GROUP BY](group-by.md).
 - Filtered MIN/MAX on updating input, and filtered aggregates in processing-time, attached,
   session or legacy windows.
@@ -1391,3 +1391,90 @@ asserts the previous default fallback, while `-Dattached.optIn=true` exercises i
 native route. `-Dattached.mixed=true`, `-Dattached.phase=TWO_PHASE` and
 `-Dattached.sizeSeconds=30` select the additional profiles; the wider ONE_PHASE native
 comparison requires the existing opt-in.
+
+
+## Floating window distinct membership
+
+FLOAT and DOUBLE COUNT(DISTINCT) use Java boxed floating equality: every NaN payload and sign
+has one membership, while +0 and -0 are separate values. NULL is ignored; infinities,
+subnormals and ordinary finite values retain their exact bits. Membership uses compact
+32/64-bit keys and canonicalizes NaNs while probing the set. Other aggregates continue to
+observe the original input values. DataFusion's default floating distinct buffer hashes raw
+payloads, so this small accumulator supplies Flink's equality under the existing window engine.
+
+Local partials and checkpoints retain the existing typed Arrow FLOAT/DOUBLE lists. Global
+merges use the same membership rule, including when a NaN reappears with another payload in
+a later partial or after recovery. Hash capacity enters native memory accounting; state owns
+keys and creates Arrow arrays only when exporting partial/checkpoint state. There is no new
+JNI interface or checkpoint framing.
+
+Released SQL checks cover TUMBLE/HOP/CUMULATE in both aggregation phases, independent filters,
+legacy grouped windows and SESSION table-function availability. Counts are also compared with
+independently supplied Java canonical-bit integer columns. Direct operator checks exercise
+ordinary and distinct counts across raw/canonical memory/RocksDB backend transitions and
+require all native memory to be released. The focused native suite adds 60 fixtures across
+FLOAT/DOUBLE, TUMBLE/HOP/CUMULATE, single/partial execution, 64/4096 rows and one/64/unique keys,
+with independent bit-set oracles and four physical updates/partial merges.
+
+
+Already-complete CUMULATE partials retain independent end times. Their global stride equals
+the maximum window size: they must merge into exactly the end they name. They do not use the
+ordinary cumulative slice prefix. This also fixes an existing split-plan overcount for exact
+integer controls; a completed later window was previously merged into an earlier end.
+Shared storage/checkpoint framing is unchanged. Native calendar fixtures check independent
+ends, late closed partials, heap checkpoint continuation, RocksDB state and budget cleanup.
+SQL split-CUMULATE profiles inject two restores on memory and native RocksDB.
+
+The combined released suites pass 95 checks on Flink 2.2.1; Flink 1.18.1 passes 94 with one
+existing SESSION capability skip. This includes 28 new SQL checks, eight direct backend
+transition checks, 51 existing distinct-count controls and eight BOOLEAN/TIME controls.
+The native membership unit check and 75 window regressions pass. The release fixture selection
+has 72 checks: 60 floating membership cases plus 12 actual JVM-calendar partial/state cases.
+
+Complete-job comparisons use release+mimalloc, JDK 17, parallelism two, UTC, a 2 GiB heap,
+two warmups and three measured trials. Both engines retain runtime row sources, rowwise
+blackhole sinks, both transposes, production Arrow IPC exchange, JNI/state costs and execution
+metrics. Timings cast the existing nullable BIGINT field to FLOAT/DOUBLE; NaN payloads and
+other floating edge values are correctness-covered separately.
+
+| Type / shape / phase / backend / rows / keys | Stock mean (range), s | SF mean (range), s | Actual previous SF mean (range), s | Library |
+| --- | ---: | ---: | ---: | --- |
+| float / TUMBLE / ONE_PHASE / memory / 500,000 / 64 | 0.512 (0.474–0.556) | 0.411 (0.397–0.428) | 0.520 (0.504–0.545) | S1 |
+| double / TUMBLE / TWO_PHASE / memory / 500,000 / 64 | 0.614 (0.598–0.645) | 0.390 (0.381–0.399) | 0.589 (0.585–0.593) | S1 |
+| float / HOP / TWO_PHASE / memory / 500,000 / 64 | 0.724 (0.650–0.770) | 0.408 (0.399–0.416) | — | S1 |
+| double / HOP / ONE_PHASE / memory / 500,000 / 64 | 0.571 (0.556–0.595) | 0.415 (0.391–0.430) | — | S1 |
+| float / CUMULATE / ONE_PHASE / memory / 500,000 / 64 | 0.542 (0.513–0.571) | 0.408 (0.403–0.414) | — | S1 |
+| double / CUMULATE / TWO_PHASE / memory / 500,000 / 64 | 0.654 (0.634–0.688) | 0.412 (0.404–0.426) | — | S1 |
+| float / SESSION / ONE_PHASE / memory / 500,000 / 64 | 0.543 (0.506–0.593) | 0.417 (0.412–0.427) | 0.538 (0.525–0.546) | S1 |
+| double / SESSION / ONE_PHASE / memory / 500,000 / 64 | 0.519 (0.499–0.532) | 0.326 (0.318–0.335) | 0.496 (0.469–0.511) | S1 |
+| double / HOP / ONE_PHASE / memory / 1,000,000 / 1 | 0.909 (0.879–0.925) | 0.643 (0.574–0.694) | — | S1 |
+| double / TUMBLE / TWO_PHASE / rocksdb / 500,000 / 64 | 0.654 (0.636–0.687) | 0.446 (0.421–0.479) | 0.621 (0.578–0.660) | S1 |
+| double / CUMULATE / TWO_PHASE / memory / 500,000 / 64 | 0.646 (0.613–0.698) | 0.397 (0.388–0.412) | — | S2 |
+| double / CUMULATE split / TWO_PHASE / memory / 500,000 / 64 | 0.681 (0.648–0.713) | 0.426 (0.409–0.437) | 0.655 (0.609–0.682) | S2 |
+
+Representative stock/current means improve 1.246–1.772x; corresponding median speedups are
+1.241–1.829x. The actual previous revision `54f56699` controls improve 1.264–1.539x by mean.
+Flink 1.18's DOUBLE/HOP/ONE_PHASE check measures 0.576s stock / 0.415s native (1.388x by mean).
+
+S1 is the membership implementation (`9aba8df6` library) used for the first 160 jobs, before
+the subsequent complete-CUMULATE prefix correction. Those jobs use the default split=false;
+ordinary CUMULATE steps are smaller than the maximum size. S2 is the final library
+(`67ec92bc`): 30 additional jobs measure an ordinary default-CUMULATE control and repaired
+split CUMULATE against stock and actual previous StreamFusion. The default control measures
+0.412s before / 0.397s after; paired stock means are 0.654s / 0.646s. The repaired split profile
+measures 0.681s stock / 0.426s native / 0.655s previous SF. Both split global stages are
+required in its native plan. Earlier samples retain their original library identity.
+
+The [190-job artifact](../benchmarks/results/window-floating-distinct-2026-10-19.json)
+retains all warmups/trials, means/medians, paired baseline drift, both source/library versions,
+72 final allocation/buffer reports and 60 earlier diagnostic reports. The final allocation
+probes exclude operator construction; the earlier diagnostic probes include it. Neither is
+interpreted as copied bytes. Criterion construction remains outside timing in both versions.
+
+The timings sample alternating type/phase combinations across the fixed shapes, SESSION,
+one RocksDB profile and a one-million-row/single-key profile. They do not establish a
+universal speedup or separately time legacy syntax/proctime. Actual-prior controls sample
+TUMBLE, SESSION, RocksDB and split CUMULATE; only the final 30 jobs use the final prefix-fix
+library. Reproduce with `WindowBasicTypeBenchmark -Dwindow.cases=float,double`, phase/shape,
+row/key, warmup/run and backend properties above. `-Dwindow.splitDistinct=true` enables the
+optional split rewrite; the default remains false.

@@ -1,5 +1,6 @@
 use crate::*;
 
+mod floating_distinct;
 mod floating_extreme;
 mod retracting_window;
 mod scalar_extreme;
@@ -659,6 +660,7 @@ pub(crate) enum WindowAggregate {
     RetractingSum(DataType),
     RetractingCount,
     Builtin(AggregateFunctionExpr),
+    FloatingDistinctCount(AggregateFunctionExpr, DataType),
     IntegerAvg(DataType),
     WrappingIntSum,
     WrappingNarrowSum(DataType),
@@ -757,6 +759,10 @@ impl WindowAggregate {
                 minimum: kind == 1,
                 value_type: value_type.clone(),
             },
+            (7, DataType::Float32 | DataType::Float64) => WindowAggregate::FloatingDistinctCount(
+                build_builtin(kind, value_type),
+                value_type.clone(),
+            ),
             (0..=3 | 7, _) => WindowAggregate::Builtin(build_builtin(kind, value_type)),
             // Float AVG sums in double and narrows to float; double AVG stays double; integer AVG
             // truncates to its type.
@@ -798,6 +804,9 @@ impl WindowAggregate {
             WindowAggregate::RetractingCount => {
                 Box::new(retracting_window::RetractingWindowAccumulator::new(None))
             }
+            WindowAggregate::FloatingDistinctCount(_, value_type) => Box::new(
+                floating_distinct::FloatingDistinctCountAccumulator::new(value_type),
+            ),
             WindowAggregate::Builtin(aggregate) => aggregate
                 .create_accumulator()
                 .expect("failed to create accumulator"),
@@ -840,7 +849,8 @@ impl WindowAggregate {
                 Field::new("count", DataType::Int64, false),
             ],
             WindowAggregate::RetractingCount => vec![Field::new("count", DataType::Int64, false)],
-            WindowAggregate::Builtin(aggregate) => aggregate
+            WindowAggregate::Builtin(aggregate)
+            | WindowAggregate::FloatingDistinctCount(aggregate, _) => aggregate
                 .state_fields()
                 .expect("state fields")
                 .iter()
@@ -891,7 +901,10 @@ impl WindowAggregate {
             WindowAggregate::ZeroSum(value_type) => RunningAgg::new(22, value_type).result_type(),
             WindowAggregate::RetractingSum(value_type) => value_type.clone(),
             WindowAggregate::RetractingCount => DataType::Int64,
-            WindowAggregate::Builtin(aggregate) => aggregate.field().data_type().clone(),
+            WindowAggregate::Builtin(aggregate)
+            | WindowAggregate::FloatingDistinctCount(aggregate, _) => {
+                aggregate.field().data_type().clone()
+            }
             WindowAggregate::IntegerAvg(result_type) => result_type.clone(),
             WindowAggregate::WrappingIntSum => DataType::Int32,
             WindowAggregate::WrappingNarrowSum(data_type) => data_type.clone(),
