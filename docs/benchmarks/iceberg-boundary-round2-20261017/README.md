@@ -1,5 +1,8 @@
 # Four Iceberg boundary candidates
 
+This is a recorded component investigation. Use the
+[evidence index](../evidence.md) for complete comparisons and other diagnostics.
+
 This investigation follows the [first boundary optimization](../iceberg-boundary-20261017/README.md).
 Supported streaming acceleration remains on by default. Java still controls
 partition transforms, file rolling, delete encoding, FileIO and commits. Payloads
@@ -45,6 +48,17 @@ Observations, source/library fingerprints and compressed logs accompany each coh
    work, requiring its own contract and measurements.
 
 ## Component times
+
+The [baseline](before/results.md), [selection candidate](selection/results.md),
+[combined-size candidate](write-size/results.md),
+[combined-size repeat](write-size-repeat/results.md) and
+[final component run](final/results.md) retain their individual medians and ranges.
+The combined-size prototype is removed, as described above.
+
+For dynamic routing, [early cache](dynamic-cache/results.md) and
+[early final](dynamic-final/results.md) results are exploratory; use the
+[checked comparison](dynamic-checked/results.md) and the reference qualification
+at the end of this report when interpreting generator improvements.
 
 Times are medians [min–max] in milliseconds. Read source code is unchanged in this
 round; its timing differences are cohort variability.

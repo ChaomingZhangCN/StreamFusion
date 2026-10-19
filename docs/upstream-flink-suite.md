@@ -1,5 +1,15 @@
 # Upstream Flink suite
 
+| Task | Start here |
+| --- | --- |
+| Run the upstream suites | [Runner and suite selection](#runner-and-suite-selection) |
+| Understand build reuse and CI shards | [Shared builds and runtime shards](#shared-builds-and-runtime-shards) |
+| Distinguish a host limitation from a native failure | [Expected host failures](#expected-host-failures-in-sql-parity-audits), [comparing failed executions](#comparing-failed-sql-executions) |
+| Interpret reported SQL coverage | [Complete invocation inventory](#complete-sql-invocation-inventory), [published inventory](sql-inventory/index.md) |
+| Find connector and compatibility fixtures | [Flink 1.18 state fixtures](#flink-118-state-fixtures), [Iceberg streaming SQL](#iceberg-streaming-sql) |
+
+## Runner and suite selection
+
 StreamFusion can run Flink's own table planner runtime integration tests with native acceleration
 installed in every streaming planner. This follows the purpose of DataFusion Comet's upstream Spark
 SQL jobs while keeping Flink stricter: it uses an unmodified release tag and injects StreamFusion
