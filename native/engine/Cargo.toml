@@ -202,3 +202,7 @@ required-features = ["rocksdb-state"]
 [[bench]]
 name = "window_floating_distinct"
 harness = false
+
+[[bench]]
+name = "distinct_ordered_values"
+harness = false

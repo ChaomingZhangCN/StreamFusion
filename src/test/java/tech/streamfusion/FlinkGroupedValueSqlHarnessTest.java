@@ -162,6 +162,118 @@ class FlinkGroupedValueSqlHarnessTest {
   }
 
   @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "TINYINT", "SMALLINT", "INT", "BIGINT", "FLOAT", "DOUBLE", "DECIMAL(20,3)",
+        "CHAR(8)", "DATE", "TIME(0)", "TIME(3)", "BOOLEAN", "TIMESTAMP(9)", "TIMESTAMP_LTZ(3)"
+      })
+  void distinctScalarFirstLastKeepTypedMembershipAndIndependentFilters(String type)
+      throws Exception {
+    tech.streamfusion.compat.FlinkTestCapabilities.requireFirstLastType(type);
+    for (boolean retract : new boolean[] {false, true}) {
+      compare(
+          () -> environment(type, retract),
+          "SELECT k, FIRST_VALUE(DISTINCT v), LAST_VALUE(DISTINCT v), COUNT(*) FROM src GROUP BY"
+              + " k");
+      compare(
+          () -> environment(type, retract),
+          "SELECT k, FIRST_VALUE(DISTINCT v) FILTER (WHERE id >= 3), "
+              + "LAST_VALUE(DISTINCT v) FILTER (WHERE id <> 6), COUNT(*) FROM src GROUP BY k");
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("distinctRecoveryCases")
+  void distinctScalarMembershipRestoresBeforeRemovalAndReinsertion(String backend, String type)
+      throws Exception {
+    tech.streamfusion.compat.FlinkTestCapabilities.requireFirstLastType(type);
+    List<Row> input = new ArrayList<>();
+    for (int id = 0; id < 64; id++) {
+      int slot = (id / 2) % 4;
+      String raw = id % 11 == 0 ? null : value(type, slot == 1 ? 20 : slot == 3 ? 30 : 10);
+      input.add(Row.of(id, id % 2, raw));
+    }
+    for (int id = 0; id < 64; id++) {
+      if ((id / 2) % 2 == 0) {
+        Row original = input.get(id);
+        input.add(
+            Row.ofKind(
+                RowKind.DELETE, original.getField(0), original.getField(1), original.getField(2)));
+      }
+    }
+    for (int id = 1000; id < 1004; id++) input.add(Row.of(id, id % 2, value(type, 10)));
+    try (var recovery =
+        new PortableSqlRecovery(
+                backend,
+                input,
+                Types.ROW_NAMED(
+                    new String[] {"id", "k", "raw_value"}, Types.INT, Types.INT, Types.STRING),
+                org.apache.flink.table.api.Schema.newBuilder()
+                    .column("id", org.apache.flink.table.api.DataTypes.INT())
+                    .column("k", org.apache.flink.table.api.DataTypes.INT())
+                    .column("raw_value", org.apache.flink.table.api.DataTypes.STRING())
+                    .build(),
+                true,
+                24,
+                80)
+            .withExecutionMetrics()) {
+      java.util.function.UnaryOperator<TableEnvironment> configure =
+          table -> {
+            table.getConfig().setLocalTimeZone(ZoneOffset.UTC);
+            table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+            table.getConfig().set("table.exec.mini-batch.enabled", "false");
+            table.getConfig().set("streamfusion.transpose.batchRows", "7");
+            String expression =
+                type.equals("TIMESTAMP_LTZ(3)")
+                    ? "TO_TIMESTAMP_LTZ(CAST(raw_value AS BIGINT), 3)"
+                    : "CAST(raw_value AS " + type + ")";
+            table.createTemporaryView(
+                "typed_values",
+                table.sqlQuery("SELECT id, k, " + expression + " AS v FROM recovery_input"));
+            return table;
+          };
+      var result =
+          NativeFailureParity.runRecovery(
+              () -> configure.apply(recovery.uninterrupted()),
+              () -> configure.apply(recovery.get()),
+              "SELECT k, FIRST_VALUE(DISTINCT v), LAST_VALUE(DISTINCT v), "
+                  + "FIRST_VALUE(DISTINCT v) FILTER (WHERE MOD(id, 3) <> 0), "
+                  + "LAST_VALUE(DISTINCT v) FILTER (WHERE MOD(id, 5) <> 0) "
+                  + "FROM typed_values GROUP BY k");
+      result.assertSuccess(NATIVE);
+      recovery.verifyRepeatedRecovery();
+      RecoveryExecutionMetrics.assertConsumed(
+          recovery.nativeExecution(), "NativeColumnarGroupAggregate");
+      SharedFlinkCluster.assertNativeMemoryReleased("distinct-typed-first-last-recovery");
+    }
+  }
+
+  private static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments>
+      distinctRecoveryCases() {
+    return List.of("hashmap", "tech.streamfusion.state.RocksDBNativeStateBackendFactory").stream()
+        .flatMap(
+            backend ->
+                List.of(
+                        "TINYINT",
+                        "SMALLINT",
+                        "INT",
+                        "BIGINT",
+                        "FLOAT",
+                        "DOUBLE",
+                        "DECIMAL(20,3)",
+                        "STRING",
+                        "CHAR(8)",
+                        "DATE",
+                        "TIME(0)",
+                        "TIME(3)",
+                        "BOOLEAN",
+                        "TIMESTAMP(9)",
+                        "TIMESTAMP_LTZ(3)")
+                    .stream()
+                    .map(type -> org.junit.jupiter.params.provider.Arguments.of(backend, type)));
+  }
+
+  @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void distinctFirstLastBoundedVarcharAndEmptyResults(boolean retract) throws Exception {
     compare(

@@ -18,6 +18,26 @@ the sequence models arrival order, including removal of the oldest matching dupl
 It does not impose event-time or SQL sort order. Wall-clock regressions are inherently
 timing-dependent; portable parity fixtures control arrival order.
 
+DISTINCT first/last use the existing typed multiplicity maps alongside an arrival-order
+queue of unique live values. Only a value's final removal erases its queue entry;
+reinsertion appends it. Floating membership follows Java boxed equality, canonicalizing
+NaNs and distinguishing signed zero, while the queue retains the original selected
+payload. Snapshot side frames keep their existing ordered value/count fields. Timestamp
+membership uses the same inline nanosecond carrier as the queue, and restore accepts the
+existing Arrow timestamp columns. DATE/TIME maps and column readers use their physical
+32-bit values while scalar wire entries retain their logical types. Capacity accounting includes both containers and any
+duplicated dynamic payload, following Comet's task-shared ownership accounting.
+
+Arroyo's incremental aggregator collects changed keys and compares output tuples at flush.
+Flink immediate aggregation requires an ordered transition after each row. StreamFusion
+therefore retains the existing per-key result tuple and updates only possibly changed cells
+for zero-TTL DISTINCT first/last groups mixed with COUNT DISTINCT or COUNT(*). Multiplicity-
+only changes reuse selected payloads. NaN still forces the host's non-reflexive emission;
+signed-zero payload replacements still update the cached postimage. Group liveness determines
+insertion/deletion. Typed Arrow builders consume borrowed cached cells without retaining a
+second scalar tuple for each emitted row; finished arrays follow Comet's owned C Data export
+pattern. This changes transient output construction, not checkpoint fields or ownership ABI.
+
 Flink's retractable first/last value and order maps have independent entry TTL. A live
 group can retain an accumulator value whose supporting map entry has expired. Until both
 lifetimes and their lazy reads are represented, positive retention gates these retractable

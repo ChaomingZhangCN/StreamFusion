@@ -348,3 +348,8 @@ originating `finishBundle` frame identifies the data-processing phase even when 
 `processElement` or `endInput` frame survives the asynchronous error transport. Collection
 remains the observed phase only when an originating operator frame cannot establish one.
 Repeated-recovery SINGLE_VALUE checks retain the exact released message and native routing.
+
+The grouped-value and floating aggregate regression suites pass 170 checks on Flink 2.2;
+Flink 1.18 passes 134 with 36 declared host-capability skips. Redundant fallback assertions
+for typed DISTINCT FIRST_VALUE/LAST_VALUE were removed after those forms gained native
+coverage. Native routing and result parity remain covered by the grouped-value suite.

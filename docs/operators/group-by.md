@@ -421,12 +421,16 @@ zero signs do not. Removing every contributing value yields NULL, and removing t
 record deletes the group. Results depend on arrival order, so SQL parity fixtures use a
 controlled source rather than asserting equal results from independently reordered inputs.
 
-`FIRST_VALUE(DISTINCT string)` and `LAST_VALUE(DISTINCT string)` also run in a single
-phase over STRING/VARCHAR. They retain the arrival order of unique live values and their
+`FIRST_VALUE(DISTINCT value)` and `LAST_VALUE(DISTINCT value)` also run in a single
+phase over the same scalar types as their ordinary forms. They retain the arrival order of unique live values and their
 multiplicities: inserting a duplicate does not move its position, and only the last
 retraction removes it. Reinsertion after complete removal gives it a new position. NULLs
 are ignored, and filtered instances have independent membership. Checkpoints retain both
-order and multiplicities. These DISTINCT forms require zero state retention because
+order and multiplicities. Floating membership treats all NaN payloads as one value and
+distinguishes the two zero signs; the ordered queue preserves the first inserted payload.
+Typed maps retain integer widths, physical DATE/TIME values, exact decimals and inline
+timestamp nanoseconds.
+These DISTINCT forms require zero state retention because
 Flink's separate membership/order maps can expire independently.
 
 Ordered aggregate state now resides inline in the existing per-aggregate storage, avoiding a
@@ -469,9 +473,7 @@ value-to-order and order-to-value map entries, which a single group lifetime doe
 These aggregate states use the existing raw keyed snapshot path with both memory and RocksDB
 backends; the direct RocksDB accumulator-row codec does not yet encode ordered occurrences.
 Two-phase FIRST_VALUE/LAST_VALUE plans, physical SINGLE_VALUE with a retained DISTINCT flag,
-DISTINCT first/last over types other
-than STRING/VARCHAR, two-argument value/order dialects, and other value types retain explicit
-fallback gates.
+two-argument value/order dialects, and other value types retain explicit fallback gates.
 
 `GroupedValueBenchmark` measures append-only FIRST_VALUE/LAST_VALUE with a release native
 build (`-Pbench`, mimalloc), 2 million rows, 64 keys, one-eighth NULL values, parallelism 1,
@@ -685,9 +687,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
   released host's arrival-order behavior described above.
 - A UDAF (no native path for arbitrary user aggregation logic).
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
-- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE, physical SINGLE_VALUE with a retained DISTINCT flag,
-  and DISTINCT FIRST_VALUE/LAST_VALUE
-  over types other than STRING/VARCHAR.
+- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE and physical SINGLE_VALUE with a retained DISTINCT flag.
   (`COUNT(DISTINCT x)` keeps a per-key
   value set; `SUM(DISTINCT x)` adds a running sum folded as values enter/leave it; `MIN`/`MAX
   (DISTINCT)` run as their plain, multiplicity-blind forms.)
@@ -1096,6 +1096,59 @@ measured medians of **0.821 s for Flink and 0.714 s for native (1.150x)**. Flink
 from 0.796–0.925 s; native trials ranged from 0.712–0.747 s. This is a workload-specific
 whole-job result for duplicate-heavy append-only input; it does not establish a speedup for
 high-cardinality or retracting workloads. The unsupported baseline routes this query to Flink.
+
+### Typed DISTINCT first/last
+
+Runtime-source SQL checks extend the same membership and arrival-order semantics to
+integer widths, FLOAT/DOUBLE, DECIMAL, CHAR, DATE/TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ.
+Filtered and unfiltered instances are compared independently. Floating sources include
+both zero signs, different NaN payloads and infinities, duplicate removals and group
+recreation. Memory and RocksDB recovery fixtures cross two restores before completing
+membership removal and reinsertion; execution metrics require the native grouped operator.
+Released-host capability skips apply to CHAR and temporal first/last on Flink 1.18.
+The focused grouped-value, floating DISTINCT, state-recovery and SINGLE_VALUE DISTINCT
+selection, including temporal COUNT DISTINCT partial/recovery checks, passes 171 checks on
+Flink 2.2.1 and 135 with 36 host-capability skips on 1.18.1.
+The native grouped regression selection passes 128 checks.
+
+The `distinct_ordered_values` release Criterion suite checks 256 combinations against an
+independent unique-arrival-order and multiplicity oracle, including exact selected floating
+payloads. It covers 64/4,096 rows, one/64 keys, four/128 source values, append/delete batches,
+NULL-only groups, narrow/wide decimals, nanosecond timestamps and 8/256-byte strings.
+Thirty-two mixed COUNT DISTINCT/COUNT(*) cases additionally verify every ordered changelog
+row against an independent preimage/postimage oracle, including NaNs and signed zero.
+Fixture construction and retract seeding stay outside timing. Allocation requests and
+Arrow sharing accompany every case; they do not measure copied bytes or whole-job speed.
+
+`GroupedValueBenchmark` accepts the existing scalar `grouped.value.types` names with
+`-Dgrouped.value.distinct=true`. Optional `grouped.value.keys` and
+`grouped.value.cardinality` change the key count and value modulus; defaults remain 64
+and 1,024. TINYINT, DATE and BOOLEAN retain their bounded source domains. With
+`-Dgrouped.value.retract=true`, the first three quarters of rows insert and the final
+quarter delete the identical first-quarter records. Retractions require single-phase
+first/last. With DISTINCT first/last, `-Dgrouped.value.mixed=true` adds COUNT(DISTINCT v);
+`-Dgrouped.value.recordCount=true` additionally emits COUNT(*), exercising a result change
+on every contributing row. The source remains rowwise and the measured job retains both transposes,
+JNI/state work and the rowwise sink. Candidate, stock and preceding-StreamFusion runs
+use identical fixtures and resources.
+
+The final release+mimalloc comparisons use JDK 17, Flink 2.2.1, parallelism 1, two warmups
+and five measured trials on Intel Core i7-12650H/Linux/WSL. Pure two-million-row BIGINT,
+DOUBLE, wide DECIMAL, TIMESTAMP and STRING queries improve **1.218–1.462x** over paired
+stock Flink. DATE/DOUBLE/STRING mixed COUNT DISTINCT queries, with and without COUNT(*),
+improve **1.062–1.435x**. Retracting DATE/TIMESTAMP/STRING jobs with 256 keys, an 8,192-value
+modulus and 1 GiB heap improve **2.107–2.251x**; the default jobs use 64 keys, a 1,024-value
+modulus and 2 GiB heap. Matched preceding-StreamFusion controls improve **1.059–2.065x**
+across these two-million-row profiles. Those controls reuse retained runs of the identical
+fixture and resources; their full ranges remain explicit.
+
+At 500,000 rows, the three measured BIGINT/DOUBLE/STRING jobs improve 1.185–1.535x over
+stock, with startup/JIT variability retained. A released-1.18.1 DOUBLE job improves 1.207x
+at two million rows. These are representative workload results rather than a universal
+speed guarantee. The [complete measurement artifact](../benchmarks/results/typed-distinct-ordered-values-2026-10-19.json)
+retains 252 new jobs, 196 reused preceding-control jobs, all trials/configurations, source/DSO
+hashes and 256 native allocation records. It links the initial type/mixed-query losses,
+CPU diagnosis and DATE confirmation losses; profiled timings are excluded from speed claims.
 
 ### Two-phase SINGLE_VALUE strings
 

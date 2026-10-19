@@ -100,6 +100,9 @@ public final class FlinkTestCapabilities {
   }
 
   public static void requireFirstLastType(String type) {
+    Assumptions.assumeTrue(
+        !type.startsWith("CHAR(") || CHAR_EXTREMA,
+        "Flink cannot plan FIRST_VALUE/LAST_VALUE over " + type);
     boolean temporal = type.equals("DATE") || type.startsWith("TIME");
     Assumptions.assumeTrue(
         !temporal || TEMPORAL_FIRST_LAST,
