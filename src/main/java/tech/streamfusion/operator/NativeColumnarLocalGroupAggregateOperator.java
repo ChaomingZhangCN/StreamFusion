@@ -33,6 +33,7 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   private final int[] valueTypes;
   private final int[] valueColumns;
   private final int[] filterColumns;
+  private final int[] auxiliaryColumns;
   private final int[] keyColumns;
   private final int[] distinctViewSources;
   private final int[] keyTimestampPrecisions;
@@ -55,10 +56,33 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
       int[] distinctViewSources,
       int[] keyTimestampPrecisions,
       long miniBatchSize) {
+    this(
+        aggregateKinds,
+        valueTypes,
+        valueColumns,
+        filterColumns,
+        keyColumns,
+        distinctViewSources,
+        keyTimestampPrecisions,
+        miniBatchSize,
+        new int[0]);
+  }
+
+  public NativeColumnarLocalGroupAggregateOperator(
+      int[] aggregateKinds,
+      int[] valueTypes,
+      int[] valueColumns,
+      int[] filterColumns,
+      int[] keyColumns,
+      int[] distinctViewSources,
+      int[] keyTimestampPrecisions,
+      long miniBatchSize,
+      int[] auxiliaryColumns) {
     this.aggregateKinds = aggregateKinds;
     this.valueTypes = valueTypes;
     this.valueColumns = valueColumns;
     this.filterColumns = filterColumns;
+    this.auxiliaryColumns = auxiliaryColumns;
     this.keyColumns = keyColumns;
     this.distinctViewSources = distinctViewSources;
     this.keyTimestampPrecisions = keyTimestampPrecisions;
@@ -83,6 +107,15 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
             distinctViewSources,
             keyTimestampPrecisions,
             memoryBudget.nativeHandle());
+    if (auxiliaryColumns.length > 0) {
+      try {
+        Native.configureLocalGroupAggregateArguments(handle, auxiliaryColumns);
+      } catch (RuntimeException | Error failure) {
+        Native.closeLocalGroupAggregator(handle);
+        handle = 0;
+        throw failure;
+      }
+    }
     boundary = new MiniBatchBoundary(miniBatchSize);
     miniBatchMetrics = new MiniBatchMetrics(getMetricGroup(), true);
   }

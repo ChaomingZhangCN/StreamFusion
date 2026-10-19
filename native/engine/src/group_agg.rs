@@ -2912,6 +2912,7 @@ pub(crate) struct LocalGroupAggregator {
     // or -1 for an unfiltered aggregate. A row folds into aggregate i only when its filter is TRUE;
     // the global merge is filter-blind because the partials are already filtered here.
     filter_columns: Vec<i64>,
+    auxiliary_columns: Vec<i64>,
     key_columns: Vec<usize>,
     key_timestamp_precisions: Vec<i32>,
     result_types: Vec<DataType>,
@@ -2981,6 +2982,15 @@ fn distinct_entry_fields(value_type: &DataType) -> arrow::datatypes::Fields {
 }
 
 impl LocalGroupAggregator {
+    pub(crate) fn configure_arguments(&mut self, columns: Vec<i64>) {
+        assert_eq!(columns.len(), self.kinds.len(), "local argument arity");
+        assert!(
+            self.key_types.is_empty(),
+            "local arguments must be configured before input"
+        );
+        self.auxiliary_columns = columns;
+    }
+
     pub(crate) fn new(
         kinds: Vec<i64>,
         value_types: Vec<i64>,
@@ -3001,7 +3011,7 @@ impl LocalGroupAggregator {
             .map(|(&kind, vt)| {
                 if kind == 21 {
                     DataType::Int32
-                } else if is_ordered_value(kind) {
+                } else if is_list_agg(kind) || is_ordered_value(kind) {
                     vt.clone()
                 } else {
                     RunningAgg::new(kind, vt).result_type()
@@ -3031,6 +3041,7 @@ impl LocalGroupAggregator {
                 }
             }
         }
+        let auxiliary_columns = vec![-1; kinds.len()];
         LocalGroupAggregator {
             single: local_single::LocalSingleValue::for_aggregates(
                 &kinds,
@@ -3043,6 +3054,7 @@ impl LocalGroupAggregator {
             accumulator_types,
             value_columns,
             filter_columns,
+            auxiliary_columns,
             key_timestamp_precisions: vec![-1; key_columns.len()],
             key_columns,
             result_types,
@@ -3222,6 +3234,18 @@ impl LocalGroupAggregator {
         }
         let n = batch.num_rows();
         let num_agg = self.kinds.len();
+        let list_columns: Vec<_> = (0..num_agg)
+            .map(|i| {
+                is_list_agg(self.kinds[i]).then(|| {
+                    (
+                        StringColumn::new(batch.column(self.value_columns[i] as usize)),
+                        (self.auxiliary_columns[i] >= 0).then(|| {
+                            StringColumn::new(batch.column(self.auxiliary_columns[i] as usize))
+                        }),
+                    )
+                })
+            })
+            .collect();
         // `None` is a COUNT(*) aggregate (no argument); a present column folds/counts non-null rows.
         let cols: Vec<Option<ValueColumn>> = (0..num_agg)
             .map(|i| {
@@ -3416,6 +3440,16 @@ impl LocalGroupAggregator {
                         continue;
                     }
                 }
+                if let GroupAggState::List(list) = &mut entry.states[i] {
+                    assert!(!retract, "local LISTAGG partials require insert-only input");
+                    let (values, separators) = list_columns[i].as_ref().expect("LISTAGG columns");
+                    let separator = separators
+                        .as_ref()
+                        .map_or(Some(","), |column| column.at(row))
+                        .expect("validated LISTAGG separator");
+                    list.update_local(values.at(row), separator);
+                    continue;
+                }
                 if let GroupAggState::Ordered(ordered) = &mut entry.states[i] {
                     let value = if self.kinds[i] == 21 {
                         ScalarValue::Null
@@ -3583,6 +3617,27 @@ impl LocalGroupAggregator {
             columns
         };
         for (i, rt) in self.result_types.iter().enumerate() {
+            if is_list_agg(self.kinds[i]) {
+                let separators = order
+                    .iter()
+                    .map(|key| {
+                        let entry = match key {
+                            LocalGroupKey::Byte(key) => &states[key],
+                            LocalGroupKey::Scalar(key) => &scalar_states[key],
+                        };
+                        let GroupAggState::List(list) = &entry.states[i] else {
+                            unreachable!()
+                        };
+                        list.separator()
+                    })
+                    .collect();
+                fields.push(Field::new(
+                    format!("partial{i}_separator"),
+                    DataType::Utf8,
+                    true,
+                ));
+                columns.push(scalars_to_array(separators, &DataType::Utf8));
+            }
             let scalars: Vec<ScalarValue> = order
                 .iter()
                 .map(|key| match key {
@@ -3755,6 +3810,22 @@ pub extern "system" fn Java_tech_streamfusion_Native_createLocalGroupAggregator<
         .with_memory_budget(memory_budget_bytes);
         boxed_or_throw(&mut env, aggregator)
     })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_configureLocalGroupAggregateArguments<
+    'local,
+>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    auxiliary_columns: JIntArray<'local>,
+) {
+    crate::bridge::jni_guard(env, move |env| {
+        let aggregator = unsafe { &mut *(handle as *mut LocalGroupAggregator) };
+        let columns = read_int_array(&env, &auxiliary_columns);
+        aggregator.configure_arguments(columns);
+    });
 }
 
 fn throw_group_update_error(env: &mut JNIEnv, error: DataFusionError) {
@@ -4438,5 +4509,109 @@ mod local_distinct_cache_tests {
         }
         assert_eq!(reused.cached_states.len(), 1);
         assert!(reused.cached_bytes() < 1024 * 1024);
+    }
+}
+
+#[cfg(test)]
+mod listagg_partial_tests {
+    use super::*;
+
+    #[test]
+    fn local_string_partials_merge_and_restore_with_null_only_groups() {
+        let make = |second: bool| {
+            RecordBatch::try_from_iter(vec![
+                ("k", Arc::new(Int64Array::from(vec![0, 1, 0])) as ArrayRef),
+                (
+                    "v",
+                    Arc::new(StringArray::from(if second {
+                        vec![Some("b"), None, Some("a")]
+                    } else {
+                        vec![Some("a"), None, Some("")]
+                    })) as ArrayRef,
+                ),
+                (
+                    "separator",
+                    Arc::new(StringArray::from(vec!["::"; 3])) as ArrayRef,
+                ),
+            ])
+            .unwrap()
+        };
+        for separator_column in [-1, 2] {
+            let mut local = LocalGroupAggregator::new(
+                vec![24, 3],
+                vec![3, 0],
+                vec![1, -1],
+                vec![-1, -1],
+                vec![0],
+                vec![],
+            );
+            local.configure_arguments(vec![separator_column, -1]);
+            let mut global =
+                GroupAggregator::new(vec![24, 0], vec![3, 0], vec![2, 3], vec![0], true)
+                    .with_count_columns(vec![1, -1])
+                    .with_mini_batch();
+            local.update(&make(false)).unwrap();
+            let first = local.try_flush().unwrap();
+            assert_eq!(first.num_columns(), 4);
+            let separator = if separator_column < 0 { "," } else { "::" };
+            let separators = first
+                .column(1)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            assert!(separators.iter().all(|value| value == Some(separator)));
+            assert_eq!(local.try_flush().unwrap().num_columns(), 4);
+            global.update(&first, 0).unwrap();
+            global.flush_mini_batch().unwrap();
+            let mut restored = GroupAggregator::restore(
+                vec![24, 0],
+                vec![3, 0],
+                vec![2, 3],
+                vec![0],
+                true,
+                &global.snapshot(),
+                0,
+            )
+            .with_count_columns(vec![1, -1])
+            .with_mini_batch();
+            local.update(&make(true)).unwrap();
+            let second = local.try_flush().unwrap();
+            global.update(&second, 0).unwrap();
+            restored.update(&second, 0).unwrap();
+            let output = global.flush_mini_batch().unwrap();
+            assert_eq!(output, restored.flush_mini_batch().unwrap());
+            let keys = output
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap();
+            let values = output
+                .column(1)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            let counts = output
+                .column(2)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap();
+            let kinds = output
+                .column(3)
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .unwrap();
+            for row in 0..output.num_rows() {
+                if kinds.value(row) == 1 {
+                    continue;
+                }
+                if keys.value(row) == 0 {
+                    assert_eq!(values.value(row), ["a", "", "b", "a"].join(separator));
+                    assert_eq!(counts.value(row), 4);
+                } else {
+                    assert!(values.is_null(row));
+                    assert_eq!(counts.value(row), 2);
+                }
+            }
+        }
     }
 }

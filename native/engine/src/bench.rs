@@ -977,6 +977,30 @@ impl GroupBy {
         )
     }
 
+    pub fn listagg_merge() -> Self {
+        Self(
+            GroupAggregator::new(vec![24, 0], vec![3, 0], vec![2, 3], vec![0], true)
+                .with_count_columns(vec![1, -1])
+                .with_mini_batch(),
+        )
+    }
+
+    pub fn restore_listagg_merge(snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![24, 0],
+                vec![3, 0],
+                vec![2, 3],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![1, -1])
+            .with_mini_batch(),
+        )
+    }
+
     pub fn listagg(retracting: bool) -> Self {
         Self(
             GroupAggregator::new(
@@ -1180,6 +1204,19 @@ impl Normalize {
 pub struct LocalGroupBy(LocalGroupAggregator);
 
 impl LocalGroupBy {
+    pub fn listagg(separator_column: i64) -> Self {
+        let mut local = LocalGroupAggregator::new(
+            vec![24, 3],
+            vec![3, 0],
+            vec![1, -1],
+            vec![-1, -1],
+            vec![0],
+            vec![],
+        );
+        local.configure_arguments(vec![separator_column, -1]);
+        Self(local)
+    }
+
     pub fn new(
         kinds: Vec<i64>,
         value_types: Vec<i64>,

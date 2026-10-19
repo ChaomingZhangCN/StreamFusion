@@ -498,6 +498,9 @@ public final class Native {
       int[] keyTimestampPrecisions,
       long memoryBudgetBytes);
 
+  /** Configures optional secondary argument columns before the local consumes its first batch. */
+  public static native void configureLocalGroupAggregateArguments(long handle, int[] auxiliaryColumns);
+
   /** Folds a batch into the buffered per-key accumulators; emits nothing. */
   public static native void updateLocalGroupAggregator(
       long handle, long inArrayAddress, long inSchemaAddress);

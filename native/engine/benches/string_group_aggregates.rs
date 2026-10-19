@@ -1,7 +1,7 @@
 use arrow::array::{ArrayRef, Int64Array, Int8Array, RecordBatch, StringArray};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use std::{sync::Arc, time::Duration};
-use streamfusion::bench::GroupBy;
+use streamfusion::bench::{GroupBy, LocalGroupBy};
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 
 #[global_allocator]
@@ -211,6 +211,102 @@ fn distinct_string_groups(c: &mut Criterion) {
     group.finish();
 }
 
+fn two_phase_strings(c: &mut Criterion) {
+    let mut group = c.benchmark_group("listagg_local_global");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
+    for rows in [16usize, 1024] {
+        for keys in [1usize, 64] {
+            for width in [8usize, 128] {
+                let input = batch(rows, keys, width, false);
+                for separator_column in [-1, 2] {
+                    let separator = if separator_column < 0 { "," } else { "::" };
+                    let mut expected = std::collections::BTreeMap::<i64, (Vec<String>, i64)>::new();
+                    let values = input
+                        .column(1)
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+                    for row in 0..rows {
+                        let entry = expected.entry((row % keys) as i64).or_default();
+                        entry.1 += 1;
+                        if let Some(value) = values.iter().nth(row).unwrap() {
+                            entry.0.push(value.to_owned());
+                        }
+                    }
+                    let mut local = LocalGroupBy::listagg(separator_column);
+                    let mut global = GroupBy::listagg_merge();
+                    for offset in (0..rows).step_by(17) {
+                        local.update(&input.slice(offset, (rows - offset).min(17)));
+                        global.update(&local.flush());
+                    }
+                    let output = global.flush();
+                    assert_eq!(output.num_rows(), expected.len());
+                    let output_keys = output
+                        .column(0)
+                        .as_any()
+                        .downcast_ref::<Int64Array>()
+                        .unwrap();
+                    let output_values = output
+                        .column(1)
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap();
+                    let counts = output
+                        .column(2)
+                        .as_any()
+                        .downcast_ref::<Int64Array>()
+                        .unwrap();
+                    for row in 0..output.num_rows() {
+                        let (values, count) = &expected[&output_keys.value(row)];
+                        assert_eq!(
+                            output_values.iter().nth(row).unwrap(),
+                            (!values.is_empty())
+                                .then(|| values.join(separator))
+                                .as_deref()
+                        );
+                        assert_eq!(counts.value(row), *count);
+                    }
+                    let mut restored = GroupBy::restore_listagg_merge(&global.snapshot());
+                    local.update(&input);
+                    let partials = local.flush();
+                    global.update(&partials);
+                    restored.update(&partials);
+                    assert_eq!(global.flush(), restored.flush());
+                    let mut local = LocalGroupBy::listagg(separator_column);
+                    let mut global = GroupBy::listagg_merge();
+                    let (output, allocations) = measure(|| {
+                        local.update(&input);
+                        global.update(&local.flush());
+                        global.flush()
+                    });
+                    let label = format!("listagg_local_global/rows={rows}/keys={keys}/width={width}/separator_column={separator_column}");
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    group.bench_function(label, |b| {
+                        b.iter_batched_ref(
+                            || {
+                                (
+                                    LocalGroupBy::listagg(separator_column),
+                                    GroupBy::listagg_merge(),
+                                )
+                            },
+                            |(local, global)| {
+                                local.update(black_box(&input));
+                                global.update(&local.flush());
+                                black_box(global.flush())
+                            },
+                            BatchSize::LargeInput,
+                        )
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+
 fn json_groups(c: &mut Criterion) {
     let mut group = c.benchmark_group("json_aggregate");
     group
@@ -365,6 +461,7 @@ criterion_group!(
     benches,
     string_groups,
     distinct_string_groups,
+    two_phase_strings,
     json_groups,
     string_checkpoints
 );

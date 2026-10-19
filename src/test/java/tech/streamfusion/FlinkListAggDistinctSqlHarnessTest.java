@@ -54,7 +54,7 @@ class FlinkListAggDistinctSqlHarnessTest {
                 + (distinct ? "DISTINCT " : "")
                 + "v, '::'), COUNT(*) FROM src GROUP BY json_key");
     comparison.assertSuccess(
-        phase.equals("ONE_PHASE")
+        (phase.equals("ONE_PHASE") || (!updating && !distinct))
             ? NativeFailureParity.Route.NATIVE
             : NativeFailureParity.Route.FALLBACK);
     assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());

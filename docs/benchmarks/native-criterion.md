@@ -2433,6 +2433,15 @@ probes include owned membership and output construction, while timing keeps the 
 disabled. SQL parity additionally checks repeated restore on memory/native RocksDB and
 released Flink result ordering.
 
+The `listagg_local_global` group adds 16 combined local/global fixtures at 16/1,024 rows,
+one/64 keys, 8/128-byte values and default/literal separators. Timing covers local update
+and flush, typed Arrow partial handoff, global merge and final mini-batch materialization.
+Operator/input setup and destruction stay outside timing. Independent per-key prefix/count
+oracles verify final results after 17-row input chunks and repeated local drains; global
+checkpoint continuation is compared separately with uninterrupted state. All 92 string/JSON
+fixtures pass, with allocation and Arrow-sharing records for each. Whole-job qualification
+retains IPC, JNI and both transposes separately from this native boundary.
+
 The same suite now includes 32 JSON array/object cases over both batch sizes, key
 cardinalities and widths, with append and retract input. Each calls production update
 and materialization and verifies the next retraction after snapshot/restore. Serialized

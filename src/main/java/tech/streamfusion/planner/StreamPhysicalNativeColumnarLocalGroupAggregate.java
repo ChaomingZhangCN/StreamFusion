@@ -11,10 +11,10 @@ import org.apache.flink.table.planner.plan.nodes.exec.InputProperty;
 import org.apache.flink.table.planner.utils.ShortcutUtils;
 
 /**
- * Columnar form of the local half of a two-phase non-windowed {@code GROUP BY}: Arrow batches in and
- * out ({@link ColumnarInput} and {@link ColumnarOutput}), so the pre-aggregate, the keyed shuffle,
- * and the global merge flow Arrow with no transpose between them. Insert-only (it emits append-only
- * partials), so it requires no {@code $row_kind$} column on its output.
+ * Columnar form of the local half of a two-phase non-windowed {@code GROUP BY}: Arrow batches in
+ * and out ({@link ColumnarInput} and {@link ColumnarOutput}), so the pre-aggregate, the keyed
+ * shuffle, and the global merge flow Arrow with no transpose between them. Insert-only (it emits
+ * append-only partials), so it requires no {@code $row_kind$} column on its output.
  */
 public class StreamPhysicalNativeColumnarLocalGroupAggregate extends StreamPhysicalNativeSingleRel
     implements ColumnarInput, ColumnarOutput {
@@ -23,6 +23,7 @@ public class StreamPhysicalNativeColumnarLocalGroupAggregate extends StreamPhysi
   private final int[] valueTypes;
   private final int[] valueColumns;
   private final int[] filterColumns;
+  private final int[] auxiliaryColumns;
   private final int[] keyColumns;
   private final int[] distinctViewSources;
 
@@ -37,11 +38,38 @@ public class StreamPhysicalNativeColumnarLocalGroupAggregate extends StreamPhysi
       int[] filterColumns,
       int[] keyColumns,
       int[] distinctViewSources) {
+    this(
+        cluster,
+        traitSet,
+        input,
+        outputRowType,
+        aggregateKinds,
+        valueTypes,
+        valueColumns,
+        filterColumns,
+        keyColumns,
+        distinctViewSources,
+        new int[0]);
+  }
+
+  public StreamPhysicalNativeColumnarLocalGroupAggregate(
+      RelOptCluster cluster,
+      RelTraitSet traitSet,
+      RelNode input,
+      RelDataType outputRowType,
+      int[] aggregateKinds,
+      int[] valueTypes,
+      int[] valueColumns,
+      int[] filterColumns,
+      int[] keyColumns,
+      int[] distinctViewSources,
+      int[] auxiliaryColumns) {
     super(cluster, traitSet, input, outputRowType);
     this.aggregateKinds = aggregateKinds;
     this.valueTypes = valueTypes;
     this.valueColumns = valueColumns;
     this.filterColumns = filterColumns;
+    this.auxiliaryColumns = auxiliaryColumns;
     this.keyColumns = keyColumns;
     this.distinctViewSources = distinctViewSources;
   }
@@ -63,7 +91,8 @@ public class StreamPhysicalNativeColumnarLocalGroupAggregate extends StreamPhysi
         valueColumns,
         filterColumns,
         keyColumns,
-        distinctViewSources);
+        distinctViewSources,
+        auxiliaryColumns);
   }
 
   @Override
@@ -79,7 +108,7 @@ public class StreamPhysicalNativeColumnarLocalGroupAggregate extends StreamPhysi
         filterColumns,
         keyColumns,
         distinctViewSources,
-        FlinkKeyGroupUtils.timestampPrecisions(getInput().getRowType(), keyColumns));
+        FlinkKeyGroupUtils.timestampPrecisions(getInput().getRowType(), keyColumns),
+        auxiliaryColumns);
   }
 }
-

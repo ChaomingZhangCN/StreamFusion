@@ -29,6 +29,10 @@ class StringAggregateBenchmark {
     boolean updating = Boolean.getBoolean("stringagg.updating");
     boolean expectNative =
         Boolean.parseBoolean(System.getProperty("stringagg.expectNative", "true"));
+    String phase = System.getProperty("stringagg.phase", "ONE_PHASE");
+    assertTrue(phase.equals("ONE_PHASE") || phase.equals("TWO_PHASE"));
+    boolean split = phase.equals("TWO_PHASE");
+    System.out.println("[string-aggregate-phase] " + phase);
     String function = System.getProperty("stringagg.function", "LISTAGG");
     String valueType = System.getProperty("stringagg.value", "string");
     assertTrue(valueType.equals("string") || valueType.equals("bigint"));
@@ -37,14 +41,18 @@ class StringAggregateBenchmark {
     String aggregate;
     switch (function) {
       case "LISTAGG":
-        aggregate = "LISTAGG(" + (Boolean.getBoolean("stringagg.distinct") ? "DISTINCT " : "") + "v, ',')";
+        aggregate =
+            "LISTAGG(" + (Boolean.getBoolean("stringagg.distinct") ? "DISTINCT " : "") + "v, ',')";
         break;
       case "JSON_ARRAYAGG":
         String order = System.getProperty("stringagg.order", "");
         if (!order.isEmpty() && !order.equals("ASC") && !order.equals("DESC"))
           throw new IllegalArgumentException("stringagg.order must be ASC or DESC");
-        aggregate = "JSON_ARRAYAGG(" + argument
-            + (order.isEmpty() ? "" : " ORDER BY json_key " + order) + ")";
+        aggregate =
+            "JSON_ARRAYAGG("
+                + argument
+                + (order.isEmpty() ? "" : " ORDER BY json_key " + order)
+                + ")";
         break;
       case "JSON_OBJECTAGG":
         aggregate = "JSON_OBJECTAGG(json_key VALUE " + argument + ")";
@@ -66,8 +74,16 @@ class StringAggregateBenchmark {
           var env = metrics.environment(new Configuration(), 1, 0);
           env.setParallelism(1);
           var table = StreamTableEnvironment.create(env);
-          table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-          table.getConfig().set("table.exec.mini-batch.enabled", "false");
+          table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
+          table.getConfig().set("table.exec.mini-batch.enabled", Boolean.toString(split));
+          if (split) {
+            table
+                .getConfig()
+                .set(
+                    "table.exec.mini-batch.size",
+                    System.getProperty("stringagg.batchSize", "1024"));
+            table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
+          }
           table.getConfig().set("streamfusion.transpose.batchRows", "1024");
           var source =
               env.fromSequence(0, rows - 1)
@@ -110,6 +126,7 @@ class StringAggregateBenchmark {
                     && plan.contains("RowDataToArrow")
                     && plan.contains("ArrowToRowData"),
                 plan);
+            if (split) assertTrue(plan.contains("NativeColumnarLocalGroupAggregate"), plan);
           } else if (engine == 1) assertEquals(0, scan.substitutions(), plan);
           long start = System.nanoTime();
           table.executeSql(insert).await();
@@ -117,6 +134,9 @@ class StringAggregateBenchmark {
           if (engine == 1 && expectNative)
             RecoveryExecutionMetrics.assertConsumed(
                 metrics.nativeOperators(), "NativeColumnarGroupAggregate");
+          if (engine == 1 && expectNative && split)
+            RecoveryExecutionMetrics.assertConsumed(
+                metrics.nativeOperators(), "NativeColumnarLocalGroupAggregate");
           System.out.printf(
               Locale.ROOT,
               "[string-aggregate-trial] function=%s updating=%s engine=%s rows=%d keys=%d width=%d"

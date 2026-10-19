@@ -90,6 +90,17 @@ impl ListAggState {
         }
     }
 
+    pub(super) fn update_local(&mut self, value: Option<&str>, separator: &str) {
+        if self.separator.as_deref() != Some(separator) {
+            self.separator = Some(separator.to_owned());
+        }
+        self.update(value, separator, false);
+    }
+
+    pub(super) fn separator(&self) -> ScalarValue {
+        ScalarValue::Utf8(Some(self.separator.as_deref().unwrap_or(",").to_owned()))
+    }
+
     pub(super) fn emit(&self) -> ScalarValue {
         let value = if self.append_only {
             self.prefix.clone()

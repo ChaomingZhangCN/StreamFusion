@@ -68,6 +68,17 @@ the existing keyed store, with O(1) capacity accounting. Secondary separator col
 the aggregate argument metadata without changing the JNI signature. Numeric plans retain
 their historical empty secondary-column encoding and TTL emission mode.
 
+Ordinary append LISTAGG also follows Flink's local/global plan. Each transient local
+ordered accumulator emits the declared separator/prefix pair; the global concatenates
+prefixes with the incoming separator rather than recomputing an unordered multiset.
+One local state owns both output fields, so argument/filter metadata counts states while
+partial-column offsets count both STRING fields. Optional secondary argument columns are
+configured before input through the existing native handle; legacy constructors and the
+factory signature remain valid. Imported/output Arrow lifetimes and the shared memory
+reservation follow the existing Comet-style local operator. Local buffers drain before
+barriers; global checkpoints keep the same version-one prefix state. DISTINCT and
+retracting split forms remain separate gaps because their merge state differs.
+
 LISTAGG DISTINCT adds Flink's generated distinct wrapper to this ordered accumulator,
 using owned string keys and multiplicities. The inner LISTAGG sees only the zero-to-one
 insert and one-to-zero retract transitions. Recomputing an unordered distinct set through

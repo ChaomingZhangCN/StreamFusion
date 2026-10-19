@@ -133,7 +133,8 @@ secondary input metadata does not determine the emission mode.
 
 ### LISTAGG
 
-Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, with an
+Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, and
+ordinary append LISTAGG also admits local/global plans. Both forms use an
 omitted comma separator or a verified non-null character literal. Empty, quoted and
 multi-byte separators are supported. NULL values are skipped; empty strings and
 duplicates contribute in arrival order. A retraction removes the first matching
@@ -151,10 +152,23 @@ value only when its last occurrence leaves. Reinsertion appends it at the new ar
 NULLs never enter membership; separator literals, FILTER, CHAR casts, mixed aggregates and
 mini-batches use the same contract. Checkpoints preserve membership and ordered values, and
 native retained-memory accounting includes owned membership keys and table capacity.
-Positive state TTL and local/global LISTAGG remain fallback. Released Flink rejects
-LISTAGG WITHIN GROUP ordering. Flink 2.2.1 and 1.18.1 both produce actual local/global
-LISTAGG plans under TWO_PHASE,
-including DISTINCT and retracting input; these are remaining native merge gaps.
+Positive state TTL and DISTINCT/retracting local/global LISTAGG remain fallback.
+Released Flink rejects LISTAGG WITHIN GROUP ordering. Both releases produce real
+local/global plans under TWO_PHASE; ordinary append input now accelerates. The local
+emits the declared pair of STRING fields (separator, prefix), and the global concatenates
+prefixes using each incoming separator. FILTER, default and literal separators, CHAR
+casts, mixed numeric aggregates and adjacent DISTINCT-count views retain their positional
+layouts. Both halves and the exchange remain columnar.
+
+The local drains before checkpoints; the global persists its ordered prefix through the
+existing state codec. Four profiles exercise two restores on memory/native RocksDB with
+bundle sizes 3 and 11. Checkpoint drains can change intermediate mini-batch updates, so
+recovery compares the materialized changelog, including exact final string order and counts;
+uninterrupted SQL checks retain raw kinded changelog comparisons. All 79 SQL/operator checks
+are covered on each release (2.2 uses the 73 unchanged controls plus the corrected six-case
+recovery suite; 1.18 runs all 79 together). A native partial/merge/restore test and 92 release
+fixtures cover default/literal separators, NULL-only groups, 17-row physical chunks and
+independent final prefix/count oracles.
 JSON array/object coverage is described below.
 
 Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
@@ -211,6 +225,33 @@ means, medians, variability, source/library hashes and allocation probes are ret
 [the DISTINCT artifact](../benchmarks/results/listagg-distinct-2026-10-19.json).
 Reproduce with the command above plus `-Dstringagg.distinct=true`; use
 `stringagg.warmup=2` and `stringagg.runs=3` for this measurement configuration.
+
+Ordinary append **TWO_PHASE** measurements use release+mimalloc, JDK 17, p=1,
+2 GiB heap, UTC, 1,024-row transposes and 4,096-row mini-batches. Two warmups and three
+alternating trials retain both transposes, production IPC/JNI, local/global state,
+row source/sink and native execution metrics.
+
+| 500k-row split workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 64 keys, 16-byte strings | 0.636 s | 0.598 s | 0.263 s | 2.42× |
+| 16,384 keys, 16-byte strings | 0.872 s | 0.819 s | 0.551 s | 1.58× |
+| 8,192 keys, 128-byte strings | 2.072 s | — | 1.875 s | 1.11× |
+| Wide profile, Flink 1.18.1 | 2.062 s | — | 1.889 s | 1.09× |
+
+Actual previous `a0dd888d` falls back for these split queries; compact low/high medians
+improve 2.27×/1.49×. Its stock controls are 0.613/0.829 s. The ordinary ONE_PHASE control
+remains native: 0.334 s current versus 0.343 s previous, with overlapping
+0.312–0.345/0.313–0.346 s ranges. Wide-profile improvements are modest and do not cover
+arbitrarily larger per-key strings; the 1.18 wide profile includes one measured native
+trial slower than its paired stock trial. Mean and median comparisons across each full
+profile still favor native. Low-cardinality jobs retain startup costs and substantial
+variation (0.173–0.291 s native). All 80 jobs, variability, source/library hashes and
+allocation records are retained in
+[the two-phase artifact](../benchmarks/results/listagg-two-phase-2026-10-19.json).
+Reproduce with `StringAggregateBenchmark`, `-Dstringagg.phase=TWO_PHASE
+-Dstringagg.batchSize=4096 -Dstringagg.rows=500000 -Dstringagg.warmup=2
+-Dstringagg.runs=3` and the table's `stringagg.keys`/`stringagg.width`.
+`stringagg.phase` defaults to ONE_PHASE; the separate control disables mini-batching.
 
 ### JSON_ARRAYAGG and JSON_OBJECTAGG
 
@@ -677,8 +718,8 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Local group aggregate (two-phase local half) only:**
 
-- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over the
-  supported single-phase scalar value types.
+- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, insert-only SINGLE_VALUE over the
+  supported single-phase scalar types, or ordinary append LISTAGG over the string pair above.
 - A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/float/double/decimal (MIN/MAX also admit
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
   bigint/int/smallint/tinyint/float/double/decimal.
@@ -693,9 +734,10 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Global group aggregate (two-phase merge) only:**
 
-- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or the typed SINGLE_VALUE split described above.
+- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, the typed SINGLE_VALUE split, or
+  ordinary append LISTAGG with its (separator, prefix) string pair.
 - A partial column outside bigint/int/smallint/tinyint/float/double/decimal, except the typed
-  MIN/MAX and SINGLE_VALUE partials described above.
+  MIN/MAX, SINGLE_VALUE and LISTAGG partials described above.
 - An AVG whose partial pair isn't `(bigint, bigint)` for an integer average, `(double, bigint)` for
   float/double, or `(decimal(38, s), bigint)` for decimal.
 - A distinct merge outside the local half's `COUNT`/`SUM(DISTINCT)` scope.

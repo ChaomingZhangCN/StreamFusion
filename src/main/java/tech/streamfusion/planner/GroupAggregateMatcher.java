@@ -279,7 +279,7 @@ final class GroupAggregateMatcher {
   private static final int KIND_MAX = WindowAggregateMatcher.KIND_MAX;
 
   /** Character string types MIN/MAX admit (compared byte-lexicographically). */
-  private static boolean isStringType(SqlTypeName type) {
+  static boolean isStringType(SqlTypeName type) {
     return type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR;
   }
 
@@ -381,7 +381,7 @@ final class GroupAggregateMatcher {
     }
   }
 
-  private static boolean literalStringColumn(RelNode input, int column) {
+  static boolean literalStringColumn(RelNode input, int column) {
     if (input instanceof org.apache.calcite.rel.core.Exchange
         || input instanceof org.apache.calcite.rel.core.Filter
         || input instanceof StreamPhysicalNativeColumnarExchange
