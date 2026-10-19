@@ -140,6 +140,21 @@ The typed-value group adds 84 DECIMAL COUNT(DISTINCT) fixtures for precisions/sc
 checks counts before timing; duplicate pairs, precision limits, NULL-only partitions,
 logical snapshot fields and repeated physical-chunk restores are retained. Allocation
 requests and output-buffer sharing are reported for these new cases.
+The same typed-count oracle also covers 28 STRING and 28 TIMESTAMP(9) cases, bringing this
+selection to 140 fixtures. It checks byte membership, empty/Unicode values and adjacent
+nanoseconds with NULLs, duplicate pairs, physical chunks and repeated snapshots.
+
+The explicit `over_distinct_store` target adds 16 small production RocksDB fixtures for
+running ROWS/RANGE STRING and TIMESTAMP(9) distinct counts, at 32/512 rows and four keys.
+Both continued updates and checkpoint/restore split the physical input in half, then check
+an independent set oracle. STRING values include empty, embedded-NUL, Unicode and wide
+payloads; timestamps include -1/0/1 nanoseconds. Store construction stays outside timing;
+updates, probes, output construction and, for restore cases, checkpoint/restore stay inside.
+Allocation requests and Arrow buffer sharing are reported separately from copied bytes.
+Run `python3 bin/bench-native.py --bench over_distinct_store --smoke` to validate this boundary
+without constructing every persistent operator fixture. This is a registered Criterion
+target; shared helpers remain nested modules to avoid accidental Cargo target discovery.
+
 
 The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
 DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).

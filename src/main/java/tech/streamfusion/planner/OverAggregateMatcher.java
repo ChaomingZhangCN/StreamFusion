@@ -232,6 +232,12 @@ final class OverAggregateMatcher {
           && !tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
         return null;
       }
+      if (valueType.getSqlTypeName() == SqlTypeName.CHAR
+          && (kind == 1 || kind == 2 || kind == 5 || kind == 6)
+          && !tech.streamfusion.compat.RuntimeCompat.supportsCharOverValueSelection(
+              call.getKind().name(), !group.lowerBound.isUnbounded())) {
+        return null;
+      }
       if (kind == WindowAggregateMatcher.KIND_AVG
           && valueType.getSqlTypeName() != SqlTypeName.DECIMAL) {
         return null;
@@ -303,11 +309,11 @@ final class OverAggregateMatcher {
           || kind == 5
           || kind == 6;
     }
-    if (distinct) return false;
     if (type == SqlTypeName.CHAR
         || type == SqlTypeName.VARCHAR
         || type == SqlTypeName.TIMESTAMP
         || type == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
       return kind == WindowAggregateMatcher.KIND_COUNT
           || kind == 1
           || kind == 2

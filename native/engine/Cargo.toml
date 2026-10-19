@@ -193,3 +193,8 @@ harness = false
 [[bench]]
 name = "over_sparse_string_cache"
 harness = false
+
+[[bench]]
+name = "over_distinct_store"
+harness = false
+required-features = ["rocksdb-state"]

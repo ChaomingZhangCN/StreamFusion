@@ -2022,6 +2022,72 @@ pub struct PersistentOver(OverWindowAggregator);
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentOver {
+    pub fn distinct_count(
+        directory: &str,
+        schema: SchemaRef,
+        options: &str,
+        value_type: i64,
+        rows: bool,
+    ) -> Self {
+        let frame = if rows { 3 } else { 0 };
+        let store = crate::state::RocksOverAggStore::create(
+            PersistentSort::config(directory, options),
+            &rocks_over_state_types(&[value_type], &[103], frame, false).unwrap(),
+            &[],
+            &[value_data_type(value_type)],
+            schema,
+            0..=0,
+        )
+        .expect("persistent DISTINCT OVER fixture");
+        let operator = OverWindowAggregator::new(
+            vec![value_type],
+            vec![103],
+            2,
+            vec![1],
+            vec![0],
+            frame,
+            0,
+            false,
+        )
+        .with_key_timestamp_precisions(vec![-1]);
+        Self(operator.with_store(store, vec![DataType::Int64]))
+    }
+
+    pub fn restore_distinct_count(
+        directory: &str,
+        schema: SchemaRef,
+        options: &str,
+        source: &str,
+        generation: i64,
+        value_type: i64,
+        rows: bool,
+    ) -> Self {
+        let frame = if rows { 3 } else { 0 };
+        let store = crate::state::RocksOverAggStore::open_merged(
+            PersistentSort::config(directory, options),
+            &rocks_over_state_types(&[value_type], &[103], frame, false).unwrap(),
+            &[],
+            &[value_data_type(value_type)],
+            schema,
+            0..=0,
+            &[(source.to_owned(), generation)],
+            true,
+        )
+        .expect("persistent DISTINCT OVER restore");
+        let operator = OverWindowAggregator::new(
+            vec![value_type],
+            vec![103],
+            2,
+            vec![1],
+            vec![0],
+            frame,
+            0,
+            false,
+        )
+        .with_key_timestamp_precisions(vec![-1]);
+        Self(operator.with_store(store, vec![DataType::Int64]))
+    }
+
     pub fn new(directory: &str, schema: SchemaRef, options: &str) -> Self {
         let store = crate::state::RocksOverAggStore::create(
             PersistentSort::config(directory, options),

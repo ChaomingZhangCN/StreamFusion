@@ -402,7 +402,7 @@ impl DistinctSet {
     pub(super) fn len(&self) -> usize {
         each_map!(self, m, m.counts.len())
     }
-    pub(super) fn capacity_bytes(&self) -> usize {
+    pub(crate) fn capacity_bytes(&self) -> usize {
         each_map!(self, m, m.capacity_bytes())
     }
 
@@ -548,6 +548,16 @@ impl DistinctSet {
         }
     }
 
+    pub(crate) fn add_timestamp(
+        &mut self,
+        value: streamfusion_bridge::timestamp::TimestampValue,
+    ) -> bool {
+        match self {
+            Self::Timestamp(map) => map.change_owned(value.nanos(), Change::Add(1)),
+            _ => self.change_scalar(&timestamp_scalar(value.nanos()), Change::Add(1)),
+        }
+    }
+
     pub(crate) fn add_scalar(&mut self, v: ScalarValue) -> bool {
         self.change_value(v, Change::Add(1))
     }
@@ -563,7 +573,7 @@ impl DistinctSet {
     pub(super) fn insert_imported(&mut self, v: ScalarValue, n: i64) {
         self.change_value(v, Change::Import(n));
     }
-    pub(super) fn change_string(&mut self, v: &str, retract: bool, n: i64) -> bool {
+    pub(crate) fn change_string(&mut self, v: &str, retract: bool, n: i64) -> bool {
         let change = if retract {
             Change::Remove
         } else {

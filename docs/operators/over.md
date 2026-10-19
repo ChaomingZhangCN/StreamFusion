@@ -242,8 +242,9 @@ Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP
 TIMESTAMP_LTZ, DATE, TIME and BOOLEAN values. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
-running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, DATE, TIME and
-BOOLEAN, retaining logical membership types in running state and bounded frame snapshots.
+running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, CHAR/VARCHAR,
+DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ, retaining logical membership types in running
+state and bounded frame snapshots.
 Other DISTINCT aggregates retain the numeric value whitelist.
 
 ### Bounded `ROWS BETWEEN n PRECEDING AND CURRENT ROW`
@@ -286,10 +287,13 @@ The matcher declines:
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
   and TIMESTAMP_LTZ. These types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
-  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits DECIMAL, DATE, TIME
-  and BOOLEAN; other DISTINCT aggregates retain their numeric whitelist.
+  DECIMAL also admits SUM/SUM0/AVG. COUNT(DISTINCT) additionally admits all these types;
+  other DISTINCT aggregates retain their numeric whitelist.
 - Temporal FIRST_VALUE/LAST_VALUE on released Flink 1.18, whose aggregate factory rejects them.
   Native planning retains the same failure; Flink 2.2 admits these functions.
+- CHAR MIN/MAX/FIRST_VALUE/LAST_VALUE combinations rejected by the released aggregate factory.
+  Flink 1.18 accepts only unbounded CHAR MIN among these selections; CHAR COUNT and
+  COUNT(DISTINCT) remain admitted. Flink 2.2 accepts all four CHAR selections.
 - A `PARTITION BY` key outside bigint/int/string/boolean/date/timestamp/decimal.
 - A frame not of the form `… PRECEDING .. CURRENT ROW` (a `ROWS`/`RANGE` lower bound that isn't a
   constant preceding offset or UNBOUNDED PRECEDING).
@@ -566,3 +570,62 @@ These representative results do not establish a universal speedup.
 selects the paired method; types include `decimal` and `decimal_wide`. The default remains
 three engines. A missing disabled-OVER control is printed as `NaN` with empty samples
 and recorded as null in the artifact, rather than as a measured zero.
+
+
+## STRING and timestamp distinct counts
+
+COUNT(DISTINCT) admits CHAR/VARCHAR, TIMESTAMP and TIMESTAMP_LTZ. String membership uses
+binary string bytes, independently of a cached Java UTF-16 representation used by selections.
+Running state owns a string only when it first enters the set. Timestamp membership retains
+all fractional nanoseconds; compact declared precisions still observe the released Flink
+serializer's millisecond representation. NULL never enters a membership set.
+
+Running membership accounts for hash-table capacity and owned string bytes in the native
+memory budget. Restores derive this accounting from existing typed checkpoint fields, without
+a checkpoint format change. Native RocksDB running frames probe and persist text membership
+as well as numeric membership, so repeated values across physical batches and checkpoints
+are counted once. Bounded frames retain their typed frame rows and recompute membership.
+
+Fifty-four new SQL checks run on both released Flink lines: seven event/proctime frame shapes
+for four column expressions, mixed text/temporal aggregates with two restores on memory and
+native RocksDB backends, declared timestamp precisions 0/3/6/9, mixed cached-string selections,
+and eight CHAR factory contracts. Together with 119 existing controls, Flink 2.2.1 has 165 passes
+and eight host capability skips; Flink 1.18.1 passes all 173 checks, including seven expected
+CHAR factory failures. Native validation adds 79 OVER unit checks, five membership checks,
+140 typed distinct-count fixtures (84 decimal controls and 56 string/timestamp cases), and 16
+native RocksDB fixtures with independent continued-arrival/checkpoint oracles.
+
+Release+mimalloc complete jobs use JDK 17, parallelism one, UTC and a 2 GiB heap, with two
+warmups and three measured trials. Paired engines retain the runtime row source, rowwise sink,
+both transposes, JNI/state costs and actual native execution metrics. Local builds and other
+heavy work were excluded from the timing interval.
+
+| Type / frame / rows / keys | Stock median (range), s | Native median (range), s | Actual previous SF median (range), s |
+| --- | ---: | ---: | ---: |
+| string / running RANGE / 500,000 / 64 | 0.992 (0.931–0.995) | 0.360 (0.327–0.398) | — |
+| string / bounded ROWS / 500,000 / 64 | 2.792 (2.714–2.848) | 0.601 (0.589–0.627) | 2.858 (2.647–2.877) |
+| timestamp / running RANGE / 500,000 / 64 | 0.820 (0.804–0.826) | 0.341 (0.328–0.350) | — |
+| timestamp / bounded ROWS / 500,000 / 64 | 2.833 (2.738–2.907) | 0.632 (0.599–0.654) | 2.921 (2.901–2.956) |
+| ltz / running RANGE / 500,000 / 64 | 0.875 (0.834–0.875) | 0.331 (0.330–0.337) | — |
+| ltz / bounded ROWS / 500,000 / 64 | 2.892 (2.883–3.035) | 0.604 (0.603–0.620) | 3.050 (2.560–3.057) |
+| string_wide / bounded ROWS / 500,000 / 16 | 5.638 (5.393–5.659) | 1.043 (1.018–1.069) | 5.268 (4.804–5.438) |
+| timestamp / running ROWS / 1,000,000 / 1 | 1.515 (1.394–1.541) | 0.574 (0.545–0.609) | — |
+| decimal / running RANGE / 500,000 / 64 | 0.922 (0.878–0.961) | 0.379 (0.306–0.387) | 0.379 (0.310–0.402) |
+
+The eight new-path profiles improve 2.402–5.407x over stock. Actual previous revision
+`c92cb5ae` bounded-ROWS comparisons improve 4.618–5.053x. Its separately paired stock controls
+remain in the artifact to expose process-to-process drift. The existing running decimal
+COUNT(DISTINCT) control measures 0.379s on both versions (1.002x previous/current); paired
+stock medians are 0.922s and 0.924s. Released Flink 1.18's wide-string profile measures
+5.990s stock / 1.036s native (5.782x).
+
+The [150-job artifact](../benchmarks/results/over-text-temporal-distinct-count-2026-10-19.json)
+retains every warmup/trial, source and native-library hashes, 140 typed-count allocation
+records and 16 RocksDB allocation records. Timings sample rowtime, two string widths,
+64/16/one partition keys and STRING/TIMESTAMP/LTZ; CHAR, other declared timestamp precisions
+and proctime are correctness-covered. Previous-version comparisons sample bounded ROWS
+plus the decimal control; the 1.18 timing samples wide strings. These measurements do not
+establish a universal speedup. Reproduce using `OverBasicValuesBenchmark` with
+`-Dover.values.distinctCount=true -Dover.values.engines=2` and types
+`string,timestamp,ltz,string_wide`; frame, row-count, key-count, warmup and trial properties
+are unchanged. The default three-engine benchmark remains available.

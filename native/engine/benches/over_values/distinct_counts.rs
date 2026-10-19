@@ -1,6 +1,12 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+enum Value {
+    Number(i128),
+    Text(String),
+}
+
 pub(super) fn check(input: &RecordBatch, output: &RecordBatch, frame: i64, offset: i64) {
     let keys = input
         .column(0)
@@ -12,20 +18,40 @@ pub(super) fn check(input: &RecordBatch, output: &RecordBatch, frame: i64, offse
         .as_any()
         .downcast_ref::<Int64Array>()
         .unwrap();
-    let values = input
-        .column(2)
-        .as_any()
-        .downcast_ref::<Decimal128Array>()
-        .unwrap();
-    let mut membership: BTreeMap<i64, BTreeSet<i128>> = BTreeMap::new();
+    let column = input.column(2);
+    let values: Vec<Option<Value>> = match column.data_type() {
+        DataType::Utf8 => {
+            let array = column.as_any().downcast_ref::<StringArray>().unwrap();
+            (0..array.len())
+                .map(|row| (!array.is_null(row)).then(|| Value::Text(array.value(row).to_owned())))
+                .collect()
+        }
+        DataType::Decimal128(_, _) => {
+            let array = column.as_any().downcast_ref::<Decimal128Array>().unwrap();
+            (0..array.len())
+                .map(|row| (!array.is_null(row)).then(|| Value::Number(array.value(row))))
+                .collect()
+        }
+        ty if streamfusion_bridge::timestamp::is_timestamp(ty) => {
+            let array =
+                streamfusion_bridge::timestamp::TimestampColumn::try_new(column.as_ref()).unwrap();
+            (0..column.len())
+                .map(|row| {
+                    (!array.is_null(row)).then(|| Value::Number(array.value(row).unwrap().nanos()))
+                })
+                .collect()
+        }
+        _ => unreachable!(),
+    };
+    let mut membership: BTreeMap<i64, BTreeSet<Value>> = BTreeMap::new();
     let mut history: BTreeMap<i64, VecDeque<usize>> = BTreeMap::new();
     let mut expected = Vec::new();
     for row in 0..input.num_rows() {
         let key = keys.value(row);
         let count = if frame == 0 || frame == 3 {
             let set = membership.entry(key).or_default();
-            if !values.is_null(row) {
-                set.insert(values.value(row));
+            if let Some(value) = &values[row] {
+                set.insert(value.clone());
             }
             set.len()
         } else {
@@ -42,8 +68,7 @@ pub(super) fn check(input: &RecordBatch, output: &RecordBatch, frame: i64, offse
             }
             records
                 .iter()
-                .filter(|&&index| !values.is_null(index))
-                .map(|&index| values.value(index))
+                .filter_map(|&index| values[index].clone())
                 .collect::<BTreeSet<_>>()
                 .len()
         };

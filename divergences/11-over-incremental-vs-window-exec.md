@@ -298,3 +298,18 @@ Frame rows and snapshots retain logical DATE/TIME/BOOLEAN scalar fields rather t
 an integer carrier. Readers and restored frames fold into the same native state; no new JNI
 or checkpoint framing is introduced. Arroyo's watermark-finalized window exec cannot replace
 Flink's immediate running and bounded-frame selection, as described above.
+
+
+STRING and timestamp OVER distinct counts reuse the existing typed membership state rather
+than adding a second aggregate engine. Following the borrowed-key membership pattern already
+used by GROUP BY, running string counts probe borrowed bytes and own a key on first membership;
+timestamps probe their full nanosecond value directly, avoiding a temporary scalar/Arrow array.
+String count equality follows Flink binary string bytes, while mixed selections retain their
+own UTF-16 representation. Bounded frame storage still retains the existing string cache.
+
+As in Comet's owned native memory accounting, retained hash capacity and owned payload enter
+the native budget. Per-row growth is measured on the borrowed aggregate state rather than
+through extra key lookups. Restores and persistent probes derive the footprint from decoded
+membership; the derived byte counter is not serialized. Native RocksDB probes include text
+memberships, closing the numeric-only probe hole exposed by cross-batch running string counts.
+These changes keep the existing Arrow boundaries, JNI API and checkpoint wire format.

@@ -943,3 +943,15 @@ all four rowtime shapes across three types: 2.508–6.669x over paired stock for
 jobs. Actual preceding-revision bounded-ROWS controls improve 5.058–5.452x. The raw artifact
 retains all variability, disabled-OVER controls and released-1.18 checks, with both transposes
 and rowwise edges measured. This does not change the existing input/order/DISTINCT gates.
+
+
+### Borrowed OVER distinct membership
+
+Running STRING COUNT(DISTINCT) probes the existing typed membership map with borrowed bytes,
+allocating an owned key only on first membership. Timestamp distinct counts insert their
+nanosecond carrier directly instead of constructing a scalar and temporary Arrow representation.
+Mixed string selections keep their independent cached UTF-16 representation; bounded frame
+rows still retain that cache. Hash capacity and owned string bytes enter native memory
+accounting. Measuring growth on the already-borrowed aggregate state avoids extra key probes.
+See [OVER](../operators/over.md#string-and-timestamp-distinct-counts) for complete-job comparisons,
+including an unchanged decimal distinct-count control for the memory-accounting change.

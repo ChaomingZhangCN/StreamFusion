@@ -1189,3 +1189,85 @@ fn selected_string_caches_survive_later_batches_without_cache_columns() {
         }
     }
 }
+
+#[test]
+fn distinct_text_counts_use_binary_membership_and_account_retained_keys() {
+    let long = "😀".repeat(4096);
+    let projected = |time, value| {
+        let batch = string_values(&[time], vec![Some(value)]);
+        RecordBatch::try_from_iter(vec![
+            ("key0", batch.column(0).clone()),
+            ("rt", batch.column(1).clone()),
+            ("value0", batch.column(2).clone()),
+        ])
+        .unwrap()
+    };
+    let mut running = OverAggregator::new(vec![3], vec![103]);
+    running.track = true;
+    let first = running.update(&projected(100, &long));
+    assert_eq!(
+        first
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .value(0),
+        1
+    );
+    assert!(running.bytes >= long.len());
+    let once = running.bytes;
+    running.update(&projected(200, &long));
+    assert_eq!(running.bytes, once);
+    running.update(&projected(300, ""));
+    running.update(&projected(400, "?"));
+    let measured = running.bytes;
+    running.recompute_bytes();
+    assert_eq!(running.bytes, measured);
+    let raw = running.snapshot(None);
+    let mut restored = OverAggregator::restore(vec![3], vec![103], &raw, &mut HashMap::default());
+    restored.track = true;
+    restored.recompute_bytes();
+    assert!(restored.bytes >= long.len());
+    let restored_bytes = restored.bytes;
+    let continuation = restored.update(&projected(500, "?"));
+    assert_eq!(
+        continuation
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .value(0),
+        3
+    );
+    assert_eq!(restored.bytes, restored_bytes);
+    let key = restored.keys.keys().next().unwrap().clone();
+    let mut inner = OverInner::Aggregates(restored);
+    inner.clear_key(&key.0);
+    assert_eq!(inner.state_bytes(), 0);
+}
+
+#[test]
+fn distinct_numeric_membership_grows_the_tracked_footprint() {
+    let mut running = OverAggregator::new(vec![0], vec![103]);
+    running.track = true;
+    let input = |start: i64, end: i64| {
+        RecordBatch::try_from_iter(vec![
+            (
+                "rt",
+                Arc::new(Int64Array::from_iter_values(start..end)) as ArrayRef,
+            ),
+            (
+                "value0",
+                Arc::new(Int64Array::from_iter_values(start..end)) as ArrayRef,
+            ),
+        ])
+        .unwrap()
+    };
+    running.update(&input(0, 1));
+    let small = running.bytes;
+    running.update(&input(1, 1024));
+    assert!(running.bytes > small + 1024 * std::mem::size_of::<i64>());
+    let measured = running.bytes;
+    running.recompute_bytes();
+    assert_eq!(running.bytes, measured);
+}

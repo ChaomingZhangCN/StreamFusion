@@ -1,7 +1,7 @@
 use super::*;
 mod cached_strings;
 mod cached_transport;
-mod decimal_distinct;
+mod distinct_counts;
 mod primitives;
 use streamfusion_benchmark_support::{measure, report};
 mod string_tree;
@@ -14,7 +14,7 @@ fn fixture(rows: usize, keys: usize, code: i64) -> RecordBatch {
     let values: ArrayRef = if code == 3 {
         let wide = "😀".repeat(1024);
         Arc::new(StringArray::from_iter((0..rows).map(|row| {
-            present(row).then_some(match row % 5 {
+            present(row).then_some(match row / (2 * keys) % 5 {
                 0 => "",
                 1 => "a",
                 2 => "\u{e000}",
@@ -26,8 +26,8 @@ fn fixture(rows: usize, keys: usize, code: i64) -> RecordBatch {
         Arc::new(timestamp_array((0..rows).map(|row| {
             present(row).then(|| {
                 TimestampValue::new(
-                    [-62_135_596_800_000, 0, 253_402_300_799_999][row % 3],
-                    (row % 1_000_000) as u32,
+                    [-62_135_596_800_000, 0, 253_402_300_799_999][row / (2 * keys) % 3],
+                    (row / (2 * keys) % 1_000_000) as u32,
                 )
                 .unwrap()
             })
@@ -87,8 +87,13 @@ fn validate(batch: &RecordBatch, code: i64, kind: i64, frame: i64, offset: i64, 
         batch.clone(),
         proctime,
     );
-    if kind == 103 && matches!(batch.column(2).data_type(), DataType::Decimal128(_, _)) {
-        decimal_distinct::check(batch, &whole, frame, offset);
+    if kind == 103
+        && (matches!(
+            batch.column(2).data_type(),
+            DataType::Utf8 | DataType::Decimal128(_, _)
+        ) || streamfusion_bridge::timestamp::is_timestamp(batch.column(2).data_type()))
+    {
+        distinct_counts::check(batch, &whole, frame, offset);
     }
     let mut operator = Over::framed(code, kind, frame, offset, proctime);
     let mut fragments = Vec::new();
@@ -135,9 +140,6 @@ pub(super) fn bench(c: &mut Criterion) {
             ] {
                 let batch = fixture(rows, keys, code);
                 for kind in [1, 2, 5, 6, 103] {
-                    if kind == 103 && code < 2000 {
-                        continue;
-                    }
                     for proctime in [false, true] {
                         for frame in 0..4 {
                             if proctime && frame == 2 {

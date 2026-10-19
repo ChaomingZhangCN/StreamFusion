@@ -26,6 +26,7 @@ import tech.streamfusion.planner.NativePlanner;
 @EnabledIfEnvironmentVariable(named = "SF_BENCHMARK", matches = "true")
 class OverBasicValuesBenchmark {
   private static final java.math.BigInteger WIDE_BASE = java.math.BigInteger.TEN.pow(37);
+  private static final String WIDE_TEXT = "x".repeat(256);
   @Test
   void completeJobsKeepRowSourceSinkAndBothTransposes() throws Exception {
     for (String type :
@@ -170,6 +171,7 @@ class OverBasicValuesBenchmark {
         valueType = DataTypes.DECIMAL(38, 0);
         break;
       case "string":
+      case "string_wide":
         valueType = DataTypes.STRING();
         break;
       case "timestamp":
@@ -209,9 +211,11 @@ class OverBasicValuesBenchmark {
                         value = new BigDecimal(WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257)));
                         break;
                       case "string":
+                      case "string_wide":
                         value =
                             new String[] {"😀", "\ue000", "", "é", "abcdefghijk"}
                                 [(int) (id / keys % 5)];
+                        if (type.equals("string_wide")) value = value + WIDE_TEXT;
                         break;
                       case "date":
                         value = LocalDate.of(2024, 1, 1).plusDays(id % 31);
