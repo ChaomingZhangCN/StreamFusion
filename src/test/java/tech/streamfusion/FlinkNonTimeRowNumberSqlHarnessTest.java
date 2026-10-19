@@ -157,7 +157,7 @@ class FlinkNonTimeRowNumberSqlHarnessTest {
         "requires disabled idle-state TTL");
     NativeParity.assertFallbackReasonContains(
         FlinkNonTimeRowNumberSqlHarnessTest::environment,
-        SQL.replace("v ASC NULLS FIRST", "CAST(v AS DOUBLE) ASC NULLS FIRST"),
+        SQL.replace("v ASC NULLS FIRST", "ARRAY[CAST(v AS DOUBLE)] ASC NULLS FIRST"),
         "ascending supported order column");
   }
 
@@ -196,6 +196,18 @@ class FlinkNonTimeRowNumberSqlHarnessTest {
       RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeColumnarTopN");
       SharedFlinkCluster.assertNativeMemoryReleased("non-time-row-number-recovery");
     }
+  }
+
+  @Test
+  void olderHostKeepsItsValidationWithNativePlanning() {
+    org.junit.jupiter.api.Assumptions.assumeFalse(
+        tech.streamfusion.compat.FlinkTestCapabilities.NON_TIME_OVER);
+    var result = NativeFailureParity.run(FlinkNonTimeRowNumberSqlHarnessTest::environment, SQL);
+    assertNotNull(result.host().failure());
+    assertNotNull(result.nativeRun().failure());
+    assertEquals(result.host().rootCause().getClass(), result.nativeRun().rootCause().getClass());
+    assertEquals(result.host().rootCause().getMessage(), result.nativeRun().rootCause().getMessage());
+    assertEquals(result.host().phase(), result.nativeRun().phase());
   }
 
   static TableEnvironment environment() {

@@ -110,7 +110,7 @@ measures complete two-phase Flink jobs, including both transposes and production
 
 ## Running and comparing
 
-The `non_time_row_number` target includes 88 production-kernel fixtures across
+The `non_time_row_number` target includes 120 production-kernel fixtures across
 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
 and ascending/descending arrival, with nullable BIGINT/INT/SMALLINT/TINYINT, DECIMAL,
 DATE, TIME, BOOLEAN, TIMESTAMP(9) and 8/256-byte string order columns. Timestamp values
@@ -2556,3 +2556,14 @@ event-time OVER adds 64 (260 total), including nullable-element IPC list carrier
 bags, 64/4,096 rows, one/64 keys and framed snapshot continuation. Occurrence counts are
 positive and non-null; they never become the COUNT result. Run either existing suite with
 `--smoke`; no new target or native production implementation is required.
+
+
+The `non_time_row_number` suite's `non_time_floating_rank` group adds 32 FLOAT/DOUBLE cases
+at 16/256 rows and one/64 nullable partitions, both NULL placements and initial/later NaNs.
+The independent group-list oracle replaces a group's representative on every equal insert,
+matching the released generated `>/<` comparator, and checks every emitted row identity/kind/rank.
+Seven-row physical chunks and two raw restores preserve nonmonotonic group order and tagged
+lengths. Input/state setup stays outside production update/output timing; allocation requests
+and buffer sharing are recorded. The complete existing target now has 120 fixtures; no new
+Cargo target is introduced. Run `--bench non_time_row_number --filter non_time_floating_rank
+--smoke` for the focused selection.

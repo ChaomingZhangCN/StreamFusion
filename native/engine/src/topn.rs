@@ -1,4 +1,5 @@
 use crate::*;
+use arrow::array::{Float32Array, Float64Array};
 
 mod append_top1;
 #[cfg(test)]
@@ -25,6 +26,75 @@ fn sort_array(array: &ArrayRef) -> ArrayRef {
     }
 }
 
+fn floating_group_start(row: &TopNRow) -> bool {
+    row.sort_count.is_some_and(|count| count < -1)
+}
+
+fn floating_group_size(row: &TopNRow) -> usize {
+    let tagged = row.sort_count.expect("floating ROW_NUMBER group header");
+    assert!(tagged < -2, "invalid floating ROW_NUMBER group length");
+    (-tagged - 2) as usize
+}
+
+struct FloatingRowNumberOrder {
+    bounds: arrow::row::Rows,
+}
+
+impl FloatingRowNumberOrder {
+    fn new(sort: &RowConverter, data_type: &DataType) -> Self {
+        let values: ArrayRef = match data_type {
+            DataType::Float32 => Arc::new(Float32Array::from(vec![
+                None,
+                Some(f32::NEG_INFINITY),
+                Some(f32::INFINITY),
+            ])),
+            DataType::Float64 => Arc::new(Float64Array::from(vec![
+                None,
+                Some(f64::NEG_INFINITY),
+                Some(f64::INFINITY),
+            ])),
+            _ => unreachable!(),
+        };
+        Self {
+            bounds: sort
+                .convert_columns(&[values])
+                .expect("floating rank bounds"),
+        }
+    }
+
+    fn is_nan(&self, key: arrow::row::Row<'_>) -> bool {
+        key < self.bounds.row(1) || key > self.bounds.row(2)
+    }
+
+    fn compare(&self, left: arrow::row::Row<'_>, right: arrow::row::Row<'_>) -> std::cmp::Ordering {
+        let null = self.bounds.row(0);
+        if left != null && right != null && (self.is_nan(left) || self.is_nan(right)) {
+            std::cmp::Ordering::Equal
+        } else {
+            left.cmp(&right)
+        }
+    }
+
+    fn position(
+        &self,
+        buffer: &[TopNRow],
+        incoming: arrow::row::Row<'_>,
+    ) -> (usize, Option<usize>) {
+        let mut start = 0;
+        while start < buffer.len() {
+            let end = start + floating_group_size(&buffer[start]);
+            // Flink scans groups in their retained order and replaces a matching group's
+            // comparison key with the latest row's key. NaN makes this order non-transitive.
+            match self.compare(buffer[end - 1].sort.row(), incoming) {
+                std::cmp::Ordering::Equal => return (end, Some(start)),
+                std::cmp::Ordering::Greater => return (start, None),
+                std::cmp::Ordering::Less => start = end,
+            }
+        }
+        (start, None)
+    }
+}
+
 fn normalize_restored_sort_keys(buffer: &mut [TopNRow], sort: &RowConverter) {
     let arrays = sort
         .convert_rows(buffer.iter().map(|entry| entry.sort.row()))
@@ -36,7 +106,9 @@ fn normalize_restored_sort_keys(buffer: &mut [TopNRow], sort: &RowConverter) {
     for (row, entry) in buffer.iter_mut().enumerate() {
         entry.sort = keys.row(row).owned();
     }
-    buffer.sort_by(|a, b| a.sort.cmp(&b.sort));
+    if !buffer.iter().any(floating_group_start) {
+        buffer.sort_by(|a, b| a.sort.cmp(&b.sort));
+    }
 }
 
 /// One ORDER BY column for the Top-N comparator: which column, ascending vs descending, and whether
@@ -473,7 +545,7 @@ impl crate::state::RocksStateCodec for TopNStateCodec {
                 entry.stored_kind = cursor.bytes[0] as i8;
                 cursor.bytes = &cursor.bytes[1..];
                 let count = cursor.i64();
-                entry.sort_count = (count >= 0).then_some(count);
+                entry.sort_count = (count != -1).then_some(count);
             }
         }
         let first_rank_end = if cursor.bytes.is_empty() {
@@ -837,6 +909,15 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             .rank_end_column
             .map(|index| integral_rank_ends(batch.column(index)));
         let output_rank = self.output_rank_number;
+        let floating_row_number = (self.non_time_row_number
+            && conv.floating_sort
+            && self.sort_columns.len() == 1)
+            .then(|| {
+                FloatingRowNumberOrder::new(
+                    &conv.sort,
+                    batch.column(self.sort_columns[0].index).data_type(),
+                )
+            });
         let track = self.memory.tracking();
         let mut delta = 0isize;
         let groups = &mut self.groups;
@@ -886,18 +967,34 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             {
                 continue;
             }
-            let pos = buffer.partition_point(|e| e.sort.row() <= key_row);
+            let (pos, floating_group) = floating_row_number.as_ref().map_or_else(
+                || (buffer.partition_point(|e| e.sort.row() <= key_row), None),
+                |order| order.position(buffer, key_row),
+            );
 
             if output_rank {
                 if pos >= limit && !self.first_bound {
                     continue; // beyond rank N — the new row never enters the top-N (nothing allocated)
                 }
                 let old_len = buffer.len();
+                let sort_count = if floating_row_number.is_some() {
+                    if let Some(start) = floating_group {
+                        let size = floating_group_size(&buffer[start]) + 1;
+                        buffer[start].sort_count = Some(-(size as i64) - 2);
+                        None
+                    } else {
+                        // Negative lengths distinguish retained floating OVER groups from
+                        // nonnegative OFFSET counts; -1 remains the absent-value sentinel.
+                        Some(-3)
+                    }
+                } else {
+                    None
+                };
                 buffer.insert(
                     pos,
                     TopNRow {
                         stored_kind: 0,
-                        sort_count: None,
+                        sort_count,
                         sort: key_row.owned(),
                         payload: Arc::new(payloads.row(row).owned()),
                         ts_ms: 0,
@@ -1742,7 +1839,10 @@ fn load_topn_batch_raw(
                 .map_or(restored_at_ms, |ts| ts.value(row)),
         };
         payload_index += 1;
-        if conv.floating_sort {
+        if conv.floating_sort
+            && !floating_group_start(&entry)
+            && !buffer.first().is_some_and(floating_group_start)
+        {
             let position = buffer.partition_point(|existing| existing.sort <= entry.sort);
             buffer.insert(position, entry);
         } else {
