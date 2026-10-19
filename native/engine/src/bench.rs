@@ -949,6 +949,34 @@ impl GroupBy {
         )
     }
 
+    pub fn distinct_listagg(retracting: bool) -> Self {
+        Self(
+            GroupAggregator::new(
+                vec![if retracting { 33 } else { 32 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
+    pub fn restore_distinct_listagg(retracting: bool, snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![if retracting { 33 } else { 32 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
     pub fn listagg(retracting: bool) -> Self {
         Self(
             GroupAggregator::new(

@@ -145,7 +145,15 @@ owned occurrences and pending unmatched retractions, matching released Flink. Ve
 binary accumulator snapshots preserve this state across memory/native RocksDB restores.
 Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
 profiles each force two restores and verify native consumption and released memory.
-Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
+Single-phase DISTINCT uses string membership around the same ordered accumulator. Duplicate
+inserts do not concatenate again; retracting input decrements multiplicity and removes a
+value only when its last occurrence leaves. Reinsertion appends it at the new arrival position.
+NULLs never enter membership; separator literals, FILTER, CHAR casts, mixed aggregates and
+mini-batches use the same contract. Checkpoints preserve membership and ordered values, and
+native retained-memory accounting includes owned membership keys and table capacity.
+Positive state TTL, explicit ordering and local/global LISTAGG remain fallback. Released
+Flink 2.2.1 and 1.18.1 both produce actual local/global LISTAGG plans under TWO_PHASE,
+including DISTINCT and retracting input; these are remaining native merge gaps.
 JSON array/object coverage is described below.
 
 Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
@@ -176,6 +184,32 @@ Reproduce complete jobs with `SF_BENCHMARK=true mvn test -Pbench
 -Dtest=StringAggregateBenchmark
 -Dsf.benchmarkJvmArgs="-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false"`; workload properties are
 `stringagg.rows`, `stringagg.keys`, `stringagg.width` and `stringagg.updating`.
+
+Single-phase DISTINCT is qualified separately on release+mimalloc, JDK 17, p=1,
+2 GiB heap, UTC, 1,024-row production transposes and IPC, with two warmups and three
+alternating trials. Complete row-source/row-sink jobs retain JNI and state costs and
+assert native execution. All 65 SQL/operator checks pass on both released Flink lines,
+including four two-restore memory/RocksDB profiles; 76 native fixtures pass (20 new
+DISTINCT update/checkpoint fixtures).
+
+| DISTINCT workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 500k rows, 16,384 keys, 16-byte strings, append | 1.014 s | 0.924 s | 0.416 s | 2.44× |
+| Same, insert/insert/delete | 1.252 s | 1.202 s | 0.422 s | 2.97× |
+| 500k rows, 8,192 keys, 128-byte strings | 1.204 s | — | 0.705 s | 1.71× |
+| 1M rows, one key, 16-byte strings | 0.633 s | — | 0.325 s | 1.95× |
+| Wide profile, Flink 1.18.1 | 1.211 s | — | 0.717 s | 1.69× |
+
+Actual previous `cc17301b` falls back for DISTINCT, with the identical query and fixture;
+append/retract medians improve by 2.22×/2.85×. Its paired stock medians are 1.015/1.181 s.
+An ordinary LISTAGG control remains native in both revisions: 0.333 s current versus
+0.326 s previous, with overlapping 0.307–0.344/0.321–0.335 s ranges. The 2.1% median
+difference does not establish a general regression or improvement. These short complete
+jobs retain startup costs; arbitrary per-key string sizes are not qualified. All 90 jobs,
+means, medians, variability, source/library hashes and allocation probes are retained in
+[the DISTINCT artifact](../benchmarks/results/listagg-distinct-2026-10-19.json).
+Reproduce with the command above plus `-Dstringagg.distinct=true`; use
+`stringagg.warmup=2` and `stringagg.runs=3` for this measurement configuration.
 
 ### JSON_ARRAYAGG and JSON_OBJECTAGG
 
@@ -598,7 +632,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- LISTAGG and JSON aggregates with DISTINCT or positive state TTL. Explicit ordering
+- JSON aggregates with DISTINCT; LISTAGG and JSON aggregates with positive state TTL. Explicit ordering
   remains unsupported for LISTAGG and JSON_OBJECTAGG; JSON_ARRAYAGG ordering clauses
   preserve the released host's arrival-order behavior described above.
 - A UDAF (no native path for arbitrary user aggregation logic).

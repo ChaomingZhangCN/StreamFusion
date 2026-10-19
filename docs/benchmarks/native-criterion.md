@@ -2424,6 +2424,15 @@ pass; ten-sample timing estimates are retained with the
 [complete-job measurements](results/listagg-2026-10-15.json). Run
 `python3 bin/bench-native.py --bench string_group_aggregates --smoke` for fixture validation.
 
+The `listagg_distinct` group adds 16 append/retract update fixtures with the same row,
+key and width matrix. An independent ordered membership model checks every output group;
+production snapshot/restore continuation is checked separately. Four additional checkpoint
+fixtures cover DISTINCT append/retract state at both checkpoint sizes. Input construction,
+state seeding and oracle evaluation stay outside the measured update boundary. Allocation
+probes include owned membership and output construction, while timing keeps the probe
+disabled. SQL parity additionally checks repeated restore on memory/native RocksDB and
+released Flink result ordering.
+
 The same suite now includes 32 JSON array/object cases over both batch sizes, key
 cardinalities and widths, with append and retract input. Each calls production update
 and materialization and verifies the next retraction after snapshot/restore. Serialized

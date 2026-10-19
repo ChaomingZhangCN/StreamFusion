@@ -37,7 +37,7 @@ class StringAggregateBenchmark {
     String aggregate;
     switch (function) {
       case "LISTAGG":
-        aggregate = "LISTAGG(v, ',')";
+        aggregate = "LISTAGG(" + (Boolean.getBoolean("stringagg.distinct") ? "DISTINCT " : "") + "v, ',')";
         break;
       case "JSON_ARRAYAGG":
         String order = System.getProperty("stringagg.order", "");

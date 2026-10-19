@@ -343,7 +343,7 @@ impl GroupAggState {
     fn new(kind: i64, value_type: &DataType) -> Self {
         match kind {
             26..=31 => Self::Json(Box::new(JsonAggState::new(kind))),
-            24 | 25 => Self::List(ListAggState::new(kind)),
+            24 | 25 | 32 | 33 => Self::List(ListAggState::new(kind)),
             12..=16 | 19..=21 => Self::Ordered(OrderedValueState::new(kind, value_type)),
             1 => GroupAggState::Extremes {
                 is_min: true,

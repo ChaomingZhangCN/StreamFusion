@@ -23,6 +23,9 @@ final class GroupAggregateMatcher {
   static final int KIND_LISTAGG_APPEND = 24;
   static final int KIND_LISTAGG_RETRACT = 25;
 
+  static final int KIND_LISTAGG_DISTINCT_APPEND = 32;
+  static final int KIND_LISTAGG_DISTINCT_RETRACT = 33;
+
   private GroupAggregateMatcher() {}
 
   static boolean matches(StreamPhysicalGroupAggregate agg) {
@@ -66,8 +69,8 @@ final class GroupAggregateMatcher {
             + " aggregates";
       }
       if (kind == KIND_LISTAGG_APPEND || kind == KIND_LISTAGG_RETRACT) {
-        if (call.isDistinct() || !call.getCollation().getFieldCollations().isEmpty())
-          return "GROUP BY: LISTAGG DISTINCT and explicit ordering are not yet verified";
+        if (!call.getCollation().getFieldCollations().isEmpty())
+          return "GROUP BY: LISTAGG explicit ordering is not yet verified";
         if (call.getArgList().isEmpty()
             || call.getArgList().size() > 2
             || !isStringType(
@@ -297,6 +300,8 @@ final class GroupAggregateMatcher {
       } else if (call.isDistinct() && kind == WindowAggregateMatcher.KIND_AVG) {
         kind = KIND_AVG_DISTINCT;
       }
+      if (call.isDistinct() && kind == KIND_LISTAGG_APPEND) kind = KIND_LISTAGG_DISTINCT_APPEND;
+      if (call.isDistinct() && kind == KIND_LISTAGG_RETRACT) kind = KIND_LISTAGG_DISTINCT_RETRACT;
       if (call.isDistinct() && (kind == 12 || kind == 15)) kind = 19;
       if (call.isDistinct() && (kind == 13 || kind == 16)) kind = 20;
       // MIN/MAX(DISTINCT) stay their plain kinds: the extreme ignores multiplicity either way.

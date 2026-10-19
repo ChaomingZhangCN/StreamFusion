@@ -68,6 +68,17 @@ the existing keyed store, with O(1) capacity accounting. Secondary separator col
 the aggregate argument metadata without changing the JNI signature. Numeric plans retain
 their historical empty secondary-column encoding and TTL emission mode.
 
+LISTAGG DISTINCT adds Flink's generated distinct wrapper to this ordered accumulator,
+using owned string keys and multiplicities. The inner LISTAGG sees only the zero-to-one
+insert and one-to-zero retract transitions. Recomputing an unordered distinct set through
+Arroyo's batch fallback would lose observable concatenation order. Append input needs
+membership only; retracting input retains signed counts, including unmatched negative
+counts as in Flink's generated wrapper. Optional version-one snapshot membership keeps
+ordinary LISTAGG snapshots readable and rejects mixing distinct/non-distinct state.
+Comet's acquire/release ownership pattern remains unchanged: owned key capacity and hash
+table capacity participate in the existing aggregate reservation, and restore derives
+owned byte totals rather than serializing allocation estimates.
+
 JSON_ARRAYAGG likewise retains an ordered sequence of already serialized JSON values,
 removing the first equal occurrence rather than recomputing from an unordered multiset.
 JSON_OBJECTAGG owns a per-key field map and sorts Java UTF-16 keys at materialization.

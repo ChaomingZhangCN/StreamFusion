@@ -90,6 +90,127 @@ fn string_groups(c: &mut Criterion) {
     group.finish();
 }
 
+fn distinct_string_groups(c: &mut Criterion) {
+    let mut group = c.benchmark_group("listagg_distinct");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
+    for rows in [16usize, 1024] {
+        for keys in [1usize, 64] {
+            for width in [8usize, 128] {
+                let seed = batch(rows, keys, width, false);
+                let retractions = batch(rows / 2, keys, width, true);
+                for updating in [false, true] {
+                    let next = if updating { &retractions } else { &seed };
+                    let mut original = GroupBy::distinct_listagg(updating);
+                    let mut expected = std::collections::BTreeMap::<i64, Vec<String>>::new();
+                    let mut multiplicities =
+                        std::collections::BTreeMap::<(i64, String), i64>::new();
+                    let mut records = std::collections::BTreeMap::<i64, i64>::new();
+                    let mut actual = std::collections::BTreeMap::<i64, Option<String>>::new();
+                    for input in [&seed, next] {
+                        let input_keys = input
+                            .column(0)
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap();
+                        let values = input
+                            .column(1)
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap();
+                        let retract = input
+                            .column(3)
+                            .as_any()
+                            .downcast_ref::<Int8Array>()
+                            .unwrap();
+                        for row in 0..input.num_rows() {
+                            let key = input_keys.value(row);
+                            let retract = retract.value(row) == 3;
+                            *records.entry(key).or_default() += if retract { -1 } else { 1 };
+                            let entries = expected.entry(key).or_default();
+                            if let Some(value) = values.iter().nth(row).unwrap() {
+                                let count =
+                                    multiplicities.entry((key, value.to_owned())).or_default();
+                                if retract {
+                                    *count -= 1;
+                                    if *count == 0 {
+                                        entries.retain(|old| old != value);
+                                    }
+                                } else {
+                                    *count += 1;
+                                    if *count == 1 {
+                                        entries.push(value.to_owned());
+                                    }
+                                }
+                            }
+                        }
+                        let output = original.update(input);
+                        let output_keys = output
+                            .column(0)
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap();
+                        let values = output
+                            .column(1)
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap();
+                        let kinds = output
+                            .column(2)
+                            .as_any()
+                            .downcast_ref::<Int8Array>()
+                            .unwrap();
+                        for row in 0..output.num_rows() {
+                            if kinds.value(row) == 3 {
+                                actual.remove(&output_keys.value(row));
+                            } else if kinds.value(row) != 1 {
+                                actual.insert(
+                                    output_keys.value(row),
+                                    values.iter().nth(row).unwrap().map(str::to_owned),
+                                );
+                            }
+                        }
+                    }
+                    let expected: std::collections::BTreeMap<_, _> = expected
+                        .into_iter()
+                        .filter(|(key, _)| records[key] > 0)
+                        .map(|(key, values)| (key, (!values.is_empty()).then(|| values.join("::"))))
+                        .collect();
+                    assert_eq!(actual, expected);
+                    let mut restored =
+                        GroupBy::restore_distinct_listagg(updating, &original.snapshot());
+                    assert_eq!(original.update(&seed), restored.update(&seed));
+                    let mut allocation_probe = GroupBy::distinct_listagg(updating);
+                    if updating {
+                        allocation_probe.update(&seed);
+                    }
+                    let (output, allocations) = measure(|| allocation_probe.update(next));
+                    let label = format!(
+                        "listagg_distinct/rows={rows}/keys={keys}/width={width}/retract={updating}"
+                    );
+                    report(&label, next.columns(), output.columns(), allocations);
+                    group.throughput(Throughput::Elements(next.num_rows() as u64));
+                    group.bench_function(label, |b| {
+                        b.iter_batched_ref(
+                            || {
+                                let mut agg = GroupBy::distinct_listagg(updating);
+                                if updating {
+                                    agg.update(&seed);
+                                }
+                                agg
+                            },
+                            |agg| black_box(agg.update(black_box(next))),
+                            BatchSize::LargeInput,
+                        )
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+
 fn json_groups(c: &mut Criterion) {
     let mut group = c.benchmark_group("json_aggregate");
     group
@@ -166,11 +287,11 @@ fn string_checkpoints(c: &mut Criterion) {
     group
         .sample_size(10)
         .measurement_time(Duration::from_secs(1));
-    for kind in [24, 25, 26, 29] {
+    for kind in [24, 25, 26, 29, 32, 33] {
         for (rows, keys, width) in [(16, 1, 8), (1024, 64, 128)] {
             let make_input = |prefix: &str| {
                 let input = batch(rows, keys, width, false);
-                if kind < 26 {
+                if kind < 26 || kind >= 32 {
                     return input;
                 }
                 let mut columns = input.columns().to_vec();
@@ -186,15 +307,23 @@ fn string_checkpoints(c: &mut Criterion) {
             let input = make_input("seed");
             let next = make_input("next");
             let create = || {
-                if kind < 26 {
-                    GroupBy::listagg(kind == 25)
+                if kind < 26 || kind >= 32 {
+                    if kind >= 32 {
+                        GroupBy::distinct_listagg(kind == 33)
+                    } else {
+                        GroupBy::listagg(kind == 25)
+                    }
                 } else {
                     GroupBy::json_aggregate(kind)
                 }
             };
             let restore = |snapshot: &[Vec<u8>]| {
-                if kind < 26 {
-                    GroupBy::restore_listagg(kind == 25, snapshot)
+                if kind < 26 || kind >= 32 {
+                    if kind >= 32 {
+                        GroupBy::restore_distinct_listagg(kind == 33, snapshot)
+                    } else {
+                        GroupBy::restore_listagg(kind == 25, snapshot)
+                    }
                 } else {
                     GroupBy::restore_json_aggregate(kind, snapshot)
                 }
@@ -232,5 +361,11 @@ fn string_checkpoints(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, string_groups, json_groups, string_checkpoints);
+criterion_group!(
+    benches,
+    string_groups,
+    distinct_string_groups,
+    json_groups,
+    string_checkpoints
+);
 criterion_main!(benches);
