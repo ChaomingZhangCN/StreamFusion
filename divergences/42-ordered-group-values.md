@@ -99,6 +99,16 @@ reservation follow the existing Comet-style local operator. Local buffers drain 
 barriers; global checkpoints keep the same version-one prefix state. DISTINCT and
 retracting split forms remain separate gaps because their merge state differs.
 
+Ordinary append LISTAGG retention uses the existing whole-group clock and value-state
+lifetime. Released Flink's declarative separator/prefix fields share one accumulator state;
+there is no supporting ListView or MapView to expire independently. NULL input still writes
+that state and refreshes its deadline. Direct tests extract the released generated operator
+rather than supplying a handwritten host approximation, synchronize both clock providers,
+and compare expiry and restore at the deadline across memory/native RocksDB. Existing
+version-specific mini-batch no-op emission remains intact. This admits positive retention
+for ordinary append single/mini/local-global plans; DISTINCT and retractable supporting
+views retain their independent-state restriction.
+
 LISTAGG DISTINCT adds Flink's generated distinct wrapper to this ordered accumulator,
 using owned string keys and multiplicities. The inner LISTAGG sees only the zero-to-one
 insert and one-to-zero retract transitions. Recomputing an unordered distinct set through

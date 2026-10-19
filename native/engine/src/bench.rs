@@ -1001,6 +1001,39 @@ impl GroupBy {
         )
     }
 
+    pub fn listagg_retention(separator_column: i64, ttl_ms: i64) -> Self {
+        Self(
+            GroupAggregator::new(vec![24], vec![3], vec![1], vec![0], true)
+                .with_count_columns(vec![separator_column])
+                .with_state_ttl(ttl_ms),
+        )
+    }
+
+    pub fn restore_listagg_retention(
+        separator_column: i64,
+        ttl_ms: i64,
+        snapshot: &[Vec<u8>],
+        now_ms: i64,
+    ) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![24],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshot,
+                now_ms,
+            )
+            .with_count_columns(vec![separator_column])
+            .with_state_ttl(ttl_ms),
+        )
+    }
+
+    pub fn update_at(&mut self, batch: &RecordBatch, now_ms: i64) -> RecordBatch {
+        self.0.update(batch, now_ms).expect("budget exceeded")
+    }
+
     pub fn listagg(retracting: bool) -> Self {
         Self(
             GroupAggregator::new(

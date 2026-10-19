@@ -2456,6 +2456,15 @@ checkpoint continuation is compared separately with uninterrupted state. All 92 
 fixtures pass, with allocation and Arrow-sharing records for each. Whole-job qualification
 retains IPC, JNI and both transposes separately from this native boundary.
 
+The `listagg_retention` group adds four expiry profiles at 16 rows/one key/8-byte strings
+and 1,024 rows/64 keys/128-byte strings, with default/literal separators. Setup seeds at
+0 ms and refreshes with NULL rows at 999 ms under a 1,000 ms TTL. Timing covers reclaiming
+the expired prefix and processing a new batch at 1,999 ms. Independent prefix oracles require
+a fresh INSERT for each expired key; checkpoint continuation must match uninterrupted state.
+Setup and destruction remain outside timing. The combined integration passes all 96 string/JSON
+and 256 ordered DISTINCT fixtures; allocation and Arrow-sharing records for all 352 are retained
+in [the retention measurement artifact](results/listagg-retention-2026-10-19.json).
+
 The same suite now includes 32 JSON array/object cases over both batch sizes, key
 cardinalities and widths, with append and retract input. Each calls production update
 and materialization and verifies the next retraction after snapshot/restore. Serialized

@@ -307,6 +307,93 @@ fn two_phase_strings(c: &mut Criterion) {
     group.finish();
 }
 
+fn retained_string_expiry(c: &mut Criterion) {
+    let mut group = c.benchmark_group("listagg_retention");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1));
+    for (rows, keys, width) in [(16usize, 1usize, 8usize), (1024, 64, 128)] {
+        let input = batch(rows, keys, width, false);
+        let mut columns = input.columns().to_vec();
+        columns[1] = arrow::array::new_null_array(&arrow::datatypes::DataType::Utf8, rows);
+        let refresh = RecordBatch::try_new(input.schema(), columns).unwrap();
+        for separator_column in [-1, 2] {
+            let setup = || {
+                let mut agg = GroupBy::listagg_retention(separator_column, 1000);
+                agg.update_at(&input, 0);
+                agg.update_at(&refresh, 999);
+                agg
+            };
+            let mut original = setup();
+            let mut restored = GroupBy::restore_listagg_retention(
+                separator_column,
+                1000,
+                &original.snapshot(),
+                1999,
+            );
+            let output = original.update_at(&input, 1999);
+            assert_eq!(output, restored.update_at(&input, 1999));
+            let output_keys = output
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap();
+            let values = output
+                .column(1)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            let kinds = output
+                .column(2)
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .unwrap();
+            let mut actual = std::collections::BTreeMap::new();
+            let mut first = std::collections::BTreeSet::new();
+            for row in 0..output.num_rows() {
+                let key = output_keys.value(row);
+                if first.insert(key) {
+                    assert_eq!(kinds.value(row), 0, "expired group must insert afresh");
+                }
+                if kinds.value(row) != 1 {
+                    actual.insert(key, values.iter().nth(row).unwrap().map(str::to_owned));
+                }
+            }
+            let input_values = input
+                .column(1)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            let mut expected = std::collections::BTreeMap::<i64, Vec<String>>::new();
+            for row in 0..rows {
+                let values = expected.entry((row % keys) as i64).or_default();
+                if let Some(value) = input_values.iter().nth(row).unwrap() {
+                    values.push(value.to_owned());
+                }
+            }
+            let separator = if separator_column < 0 { "," } else { "::" };
+            let expected: std::collections::BTreeMap<_, _> = expected
+                .into_iter()
+                .map(|(key, values)| (key, (!values.is_empty()).then(|| values.join(separator))))
+                .collect();
+            assert_eq!(actual, expected);
+            let mut probe = setup();
+            let (output, allocations) = measure(|| probe.update_at(&input, 1999));
+            let label = format!("listagg_retention/rows={rows}/keys={keys}/width={width}/separator_column={separator_column}");
+            report(&label, input.columns(), output.columns(), allocations);
+            group.throughput(Throughput::Elements(rows as u64));
+            group.bench_function(label, |b| {
+                b.iter_batched_ref(
+                    setup,
+                    |agg| black_box(agg.update_at(black_box(&input), 1999)),
+                    BatchSize::LargeInput,
+                )
+            });
+        }
+    }
+    group.finish();
+}
+
 fn json_groups(c: &mut Criterion) {
     let mut group = c.benchmark_group("json_aggregate");
     group
@@ -462,6 +549,7 @@ criterion_group!(
     string_groups,
     distinct_string_groups,
     two_phase_strings,
+    retained_string_expiry,
     json_groups,
     string_checkpoints
 );

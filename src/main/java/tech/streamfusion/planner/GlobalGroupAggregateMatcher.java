@@ -54,16 +54,8 @@ final class GlobalGroupAggregateMatcher {
       AggregateCall call = agg.aggCalls().apply(i);
       int kind = LocalGroupAggregateMatcher.aggregateKind(call.getAggregation().getKind());
       if (kind == GroupAggregateMatcher.KIND_LISTAGG_APPEND) {
-        Long hint = FlinkCompat.singleStateTtl(agg);
-        long retention =
-            hint == null
-                ? org.apache.flink.table.planner.utils.ShortcutUtils.unwrapTableConfig(agg)
-                    .getIdleStateRetention()
-                    .toMillis()
-                : hint;
         if (needRetraction
             || call.isDistinct()
-            || retention > 0
             || !call.getCollation().getFieldCollations().isEmpty()
             || call.getArgList().isEmpty()
             || call.getArgList().size() > 2
@@ -71,7 +63,7 @@ final class GlobalGroupAggregateMatcher {
             || !LocalGroupAggregateMatcher.supportedListAggPartials(
                 inputType.getFieldList().get(offset).getType(),
                 inputType.getFieldList().get(offset + 1).getType()))
-          return "global LISTAGG requires append-only non-DISTINCT string partials without TTL";
+          return "global LISTAGG requires append-only non-DISTINCT string partials";
         offset += 2;
         continue;
       }

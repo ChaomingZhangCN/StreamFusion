@@ -152,7 +152,12 @@ value only when its last occurrence leaves. Reinsertion appends it at the new ar
 NULLs never enter membership; separator literals, FILTER, CHAR casts, mixed aggregates and
 mini-batches use the same contract. Checkpoints preserve membership and ordered values, and
 native retained-memory accounting includes owned membership keys and table capacity.
-Positive state TTL and DISTINCT/retracting local/global LISTAGG remain fallback.
+Ordinary append LISTAGG admits positive state TTL in single-phase, single-phase mini-batch
+and local/global plans. Its separator/prefix accumulator is one TTL value state, so existing
+whole-group expiry and write refresh preserve released behavior, including NULL writes.
+DISTINCT or retracting LISTAGG with positive retention remains fallback because its supporting
+MapView/ListView state has independent lifetimes. DISTINCT/retracting local/global merges
+also remain fallback without retention.
 Released Flink rejects LISTAGG WITHIN GROUP ordering. Both releases produce real
 local/global plans under TWO_PHASE; ordinary append input now accelerates. The local
 emits the declared pair of STRING fields (separator, prefix), and the global concatenates
@@ -252,6 +257,49 @@ Reproduce with `StringAggregateBenchmark`, `-Dstringagg.phase=TWO_PHASE
 -Dstringagg.batchSize=4096 -Dstringagg.rows=500000 -Dstringagg.warmup=2
 -Dstringagg.runs=3` and the table's `stringagg.keys`/`stringagg.width`.
 `stringagg.phase` defaults to ONE_PHASE; the separate control disables mini-batching.
+
+Positive-retention admission is pinned by 20 direct operator comparisons per release.
+Tests extract Flink's generated keyed aggregate from a real SQL transformation graph,
+synchronize the TTL provider and processing-time clocks, and compare each kinded output.
+They cover two keys, NULL write refresh, immediately-before/exact expiry, checkpoint
+restore, both separator forms, memory/native RocksDB, and single/single-mini/global-mini
+contexts. Six additional SQL profiles force two restores with one-hour retention. The
+combined integration passes 288 checks on Flink 2.2.1 and 252 with 36 declared host skips
+on 1.18.1. All 47 grouped native state tests and 352 selected release fixtures pass;
+four new fixtures independently check refresh, restore and fresh INSERT after expiry.
+
+Positive-TTL complete jobs use the integrated runtime, p=1/JDK 17/2 GiB/UTC,
+release+mimalloc, 500k nullable rows, 1,024-row transposes and both IPC/JNI boundaries.
+Retention is one hour; controlled-clock tests establish expiry separately. Two warmups
+and three alternating trials retain every measurement.
+
+| Retention workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| ONE_PHASE, 16,384 keys, 16-byte strings | 1.226 s | 1.224 s | 0.400 s | 3.06× |
+| ONE_PHASE, 8,192 keys, 128-byte strings | 2.261 s | — | 1.612 s | 1.40× |
+| TWO_PHASE, 16,384 keys, 16-byte strings | 1.494 s | 1.450 s | 0.535 s | 2.79× |
+| TWO_PHASE, 8,192 keys, 128-byte strings | 2.883 s | — | 2.090 s | 1.38× |
+| ONE_PHASE mini-batch, compact profile | 1.353 s | — | 0.531 s | 2.55× |
+| TWO_PHASE wide profile, Flink 1.18.1 | 2.882 s | — | 1.888 s | 1.53× |
+
+The actual previous `5c110c1a` falls back for positive retention; compact ONE/TWO medians
+improve 3.06×/2.71×. Its paired stock medians are 1.261/1.450 s. The current build also
+integrates the independently qualified typed ordered-value implementation, preserving
+all earlier feature heads. No-TTL controls remain native: ONE_PHASE medians are
+0.342/0.342 s current/previous. Wide TWO_PHASE medians are 1.930/1.837 s (current about
+5% slower), while means are 1.919/1.927 s and ranges overlap (1.891–1.935/1.821–2.122 s).
+These controls do not establish a general no-TTL change. Native allocation probes show
+identical output-buffer observations and only two extra small per-batch requests in the
+shared dispatch; allocation requests do not measure copied bytes.
+
+All 120 jobs, means, medians, variability, provenance and allocation probes remain in
+[the retention artifact](../benchmarks/results/listagg-retention-2026-10-19.json).
+Short jobs retain startup costs; arbitrary per-key widths/cardinalities are unmeasured.
+Reproduce with `StringAggregateBenchmark`, `-Dstringagg.ttl='1 h'`, the table's
+`stringagg.phase`, `stringagg.keys` and `stringagg.width`, plus `stringagg.batchSize=4096`,
+`stringagg.rows=500000`, `stringagg.warmup=2` and `stringagg.runs=3`.
+`stringagg.miniBatch=true` separately selects single-phase mini-batching; its default
+follows TWO_PHASE. Omitting `stringagg.ttl` retains the prior zero-retention default.
 
 ### JSON_ARRAYAGG and JSON_OBJECTAGG
 
@@ -681,7 +729,7 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- LISTAGG or JSON aggregates with positive state TTL.
+- DISTINCT or retracting LISTAGG with positive state TTL; JSON aggregates with positive state TTL.
   Released Flink rejects LISTAGG WITHIN GROUP ordering and JSON DISTINCT/object-ordering
   syntax; these are host limitations. JSON_ARRAYAGG ordering clauses preserve the
   released host's arrival-order behavior described above.

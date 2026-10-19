@@ -32,6 +32,11 @@ class StringAggregateBenchmark {
     String phase = System.getProperty("stringagg.phase", "ONE_PHASE");
     assertTrue(phase.equals("ONE_PHASE") || phase.equals("TWO_PHASE"));
     boolean split = phase.equals("TWO_PHASE");
+    boolean miniBatch =
+        Boolean.parseBoolean(System.getProperty("stringagg.miniBatch", Boolean.toString(split)));
+    assertTrue(!split || miniBatch);
+    String retention = System.getProperty("stringagg.ttl", "");
+    System.out.println("[string-aggregate-retention] " + retention + " minibatch=" + miniBatch);
     System.out.println("[string-aggregate-phase] " + phase);
     String function = System.getProperty("stringagg.function", "LISTAGG");
     String valueType = System.getProperty("stringagg.value", "string");
@@ -75,8 +80,8 @@ class StringAggregateBenchmark {
           env.setParallelism(1);
           var table = StreamTableEnvironment.create(env);
           table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-          table.getConfig().set("table.exec.mini-batch.enabled", Boolean.toString(split));
-          if (split) {
+          table.getConfig().set("table.exec.mini-batch.enabled", Boolean.toString(miniBatch));
+          if (miniBatch) {
             table
                 .getConfig()
                 .set(
@@ -84,6 +89,7 @@ class StringAggregateBenchmark {
                     System.getProperty("stringagg.batchSize", "1024"));
             table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
           }
+          if (!retention.isEmpty()) table.getConfig().set("table.exec.state.ttl", retention);
           table.getConfig().set("streamfusion.transpose.batchRows", "1024");
           var source =
               env.fromSequence(0, rows - 1)
