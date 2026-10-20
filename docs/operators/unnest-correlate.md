@@ -120,12 +120,13 @@ Arrow island; these results do not imply every scalar expression runs in Rust.
 
 Synchronous JVM `TableFunction` definitions carried by Flink's bridging SQL function support
 INNER/LEFT application with top-level STRING/VARCHAR, BOOLEAN, TINYINT, SMALLINT, INT, BIGINT,
-DECIMAL, DATE, TIME, TIMESTAMP and TIMESTAMP_LTZ input, output and argument types.
+DECIMAL, FLOAT/DOUBLE, VARBINARY, DATE, TIME, TIMESTAMP, TIMESTAMP_LTZ and
+day-time/year-month interval input, output and argument types.
 These types are admitted by default under the accepted UDF performance exception, without
 an additional type-specific opt-in. Their user functions still run on the JVM; measured
 standalone costs can exceed stock Flink after profiling and two optimization passes.
 Conversion optimization remains tracked in
-[#425](https://github.com/datafusion-contrib/StreamFusion/issues/425). Floating, binary and container types, specialized functions, Python/async
+[#425](https://github.com/datafusion-contrib/StreamFusion/issues/425). Fixed BINARY and container types, specialized functions, Python/async
 functions and legacy SQL wrappers retain fallback. The ordinary `streamfusion.operator.tableFunction.enabled`
 switch can disable this operator.
 
@@ -145,6 +146,18 @@ DECIMAL results retain the host's scale rounding and NULL on precision overflow,
 precision-38 inputs and scale-38 outputs. Released SQL resolves TIME inputs to TIME(0), whose
 internal value can retain milliseconds; a function explicitly demanding TIME(3) retains Flink's
 code-generation type mismatch rather than silently changing its signature.
+
+Floating cases include signed zeros, subnormal/extreme values, infinities and NaNs; VARBINARY
+includes empty values, embedded zero/high bytes and 4,097-byte payloads. Interval functions use
+the released planner's canonical SECOND(3)/MONTH signatures and inferred input types. A declaration
+that requires an unsupported implicit interval cast or differs from the planner's normalized
+output type retains the host's planning/code-generation failure. Native substitution does not
+rewrite a user function's signature.
+
+The expanded suite passes 54 checks on each released Flink line, including all-row-kind
+memory/RocksDB recovery for the newly admitted floating, byte-array and interval signatures.
+[Validation details](../benchmarks/results/typed-table-function-scalars-2026-10-19.json) retain
+the source/library hashes, cases and released interval-planner fixture limitations.
 
 The typed SQL fixtures compare independent host/native executions across UTC, Asia/Shanghai and
 America/Los_Angeles, including DST boundary values, INNER/LEFT padding, NULL arguments/results,

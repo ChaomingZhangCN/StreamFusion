@@ -961,7 +961,8 @@ this expansion. SQL comparisons return the original binary and interval columns 
 counts over seven event/proctime frame contexts, checking values and declared types. Twenty-eight
 operator cases verify all frame/time combinations through checkpoints on both memory and native
 RocksDB, including canonical state transitions and retained payloads. The native Criterion
-suite adds 112 binary/interval oracle and snapshot fixtures to the existing OVER COUNT target.
+suite adds 112 binary/interval oracle and snapshot fixtures to the existing OVER COUNT target;
+all 372 release fixtures pass after integration with the Rust-side admission changes.
 
 Complete-job measurements use released Flink 2.2.1/JDK17, fresh release+mimalloc, parallelism
 one, 2 GiB heap, 1,024-row batches, 500,000 runtime rows, 64 keys, two warmups and five

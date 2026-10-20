@@ -3,9 +3,11 @@ package tech.streamfusion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.inference.InputTypeStrategies;
 import org.apache.flink.table.types.inference.TypeInference;
 import org.apache.flink.table.types.inference.TypeStrategies;
 import org.apache.flink.types.Row;
@@ -37,7 +40,18 @@ class FlinkTypedTableFunctionSqlHarnessTest {
     var cases = new ArrayList<Arguments>();
     for (String type :
         List.of(
-            "BOOLEAN", "TINYINT", "SMALLINT", "DECIMAL(18,8)", "DECIMAL(38,18)", "DATE", "TIME")) {
+            "BOOLEAN",
+            "TINYINT",
+            "SMALLINT",
+            "FLOAT",
+            "DOUBLE",
+            "VARBINARY",
+            "DAY_TIME",
+            "YEAR_MONTH",
+            "DECIMAL(18,8)",
+            "DECIMAL(38,18)",
+            "DATE",
+            "TIME")) {
       cases.add(Arguments.of(type, "UTC"));
     }
     for (int precision : new int[] {0, 3, 6, 9}) {
@@ -76,6 +90,11 @@ class FlinkTypedTableFunctionSqlHarnessTest {
         "BOOLEAN",
         "TINYINT",
         "SMALLINT",
+        "FLOAT",
+        "DOUBLE",
+        "VARBINARY",
+        "DAY_TIME",
+        "YEAR_MONTH",
         "DECIMAL(18,8)",
         "DECIMAL(38,18)",
         "DATE",
@@ -225,6 +244,16 @@ class FlinkTypedTableFunctionSqlHarnessTest {
     if (name.startsWith("TIMESTAMP("))
       return DataTypes.TIMESTAMP(Integer.parseInt(name.substring(10, name.length() - 1)));
     switch (name) {
+      case "FLOAT":
+        return DataTypes.FLOAT();
+      case "DOUBLE":
+        return DataTypes.DOUBLE();
+      case "VARBINARY":
+        return DataTypes.BYTES();
+      case "DAY_TIME":
+        return DataTypes.INTERVAL(DataTypes.SECOND(3));
+      case "YEAR_MONTH":
+        return DataTypes.INTERVAL(DataTypes.MONTH());
       case "BOOLEAN":
         return DataTypes.BOOLEAN();
       case "TINYINT":
@@ -248,6 +277,43 @@ class FlinkTypedTableFunctionSqlHarnessTest {
     int slot = index % 8;
     if (slot == 7) return null;
     switch (name) {
+      case "FLOAT":
+        return new float[] {
+              Float.NEGATIVE_INFINITY,
+              -0.0f,
+              0.0f,
+              Float.MIN_VALUE,
+              Float.MAX_VALUE,
+              Float.POSITIVE_INFINITY,
+              Float.intBitsToFloat(0x7fc00001)
+            }
+            [slot];
+      case "DOUBLE":
+        return new double[] {
+              Double.NEGATIVE_INFINITY,
+              -0.0d,
+              0.0d,
+              Double.MIN_VALUE,
+              Double.MAX_VALUE,
+              Double.POSITIVE_INFINITY,
+              Double.longBitsToDouble(0x7ff8000000000001L)
+            }
+            [slot];
+      case "VARBINARY":
+        return new byte[][] {
+              new byte[0],
+              {0},
+              {(byte) 0xff},
+              {0, (byte) 0xff, 1},
+              new byte[4097],
+              {1, 0, 2},
+              {(byte) 0x80, 0, 127}
+            }
+            [slot];
+      case "DAY_TIME":
+        return Duration.ofMillis(new long[] {-86_400_001, -1234, -1, 0, 1, 1234, 86_400_001}[slot]);
+      case "YEAR_MONTH":
+        return Period.ofMonths(new int[] {-12001, -12, -1, 0, 1, 12, 12001}[slot]);
       case "BOOLEAN":
         return slot % 2 == 0;
       case "TINYINT":
@@ -335,13 +401,24 @@ class FlinkTypedTableFunctionSqlHarnessTest {
 
     @Override
     public TypeInference getTypeInference(DataTypeFactory factory) {
-      return TypeInference.newBuilder()
-          .typedArguments(DataTypes.INT(), type)
-          .outputTypeStrategy(
-              TypeStrategies.explicit(
-                  DataTypes.ROW(
-                      DataTypes.FIELD("v", outputType), DataTypes.FIELD("pos", DataTypes.INT()))))
-          .build();
+      var inference =
+          TypeInference.newBuilder()
+              .outputTypeStrategy(
+                  TypeStrategies.explicit(
+                      DataTypes.ROW(
+                          DataTypes.FIELD("v", outputType),
+                          DataTypes.FIELD("pos", DataTypes.INT()))));
+      switch (type.getLogicalType().getTypeRoot()) {
+        case INTERVAL_DAY_TIME:
+        case INTERVAL_YEAR_MONTH:
+          return inference
+              .inputTypeStrategy(
+                  InputTypeStrategies.sequence(
+                      InputTypeStrategies.explicit(DataTypes.INT()), InputTypeStrategies.ANY))
+              .build();
+        default:
+          return inference.typedArguments(DataTypes.INT(), type).build();
+      }
     }
 
     @Override

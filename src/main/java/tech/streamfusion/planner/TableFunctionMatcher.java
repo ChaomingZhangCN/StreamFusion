@@ -4,6 +4,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate;
@@ -36,8 +37,13 @@ final class TableFunctionMatcher {
   }
 
   private static boolean basicType(RelDataType type) {
+    if (type.getSqlTypeName().getFamily() == SqlTypeFamily.INTERVAL_DAY_TIME
+        || type.getSqlTypeName().getFamily() == SqlTypeFamily.INTERVAL_YEAR_MONTH) return true;
     switch (type.getSqlTypeName()) {
       case VARCHAR:
+      case FLOAT:
+      case DOUBLE:
+      case VARBINARY:
       case INTEGER:
       case BIGINT:
         return true;
@@ -56,8 +62,9 @@ final class TableFunctionMatcher {
   }
 
   static String unsupportedReason(StreamPhysicalCorrelate node) {
-    return "correlate: only non-specialized JVM table functions with INNER/LEFT and VARCHAR, exact"
-        + " numeric, boolean or temporal input, output and argument types are verified";
+    return "correlate: only non-specialized JVM table functions with INNER/LEFT and VARCHAR,"
+               + " numeric, boolean, VARBINARY, interval or temporal input, output and argument"
+               + " types are verified";
   }
 
   static RelNode substitute(StreamPhysicalCorrelate node, PlanContext context) {
