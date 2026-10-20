@@ -18,10 +18,6 @@ public final class FlinkCompat {
     return miniBatchSize(config);
   }
 
-  public static int applyParsedTimePrecision(int millis, int precision) {
-    return org.apache.flink.table.utils.DateTimeUtils.applyTimePrecisionTruncation(millis, precision);
-  }
-
   public static int timestampToTimeTruncationFactor(int precision) {
     return precision >= 3 ? 1 : (int) Math.pow(10, 3 - precision);
   }

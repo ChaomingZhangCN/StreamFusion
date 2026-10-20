@@ -28,7 +28,7 @@ class GeneratedExpressionDispatchTest {
     var types = new JavaTypeFactoryImpl();
     var rex = new RexBuilder(types);
     var function =
-        new FlinkExpressionFunction(
+        FlinkExpressionGenerator.generate(
             rex.makeInputRef(
                 types.createTypeWithNullability(types.createSqlType(SqlTypeName.INTEGER), true), 0),
             new LogicalType[] {new IntType()},

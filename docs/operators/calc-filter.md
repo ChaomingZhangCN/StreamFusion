@@ -41,6 +41,20 @@ row-at-a-time Flink evaluation. This is the reliable way to distinguish a fully 
 from JVM work inside a `NativeCalc`. The always-on planning summary separately counts Calc/filter
 nodes containing JVM functions.
 
+Generated expression code is built entirely in the planner. Serialized Calc/filter bindings
+carry only the generated function, runtime types/schema and user-function references; workers
+do not need Flink's planner or Calcite classes to deserialize or execute them. The runtime
+function keeps its existing serialized class name and fields, but its constructors and methods
+no longer refer to code generators. Temporal precision helpers also use the runtime compatibility
+layer rather than linking execution back to the planner.
+
+`GeneratedExpressionRuntimeIsolationTest` starts fresh worker JVMs with the planner and Calcite
+artifacts removed from their classpaths. It covers scalar and complete-row generation, processing
+time close/reopen, temporal parsing, and a SQL-planned Calc factory restored through `StreamConfig`.
+It also checks strict-cast failures without the planner. The SQL case exercises casts, regex
+predicates, user-function lifecycle, empty Arrow batches and preserved changelog row kinds.
+This is a deployment-correctness regression, not a throughput optimization.
+
 Filter projections can repeat input columns, including nullable and nested values. Each repeated
 reference owns a retained Arrow view until the final reference transfers the source buffers,
 so releasing the input cannot erase another projected copy or its changelog row kind.

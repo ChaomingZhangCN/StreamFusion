@@ -42,7 +42,7 @@ class GeneratedProcessingTimeOperatorTest {
               rex.makeTimestampWithLocalTimeZoneLiteral(
                   TimestampString.fromMillisSinceEpoch(2000L), 3));
       function =
-          new FlinkExpressionFunction(
+          FlinkExpressionGenerator.generate(
               condition,
               new LogicalType[] {new LocalZonedTimestampType(3)},
               TableConfig.getDefault(),
