@@ -99,6 +99,14 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         map.append(valid(row)).unwrap();
     }
     let maps = array(map.finish(), rows);
+    let mut strings = arrow::array::ListBuilder::new(arrow::array::StringBuilder::new());
+    for row in 0..rows + 1 {
+        for value in [Some(text.as_str()), None, Some("")] {
+            strings.values().append_option(value);
+        }
+        strings.append(valid(row));
+    }
+    let string_lists = array(strings.finish(), rows);
     let mut cases = vec![
         (
             65,
@@ -248,6 +256,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
             199,
             vec![literal("a"), integers.clone(), literal("b"), long(2)],
         ),
+        (200, vec![string_lists, string("|"), string("NULL")]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

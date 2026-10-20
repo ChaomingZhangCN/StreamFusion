@@ -38,6 +38,7 @@ mod array_edit;
 #[cfg(test)]
 mod array_extrema_tests;
 pub(crate) mod array_item;
+mod array_join;
 mod array_remove;
 mod array_search;
 mod array_set;
@@ -248,6 +249,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         197 => datafusion::functions::core::named_struct().as_ref().clone(),
         198 => datafusion::functions::core::named_struct().as_ref().clone(),
         199 => datafusion::functions::core::named_struct().as_ref().clone(),
+        200 => array_join::function(arity),
         _ => return None,
     })
 }

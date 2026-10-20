@@ -1576,6 +1576,17 @@ final class RexExpression {
     return true;
   }
 
+  static boolean nativeArrayJoin(RexCall call) {
+    var args=call.getOperands();
+    return call.getOperator().getName().equals("ARRAY_JOIN")
+        && tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
+        && args.size()>=2 && args.size()<=3
+        && args.get(0).getType().getSqlTypeName()==SqlTypeName.ARRAY
+        && args.get(0).getType().getComponentType().isNullable()
+        && org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER.contains(args.get(0).getType().getComponentType())
+        && args.stream().skip(1).allMatch(arg -> org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER.contains(arg.getType()));
+  }
+
   private static boolean verifiedSortInput(RexNode node) {
     if (!(node instanceof RexCall)) return false;
     var call = (RexCall) node;
@@ -2131,6 +2142,11 @@ final class RexExpression {
           || requiresRowShortCircuit(arg)))
         return reject("MAP_UNION uses Flink evaluation outside matching total nullable basic maps");
       return emitBuiltinCall(call,195);
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_JOIN".equals(functionName)) {
+      if (!nativeArrayJoin(call) || call.getOperands().stream().anyMatch(this::requiresRowShortCircuit))
+        return reject("ARRAY_JOIN uses Flink evaluation outside total nullable string arrays");
+      return emitBuiltinCall(call,200);
     }
     if (NativeConfig.collectionExpressionsEnabled() && "MAP_FROM_ARRAYS".equals(functionName)) {
       var args=call.getOperands();

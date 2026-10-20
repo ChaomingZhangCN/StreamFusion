@@ -2781,3 +2781,14 @@ It folds the field choices into the released named-struct builder. Flink still
 validates field names and rejects repeated update names during planning. Shared objects, runtime structured inputs,
 nested updates and non-atomic values retain generated evaluation to preserve
 Flink's in-place mutation, aliases, evaluation order and random/UDF effects.
+
+ARRAY_JOIN evaluates total nullable string arrays in Rust, skipping NULL elements
+in its two-argument form and propagating an explicit NULL replacement in its
+three-argument form. Every input is materialized separately to UTF-8 bytes before
+joining, as in Flink concatWs. Empty/all-skipped arrays yield an empty string.
+Runtime separators/replacements and isolated UTF-16 source surrogates have parity
+fixtures. A Calc that also projects original sensitive values or uses an unverified
+string/collection consumer retains generated evaluation, preserving their Java
+representation. Other array element types/nullability and fallible operands stay
+generated. DataFusion's explicit NULL replacement skips elements, so it is not a
+direct substitute for this Flink kernel.

@@ -424,3 +424,18 @@ Query: `OBJECT_UPDATE(OBJECT_OF('tech.streamfusion.FlinkNativeObjectSqlHarnessTe
 Elapsed time changes by -42.28% versus the prior evaluator and -17.87% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-object-update-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-object-update-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-object-update-allocations-2026-10-20.csv) retain the evidence. Released SQL tests cover inline atomic updates and alias-sensitive projection orders; shared or non-atomic inputs remain generated.
+
+## ARRAY_JOIN complete-job evidence
+
+Query: `ARRAY_JOIN(arr,'|','NULL')`, 1,000,000 rows, STRING, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 1.690393 | 1.657495-1.698081 |
+| baseline streamfusion | 2.805160 | 2.785818-3.040277 |
+| candidate stock | 1.733543 | 1.726776-1.795149 |
+| candidate streamfusion | 1.883071 | 1.868195-1.892549 |
+
+Elapsed time changes by -32.87% versus the prior evaluator and +8.63% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-array-join-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-join-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-array-join-allocations-2026-10-20.csv) retain the evidence. Four released SQL tests cover runtime separators/replacements, isolated UTF-16 source surrogates, NULLs, filters and sensitive co-projections.

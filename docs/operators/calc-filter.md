@@ -2082,7 +2082,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_EXCEPT | Rust stable set difference for matching nullable BOOLEAN/integer/DECIMAL arrays, retaining the first left-side occurrence of each value absent on the right, with NULL treated as a value; either NULL array returns NULL |
 | ARRAY_INTERSECT | Rust stable intersection for matching nullable BOOLEAN/integer/DECIMAL arrays; distinct matches follow left-side order even when the left array is shorter; NULL is a value, either NULL container returns NULL |
 | ARRAY_SORT | Released DataFusion Rust sort for nullable integer/DECIMAL arrays proven shorter than 32 elements or produced by native ARRAY_DISTINCT, with non-NULL constant Boolean options; unrestricted, runtime-option, sensitive and fallible signatures retain Flink's comparator behavior |
-| ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
+| ARRAY_JOIN | Rust UTF-8 join for total nullable string arrays and string options, including strict explicit NULL replacement; co-projected sensitive values and unverified consumers remain generated |
 | ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
 | MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
 | MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
@@ -2735,3 +2735,14 @@ It folds the field choices into the released named-struct builder. Flink still
 validates field names and rejects repeated update names during planning. Shared objects, runtime structured inputs,
 nested updates and non-atomic values retain generated evaluation to preserve
 Flink's in-place mutation, aliases, evaluation order and random/UDF effects.
+
+ARRAY_JOIN evaluates total nullable string arrays in Rust, skipping NULL elements
+in its two-argument form and propagating an explicit NULL replacement in its
+three-argument form. Every input is materialized separately to UTF-8 bytes before
+joining, as in Flink concatWs. Empty/all-skipped arrays yield an empty string.
+Runtime separators/replacements and isolated UTF-16 source surrogates have parity
+fixtures. A Calc that also projects original sensitive values or uses an unverified
+string/collection consumer retains generated evaluation, preserving their Java
+representation. Other array element types/nullability and fallible operands stay
+generated. DataFusion's explicit NULL replacement skips elements, so it is not a
+direct substitute for this Flink kernel.
