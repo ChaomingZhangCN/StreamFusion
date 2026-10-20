@@ -10,20 +10,26 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-pub(super) fn function() -> ScalarUDF {
-    ScalarUDF::new_from_impl(ArrayExcept {
+pub(super) fn function(intersect: bool) -> ScalarUDF {
+    ScalarUDF::new_from_impl(ArraySet {
         signature: Signature::any(2, Volatility::Immutable),
+        intersect,
     })
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct ArrayExcept {
+struct ArraySet {
     signature: Signature,
+    intersect: bool,
 }
 
-impl ScalarUDFImpl for ArrayExcept {
+impl ScalarUDFImpl for ArraySet {
     fn name(&self) -> &str {
-        "flink_array_except"
+        if self.intersect {
+            "flink_array_intersect"
+        } else {
+            "flink_array_except"
+        }
     }
     fn signature(&self) -> &Signature {
         &self.signature
@@ -37,11 +43,14 @@ impl ScalarUDFImpl for ArrayExcept {
         }
     }
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        datafusion::functions::utils::make_scalar_function(except, vec![])(&args.args)
+        datafusion::functions::utils::make_scalar_function(
+            |arrays| set(arrays, self.intersect),
+            vec![],
+        )(&args.args)
     }
 }
 
-fn except(args: &[ArrayRef]) -> Result<ArrayRef> {
+fn set(args: &[ArrayRef], intersect: bool) -> Result<ArrayRef> {
     let left = as_list_array(&args[0])?;
     let right = as_list_array(&args[1])?;
     macro_rules! primitive {
@@ -59,6 +68,7 @@ fn except(args: &[ArrayRef]) -> Result<ArrayRef> {
             select(
                 left,
                 right,
+                intersect,
                 |i| l.is_valid(i).then(|| l.value(i)),
                 |i| r.is_valid(i).then(|| r.value(i)),
             )
@@ -84,6 +94,7 @@ fn except(args: &[ArrayRef]) -> Result<ArrayRef> {
             select(
                 left,
                 right,
+                intersect,
                 |i| l.is_valid(i).then(|| l.value(i)),
                 |i| r.is_valid(i).then(|| r.value(i)),
             )
@@ -95,6 +106,7 @@ fn except(args: &[ArrayRef]) -> Result<ArrayRef> {
 fn select<K: Eq + Hash + Copy>(
     left: &ListArray,
     right: &ListArray,
+    intersect: bool,
     l: impl Fn(usize) -> Option<K>,
     r: impl Fn(usize) -> Option<K>,
 ) -> Result<ArrayRef> {
@@ -109,7 +121,11 @@ fn select<K: Eq + Hash + Copy>(
                 seen.insert(r(i));
             }
             for i in left.value_offsets()[row] as usize..left.value_offsets()[row + 1] as usize {
-                if seen.insert(l(i)) {
+                if if intersect {
+                    seen.remove(&l(i))
+                } else {
+                    seen.insert(l(i))
+                } {
                     indices.push(i as u32);
                 }
             }
@@ -161,6 +177,31 @@ mod tests {
             None,
             None,
         ]);
-        assert_eq!(except(&[left, right]).unwrap().as_ref(), &expected);
+        assert_eq!(
+            set(&[left.clone(), right.clone()], false).unwrap().as_ref(),
+            &expected
+        );
+        let expected = ListArray::from_iter_primitive::<Int64Type, _, _>([
+            Some(vec![Some(2)]),
+            Some(vec![None]),
+            Some(vec![]),
+            None,
+            None,
+        ]);
+        assert_eq!(set(&[left, right], true).unwrap().as_ref(), &expected);
+    }
+
+    #[test]
+    fn intersection_never_reorders_the_shorter_left_input() {
+        let left: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int64Type, _, _>([Some(
+            vec![Some(3), Some(1)],
+        )]));
+        let right: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int64Type, _, _>([Some(
+            vec![Some(1), Some(3), Some(9)],
+        )]));
+        assert_eq!(
+            set(&[left.clone(), right], true).unwrap().as_ref(),
+            left.as_ref()
+        );
     }
 }

@@ -105,6 +105,13 @@ class FlinkArrayEditSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
+  void intersectionKeepsLeftOrderRegardlessOfWhichInputIsShorter(String type) throws Exception {
+    verify(type,"ARRAY_INTERSECT(a,b)","ARRAY_INTERSECT");
+    verify(type,"ARRAY_INTERSECT(b,a)","ARRAY_INTERSECT");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
   void exceptDeduplicatesAndKeepsLeftInputOrder(String type) throws Exception {
     verify(type,"ARRAY_EXCEPT(a,b)","ARRAY_EXCEPT");
     verify(type,"ARRAY_EXCEPT(b,a)","ARRAY_EXCEPT");

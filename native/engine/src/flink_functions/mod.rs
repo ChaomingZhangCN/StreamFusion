@@ -228,7 +228,8 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         186 => datafusion::functions_nested::set_ops::array_union_udf()
             .as_ref()
             .clone(),
-        187 => array_set::function(),
+        187 => array_set::function(false),
+        188 => array_set::function(true),
         _ => return None,
     })
 }

@@ -1979,7 +1979,7 @@ final class RexExpression {
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_CONCAT".equals(functionName) || "ARRAY_UNION".equals(functionName)
-            || "ARRAY_EXCEPT".equals(functionName))) {
+            || "ARRAY_EXCEPT".equals(functionName) || "ARRAY_INTERSECT".equals(functionName))) {
       var args = call.getOperands();
       if (args.size() < 2 || !"ARRAY_CONCAT".equals(functionName) && args.size() != 2
           || args.stream().anyMatch(arg -> !nativeBasicArray(arg.getType())
@@ -1988,7 +1988,8 @@ final class RexExpression {
         return reject(functionName + " uses Flink evaluation outside total matching basic arrays");
       }
       return emitBuiltinCall(call,"ARRAY_CONCAT".equals(functionName) ? 185
-          : "ARRAY_UNION".equals(functionName) ? 186 : 187);
+          : "ARRAY_UNION".equals(functionName) ? 186
+          : "ARRAY_EXCEPT".equals(functionName) ? 187 : 188);
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {
