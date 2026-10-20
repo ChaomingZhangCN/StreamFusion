@@ -17,6 +17,15 @@ class FlinkArrayConstructorSqlHarnessTest {
   @ParameterizedTest
   @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
   void matchingNullableBasicValuesConstructArraysInRust(String type) throws Exception {
+    if (!tech.streamfusion.compat.FlinkCompat.NARROW_CONSTRUCTORS_COMPILE
+        && java.util.Set.of("TINYINT","SMALLINT").contains(type)) {
+      for(String expression:List.of("ARRAY[n,n]","ARRAY[n,CAST(NULL AS "+type+")]")) {
+        var runs=NativeFailureParity.run(()->FlinkArrayEditSqlHarnessTest.environment(type),"SELECT "+expression+" FROM src");
+        assertNotNull(runs.host().failure());
+        runs.assertFailure(runs.host().rootCause().getClass(),runs.host().phase(),NativeFailureParity.Route.FALLBACK);
+      }
+      return;
+    }
     FlinkArrayEditSqlHarnessTest.verify(type,"ARRAY[n,n]","ARRAY");
     FlinkArrayEditSqlHarnessTest.verify(type,"ARRAY[n,CAST(NULL AS "+FlinkArrayEditSqlHarnessTest.sqlType(type)+")]","ARRAY");
   }

@@ -1534,6 +1534,11 @@ final class RexExpression {
             .contains(type.getComponentType().getSqlTypeName());
   }
 
+  private static boolean hostSupportsConstructorField(RelDataType type) {
+    return tech.streamfusion.compat.FlinkCompat.NARROW_CONSTRUCTORS_COMPILE
+        || !java.util.Set.of(SqlTypeName.TINYINT,SqlTypeName.SMALLINT).contains(type.getSqlTypeName());
+  }
+
   static boolean nativeBasicMap(RelDataType type) {
     return type.getSqlTypeName() == SqlTypeName.MAP
         && java.util.stream.Stream.of(type.getKeyType(),type.getValueType()).allMatch(t ->
@@ -1673,6 +1678,9 @@ final class RexExpression {
       }
       return true;
     }
+    if (call.getKind()==SqlKind.ARRAY_VALUE_CONSTRUCTOR
+        && !hostSupportsConstructorField(call.getType().getComponentType()))
+      return reject("ARRAY retains Flink 1.18's narrow-constructor code-generation failure");
     boolean ordinaryArray = call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR
         && call.getType().getComponentType().isNullable()
         && java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,

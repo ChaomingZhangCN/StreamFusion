@@ -2755,3 +2755,8 @@ empty, NULL and singleton arrays keep identical values on both lines.
 Flink 1.18 ELEMENT over TINYINT/SMALLINT retains stock fallback: the released
 host's narrow-result conditional does not compile in Janino. The parity tests
 retain this host compilation failure rather than asserting a successful value.
+
+Flink 1.18 ARRAY constructors with TINYINT/SMALLINT elements keep stock fallback:
+the released generated array initializer calls narrow writers with int literals
+and fails Janino compilation. Tests compare that released initialization failure;
+Flink 2.2 retains native construction for these verified element types.
