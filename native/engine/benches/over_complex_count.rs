@@ -210,6 +210,31 @@ fn expected(valid: &[bool], keys: usize, frame: i64, proctime: bool) -> BTreeMap
         .collect()
 }
 
+fn input(rows: usize, keys: usize, kind: &str, valid: &[bool], width: usize) -> RecordBatch {
+    RecordBatch::try_from_iter(vec![
+        (
+            "k",
+            Arc::new(Int64Array::from_iter_values(
+                (0..rows).map(|row| (row % keys) as i64),
+            )) as ArrayRef,
+        ),
+        (
+            "rt",
+            Arc::new(Int64Array::from_iter_values(
+                (0..rows).map(|row| 1000 + row as i64 / 4),
+            )) as ArrayRef,
+        ),
+        ("v", payload(kind, valid, width)),
+        (
+            "id",
+            Arc::new(Int64Array::from_iter_values(
+                (0..rows).map(|row| row as i64),
+            )) as ArrayRef,
+        ),
+    ])
+    .unwrap()
+}
+
 fn bench(c: &mut Criterion) {
     header();
     let mut group = c.benchmark_group("over_complex_count");
@@ -235,28 +260,7 @@ fn bench(c: &mut Criterion) {
                 ("day_time", 8),
                 ("year_month", 4),
             ] {
-                let input = RecordBatch::try_from_iter(vec![
-                    (
-                        "k",
-                        Arc::new(Int64Array::from_iter_values(
-                            (0..rows).map(|row| (row % keys) as i64),
-                        )) as ArrayRef,
-                    ),
-                    (
-                        "rt",
-                        Arc::new(Int64Array::from_iter_values(
-                            (0..rows).map(|row| 1000 + row as i64 / 4),
-                        )) as ArrayRef,
-                    ),
-                    ("v", payload(kind, &valid, width)),
-                    (
-                        "id",
-                        Arc::new(Int64Array::from_iter_values(
-                            (0..rows).map(|row| row as i64),
-                        )) as ArrayRef,
-                    ),
-                ])
-                .unwrap();
+                let input = input(rows, keys, kind, &valid, width);
                 for proctime in [false, true] {
                     for frame in 0..4 {
                         if proctime && frame == 2 {
@@ -316,6 +320,77 @@ fn bench(c: &mut Criterion) {
         }
     }
     group.finish();
+    #[cfg(feature = "rocksdb-state")]
+    rocks_count(c);
 }
 criterion_group!(benches, bench);
 criterion_main!(benches);
+
+#[cfg(feature = "rocksdb-state")]
+fn rocks_count(c: &mut Criterion) {
+    let mut group = c.benchmark_group("over_complex_count_rocks");
+    for rows in [64usize, 4096] {
+        for keys in [1usize, 64] {
+            let valid: Vec<_> = (0..rows)
+                .map(|row| row % 5 != 0 && (keys == 1 || row % keys != 0))
+                .collect();
+            for (kind, width) in [
+                ("binary", 8usize),
+                ("binary", 256),
+                ("day_time", 8),
+                ("year_month", 4),
+            ] {
+                let input = input(rows, keys, kind, &valid, width);
+                for (frame, proctime) in [(1, false), (1, true), (2, false)] {
+                    let offset = if frame == 1 { 3 } else { 10 };
+                    let setup = || {
+                        let dir = tempfile::tempdir().unwrap();
+                        let op = Over::rocks_count(
+                            dir.path().join("db").to_str().unwrap(),
+                            input.schema(),
+                            include_str!("fixtures/rocks-options.json"),
+                            frame,
+                            offset,
+                            proctime,
+                        );
+                        (op, dir)
+                    };
+                    let run = |state: &mut (Over, tempfile::TempDir)| {
+                        if proctime {
+                            state.0.push_proctime(input.clone())
+                        } else {
+                            state.0.push(input.clone());
+                            state.0.flush(i64::MAX)
+                        }
+                    };
+                    let mut state = setup();
+                    let (output, allocations) = measure(|| run(&mut state));
+                    assert_eq!(counts(&output), expected(&valid, keys, frame, proctime));
+                    let ids = output
+                        .column(3)
+                        .as_any()
+                        .downcast_ref::<Int64Array>()
+                        .unwrap();
+                    let indices = arrow::array::UInt32Array::from_iter_values(
+                        ids.values().iter().map(|id| *id as u32),
+                    );
+                    assert_eq!(
+                        output.column(2),
+                        &arrow::compute::take(input.column(2), &indices, None).unwrap()
+                    );
+                    let label = format!("rocks/{kind}/width={width}/rows={rows}/keys={keys}/frame={frame}/proctime={proctime}");
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    group.bench_function(label, |b| {
+                        b.iter_batched_ref(
+                            &setup,
+                            |state| black_box(run(state)),
+                            BatchSize::PerIteration,
+                        )
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}

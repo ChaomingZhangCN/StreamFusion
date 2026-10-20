@@ -469,6 +469,32 @@ impl Over {
         ))
     }
 
+    #[cfg(feature = "rocksdb-state")]
+    pub fn rocks_count(
+        directory: &str,
+        schema: SchemaRef,
+        options: &str,
+        frame: i64,
+        offset: i64,
+        proctime: bool,
+    ) -> Self {
+        let store = crate::state::RocksOverAggStore::create(
+            PersistentSort::config(directory, options),
+            &rocks_over_state_types(&[0], &[3], frame, proctime).unwrap(),
+            &rocks_over_frame_value_types(&[0], &[3], frame),
+            &[],
+            schema,
+            0..=0,
+        )
+        .expect("persistent COUNT OVER fixture");
+        let mut operator = Self::framed(0, 3, frame, offset, proctime);
+        operator.0 = operator
+            .0
+            .with_key_timestamp_precisions(vec![-1])
+            .with_store(store, vec![DataType::Int64]);
+        operator
+    }
+
     pub fn heap_snapshot_probe(&mut self, probe: jni::objects::GlobalRef) {
         self.0.with_heap_snapshot_probe(probe, 128);
     }

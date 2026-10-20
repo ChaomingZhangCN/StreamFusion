@@ -1082,3 +1082,10 @@ stock task at `RowTimeRowsBoundedPrecedingFunction.onTimer`. No bounded-frame sp
 is made. All completed warmups/trials, the partial run, that stack, source/library hashes
 and exact configuration remain in the
 [raw evidence](../benchmarks/results/over-count-binary-interval-2026-10-19.json).
+
+Bounded RocksDB COUNT frames retain membership in their declared frame-codec types.
+When an argument's physical Arrow type differs from that declaration (for example binary
+or year-month interval arguments using the numeric membership carrier), validity becomes a
+typed default-or-NULL value before persistence. The original payload columns remain intact.
+Matching physical types retain the existing raw-column path. Checkpoint encoding is unchanged;
+canonical memory/RocksDB transitions and aligned RocksDB recovery preserve these counts.

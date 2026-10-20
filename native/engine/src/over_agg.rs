@@ -3883,7 +3883,9 @@ impl OverWindowAggregator {
 
         let mut value_columns: Vec<ArrayRef> = Vec::with_capacity(self.value_columns.len());
         for (a, &value_column) in self.value_columns.iter().enumerate() {
-            if inner.kinds[a] == 3 || value_types[a] == DataType::Utf8 {
+            let raw_membership =
+                inner.kinds[a] == 3 && batch.column(value_column).data_type() == &value_types[a];
+            if raw_membership || (inner.kinds[a] != 3 && value_types[a] == DataType::Utf8) {
                 let indices = arrow::array::UInt32Array::from_iter_values(
                     write_rows.iter().map(|&row| row as u32),
                 );

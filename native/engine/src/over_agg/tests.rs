@@ -1703,3 +1703,129 @@ fn zero_sum_legacy_frame_migration_preserves_decimal_folds_and_string_views() {
         }
     }
 }
+
+#[cfg(feature = "rocksdb-state")]
+#[test]
+fn bounded_count_normalizes_untyped_membership_and_recovers_rocks_frames() {
+    use crate::state::{RocksOverAggStore, RocksStoreConfig};
+    use arrow::array::BinaryArray;
+    let input = |start: i64| {
+        RecordBatch::try_from_iter(vec![
+            ("k", Arc::new(Int64Array::from(vec![1; 3])) as ArrayRef),
+            (
+                "rt",
+                Arc::new(Int64Array::from(vec![start, start, start + 100])) as ArrayRef,
+            ),
+            (
+                "bytes",
+                Arc::new(BinaryArray::from(vec![
+                    Some(b"".as_slice()),
+                    None,
+                    Some(b"\0\xff".as_slice()),
+                ])) as ArrayRef,
+            ),
+            (
+                "millis",
+                Arc::new(Int64Array::from(vec![
+                    Some(-123456789),
+                    None,
+                    Some(i64::MAX),
+                ])) as ArrayRef,
+            ),
+            (
+                "months",
+                Arc::new(Int32Array::from(vec![Some(-13), None, Some(i32::MAX)])) as ArrayRef,
+            ),
+        ])
+        .unwrap()
+    };
+    for (frame, proctime) in [(1, false), (1, true), (2, false)] {
+        let directory = tempfile::tempdir().unwrap();
+        let config = |name: &str| RocksStoreConfig {
+            table_dir: directory.path().join(name).to_str().unwrap().into(),
+            max_parallelism: 8,
+            options_json: include_str!("../../benches/fixtures/rocks-options.json").into(),
+            ttl_ms: 0,
+            shared_resources: 0,
+        };
+        let operator = || {
+            OverWindowAggregator::new(
+                vec![0; 3],
+                vec![3; 3],
+                1,
+                vec![2, 3, 4],
+                vec![0],
+                frame,
+                if frame == 1 { 1 } else { 100 },
+                proctime,
+            )
+            .with_key_timestamp_precisions(vec![-1])
+        };
+        let schema = input(100).schema();
+        let frames = rocks_over_frame_value_types(&[0; 3], &[3; 3], frame);
+        let store =
+            RocksOverAggStore::create(config("before"), &[], &frames, &[], schema.clone(), 0..=7)
+                .unwrap();
+        let mut memory = operator();
+        let mut rocks = operator().with_store(store, vec![DataType::Int64]);
+        let execute = |op: &mut OverWindowAggregator, batch: RecordBatch| {
+            if proctime {
+                op.push_proctime(batch, 0).unwrap()
+            } else {
+                let time = batch
+                    .column(1)
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap()
+                    .value(2);
+                op.push(batch, 0).unwrap();
+                op.flush(time, 0).unwrap()
+            }
+        };
+        assert_eq!(
+            execute(&mut memory, input(100)),
+            execute(&mut rocks, input(100))
+        );
+        let portable = rocks
+            .canonical_partitions(8, &[-1])
+            .unwrap()
+            .into_values()
+            .collect::<Vec<_>>();
+        let mut restored_memory = OverWindowAggregator::restore_partitions(
+            vec![0; 3],
+            vec![3; 3],
+            1,
+            vec![2, 3, 4],
+            vec![0],
+            frame,
+            if frame == 1 { 1 } else { 100 },
+            proctime,
+            &portable,
+            0,
+            0,
+        );
+        let checkpoint = directory.path().join("checkpoint");
+        let manifest = rocks
+            .checkpoint_store(checkpoint.to_str().unwrap())
+            .unwrap();
+        drop(rocks);
+        let store = RocksOverAggStore::open_merged(
+            config("after"),
+            &[],
+            &frames,
+            &[],
+            schema,
+            0..=7,
+            &[(
+                checkpoint.to_str().unwrap().to_owned(),
+                manifest.snapshot_id,
+            )],
+            true,
+        )
+        .unwrap();
+        let mut restored = operator().with_store(store, vec![DataType::Int64]);
+        let expected = execute(&mut memory, input(300));
+        assert_eq!(expected, execute(&mut restored_memory, input(300)));
+        assert_eq!(expected, execute(&mut restored, input(300)));
+    }
+}

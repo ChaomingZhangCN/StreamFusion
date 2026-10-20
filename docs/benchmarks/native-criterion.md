@@ -2687,3 +2687,10 @@ Fixture construction stays outside timing; the measured call is the production R
 on Arrow input. Allocation diagnostics describe requests, not copied bytes. Separate native
 unit checks cover sliced nested containers, binary-row sidecars, reserved-name user fields,
 metadata-only ROWs and zero-column batch cardinality.
+
+`over_complex_count` also includes 48 persistent bounded-COUNT fixtures: binary widths 8/256,
+day-time and year-month interval carriers, 64/4,096 rows, 1/64 partition keys, nullable and
+empty values, event-time ROWS/RANGE and proctime ROWS. Fixture/operator construction stays
+outside timing. The measured production push/fire performs RocksDB frame and payload writes;
+checks compare independent membership counts and every returned payload. Native unit and Java
+operator fixtures separately cover checkpoint and canonical backend transitions.
