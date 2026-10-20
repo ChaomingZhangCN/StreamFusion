@@ -57,7 +57,7 @@ class GeneratedRowCalcOwnershipTest {
             0);
     LogicalType logical =
         wide ? new org.apache.flink.table.types.logical.BigIntType() : new IntType();
-    return new FlinkExpressionFunction(
+    return FlinkExpressionGenerator.generate(
         List.of(ref, ref),
         null,
         new LogicalType[] {logical},

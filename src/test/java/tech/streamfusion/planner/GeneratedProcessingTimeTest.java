@@ -55,7 +55,7 @@ class GeneratedProcessingTimeTest {
   }
 
   static FlinkExpressionFunction scalar(int precision) {
-    return new FlinkExpressionFunction(
+    return FlinkExpressionGenerator.generate(
         selection(precision),
         new LogicalType[] {new LocalZonedTimestampType(precision)},
         TableConfig.getDefault(),
@@ -99,7 +99,7 @@ class GeneratedProcessingTimeTest {
     var condition = rex.makeCall(SqlStdOperatorTable.IS_NOT_NULL, selected);
     var schema = RowType.of(new LocalZonedTimestampType(3));
     var function =
-        new FlinkExpressionFunction(
+        FlinkExpressionGenerator.generate(
             List.of(selected),
             condition,
             new LogicalType[] {new LocalZonedTimestampType(3)},

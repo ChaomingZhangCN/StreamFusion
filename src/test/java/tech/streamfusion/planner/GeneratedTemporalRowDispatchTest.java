@@ -33,7 +33,7 @@ class GeneratedTemporalRowDispatchTest {
         ltz ? new LocalZonedTimestampType(precision) : new TimestampType(precision);
     var ref = new RexBuilder(types).makeInputRef(types.createFieldTypeFromLogicalType(logical), 0);
     var function =
-        new FlinkExpressionFunction(
+        FlinkExpressionGenerator.generate(
             List.of(ref, ref),
             null,
             new LogicalType[] {logical},
