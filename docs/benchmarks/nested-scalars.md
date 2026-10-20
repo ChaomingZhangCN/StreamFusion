@@ -1,8 +1,9 @@
 # Nested Java scalar comparisons
 
-The nested scalar implementation remains default off. On October 16 the maintainer
-accepted shipping its verified semantics despite the measured performance regressions,
-with further optimization deferred. Correctness and allocation profiles do not establish acceleration. The release diagnostics compare complete jobs
+Verified nested scalar coverage is enabled by default under the maintainer's accepted
+UDF performance exception. The October 16 measurements below describe its earlier opt-in
+implementation; further optimization remains deferred. Correctness and allocation profiles
+do not establish acceleration. The release diagnostics compare complete jobs
 against stock Flink and immutable StreamFusion revision
 `b170a474d5658330ed7e92e9b8bcc54117c8d287`, before nested scalar admission.
 
@@ -36,7 +37,9 @@ python3 bin/bench-nested-scalars.py --flink-line 2.2 \
   --output native/target/nested-scalar-diagnostics
 ```
 
-The previous worktree path must be new. Use `--flink-line 1.18` after building the matching
+The previous worktree and output paths must be new. CI puts diagnostic output in the runner's
+temporary directory, outside the cached Cargo target, so restored build caches cannot supply
+stale candidate snapshots or trial artifacts. Use `--flink-line 1.18` after building the matching
 candidate compatibility line. `--smoke` runs the same ten runtime/shape/width combinations
 with 2,000 rows and one warmup/measured pair; its durations are excluded from performance
 evidence. `--cargo-target-directory` selects a dependency build cache without changing
@@ -86,7 +89,7 @@ callbacks retain fallback and their independent stock controls. Raw JFRs remain 
 [original CI artifacts](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38889442933);
 checked-in compressed payloads retain complete collapsed CPU/allocation stacks and logs.
 [Coverage and remaining contracts](../operators/calc-filter.md#nested-java-scalar-results)
-continue to govern the opt-in whitelist.
+govern the currently enabled whitelist and its remaining fallback cases.
 
 Recovery is verified separately from timing by `FlinkNestedScalarRecoveryTest`: four
 memory/RocksDB and parallelism-one/three cases per released line. Both completed-checkpoint

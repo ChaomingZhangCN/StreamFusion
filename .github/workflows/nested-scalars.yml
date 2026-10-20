@@ -101,7 +101,7 @@ jobs:
           python3 bin/bench-nested-scalars.py --flink-line '${{ matrix.line }}'
           --previous-worktree "$RUNNER_TEMP/streamfusion-previous-nested"
           --native-directory "$GITHUB_WORKSPACE/native/target/release"
-          --output native/target/nested-scalar-diagnostics
+          --output "$RUNNER_TEMP/nested-scalar-diagnostics"
           --profiler-agent "$RUNNER_TEMP/async-profiler-4.6-linux-x64/lib/libasyncProfiler.so"
       - name: Retain all trials, GC logs, mixed profiles and correctness reports
         if: always()
@@ -109,7 +109,7 @@ jobs:
         with:
           name: nested-scalar-diagnostics-${{ matrix.line }}-${{ github.sha }}
           path: |
-            native/target/nested-scalar-diagnostics/
-            !native/target/nested-scalar-diagnostics/candidate-native/
+            ${{ runner.temp }}/nested-scalar-diagnostics/
+            !${{ runner.temp }}/nested-scalar-diagnostics/candidate-native/
             streamfusion-runtime/target/surefire-reports/
           retention-days: 14
