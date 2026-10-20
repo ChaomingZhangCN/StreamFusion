@@ -2760,3 +2760,12 @@ Flink 1.18 ARRAY constructors with TINYINT/SMALLINT elements keep stock fallback
 the released generated array initializer calls narrow writers with int literals
 and fails Janino compilation. Tests compare that released initialization failure;
 Flink 2.2 retains native construction for these verified element types.
+
+Flink 1.18 MAP constructors with TINYINT/SMALLINT keys or values keep stock
+fallback because the released binary-array initializer does not compile. Direct
+map inputs and map projection kernels retain their independently verified narrow
+type support. Flink 2.2 retains native basic MAP construction.
+
+Native map-producing collection expressions retain the row-sink requirement. Their
+nullable-key map-list carrier is an internal batch representation, not a verified
+Parquet MAP encoding; a native sink must not consume it as an ordinary Arrow MAP.

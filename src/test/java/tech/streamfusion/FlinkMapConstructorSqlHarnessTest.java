@@ -9,6 +9,15 @@ class FlinkMapConstructorSqlHarnessTest {
   @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
   void runtimeKeysAreNotDeduplicatedByValue(String type) throws Exception {
     String t=FlinkArrayEditSqlHarnessTest.sqlType(type);
+    if (!tech.streamfusion.compat.FlinkCompat.NARROW_CONSTRUCTORS_COMPILE
+        && java.util.Set.of("TINYINT","SMALLINT").contains(type)) {
+      for(String expression:java.util.List.of("MAP[n,n]","MAP[n,n,CAST(NULL AS "+t+"),n]")) {
+        var runs=NativeFailureParity.run(()->FlinkArrayEditSqlHarnessTest.environment(type),"SELECT "+expression+" FROM src");
+        assertNotNull(runs.host().failure());
+        runs.assertFailure(runs.host().rootCause().getClass(),runs.host().phase(),NativeFailureParity.Route.FALLBACK);
+      }
+      return;
+    }
     FlinkArrayEditSqlHarnessTest.verify(type,"MAP[n,n]","MAP");
     FlinkArrayEditSqlHarnessTest.verify(type,"MAP[n,n,CAST(NULL AS "+t+"),n]","MAP");
   }

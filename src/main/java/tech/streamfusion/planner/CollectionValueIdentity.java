@@ -125,6 +125,9 @@ final class CollectionValueIdentity {
       return true;
     if (node instanceof StreamPhysicalNativeCalc) {
       var calc = (StreamPhysicalNativeCalc) node;
+      if (calc.sourceProgram()!=null && RexExpression.usesCollectionFunctions(calc.sourceProgram())
+          && tech.streamfusion.arrow.MapListRepresentation.containsMap(
+              org.apache.flink.table.planner.calcite.FlinkTypeFactory$.MODULE$.toLogicalRowType(calc.getRowType()))) return true;
       if (calc.preservesCollections()
           && calc.getRowType().getFieldList().stream()
               .anyMatch(field -> sensitive(field.getType()))) return true;

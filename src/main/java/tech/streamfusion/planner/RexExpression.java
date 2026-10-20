@@ -1638,6 +1638,9 @@ final class RexExpression {
         if (!(key instanceof RexLiteral || key instanceof RexInputRef) || !keys.add(key))
           return reject("MAP retains Flink's generated-expression key deduplication");
       }
+      if (!hostSupportsConstructorField(call.getType().getKeyType())
+          || !hostSupportsConstructorField(call.getType().getValueType()))
+        return reject("MAP retains Flink 1.18's narrow-constructor code-generation failure");
       return emitBuiltinCall(call,196);
     }
     if (NativeConfig.collectionExpressionsEnabled() && call.getKind()==SqlKind.ROW) {
