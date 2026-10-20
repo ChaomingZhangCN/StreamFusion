@@ -10,8 +10,20 @@ import org.apache.flink.table.planner.plan.logical.WindowSpec;
 public final class FlinkCompat {
   private FlinkCompat() {}
 
+  public static long miniBatchSize(org.apache.flink.configuration.ReadableConfig config) {
+    return org.apache.flink.table.planner.plan.utils.MinibatchUtil.miniBatchSize(config);
+  }
+
+  public static long joinMiniBatchSize(org.apache.flink.configuration.ReadableConfig config) {
+    return miniBatchSize(config);
+  }
+
   public static int applyParsedTimePrecision(int millis, int precision) {
     return org.apache.flink.table.utils.DateTimeUtils.applyTimePrecisionTruncation(millis, precision);
+  }
+
+  public static int timestampToTimeTruncationFactor(int precision) {
+    return precision >= 3 ? 1 : (int) Math.pow(10, 3 - precision);
   }
 
   public static org.apache.flink.table.functions.ScalarFunction scalarFunction(

@@ -23,6 +23,10 @@ no wall-clock timer, unlike the windowed operators that fire on a processing-tim
 
 ## Mini-batch
 
+All four mini-batch variants validate `table.exec.mini-batch.size > 0` during translation,
+with Flink's exception and message. This includes proctime keep-first even though its
+native implementation emits eagerly. Disabled mini-batching leaves the unused size alone.
+
 Every mini-batch shape replicates Flink's per-mode emission exactly:
 
 - Under mini-batch, a **rowtime** dedup — keep-first included — becomes Flink's bundled retracting

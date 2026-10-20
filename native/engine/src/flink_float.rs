@@ -59,6 +59,24 @@ pub(crate) fn record_row_equal(left: &[ScalarValue], right: &[ScalarValue]) -> b
     left.len() == right.len() && left.iter().zip(right).all(|(a, b)| record_equal(a, b))
 }
 
+pub(crate) fn record_row_reflexive(values: &[ScalarValue]) -> bool {
+    values.iter().all(|value| match value {
+        ScalarValue::Float32(Some(value)) => !value.is_nan(),
+        ScalarValue::Float64(Some(value)) => !value.is_nan(),
+        ScalarValue::Null
+        | ScalarValue::Boolean(_)
+        | ScalarValue::Int8(_)
+        | ScalarValue::Int16(_)
+        | ScalarValue::Int32(_)
+        | ScalarValue::Int64(_)
+        | ScalarValue::Utf8(_)
+        | ScalarValue::Date32(_)
+        | ScalarValue::Time32Millisecond(_)
+        | ScalarValue::Decimal128(..) => true,
+        value => record_equal(value, value),
+    })
+}
+
 pub(crate) fn canonical_array(array: &ArrayRef) -> ArrayRef {
     match array.data_type() {
         DataType::Float32 => Arc::new(

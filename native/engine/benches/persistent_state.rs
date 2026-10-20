@@ -20,6 +20,8 @@ mod temporal_join;
 mod tumbling;
 #[path = "persistent_state/updating_join.rs"]
 mod updating_join;
+#[path = "persistent_state/window_count.rs"]
+mod window_count;
 #[path = "persistent_state/window_join.rs"]
 mod window_join;
 #[path = "persistent_state/window_rank.rs"]
@@ -449,6 +451,7 @@ fn register(c: &mut Criterion) {
     if std::env::var("SF_NATIVE_PERSISTENT_WINDOW_ONLY").as_deref() == Ok("true") {
         header();
         tumbling::tumbling(c);
+        window_count::count(c);
         return;
     }
     updating_join::updating_join(c);
@@ -464,6 +467,7 @@ fn register(c: &mut Criterion) {
     over::over_fold_recovery(c);
     group::group(c);
     tumbling::tumbling(c);
+    window_count::count(c);
     session::session(c);
     window_join::window_join(c);
 }

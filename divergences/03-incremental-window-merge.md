@@ -42,6 +42,20 @@ Global merging unions selected sets without re-evaluating filters. There is no n
 state or Arrow ownership protocol. Arroyo's tumbling partial/final implementation was
 consulted before extending admission; its structure remains unchanged here.
 
+## Fixed-width scalar extrema
+
+DATE, millisecond TIME and BOOLEAN extrema retain one nullable integer payload per accumulator.
+Borrowed typed readers fold the selected row positions directly, following the existing timestamp
+extrema path. This avoids materializing an Arrow selection array for every group and aggregate.
+The one-field nullable Arrow partial remains compatible with DataFusion's previous MIN/MAX state;
+readers in both directions use the same value type. Session merges combine the retained values
+without constructing one-row arrays.
+
+HOP and CUMULATE can fold these exact, order-independent values once per slice before merging
+into the still-open final windows. This extends the existing timestamp/count pane strategy within
+our incremental layout. Arroyo's tumbling partial/final and incremental accumulator implementations
+were consulted; the choice to retain bounded accumulator state rather than raw batches is unchanged.
+
 ## Late local slices
 
 Arroyo's sliding operator bins batches and skips a bin preceding its current watermark bin.
@@ -67,6 +81,16 @@ a one-field DataFusion accumulator adapter. Flink's SUM0 initializes to zero and
 overflow, so substituting DataFusion's ordinary nullable SUM would change all-NULL groups and
 overflowed partials. Local slices, global merging, signed updates and snapshots retain that buffer
 contract; the host planner's outer COUNT correction and exact division remain unchanged.
+
+## Bounded persistent COUNT updates
+
+Ordinary persistent COUNT-only windows retain a bounded decoded accumulator bundle across input
+batches. Updates coalesce in memory, while the existing RocksDB accumulator representation remains
+the checkpoint source. Watermarks commit only closing groups; checkpoint/canonical boundaries
+commit all pending groups. Payload and routing keys share the task off-heap reservation, and a
+denied reservation flushes the bundle. Regional shared slices and other aggregates retain their
+existing state lifecycle. This extends the host's bounded combining approach instead of retaining
+Arroyo-style raw inputs; Comet's pool reservation pattern remains the memory authority.
 
 ## Why
 Every aggregate we support (`SUM`/`MIN`/`MAX`/`COUNT`, and integer `AVG`) has
@@ -107,3 +131,21 @@ Counts use the same non-null Int64 partial state as DataFusion, including logica
 unions for multi-argument updates. Owned extrema and counts have fixed size; accounting
 charges new groups once and releases their recorded footprint when a window closes.
 Persistent stores still hydrate and write through each affected window group.
+
+
+Floating window COUNT DISTINCT retains this same incremental partial/final structure from
+Arroyo. DataFusion's generic floating distinct buffer hashes raw payload bytes; Flink's boxed
+floating keys canonicalize all NaNs and distinguish signed zero. A compact typed bit-key
+accumulator supplies that equality, while reusing DataFusion's declared FLOAT/DOUBLE list
+state fields and result type. Existing local/global, session and checkpoint paths consume
+those lists unchanged. This changes aggregate semantics, rather than introducing another
+window engine. Its owned hash capacity contributes to the existing native reservation,
+following Comet's retained-memory accounting pattern.
+
+
+Complete CUMULATE partials use stride equal to the maximum size. Their end identifies a final
+window, rather than a reusable cumulative prefix. Shared-state merging therefore selects
+only that end and retires only its own namespace; ordinary smaller-step CUMULATE keeps the
+prefix optimization. Late complete partials compare against their own deadline. Cumulative
+start rendering and the existing shared store/checkpoint layout remain unchanged, preserving
+restore semantics while avoiding a second roll-up of already-final counts.

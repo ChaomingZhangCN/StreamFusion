@@ -14,6 +14,7 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
             ("decimal", 4002),
             ("date", 8),
             ("time", 9),
+            ("boolean", 10),
             ("timestamp", 7),
             ("string8", 3),
             ("string256", 3),
@@ -61,6 +62,12 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
                     values
                         .iter()
                         .map(|v| v.map(|v| (v + 128) as i32))
+                        .collect::<Vec<_>>(),
+                )),
+                "boolean" => Arc::new(BooleanArray::from(
+                    values
+                        .iter()
+                        .map(|v| v.map(|v| v % 2 == 0))
                         .collect::<Vec<_>>(),
                 )),
                 "timestamp" => Arc::new(streamfusion_bridge::timestamp::timestamp_array(
@@ -142,6 +149,76 @@ pub fn bench_typed_distinct(c: &mut Criterion) {
                     }
                 });
             }
+            let single = RecordBatch::try_new(
+                batch.schema(),
+                vec![
+                    Arc::new(Int64Array::from_iter_values(0..ROWS as i64)),
+                    batch.column(1).clone(),
+                ],
+            )
+            .unwrap();
+            for mini_batch in [false, true] {
+                let create_global = || {
+                    if mini_batch {
+                        GroupBy::mini_batch(vec![14], vec![code], vec![1], vec![0])
+                    } else {
+                        GroupBy::new(vec![14], vec![code], vec![1], vec![0])
+                    }
+                };
+                let execute = |global: &mut GroupBy| {
+                    let result = global.update(&single);
+                    if mini_batch {
+                        global.flush()
+                    } else {
+                        result
+                    }
+                };
+                let output = execute(&mut create_global());
+                assert_eq!(output.num_rows(), ROWS);
+                assert_eq!(output.column(0), single.column(0));
+                assert_eq!(output.column(1), single.column(1));
+                let mode = if mini_batch {
+                    "mini_batch"
+                } else {
+                    "immediate"
+                };
+                group.bench_function(
+                    format!("global_single/{mode}/{name}/cardinality{cardinality}"),
+                    |b| {
+                        b.iter_batched_ref(
+                            create_global,
+                            |global| black_box(execute(global)),
+                            BatchSize::SmallInput,
+                        )
+                    },
+                );
+            }
+            let create_single =
+                || LocalGroupBy::new(vec![14, 21], vec![code; 2], vec![1; 2], vec![0]);
+            let mut checked = create_single();
+            checked.update(&single);
+            let partials = checked.flush();
+            assert_eq!(partials.num_rows(), ROWS);
+            assert_eq!(partials.column(1), single.column(1));
+            let counts = partials
+                .column(2)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap();
+            assert!(counts.iter().all(|count| count == Some(1)));
+            group.bench_function(
+                format!("local_single/{name}/cardinality{cardinality}"),
+                |b| {
+                    b.iter_batched_ref(
+                        create_single,
+                        |local| {
+                            local.update(black_box(&single));
+                            black_box(local.flush());
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
         }
     }
     group.finish();

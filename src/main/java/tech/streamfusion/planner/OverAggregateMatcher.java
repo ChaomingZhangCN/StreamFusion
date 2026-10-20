@@ -68,7 +68,7 @@ final class OverAggregateMatcher {
     // well-defined over proctime (they depend on arrival order, not the clock value).
     if (proctimeOrder && !group.isRows && !group.lowerBound.isUnbounded()) {
       return "OVER: a bounded RANGE frame over proctime is not supported (use ROWS or an event-time"
-                 + " order)";
+          + " order)";
     }
     // Window functions (ROW_NUMBER) are computed per partition with no value column over the
     // default
@@ -81,7 +81,17 @@ final class OverAggregateMatcher {
     }
     if (valueColumns(window, group, inputType) == null) {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
-                 + " DECIMAL";
+          + " DECIMAL";
+    }
+    if (proctimeOrder) {
+      for (int column : valueColumns(window, group, inputType)) {
+        if (column < inputType.getFieldCount()
+            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
+                FlinkTypeFactory$.MODULE$.toLogicalType(
+                    inputType.getFieldList().get(column).getType()))) {
+          return "OVER: proctime MAP-valued COUNT retains Flink until conversion costs improve";
+        }
+      }
     }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
@@ -226,12 +236,27 @@ final class OverAggregateMatcher {
         valueType = literal.getType();
       }
       if ((kind == 5 || kind == 6)
-          && GroupAggregateMatcher.isTimestampType(valueType.getSqlTypeName())
+          && (GroupAggregateMatcher.isTimestampType(valueType.getSqlTypeName())
+              || valueType.getSqlTypeName() == SqlTypeName.DATE
+              || valueType.getSqlTypeName() == SqlTypeName.TIME)
           && !tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
+        return null;
+      }
+      if (valueType.getSqlTypeName() == SqlTypeName.CHAR
+          && (kind == 1 || kind == 2 || kind == 5 || kind == 6)
+          && !tech.streamfusion.compat.RuntimeCompat.supportsCharOverValueSelection(
+              call.getKind().name(), !group.lowerBound.isUnbounded())) {
         return null;
       }
       if (kind == WindowAggregateMatcher.KIND_AVG
           && valueType.getSqlTypeName() != SqlTypeName.DECIMAL) {
+        return null;
+      }
+      if (valueType.getSqlTypeName() == SqlTypeName.DECIMAL
+          && valueType.getScale() == 38
+          && (kind == WindowAggregateMatcher.KIND_SUM
+              || kind == WindowAggregateMatcher.KIND_SUM_ZERO
+              || kind == WindowAggregateMatcher.KIND_AVG)) {
         return null;
       }
       if (!supportedValueType(valueType.getSqlTypeName(), kind, aggCalls.get(a).distinct)
@@ -282,8 +307,23 @@ final class OverAggregateMatcher {
 
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
-    if (distinct) return false;
+    if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW
+        || type == SqlTypeName.MULTISET) {
+      return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
+    }
+    if (type == SqlTypeName.DATE || type == SqlTypeName.TIME || type == SqlTypeName.BOOLEAN) {
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
+      return kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == 1
+          || kind == 2
+          || kind == 5
+          || kind == 6;
+    }
     if (type == SqlTypeName.DECIMAL) {
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT
+          || kind == WindowAggregateMatcher.KIND_SUM
+          || kind == WindowAggregateMatcher.KIND_SUM_ZERO
+          || kind == WindowAggregateMatcher.KIND_AVG;
       return kind == WindowAggregateMatcher.KIND_SUM
           || kind == WindowAggregateMatcher.KIND_SUM_ZERO
           || kind == WindowAggregateMatcher.KIND_AVG
@@ -297,6 +337,7 @@ final class OverAggregateMatcher {
         || type == SqlTypeName.VARCHAR
         || type == SqlTypeName.TIMESTAMP
         || type == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+      if (distinct) return kind == WindowAggregateMatcher.KIND_COUNT;
       return kind == WindowAggregateMatcher.KIND_COUNT
           || kind == 1
           || kind == 2

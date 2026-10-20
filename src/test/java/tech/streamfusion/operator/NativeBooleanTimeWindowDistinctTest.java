@@ -39,12 +39,13 @@ class NativeBooleanTimeWindowDistinctTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"false,false", "false,true", "true,false", "true,true"})
-  void distinctMembershipSurvivesRawAndCanonicalBackendRestore(boolean writeRocks,
-      boolean readRocks) throws Exception {
+  @CsvSource({"false,false,true", "false,true,true", "true,false,true", "true,true,true",
+      "false,false,false", "false,true,false", "true,false,false", "true,true,false"})
+  void membershipSurvivesRawAndCanonicalBackendRestore(boolean writeRocks,
+      boolean readRocks, boolean distinct) throws Exception {
     long reservedBefore = TaskOffHeapMemory.reservedBytes();
     OperatorSubtaskState snapshot;
-    try (var allocator = new RootAllocator(); var before = harness(writeRocks)) {
+    try (var allocator = new RootAllocator(); var before = harness(writeRocks, distinct)) {
       before.setup(new ArrowBatchSerializer());
       before.open();
       before.processElement(new StreamRecord<>(batch(allocator,
@@ -55,7 +56,7 @@ class NativeBooleanTimeWindowDistinctTest {
                   org.apache.flink.core.execution.SavepointFormatType.CANONICAL))
               .getJobManagerOwnedState();
     }
-    try (var allocator = new RootAllocator(); var restored = harness(readRocks)) {
+    try (var allocator = new RootAllocator(); var restored = harness(readRocks, distinct)) {
       restored.setup(new ArrowBatchSerializer());
       restored.initializeState(snapshot);
       restored.open();
@@ -65,8 +66,8 @@ class NativeBooleanTimeWindowDistinctTest {
       var rows = drain(restored);
       assertEquals(1, rows.size());
       var result = rows.get(0);
-      assertEquals(2, result.getLong(0));
-      assertEquals(2, result.getLong(1));
+      assertEquals(distinct ? 2 : 4, result.getLong(0));
+      assertEquals(distinct ? 2 : 4, result.getLong(1));
       assertEquals(0, result.getTimestamp(2, 3).getMillisecond());
       assertEquals(1000, result.getTimestamp(3, 3).getMillisecond());
       restored.processWatermark(new Watermark(2999));
@@ -84,9 +85,10 @@ class NativeBooleanTimeWindowDistinctTest {
   }
 
   private static KeyedOneInputStreamOperatorTestHarness<Integer, ArrowBatch, ArrowBatch> harness(
-      boolean rocks) throws Exception {
+      boolean rocks, boolean distinct) throws Exception {
     var operator = new NativeColumnarWindowAggregateOperator(false, 1000, 1000, 2,
-        new int[] {0, 1}, new int[0], new int[0], new int[] {10, 9}, new int[] {7, 7},
+        new int[] {0, 1}, new int[0], new int[0], new int[] {10, 9},
+        new int[] {distinct ? 7 : 3, distinct ? 7 : 3},
         "UTC", OUTPUT, false, new int[0], 128);
     var harness = new KeyedOneInputStreamOperatorTestHarness<>(operator, ignored -> 0,
         Types.INT, 128, 1, 0);

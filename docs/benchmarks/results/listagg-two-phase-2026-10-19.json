@@ -1,0 +1,1504 @@
+{
+  "date": "2026-10-19",
+  "status": "Qualified ordinary append-only LISTAGG local/global; DISTINCT/retracting merges and positive TTL remain gated.",
+  "native": "release+mimalloc; canonical release codegen-units1; local Rust state unit test separately uses package-only release codegen-units16 to reduce compilation time",
+  "jdk": 17,
+  "parallelism": 1,
+  "heap_gib": 2,
+  "timezone": "UTC",
+  "hardware": "Intel Core i7-12650H, Linux/WSL",
+  "source_provenance": {
+    "sha256": "d2d6700c7b8578d27bb90a1a296c27c28e0b4719e25da3322535f0fef42ee199",
+    "sources": {
+      "native/engine/src/group_agg.rs": "339d94fc7d5f455f62d8d3b2a13c82c5d404ab3a2229409854013c3ee21017d6",
+      "native/engine/src/group_agg/list_agg.rs": "79cdddac8cab2351f3e71597de39c6be196c001f6c9bd502a47c1589a3513941",
+      "native/engine/src/bench.rs": "c5f1066ebac266c94eda14ef71d2886d8ab5b8da3d5f4b93c687fb69338834d9",
+      "native/engine/benches/string_group_aggregates.rs": "74028d03485d56217f99f8020472af585b8ea42ba514de226a84d503652dde22",
+      "src/main/java/tech/streamfusion/Native.java": "0e25e96bfb487f7e1fb97ac128a3f78e1b65799c9b3b73bf2f0ada58b8fe7cc8",
+      "src/main/java/tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.java": "86744a2cc551cd1e70ed28175d71673c62a9529c39f15294875390e25f32b922",
+      "src/main/java/tech/streamfusion/planner/LocalGroupAggregateMatcher.java": "9b8b6eafda61d25e0fcc148f7340ed18a185f90c238876ebb3312ada0a6b5f71",
+      "src/main/java/tech/streamfusion/planner/GlobalGroupAggregateMatcher.java": "7b6e409ff9b26284969faa56896cbc4820f9ad9d4e2de3837018623429e13637",
+      "src/main/java/tech/streamfusion/planner/GroupAggregateMatcher.java": "ba3fb0039bcc2a8b6908722580be613b45a7e81a296087182a5e864c9e29915a",
+      "src/main/java/tech/streamfusion/planner/NativeColumnarLocalGroupAggExecNode.java": "be9eb9ae3c9dbf818ae1c90cba4c0e42e4e121f24a662e5907b3dc5600442a0d",
+      "src/main/java/tech/streamfusion/planner/StreamPhysicalNativeColumnarLocalGroupAggregate.java": "63aa94568232cffdcba98281757d34b836d502466425f68286736cd2bf5130b0",
+      "src/test/java/tech/streamfusion/FlinkListAggTwoPhaseSqlHarnessTest.java": "2839e1990b18add1bdd1ef0f129555030f3621c20376b9e081e19209f05a46a8",
+      "src/test/java/tech/streamfusion/FlinkListAggDistinctSqlHarnessTest.java": "40c4113423fa992845e63ef04be4e7292f11d0a2211277e2d65de9519b780611",
+      "src/test/java/tech/streamfusion/StringAggregateBenchmark.java": "8f7da56387687edb1fd43457424064f80951937c9f8fbb46e4df570429443391"
+    },
+    "java_only_validation_updates": {
+      "src/test/java/tech/streamfusion/FlinkListAggTwoPhaseSqlHarnessTest.java": {
+        "before": "f396e07f222c964d68ef48ffa4211da9b61bcdfd9afad60bbf5fa4f28029041e",
+        "after": "2839e1990b18add1bdd1ef0f129555030f3621c20376b9e081e19209f05a46a8"
+      },
+      "src/main/java/tech/streamfusion/planner/LocalGroupAggregateMatcher.java": {
+        "before": "d440fb579a0f28a8de697a8827de3344683ec596c8a73c71bb9937d3843c2138",
+        "after": "9b8b6eafda61d25e0fcc148f7340ed18a185f90c238876ebb3312ada0a6b5f71"
+      },
+      "src/main/java/tech/streamfusion/planner/GlobalGroupAggregateMatcher.java": {
+        "before": "438c43c14ea1286ac048cd17e9d29abbc501f1d03382562226d86ffcdb14daae",
+        "after": "7b6e409ff9b26284969faa56896cbc4820f9ad9d4e2de3837018623429e13637"
+      }
+    },
+    "notes": "After frozen native build, corrected recovery-only assertions to compare materialized changelog across checkpoint drains (existing two-phase contract), and clarified two matcher documentation comments. Runtime Rust/Java implementation unchanged; Java recompiles before qualification.",
+    "base": "a0dd888d02d2175431bef0f36a4199ca54d1a3f3",
+    "prior": "a0dd888d02d2175431bef0f36a4199ca54d1a3f3",
+    "prior_dso_sha256": "95fc1e83e0e85ad237daa0d1b8c656bb39b02081b0c0287b9fec3ad37e04a909"
+  },
+  "native_build_java_validation_updates": {
+    "src/test/java/tech/streamfusion/FlinkListAggTwoPhaseSqlHarnessTest.java": {
+      "before": "f396e07f222c964d68ef48ffa4211da9b61bcdfd9afad60bbf5fa4f28029041e",
+      "after": "2839e1990b18add1bdd1ef0f129555030f3621c20376b9e081e19209f05a46a8"
+    },
+    "src/main/java/tech/streamfusion/planner/LocalGroupAggregateMatcher.java": {
+      "before": "d440fb579a0f28a8de697a8827de3344683ec596c8a73c71bb9937d3843c2138",
+      "after": "9b8b6eafda61d25e0fcc148f7340ed18a185f90c238876ebb3312ada0a6b5f71"
+    },
+    "src/main/java/tech/streamfusion/planner/GlobalGroupAggregateMatcher.java": {
+      "before": "438c43c14ea1286ac048cd17e9d29abbc501f1d03382562226d86ffcdb14daae",
+      "after": "7b6e409ff9b26284969faa56896cbc4820f9ad9d4e2de3837018623429e13637"
+    }
+  },
+  "prior_fixture_identical": true,
+  "measurement": "Stock and current/actual previous StreamFusion alternate with two warmups/three measured trials. Both production transposes, row source/sink, IPC/JNI, local/global state and native consumption metrics retained. Actual previous TWO_PHASE asserts zero substitutions; ONE_PHASE control remains native. No concurrent local heavy work during timings. All80jobs retained.",
+  "fixture": "500krows with nullable16/128byte strings,64/16384/8192keys; source repeats16stringvalues per key; mini-batch4096 and transpose1024rows. ONE_PHASE controls500krows32768keys16byte strings retain historical configuration with mini-batching disabled.",
+  "validation": {
+    "java22_unique_pass": 79,
+    "java118_pass_single_run": 79,
+    "java22_control_cases_from_initial_run": 73,
+    "java22_final_new_case_retest": 6,
+    "new_sql_comparisons_each_release": 16,
+    "new_junit_cases_each_release": 6,
+    "new_native_state_tests": 1,
+    "native_fixtures": 92,
+    "new_native_fixtures": 16,
+    "allocation_records": 92,
+    "details": "Released actual local/global plans, default/five literal separators, NULL-only/empty input, CHAR casts, filtered/mixed numerics, COUNTD before/after LISTAGG; four two-restore memory/native RocksDB profiles at bundle sizes3/11. Checkpoint drains change intermediate bundle boundaries, so recovery compares exact materialized ordered string/count results (existing two-phase contract); uninterrupted tests retain raw kinded comparison. Initial22run77passed/2failed only because new recovery test wrongly required uninterrupted and checkpointed raw mini-batch updates to coincide; corrected six-case suite passes, then all79 pass118. Runtime unchanged. Native fixture independent prefix/count oracles,17rowchunks,local drain/global restore; new state unit also checks NULL-only groups and empty flush schema."
+  },
+  "diagnostic_logs": [
+    {
+      "name": "sf-listagg-two-phase-sql22.log",
+      "sha256": "81e3c23a669f2628f6b1ad7cb9ad270c523edad37c33833d326ac28c3c339961"
+    },
+    {
+      "name": "sf-listagg-two-phase-sql22-r2.log",
+      "sha256": "c9c2616e02723fd91ffa1267ce384b6f65b13c418f6be5a56600b99b1261e0aa"
+    },
+    {
+      "name": "sf-listagg-two-phase-sql118-r2.log",
+      "sha256": "be7737789604dc1d726c1abf2d53400b70320baf89a45d2c8f6f4509019c6ab6"
+    }
+  ],
+  "raw_job_count": 80,
+  "profiles": [
+    {
+      "stage": "current-low",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 64,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.690072597,
+        0.636196987,
+        0.586824308
+      ],
+      "native_or_previous_seconds": [
+        0.291353441,
+        0.263000356,
+        0.172956946
+      ],
+      "stock_median": 0.636196987,
+      "native_or_previous_median": 0.263000356,
+      "stock_mean": 0.637697964,
+      "native_or_previous_mean": 0.24243691433333334,
+      "stock_over_native_median": 2.418996676187009,
+      "stock_over_native_mean": 2.630366607963056,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.396886
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.491021
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.326322
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.743393
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.690073
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.291353
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.263
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.636197
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.586824
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.172957
+        }
+      ],
+      "actual_previous_over_native_median": 2.2749211069508974,
+      "actual_previous_over_native_mean": 2.4507544088345745,
+      "previous_stock_over_current_stock_mean": 0.9635108369265547
+    },
+    {
+      "stage": "current-high",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.959712194,
+        0.872074713,
+        0.871149697
+      ],
+      "native_or_previous_seconds": [
+        0.596792649,
+        0.551324344,
+        0.481400455
+      ],
+      "stock_median": 0.872074713,
+      "native_or_previous_median": 0.551324344,
+      "stock_mean": 0.9009788679999999,
+      "native_or_previous_mean": 0.5431724826666666,
+      "stock_over_native_median": 1.5817816181902535,
+      "stock_over_native_mean": 1.6587343739813702,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.728199
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.790528
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.654167
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.966188
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.959712
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.596793
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.551324
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.872075
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.87115
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.4814
+        }
+      ],
+      "actual_previous_over_native_median": 1.4856119105090706,
+      "actual_previous_over_native_mean": 1.5070528180070153,
+      "previous_stock_over_current_stock_mean": 0.928936774278854
+    },
+    {
+      "stage": "current-wide",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 8192,
+      "width": 128,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        2.240160151,
+        2.072392931,
+        2.038431488
+      ],
+      "native_or_previous_seconds": [
+        2.0342228,
+        1.875010891,
+        1.790564418
+      ],
+      "stock_median": 2.072392931,
+      "native_or_previous_median": 1.875010891,
+      "stock_mean": 2.1169948566666665,
+      "native_or_previous_mean": 1.8999327030000002,
+      "stock_over_native_median": 1.1052698098701337,
+      "stock_over_native_mean": 1.1142472853506467,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 2.909803
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 2.178481
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 1.988161
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 2.179613
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 2.24016
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 2.034223
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.875011
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 2.072393
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 2.038431
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.790564
+        }
+      ]
+    },
+    {
+      "stage": "current-one-control",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "ONE_PHASE",
+      "mini_batch_size": null,
+      "rows": 500000,
+      "keys": 32768,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.735624465,
+        0.620373564,
+        0.648493115
+      ],
+      "native_or_previous_seconds": [
+        0.344927514,
+        0.334267962,
+        0.312180878
+      ],
+      "stock_median": 0.648493115,
+      "native_or_previous_median": 0.334267962,
+      "stock_mean": 0.6681637146666667,
+      "native_or_previous_mean": 0.33045878466666667,
+      "stock_over_native_median": 1.9400396948601375,
+      "stock_over_native_mean": 2.0219275312673033,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.551142
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.623088
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.489378
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.772258
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.735624
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.344928
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.334268
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.620374
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.648493
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.312181
+        }
+      ],
+      "actual_previous_over_native_median": 1.0270342839497135,
+      "actual_previous_over_native_mean": 1.0105961222068849,
+      "previous_stock_over_current_stock_mean": 0.9957221796535909
+    },
+    {
+      "stage": "actual-prior-low",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 64,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.636710814,
+        0.59327597,
+        0.613299913
+      ],
+      "native_or_previous_seconds": [
+        0.60001672,
+        0.598305061,
+        0.584138229
+      ],
+      "stock_median": 0.613299913,
+      "native_or_previous_median": 0.598305061,
+      "stock_mean": 0.614428899,
+      "native_or_previous_mean": 0.5941533366666667,
+      "stock_over_native_median": 1.025062218218475,
+      "stock_over_native_mean": 1.0341251341734168,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.393607
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.726269
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.683522
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.65781
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.636711
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.600017
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.598305
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.593276
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.6133
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.584138
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-high",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 16384,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.874434803,
+        0.828530137,
+        0.80789227
+      ],
+      "native_or_previous_seconds": [
+        0.798656093,
+        0.819054012,
+        0.838058757
+      ],
+      "stock_median": 0.828530137,
+      "native_or_previous_median": 0.819054012,
+      "stock_mean": 0.8369524033333333,
+      "native_or_previous_mean": 0.8185896206666666,
+      "stock_over_native_median": 1.0115695971952579,
+      "stock_over_native_mean": 1.0224322202518423,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.690285
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.947011
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.896115
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.878429
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.874435
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.798656
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.819054
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.82853
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.807892
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.838059
+        }
+      ]
+    },
+    {
+      "stage": "actual-prior-one-control",
+      "flink": "2.2.1",
+      "function": "LISTAGG",
+      "phase": "ONE_PHASE",
+      "mini_batch_size": null,
+      "rows": 500000,
+      "keys": 32768,
+      "width": 16,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        0.710500802,
+        0.612713631,
+        0.672701858
+      ],
+      "native_or_previous_seconds": [
+        0.343304657,
+        0.345590071,
+        0.312986371
+      ],
+      "stock_median": 0.672701858,
+      "native_or_previous_median": 0.343304657,
+      "stock_mean": 0.6653054303333333,
+      "native_or_previous_mean": 0.3339603663333333,
+      "stock_over_native_median": 1.9594894630281698,
+      "stock_over_native_mean": 1.9921688242169344,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 1.479219
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 0.65341
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.466525
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 0.726476
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.710501
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 0.343305
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.34559
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 0.612714
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.672702
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 0.312986
+        }
+      ]
+    },
+    {
+      "stage": "released118-wide",
+      "flink": "1.18.1",
+      "function": "LISTAGG",
+      "phase": "TWO_PHASE",
+      "mini_batch_size": 4096,
+      "rows": 500000,
+      "keys": 8192,
+      "width": 128,
+      "warmups": 2,
+      "runs": 3,
+      "stock_seconds": [
+        2.033990976,
+        2.061595133,
+        2.10721636
+      ],
+      "native_or_previous_seconds": [
+        2.070466254,
+        1.888875648,
+        1.845308066
+      ],
+      "stock_median": 2.061595133,
+      "native_or_previous_median": 1.888875648,
+      "stock_mean": 2.067600823,
+      "native_or_previous_mean": 1.9348833226666666,
+      "stock_over_native_median": 1.0914403683391656,
+      "stock_over_native_mean": 1.0685919914542554,
+      "raw_trials": [
+        {
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 2.898218
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds_printed": 2.248565
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 2.027127
+        },
+        {
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds_printed": 2.304192
+        },
+        {
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 2.033991
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds_printed": 2.070466
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 1.888876
+        },
+        {
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds_printed": 2.061595
+        },
+        {
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 2.107216
+        },
+        {
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds_printed": 1.845308
+        }
+      ]
+    }
+  ],
+  "allocation_records": [
+    {
+      "case": "listagg/rows=16/keys=1/width=8/retract=false",
+      "allocation_calls": "114",
+      "requested_bytes": "16914",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1999"
+    },
+    {
+      "case": "listagg/rows=16/keys=1/width=8/retract=true",
+      "allocation_calls": "109",
+      "requested_bytes": "12090",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1336"
+    },
+    {
+      "case": "listagg/rows=16/keys=1/width=128/retract=false",
+      "allocation_calls": "118",
+      "requested_bytes": "106074",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "22279"
+    },
+    {
+      "case": "listagg/rows=16/keys=1/width=128/retract=true",
+      "allocation_calls": "110",
+      "requested_bytes": "73266",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "15736"
+    },
+    {
+      "case": "listagg/rows=16/keys=64/width=8/retract=false",
+      "allocation_calls": "161",
+      "requested_bytes": "18386",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "318"
+    },
+    {
+      "case": "listagg/rows=16/keys=64/width=8/retract=true",
+      "allocation_calls": "53",
+      "requested_bytes": "4436",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "case": "listagg/rows=16/keys=64/width=128/retract=false",
+      "allocation_calls": "162",
+      "requested_bytes": "25114",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1878"
+    },
+    {
+      "case": "listagg/rows=16/keys=64/width=128/retract=true",
+      "allocation_calls": "53",
+      "requested_bytes": "4436",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "877"
+    },
+    {
+      "case": "listagg/rows=1024/keys=1/width=8/retract=false",
+      "allocation_calls": "3039",
+      "requested_bytes": "25727314",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "7710823"
+    },
+    {
+      "case": "listagg/rows=1024/keys=1/width=8/retract=true",
+      "allocation_calls": "6738",
+      "requested_bytes": "30599914",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5773720"
+    },
+    {
+      "case": "listagg/rows=1024/keys=1/width=128/retract=false",
+      "allocation_calls": "3042",
+      "requested_bytes": "377741850",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "100006303"
+    },
+    {
+      "case": "listagg/rows=1024/keys=1/width=128/retract=true",
+      "allocation_calls": "6594",
+      "requested_bytes": "395161802",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "74942680"
+    },
+    {
+      "case": "listagg/rows=1024/keys=64/width=8/retract=false",
+      "allocation_calls": "3571",
+      "requested_bytes": "1035048",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "139378"
+    },
+    {
+      "case": "listagg/rows=1024/keys=64/width=8/retract=true",
+      "allocation_calls": "3586",
+      "requested_bytes": "718518",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "99760"
+    },
+    {
+      "case": "listagg/rows=1024/keys=64/width=128/retract=false",
+      "allocation_calls": "3530",
+      "requested_bytes": "6862608",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1583098"
+    },
+    {
+      "case": "listagg/rows=1024/keys=64/width=128/retract=true",
+      "allocation_calls": "3516",
+      "requested_bytes": "6900926",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1181200"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=1/width=8/retract=false",
+      "allocation_calls": "131",
+      "requested_bytes": "18054",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1999"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=1/width=8/retract=true",
+      "allocation_calls": "109",
+      "requested_bytes": "12090",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1336"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=1/width=128/retract=false",
+      "allocation_calls": "135",
+      "requested_bytes": "108774",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "22279"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=1/width=128/retract=true",
+      "allocation_calls": "110",
+      "requested_bytes": "73266",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "15736"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=64/width=8/retract=false",
+      "allocation_calls": "203",
+      "requested_bytes": "21438",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "318"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=64/width=8/retract=true",
+      "allocation_calls": "53",
+      "requested_bytes": "4436",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "157"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=64/width=128/retract=false",
+      "allocation_calls": "204",
+      "requested_bytes": "29726",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1878"
+    },
+    {
+      "case": "listagg_distinct/rows=16/keys=64/width=128/retract=true",
+      "allocation_calls": "53",
+      "requested_bytes": "4436",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "877"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=1/width=8/retract=false",
+      "allocation_calls": "2160",
+      "requested_bytes": "445768",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2936"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=1/width=8/retract=true",
+      "allocation_calls": "3627",
+      "requested_bytes": "391484",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=1/width=128/retract=false",
+      "allocation_calls": "2164",
+      "requested_bytes": "2540368",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "33656"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=1/width=128/retract=true",
+      "allocation_calls": "3627",
+      "requested_bytes": "4262204",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "4"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=64/width=8/retract=false",
+      "allocation_calls": "4704",
+      "requested_bytes": "1108368",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "139378"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=64/width=8/retract=true",
+      "allocation_calls": "3586",
+      "requested_bytes": "718518",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "99760"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=64/width=128/retract=false",
+      "allocation_calls": "4663",
+      "requested_bytes": "7041168",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1583098"
+    },
+    {
+      "case": "listagg_distinct/rows=1024/keys=64/width=128/retract=true",
+      "allocation_calls": "3516",
+      "requested_bytes": "6900926",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1181200"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=1/width=8/separator_column=-1",
+      "allocation_calls": "156",
+      "requested_bytes": "14905",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "141"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=1/width=8/separator_column=2",
+      "allocation_calls": "156",
+      "requested_bytes": "14956",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "153"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=1/width=128/separator_column=-1",
+      "allocation_calls": "158",
+      "requested_bytes": "28961",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1701"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=1/width=128/separator_column=2",
+      "allocation_calls": "158",
+      "requested_bytes": "29012",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1713"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=64/width=8/separator_column=-1",
+      "allocation_calls": "426",
+      "requested_bytes": "51801",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "446"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=64/width=8/separator_column=2",
+      "allocation_calls": "426",
+      "requested_bytes": "51846",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "446"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=64/width=128/separator_column=-1",
+      "allocation_calls": "428",
+      "requested_bytes": "63697",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2006"
+    },
+    {
+      "case": "listagg_local_global/rows=16/keys=64/width=128/separator_column=2",
+      "allocation_calls": "428",
+      "requested_bytes": "63742",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2006"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=1/width=8/separator_column=-1",
+      "allocation_calls": "164",
+      "requested_bytes": "95057",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "7917"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=1/width=8/separator_column=2",
+      "allocation_calls": "165",
+      "requested_bytes": "116700",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8793"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=1/width=128/separator_column=-1",
+      "allocation_calls": "164",
+      "requested_bytes": "972137",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "113157"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=1/width=128/separator_column=2",
+      "allocation_calls": "164",
+      "requested_bytes": "977396",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "114033"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=64/width=8/separator_column=-1",
+      "allocation_calls": "1546",
+      "requested_bytes": "268696",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "9177"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=64/width=8/separator_column=2",
+      "allocation_calls": "1593",
+      "requested_bytes": "316428",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "9990"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=64/width=128/separator_column=-1",
+      "allocation_calls": "1554",
+      "requested_bytes": "1419256",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "114417"
+    },
+    {
+      "case": "listagg_local_global/rows=1024/keys=64/width=128/separator_column=2",
+      "allocation_calls": "1554",
+      "requested_bytes": "1422700",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "115230"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=8/kind=26/retract=false",
+      "allocation_calls": "180",
+      "requested_bytes": "20234",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2243"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=8/kind=26/retract=true",
+      "allocation_calls": "152",
+      "requested_bytes": "17858",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2213"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=8/kind=29/retract=false",
+      "allocation_calls": "238",
+      "requested_bytes": "43403",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5544"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=8/kind=29/retract=true",
+      "allocation_calls": "189",
+      "requested_bytes": "37728",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "5700"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=128/kind=26/retract=false",
+      "allocation_calls": "192",
+      "requested_bytes": "131065",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "22523"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=128/kind=26/retract=true",
+      "allocation_calls": "165",
+      "requested_bytes": "122381",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "22493"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=128/kind=29/retract=false",
+      "allocation_calls": "258",
+      "requested_bytes": "143799",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "30144"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=1/width=128/kind=29/retract=true",
+      "allocation_calls": "199",
+      "requested_bytes": "131959",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "31020"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=8/kind=26/retract=false",
+      "allocation_calls": "194",
+      "requested_bytes": "21724",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "374"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=8/kind=26/retract=true",
+      "allocation_calls": "55",
+      "requested_bytes": "5612",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "374"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=8/kind=29/retract=false",
+      "allocation_calls": "249",
+      "requested_bytes": "25696",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=8/kind=29/retract=true",
+      "allocation_calls": "55",
+      "requested_bytes": "5612",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "552"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=128/kind=26/retract=false",
+      "allocation_calls": "208",
+      "requested_bytes": "31793",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1934"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=128/kind=26/retract=true",
+      "allocation_calls": "56",
+      "requested_bytes": "7660",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1934"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=128/kind=29/retract=false",
+      "allocation_calls": "263",
+      "requested_bytes": "35962",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2112"
+    },
+    {
+      "case": "json_aggregate/rows=16/keys=64/width=128/kind=29/retract=true",
+      "allocation_calls": "56",
+      "requested_bytes": "7660",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2112"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=8/kind=26/retract=false",
+      "allocation_calls": "13439",
+      "requested_bytes": "52980378",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8484995"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=8/kind=26/retract=true",
+      "allocation_calls": "12535",
+      "requested_bytes": "39104962",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "8484965"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=8/kind=29/retract=false",
+      "allocation_calls": "17041",
+      "requested_bytes": "122275377",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "23027256"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=8/kind=29/retract=true",
+      "allocation_calls": "14995",
+      "requested_bytes": "147883893",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "23282100"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=128/kind=26/retract=false",
+      "allocation_calls": "13989",
+      "requested_bytes": "487493305",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "100780475"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=128/kind=26/retract=true",
+      "allocation_calls": "13080",
+      "requested_bytes": "453688965",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "100780445"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=128/kind=29/retract=false",
+      "allocation_calls": "18287",
+      "requested_bytes": "533892381",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "130775376"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=1/width=128/kind=29/retract=true",
+      "allocation_calls": "15292",
+      "requested_bytes": "783316804",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "131065500"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=8/kind=26/retract=false",
+      "allocation_calls": "7965",
+      "requested_bytes": "1509837",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "156305"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=8/kind=26/retract=true",
+      "allocation_calls": "6186",
+      "requested_bytes": "1358238",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "156275"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=8/kind=29/retract=false",
+      "allocation_calls": "11587",
+      "requested_bytes": "2790090",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "387168"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=8/kind=29/retract=true",
+      "allocation_calls": "8458",
+      "requested_bytes": "2420866",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "391080"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=128/kind=26/retract=false",
+      "allocation_calls": "8552",
+      "requested_bytes": "8581231",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1600025"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=128/kind=26/retract=true",
+      "allocation_calls": "6774",
+      "requested_bytes": "7991369",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "1599995"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=128/kind=29/retract=false",
+      "allocation_calls": "12053",
+      "requested_bytes": "9358862",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2070648"
+    },
+    {
+      "case": "json_aggregate/rows=1024/keys=64/width=128/kind=29/retract=true",
+      "allocation_calls": "8929",
+      "requested_bytes": "8591677",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "2075280"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=24",
+      "allocation_calls": "165",
+      "requested_bytes": "22353",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=24",
+      "allocation_calls": "781",
+      "requested_bytes": "1904601",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=25",
+      "allocation_calls": "180",
+      "requested_bytes": "23018",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=25",
+      "allocation_calls": "1914",
+      "requested_bytes": "1854053",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=26",
+      "allocation_calls": "182",
+      "requested_bytes": "23207",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=26",
+      "allocation_calls": "2106",
+      "requested_bytes": "1902095",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=29",
+      "allocation_calls": "203",
+      "requested_bytes": "26688",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=29",
+      "allocation_calls": "3386",
+      "requested_bytes": "2353590",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=32",
+      "allocation_calls": "184",
+      "requested_bytes": "24635",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=32",
+      "allocation_calls": "2043",
+      "requested_bytes": "4279230",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=16/keys=1/width=8/kind=33",
+      "allocation_calls": "199",
+      "requested_bytes": "25300",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    },
+    {
+      "case": "string_aggregate_checkpoint/rows=1024/keys=64/width=128/kind=33",
+      "allocation_calls": "3175",
+      "requested_bytes": "3578576",
+      "shared_output_buffer_bytes": "0",
+      "new_output_buffer_bytes": "0"
+    }
+  ],
+  "logs": [
+    {
+      "name": "sf-listagg-two-phase-current-low.log",
+      "sha256": "319437161c24b59ba7b64755c5a251f67ef58cd6f103b7981fe45da727ec3783"
+    },
+    {
+      "name": "sf-listagg-two-phase-current-high.log",
+      "sha256": "ac7db650c7e3ce271316722ee9fab03441c6ff7321b2f9145ff0776db8860305"
+    },
+    {
+      "name": "sf-listagg-two-phase-current-wide.log",
+      "sha256": "15f704ec31b0d4ff2064b8ba173b4ee708e2594ef965abd8aa3b18b84cf50a83"
+    },
+    {
+      "name": "sf-listagg-two-phase-current-one-control.log",
+      "sha256": "7e2495ed5c7daded0523185f35c2b3a6457dbd3668a6a1a27f13139bdca66d7d"
+    },
+    {
+      "name": "sf-listagg-two-phase-actual-prior-low.log",
+      "sha256": "eb16f694c5bdcca78dde512d8b4455d48293d018638c4ebe9596af1e66b4f5f0"
+    },
+    {
+      "name": "sf-listagg-two-phase-actual-prior-high.log",
+      "sha256": "0c4e94bd3fd60795382f1091ed93b2ea2a8c3a23e604703f7677cf15560dad1b"
+    },
+    {
+      "name": "sf-listagg-two-phase-actual-prior-one-control.log",
+      "sha256": "799f76949927e471dc6a697119494bbf7cd982b33e18208653841cbdaf364146"
+    },
+    {
+      "name": "sf-listagg-two-phase-released118-wide.log",
+      "sha256": "7c8ecfe550761742be3f06a6e6a3270b41fe10283accdaa2a2b3c0a3c63877ed"
+    }
+  ],
+  "limits": "Representative bounded per-key strings; arbitrary larger cardinalities/string lengths not measured. Low complete-job times retain startup cost and all variability. Actual previous controls sample compact low/high profiles; released118 samples wide. Ordinary append split only; no claims for DISTINCT/retraction/positive TTL."
+}

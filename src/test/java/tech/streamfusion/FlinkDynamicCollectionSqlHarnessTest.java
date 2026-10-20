@@ -93,15 +93,14 @@ class FlinkDynamicCollectionSqlHarnessTest {
   }
 
   @org.junit.jupiter.api.Test
-  void mapProjectionsKeepMeasuredHostFallback() throws Exception {
+  void mapProjectionsUseReleasedGeneratedPrograms() throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction("MAP_KEYS");
     for (String function : List.of("MAP_KEYS", "MAP_VALUES")) {
-      NativeParity.assertFallbackReasonContains(() -> typedMaps("STRING", true),
-          "SELECT id, " + function + "(m) FROM src", "unsupported function/operator: " + function);
-      NativeParity.assertFallbackReasonContains(
+      BuiltinFunctionParity.assertParity(() -> typedMaps("STRING", true),
+          "SELECT id, " + function + "(m) FROM src");
+      BuiltinFunctionParity.assertParity(
           FlinkDynamicCollectionSqlHarnessTest::collections,
-          "SELECT id, " + function + "(grouped) FROM src",
-          "unsupported function/operator: " + function);
+          "SELECT id, " + function + "(grouped) FROM src");
     }
   }
 

@@ -45,6 +45,9 @@ Falls back to Flink on:
 
 - INT64 timestamp columns without `'parquet.utc-timezone' = 'true'` set.
 - Unsupported leaf types such as `RAW` and intervals, including when nested.
+- Extended collection layouts produced by generated collection/constructor programs. These results
+  require a row sink and retain whole-query fallback; ordinary nullable primitive array results
+  still use the native sink. See [collection boundaries](../operators/calc-filter.md#collection-expressions).
 - Tables where every column is a partition key, leaving a zero-column file schema.
 - `'auto-compaction' = 'true'`.
 - Unsupported compression codecs, or multithreaded zstd.

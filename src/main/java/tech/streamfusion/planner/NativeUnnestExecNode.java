@@ -1,8 +1,5 @@
 package tech.streamfusion.planner;
 
-import tech.streamfusion.operator.ArrowBatch;
-import tech.streamfusion.operator.ArrowBatchTypeInformation;
-import tech.streamfusion.operator.NativeColumnarUnnestOperator;
 import java.util.Collections;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
@@ -15,8 +12,14 @@ import org.apache.flink.table.planner.plan.nodes.exec.SingleTransformationTransl
 import org.apache.flink.table.planner.plan.nodes.exec.stream.StreamExecNode;
 import org.apache.flink.table.planner.plan.nodes.exec.utils.ExecNodeUtil;
 import org.apache.flink.table.types.logical.RowType;
+import tech.streamfusion.operator.ArrowBatch;
+import tech.streamfusion.operator.ArrowBatchTypeInformation;
+import tech.streamfusion.operator.NativeColumnarUnnestOperator;
 
-/** Wraps the stateless native UNNEST into the plan; it fans each row out to one row per array element. */
+/**
+ * Wraps the stateless native UNNEST into the plan; it fans each row out to one row per array
+ * element.
+ */
 public class NativeUnnestExecNode extends ExecNodeBase<ArrowBatch>
     implements StreamExecNode<ArrowBatch>, SingleTransformationTranslator<ArrowBatch> {
 
@@ -26,6 +29,7 @@ public class NativeUnnestExecNode extends ExecNodeBase<ArrowBatch>
   private final boolean withOrdinality;
   private final boolean isLeft;
   private final boolean isMultiset;
+  private final int[] projection;
 
   public NativeUnnestExecNode(
       ReadableConfig tableConfig,
@@ -35,7 +39,8 @@ public class NativeUnnestExecNode extends ExecNodeBase<ArrowBatch>
       int arrayColumn,
       boolean withOrdinality,
       boolean isLeft,
-      boolean isMultiset) {
+      boolean isMultiset,
+      int[] projection) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-native-unnest_1"),
@@ -47,6 +52,7 @@ public class NativeUnnestExecNode extends ExecNodeBase<ArrowBatch>
     this.withOrdinality = withOrdinality;
     this.isLeft = isLeft;
     this.isMultiset = isMultiset;
+    this.projection = projection;
   }
 
   @Override
@@ -58,7 +64,8 @@ public class NativeUnnestExecNode extends ExecNodeBase<ArrowBatch>
     return ExecNodeUtil.createOneInputTransformation(
         input,
         createTransformationMeta(TRANSFORMATION, config),
-        new NativeColumnarUnnestOperator(arrayColumn, withOrdinality, isLeft, isMultiset),
+        new NativeColumnarUnnestOperator(
+            arrayColumn, withOrdinality, isLeft, isMultiset, projection),
         ArrowBatchTypeInformation.INSTANCE,
         input.getParallelism(),
         false);

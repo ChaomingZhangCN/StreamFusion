@@ -16,9 +16,10 @@ cargo bench --manifest-path native/Cargo.toml -p streamfusion --features mimallo
 
 Run one benchmark at a time. Kernel diagnostics and complete SQL jobs measure different work.
 
-The current planner keeps binary ELT and STRING ARRAY_DISTINCT on stock Flink because
-standalone whole-job performance admission remains unmet. Measurements below preserve
-historical native experiments; they do not imply those paths are enabled. Boolean
+The current planner keeps binary ELT on stock Flink because standalone whole-job performance
+admission remains unmet. STRING ARRAY_DISTINCT uses released Flink generation under the
+accepted default-enabled collection tradeoff. Measurements below preserve historical native
+experiments; they do not imply that the direct STRING kernel is enabled. Boolean
 ARRAY_DISTINCT, fixed binary casts, and the scale-dependent exact DOUBLE TRUNCATE helper
 remain admitted. See [current Calc coverage](../operators/calc-filter.md).
 

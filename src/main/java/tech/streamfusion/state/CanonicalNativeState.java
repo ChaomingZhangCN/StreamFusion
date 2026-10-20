@@ -113,16 +113,15 @@ public final class CanonicalNativeState {
         }
         int keyGroup = ByteBuffer.wrap(partition).getInt();
         requireOwned(backend.getKeyGroupRange(), keyGroup);
-        byte[] payload = Arrays.copyOfRange(partition, Integer.BYTES, partition.length);
-        int chunks = (payload.length + CHUNK_BYTES - 1) / CHUNK_BYTES;
+        int payloadBytes = partition.length - Integer.BYTES;
+        int chunks = (int) ((payloadBytes + (long) CHUNK_BYTES - 1) / CHUNK_BYTES);
         stateForKeyGroup(backend, keyGroup, HEADER_DESCRIPTOR)
-            .update(header(operatorId, timerDeadline, chunks, payload));
+            .update(header(operatorId, timerDeadline, chunks, partition));
         for (int chunk = 0; chunk < chunks; chunk++) {
-          int start = chunk * CHUNK_BYTES;
+          int start = Integer.BYTES + chunk * CHUNK_BYTES;
+          int end = (int) Math.min(partition.length, start + (long) CHUNK_BYTES);
           stateForKeyGroup(backend, keyGroup, chunkDescriptor(chunk))
-              .update(
-                  Arrays.copyOfRange(
-                      payload, start, Math.min(payload.length, start + CHUNK_BYTES)));
+              .update(Arrays.copyOfRange(partition, start, end));
         }
       }
     } finally {
@@ -320,12 +319,13 @@ public final class CanonicalNativeState {
     }
   }
 
-  private static byte[] header(String operatorId, long timerDeadline, int chunks, byte[] payload) {
+  private static byte[] header(String operatorId, long timerDeadline, int chunks, byte[] partition) {
     byte[] operator = operatorId.getBytes(StandardCharsets.UTF_8);
     ByteBuffer header = ByteBuffer.allocate(4 + 4 + 4 + operator.length + 8 + 4 + 4 + 4);
     header.putInt(MAGIC).putInt(FORMAT_VERSION).putInt(operator.length).put(operator);
-    header.putLong(timerDeadline).putInt(chunks).putInt(payload.length);
-    header.putInt(checksum(payload, 0, payload.length));
+    int payloadBytes = partition.length - Integer.BYTES;
+    header.putLong(timerDeadline).putInt(chunks).putInt(payloadBytes);
+    header.putInt(checksum(partition, Integer.BYTES, payloadBytes));
     return header.array();
   }
 

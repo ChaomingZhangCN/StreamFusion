@@ -8,10 +8,13 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.metrics.MetricGroup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Process-wide authority for memory charged to Flink task off-heap memory. */
 public final class TaskOffHeapMemory {
 
+  private static final Logger LOG = LoggerFactory.getLogger(TaskOffHeapMemory.class);
   private static final AtomicLong NEXT_OWNER = new AtomicLong(1);
   private static final AtomicLong RESERVED = new AtomicLong();
   private static final AtomicLong PEAK = new AtomicLong();
@@ -66,9 +69,10 @@ public final class TaskOffHeapMemory {
   /** Acquires a fixed-lifetime reservation, used for bounded native connector queues. */
   public static Reservation reserve(String category, String name, long bytes) {
     long ownerId = registerOwner(category, name);
-    if (!tryReserve(ownerId, bytes)) {
+    NativeMemoryLimitException failure = tryReserve(OWNERS.get(ownerId), bytes);
+    if (failure != null) {
       closeOwner(ownerId);
-      throw exhausted(name, bytes);
+      throw failure;
     }
     return new Reservation(ownerId, bytes);
   }
@@ -92,15 +96,14 @@ public final class TaskOffHeapMemory {
     }
     Owner owner = OWNERS.get(ownerId);
     if (owner == null) {
+      LOG.warn(
+          "Task off-heap reservation rejected for unregistered owner {}: {} bytes", ownerId, bytes);
       return false;
     }
-    if (!reserveGlobal(bytes)) {
-      DENIED.incrementAndGet();
-      return false;
-    }
-    if (!owner.reserve(bytes)) {
-      RESERVED.addAndGet(-bytes);
-      DENIED.incrementAndGet();
+    NativeMemoryLimitException failure = tryReserve(owner, bytes);
+    if (failure != null) {
+      // The JNI boolean contract also serves optional caches that can recover from denial.
+      LOG.warn("Task off-heap reservation rejected for owner {}: {}", ownerId, failure.getMessage());
       return false;
     }
     return true;
@@ -124,9 +127,9 @@ public final class TaskOffHeapMemory {
     if (capacity < 0) {
       return;
     }
-    long owner = arrowOwner();
-    if (!tryReserve(owner, bytes)) {
-      throw exhausted("Arrow", bytes);
+    NativeMemoryLimitException failure = tryReserve(OWNERS.get(arrowOwner()), bytes);
+    if (failure != null) {
+      throw failure;
     }
   }
 
@@ -138,13 +141,22 @@ public final class TaskOffHeapMemory {
   }
 
   public static NativeMemoryLimitException exhausted(String consumer, long requested) {
+    return exhausted(consumer, requested, capacityBytes(), reservedBytes());
+  }
+
+  private static NativeMemoryLimitException exhausted(
+      String consumer, long requested, long limit, long reserved) {
     return new NativeMemoryLimitException(
         consumer
             + " requested "
             + requested
             + " task off-heap bytes with "
-            + availableBytes()
-            + " available; raise "
+            + Math.max(0, limit - reserved)
+            + " available (capacity="
+            + limit
+            + ", reserved="
+            + reserved
+            + "); increase the task/vertex off-heap resource budget or "
             + TaskManagerOptions.TASK_OFF_HEAP_MEMORY.key());
   }
 
@@ -186,23 +198,24 @@ public final class TaskOffHeapMemory {
     capacity = bytes;
   }
 
-  private static boolean reserveGlobal(long bytes) {
+  private static NativeMemoryLimitException reserveGlobal(Owner owner, long bytes) {
     while (true) {
       long current = RESERVED.get();
+      long limit = capacity;
       long next;
       try {
         next = Math.addExact(current, bytes);
       } catch (ArithmeticException ignored) {
-        return false;
+        return denied(owner, bytes, limit, current);
       }
-      if (next > capacity || !RESERVED.compareAndSet(current, next)) {
-        if (next > capacity) {
-          return false;
-        }
+      if (next > limit) {
+        return denied(owner, bytes, limit, current);
+      }
+      if (!RESERVED.compareAndSet(current, next)) {
         continue;
       }
       PEAK.accumulateAndGet(next, Math::max);
-      return true;
+      return null;
     }
   }
 
@@ -211,6 +224,32 @@ public final class TaskOffHeapMemory {
       arrowOwner = registerOwner("arrow", "shared Arrow allocator");
     }
     return arrowOwner;
+  }
+
+  private static NativeMemoryLimitException tryReserve(Owner owner, long bytes) {
+    if (bytes <= 0) {
+      return null;
+    }
+    NativeMemoryLimitException failure = reserveGlobal(owner, bytes);
+    if (failure != null) {
+      return failure;
+    }
+    if (!owner.reserve(bytes)) {
+      RESERVED.addAndGet(-bytes);
+      DENIED.incrementAndGet();
+      return new NativeMemoryLimitException(
+          "Task off-heap owner "
+              + owner.name
+              + " closed or overflowed during reservation of "
+              + bytes);
+    }
+    return null;
+  }
+
+  private static NativeMemoryLimitException denied(Owner owner, long bytes, long limit, long reserved) {
+    DENIED.incrementAndGet();
+    // Capture the failed capacity check, not a later sample after other tasks release memory.
+    return exhausted(owner.category + " [" + owner.name + "]", bytes, limit, reserved);
   }
 
   private static void requireInitialized() {

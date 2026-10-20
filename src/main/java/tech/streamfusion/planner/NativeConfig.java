@@ -79,14 +79,29 @@ public final class NativeConfig {
     return booleanValue("streamfusion.native.enabled", true);
   }
 
-  /** Complete-row shared scalar evaluation is opt-in while standalone jobs lose to Flink. */
+  /** Correct shared scalar execution is enabled under the accepted UDF performance exception. */
   public static boolean sharedStatefulUdfEnabled() {
-    return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", false);
+    return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", true);
   }
 
-  /** Temporal scalar conversion is opt-in while row-source standalone jobs lose to Flink. */
+  /** Correct temporal scalar conversion is enabled under the accepted UDF performance exception. */
   public static boolean temporalUdfEnabled() {
-    return booleanValue("streamfusion.calc.temporalUdf.enabled", false);
+    return booleanValue("streamfusion.calc.temporalUdf.enabled", true);
+  }
+
+  /** Verified collection coverage is enabled with the accepted standalone performance tradeoff. */
+  public static boolean collectionExpressionsEnabled() {
+    return booleanValue("streamfusion.experimental.collectionExpressions", true);
+  }
+
+  /** Metadata kernels win in aggregate pipelines but still lose in standalone row-source jobs. */
+  public static boolean metadataExpressionsEnabled() {
+    return booleanValue("streamfusion.experimental.metadataExpressions", true);
+  }
+
+  /** Standalone filtering is admitted by Rust-side Arrow benchmarks; false retains stock. */
+  public static boolean standaloneDropUpdateBeforeEnabled() {
+    return booleanValue("streamfusion.dropUpdateBefore.standalone.enabled", true);
   }
 
   /** Diagnostic escape hatch for comparing the legacy synchronous memory-checkpoint path. */
@@ -154,10 +169,16 @@ public final class NativeConfig {
 
   /** Maximum rows in a row-to-Arrow batch, captured in the serialized operator configuration. */
   public static int transposeBatchRows(ReadableConfig config) {
+    return transposeBatchRows(config, 1024);
+  }
+
+  static int transposeBatchRows(ReadableConfig config, int preferredRows) {
     String key = "streamfusion.transpose.batchRows";
     int rows =
-        config.getOptional(ConfigOptions.key(key).intType().noDefaultValue())
-            .orElseGet(() -> Integer.parseInt(System.getProperty(key, "1024")));
+        config
+            .getOptional(ConfigOptions.key(key).intType().noDefaultValue())
+            .orElseGet(
+                () -> Integer.parseInt(System.getProperty(key, Integer.toString(preferredRows))));
     if (rows <= 0) throw new IllegalArgumentException(key + " must be positive");
     return rows;
   }

@@ -30,6 +30,12 @@ Reading or writing these reserved states temporarily selects each owned key grou
 restores the hosting backend's exact active key and key-group context afterward, including an unset
 context, so repeated checkpoints cannot leak a synthetic partition key into normal keyed state.
 
+When installing a native partition, the writer checksums the payload directly after its
+four-byte key-group prefix and copies each managed chunk from that same array. It does not
+first allocate another full payload array. Managed chunks remain independently owned, so later
+changes to the input partition cannot change a completed snapshot. The saved header, checksum,
+chunk names and restore format are unchanged.
+
 ## Compatibility contract
 
 Canonical savepoints can move a StreamFusion job between the memory and RocksDB backends and can be

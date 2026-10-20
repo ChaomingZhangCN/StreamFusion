@@ -1,0 +1,932 @@
+{
+  "date": "2026-10-19",
+  "feature": "ordinary ARRAY/ROW ROW_NUMBER with independent parent NULL order",
+  "source_identity": {
+    "sha256": "b2057a28c67ca2ba1d1723a263485b3c1e04fff330ec0390f973db7a8f8c5096",
+    "sources": {
+      "native/engine/src/topn.rs": "065c6fc1fede87234ecb180230bbf8c8ac30078e7603cde4d741536539fe7722",
+      "native/engine/src/bench.rs": "1e852443707beb3788abbbb162fcf98c93abc86551a16fd3b4049854d1006136",
+      "native/engine/benches/non_time_complex_rank.rs": "4c2e6314eadb94c004898b162222772ecb4179ee1b563abbea6e77ab84705f66",
+      "src/main/java/tech/streamfusion/planner/NonTimeRowNumberMatcher.java": "65adba555d54e264baa71344e01792e2ca64bbc526deea1493b33e91e9922722",
+      "src/test/java/tech/streamfusion/FlinkNonTimeComplexRankSqlHarnessTest.java": "a530e04d1fc47a779cc87e3b715b6e831cb7ac5bca1772752ec70bdbd21dac6a"
+    },
+    "prior": "a9035025dccc912991424793d8f73d201f90cee8",
+    "prior_dso_sha256": "2bb1864e9dbdb7c7fef848bfc567ffe306613a2fe3747d666e646060a3d5c249",
+    "benchmark_sha256": "3681ac502e598ab018e4b2ea808e9669e409b77f4cdb403ec5ab4c837850070d"
+  },
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": 17,
+    "native": "release+mimalloc default release profile",
+    "previous": "a9035025 with only identical whole-job fixture copied; prior library 2bb1864e; complex rank fallback asserted",
+    "current_library_note": "b2057a28 release library includes recursive payload-schema alignment before changelog gather",
+    "rows": 65536,
+    "keys": 1024,
+    "parallelism": 1,
+    "heap": "2 GiB",
+    "transpose_batch_rows": 1024,
+    "production_ipc": true,
+    "warmups_per_engine": 2,
+    "trials_per_engine": 3,
+    "order": "alternating stock/native",
+    "boundary": "complete jobs; runtime nullable complex row source; both transposes; native parent-flag projections; JNI; full retained rank state; row blackhole sink",
+    "native_proof": "Native rank and both transposes in plans; nonzero profile execution counters per native job; prior complex ranks absent",
+    "environment": "Intel Core i7-12650H; Linux WSL2",
+    "exclusive_local_heavy_work": true,
+    "reproduce": "SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=NonTimeComplexRankBenchmark -Drank.orderTypes=array -Drank.nulls=FIRST,LAST -Drank.cases=ascending,descending -Drank.rows=65536 -Drank.keys=1024 -Drank.warmup=2 -Drank.runs=3 -Dsf.extraJvmArgs=-Xmx2g"
+  },
+  "qualification": {
+    "22": [
+      "[INFO] Tests run: 32, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.37 s -- in tech.streamfusion.FlinkNonTimeComplexRankSqlHarnessTest",
+      "[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.66 s -- in tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest",
+      "[INFO] Tests run: 46, Failures: 0, Errors: 0, Skipped: 0"
+    ],
+    "118": [
+      "[WARNING] Tests run: 32, Failures: 0, Errors: 0, Skipped: 32, Time elapsed: 1.245 s -- in tech.streamfusion.FlinkNonTimeComplexRankSqlHarnessTest",
+      "[WARNING] Tests run: 14, Failures: 0, Errors: 0, Skipped: 12, Time elapsed: 2.569 s -- in tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest",
+      "[WARNING] Tests run: 46, Failures: 0, Errors: 0, Skipped: 44"
+    ],
+    "22_contexts": [
+      "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.640 s -- in tech.streamfusion.FlinkComplexRankContextSqlHarnessTest",
+      "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0"
+    ]
+  },
+  "native_unit_tests": 27,
+  "native_fixture_allocation_records": [
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=16/keys=1/nulls_last=false\",211,32069,0,5624",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=16/keys=1/nulls_last=true\",227,38468,0,5264",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=16/keys=1/nulls_last=false\",254,31216,0,4896",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=16/keys=1/nulls_last=true\",267,32916,0,4951",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=16/keys=1/nulls_last=false\",262,41677,0,6358",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=16/keys=1/nulls_last=true\",278,48269,0,5798",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=16/keys=1/nulls_last=false\",312,42913,0,6527",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=16/keys=1/nulls_last=true\",328,49368,0,6314",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=16/keys=64/nulls_last=false\",233,29719,0,665",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=16/keys=64/nulls_last=true\",246,31405,0,667",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=16/keys=64/nulls_last=false\",276,30506,0,663",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=16/keys=64/nulls_last=true\",289,32192,0,665",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=16/keys=64/nulls_last=false\",283,37953,0,729",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=16/keys=64/nulls_last=true\",296,39639,0,731",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=16/keys=64/nulls_last=false\",334,39611,0,749",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=16/keys=64/nulls_last=true\",347,41297,0,751",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=256/keys=1/nulls_last=false\",967,2735873,0,1339761",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=256/keys=1/nulls_last=true\",980,2754051,0,1231876",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=256/keys=1/nulls_last=false\",1010,2433933,0,1322767",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=256/keys=1/nulls_last=true\",1023,2408887,0,1295180",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=256/keys=1/nulls_last=false\",1018,3168445,0,1544127",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=256/keys=1/nulls_last=true\",1031,3189371,0,1394053",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=256/keys=1/nulls_last=false\",1068,3088786,0,1603250",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=256/keys=1/nulls_last=true\",1081,3108996,0,1521115",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=256/keys=64/nulls_last=false\",1077,243248,0,31858",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/array/rows=256/keys=64/nulls_last=true\",1090,247281,0,30533",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=256/keys=64/nulls_last=false\",1120,213121,0,31861",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row/rows=256/keys=64/nulls_last=true\",1133,216473,0,31648",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=256/keys=64/nulls_last=false\",1128,322233,0,36625",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/nested/rows=256/keys=64/nulls_last=true\",1141,326263,0,34700",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=256/keys=64/nulls_last=false\",1178,283505,0,36927",
+    "NATIVE_ALLOCATION,\"non_time_complex_rank/row_array/rows=256/keys=64/nulls_last=true\",1191,287391,0,35941"
+  ],
+  "profiles": [
+    {
+      "case": "ascending",
+      "type": "array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-array",
+      "stage": "current",
+      "host_seconds": [
+        0.47803441,
+        0.513024339,
+        0.312174315
+      ],
+      "host_median": 0.47803441,
+      "host_mean": 0.4344110213333333,
+      "host_range": [
+        0.312174315,
+        0.513024339
+      ],
+      "native_seconds": [
+        0.212648217,
+        0.179248393,
+        0.15120687
+      ],
+      "native_median": 0.179248393,
+      "native_mean": 0.18103449333333332,
+      "native_range": [
+        0.15120687,
+        0.212648217
+      ],
+      "stock_native_median_ratio": 2.666882542149206
+    },
+    {
+      "case": "ascending",
+      "type": "array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-array",
+      "stage": "current",
+      "host_seconds": [
+        0.375375363,
+        0.400907814,
+        0.446251186
+      ],
+      "host_median": 0.400907814,
+      "host_mean": 0.40751145433333336,
+      "host_range": [
+        0.375375363,
+        0.446251186
+      ],
+      "native_seconds": [
+        0.160919632,
+        0.147340677,
+        0.155286106
+      ],
+      "native_median": 0.155286106,
+      "native_mean": 0.15451547166666668,
+      "native_range": [
+        0.147340677,
+        0.160919632
+      ],
+      "stock_native_median_ratio": 2.5817365399065384
+    },
+    {
+      "case": "descending",
+      "type": "array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-array",
+      "stage": "current",
+      "host_seconds": [
+        1.557282111,
+        1.628998777,
+        1.563957674
+      ],
+      "host_median": 1.563957674,
+      "host_mean": 1.583412854,
+      "host_range": [
+        1.557282111,
+        1.628998777
+      ],
+      "native_seconds": [
+        1.009392061,
+        0.975273247,
+        1.044491169
+      ],
+      "native_median": 1.009392061,
+      "native_mean": 1.0097188256666667,
+      "native_range": [
+        0.975273247,
+        1.044491169
+      ],
+      "stock_native_median_ratio": 1.5494055624437888
+    },
+    {
+      "case": "descending",
+      "type": "array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-array",
+      "stage": "current",
+      "host_seconds": [
+        1.648174293,
+        1.599741235,
+        1.569713055
+      ],
+      "host_median": 1.599741235,
+      "host_mean": 1.6058761943333333,
+      "host_range": [
+        1.569713055,
+        1.648174293
+      ],
+      "native_seconds": [
+        1.085272501,
+        0.956108523,
+        1.007772471
+      ],
+      "native_median": 1.007772471,
+      "native_mean": 1.0163844983333332,
+      "native_range": [
+        0.956108523,
+        1.085272501
+      ],
+      "stock_native_median_ratio": 1.5874031897424195
+    },
+    {
+      "case": "descending",
+      "type": "row",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-complex-last",
+      "stage": "current",
+      "host_seconds": [
+        1.591062937,
+        1.405796819,
+        1.538841225
+      ],
+      "host_median": 1.538841225,
+      "host_mean": 1.511900327,
+      "host_range": [
+        1.405796819,
+        1.591062937
+      ],
+      "native_seconds": [
+        1.275468891,
+        1.218966699,
+        1.205032045
+      ],
+      "native_median": 1.218966699,
+      "native_mean": 1.2331558783333334,
+      "native_range": [
+        1.205032045,
+        1.275468891
+      ],
+      "stock_native_median_ratio": 1.262414491111541
+    },
+    {
+      "case": "descending",
+      "type": "nested_array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-complex-last",
+      "stage": "current",
+      "host_seconds": [
+        1.583363402,
+        1.569933277,
+        1.487347407
+      ],
+      "host_median": 1.569933277,
+      "host_mean": 1.546881362,
+      "host_range": [
+        1.487347407,
+        1.583363402
+      ],
+      "native_seconds": [
+        1.295593026,
+        1.289143198,
+        1.301798822
+      ],
+      "native_median": 1.295593026,
+      "native_mean": 1.295511682,
+      "native_range": [
+        1.289143198,
+        1.301798822
+      ],
+      "stock_native_median_ratio": 1.2117487864588121
+    },
+    {
+      "case": "descending",
+      "type": "row_array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-complex-last",
+      "stage": "current",
+      "host_seconds": [
+        1.614945069,
+        1.483845577,
+        1.514750294
+      ],
+      "host_median": 1.514750294,
+      "host_mean": 1.53784698,
+      "host_range": [
+        1.483845577,
+        1.614945069
+      ],
+      "native_seconds": [
+        1.435936993,
+        1.417602631,
+        1.437322875
+      ],
+      "native_median": 1.435936993,
+      "native_mean": 1.4302874996666668,
+      "native_range": [
+        1.417602631,
+        1.437322875
+      ],
+      "stock_native_median_ratio": 1.0548863225783611
+    },
+    {
+      "case": "descending",
+      "type": "row_array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-row-array-first",
+      "stage": "current",
+      "host_seconds": [
+        1.615039089,
+        1.624304669,
+        1.651726053
+      ],
+      "host_median": 1.624304669,
+      "host_mean": 1.6303566036666666,
+      "host_range": [
+        1.615039089,
+        1.651726053
+      ],
+      "native_seconds": [
+        1.40240671,
+        1.425493993,
+        1.393711481
+      ],
+      "native_median": 1.40240671,
+      "native_mean": 1.4072040613333332,
+      "native_range": [
+        1.393711481,
+        1.425493993
+      ],
+      "stock_native_median_ratio": 1.1582265382914492
+    },
+    {
+      "case": "descending",
+      "type": "BIGINT",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "current-scalar-control",
+      "stage": "current",
+      "host_seconds": [
+        1.245968812,
+        1.13441498,
+        1.149377365
+      ],
+      "host_median": 1.149377365,
+      "host_mean": 1.1765870523333335,
+      "host_range": [
+        1.13441498,
+        1.245968812
+      ],
+      "native_seconds": [
+        0.503182259,
+        0.505765099,
+        0.493668173
+      ],
+      "native_median": 0.503182259,
+      "native_mean": 0.5008718436666667,
+      "native_range": [
+        0.493668173,
+        0.505765099
+      ],
+      "stock_native_median_ratio": 2.2842167911170335
+    },
+    {
+      "case": "ascending",
+      "type": "array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-array",
+      "stage": "actual-prior",
+      "host_seconds": [
+        0.517837419,
+        0.328410898,
+        0.328392054
+      ],
+      "host_median": 0.328410898,
+      "host_mean": 0.39154679033333334,
+      "host_range": [
+        0.328392054,
+        0.517837419
+      ],
+      "native_seconds": [
+        0.434159674,
+        0.376049982,
+        0.517358249
+      ],
+      "native_median": 0.434159674,
+      "native_mean": 0.442522635,
+      "native_range": [
+        0.376049982,
+        0.517358249
+      ],
+      "stock_native_median_ratio": 0.7564288386673148
+    },
+    {
+      "case": "ascending",
+      "type": "array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-array",
+      "stage": "actual-prior",
+      "host_seconds": [
+        0.35544548,
+        0.340177046,
+        0.316442896
+      ],
+      "host_median": 0.340177046,
+      "host_mean": 0.33735514066666666,
+      "host_range": [
+        0.316442896,
+        0.35544548
+      ],
+      "native_seconds": [
+        0.328518575,
+        0.320779336,
+        0.312898969
+      ],
+      "native_median": 0.320779336,
+      "native_mean": 0.32073229333333336,
+      "native_range": [
+        0.312898969,
+        0.328518575
+      ],
+      "stock_native_median_ratio": 1.0604705722066834
+    },
+    {
+      "case": "descending",
+      "type": "array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-array",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.447709444,
+        1.425900632,
+        1.438327606
+      ],
+      "host_median": 1.438327606,
+      "host_mean": 1.4373125606666668,
+      "host_range": [
+        1.425900632,
+        1.447709444
+      ],
+      "native_seconds": [
+        1.388321262,
+        1.433804017,
+        1.407207122
+      ],
+      "native_median": 1.407207122,
+      "native_mean": 1.409777467,
+      "native_range": [
+        1.388321262,
+        1.433804017
+      ],
+      "stock_native_median_ratio": 1.0221150699946502
+    },
+    {
+      "case": "descending",
+      "type": "array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-array",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.525151438,
+        1.788335423,
+        1.343799397
+      ],
+      "host_median": 1.525151438,
+      "host_mean": 1.5524287526666667,
+      "host_range": [
+        1.343799397,
+        1.788335423
+      ],
+      "native_seconds": [
+        1.523257256,
+        1.581934808,
+        1.263350623
+      ],
+      "native_median": 1.523257256,
+      "native_mean": 1.4561808956666666,
+      "native_range": [
+        1.263350623,
+        1.581934808
+      ],
+      "stock_native_median_ratio": 1.0012435076166806
+    },
+    {
+      "case": "descending",
+      "type": "row",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-complex-last",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.417541249,
+        1.417454064,
+        1.382006123
+      ],
+      "host_median": 1.417454064,
+      "host_mean": 1.4056671453333334,
+      "host_range": [
+        1.382006123,
+        1.417541249
+      ],
+      "native_seconds": [
+        1.351431474,
+        1.409036967,
+        1.480154387
+      ],
+      "native_median": 1.409036967,
+      "native_mean": 1.4135409426666667,
+      "native_range": [
+        1.351431474,
+        1.480154387
+      ],
+      "stock_native_median_ratio": 1.0059736523576956
+    },
+    {
+      "case": "descending",
+      "type": "nested_array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-complex-last",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.343381517,
+        1.410048058,
+        1.312956647
+      ],
+      "host_median": 1.343381517,
+      "host_mean": 1.355462074,
+      "host_range": [
+        1.312956647,
+        1.410048058
+      ],
+      "native_seconds": [
+        1.329815436,
+        1.407379963,
+        1.386150806
+      ],
+      "native_median": 1.386150806,
+      "native_mean": 1.374448735,
+      "native_range": [
+        1.329815436,
+        1.407379963
+      ],
+      "stock_native_median_ratio": 0.9691452843263001
+    },
+    {
+      "case": "descending",
+      "type": "row_array",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-complex-last",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.458965885,
+        1.420048003,
+        1.457761047
+      ],
+      "host_median": 1.457761047,
+      "host_mean": 1.445591645,
+      "host_range": [
+        1.420048003,
+        1.458965885
+      ],
+      "native_seconds": [
+        1.48255138,
+        1.488175442,
+        1.512014536
+      ],
+      "native_median": 1.488175442,
+      "native_mean": 1.4942471193333333,
+      "native_range": [
+        1.48255138,
+        1.512014536
+      ],
+      "stock_native_median_ratio": 0.9795626280735252
+    },
+    {
+      "case": "descending",
+      "type": "row_array",
+      "nulls": "FIRST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-row-array-first",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.658349088,
+        1.622398696,
+        1.543114112
+      ],
+      "host_median": 1.622398696,
+      "host_mean": 1.6079539653333335,
+      "host_range": [
+        1.543114112,
+        1.658349088
+      ],
+      "native_seconds": [
+        1.61354987,
+        1.580473222,
+        1.607646927
+      ],
+      "native_median": 1.607646927,
+      "native_mean": 1.600556673,
+      "native_range": [
+        1.580473222,
+        1.61354987
+      ],
+      "stock_native_median_ratio": 1.009176000496283
+    },
+    {
+      "case": "descending",
+      "type": "BIGINT",
+      "nulls": "LAST",
+      "rows": "65536",
+      "keys": "1024",
+      "run": "actual-prior-scalar-control",
+      "stage": "actual-prior",
+      "host_seconds": [
+        1.299747992,
+        1.138604055,
+        1.168531854
+      ],
+      "host_median": 1.168531854,
+      "host_mean": 1.2022946336666667,
+      "host_range": [
+        1.138604055,
+        1.299747992
+      ],
+      "native_seconds": [
+        0.498840288,
+        0.488281664,
+        0.467074939
+      ],
+      "native_median": 0.488281664,
+      "native_mean": 0.48473229700000003,
+      "native_range": [
+        0.467074939,
+        0.498840288
+      ],
+      "stock_native_median_ratio": 2.393151207906099
+    }
+  ],
+  "raw_runs": [
+    {
+      "run": "current-array",
+      "trials": [
+        "[complex-rank-trial] case=ascending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.019566",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.409455",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.301171",
+        "[complex-rank-trial] case=ascending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.600919",
+        "[complex-rank-trial] case=ascending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.478034",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.212648",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.179248",
+        "[complex-rank-trial] case=ascending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.513024",
+        "[complex-rank-trial] case=ascending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.312174",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.151207",
+        "[complex-rank-trial] case=ascending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.406089",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.154653",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.149107",
+        "[complex-rank-trial] case=ascending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.403215",
+        "[complex-rank-trial] case=ascending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.375375",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.160920",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.147341",
+        "[complex-rank-trial] case=ascending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.400908",
+        "[complex-rank-trial] case=ascending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.446251",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.155286",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.653614",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.985413",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.948477",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.519608",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.557282",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.009392",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.975273",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.628999",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.563958",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.044491",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.595294",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.014492",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.973365",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.492403",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.648174",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.085273",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.956109",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.599741",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.569713",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.007772"
+      ],
+      "summaries": [
+        "[complex-rank] case=ascending type=array nulls=FIRST rows=65536 keys=1024 Flink=0.478034s StreamFusion=0.179248s stock_trials=[0.47803441, 0.513024339, 0.312174315] sf_trials=[0.212648217, 0.179248393, 0.15120687]",
+        "[complex-rank] case=ascending type=array nulls=LAST rows=65536 keys=1024 Flink=0.400908s StreamFusion=0.155286s stock_trials=[0.375375363, 0.400907814, 0.446251186] sf_trials=[0.160919632, 0.147340677, 0.155286106]",
+        "[complex-rank] case=descending type=array nulls=FIRST rows=65536 keys=1024 Flink=1.563958s StreamFusion=1.009392s stock_trials=[1.557282111, 1.628998777, 1.563957674] sf_trials=[1.009392061, 0.975273247, 1.044491169]",
+        "[complex-rank] case=descending type=array nulls=LAST rows=65536 keys=1024 Flink=1.599741s StreamFusion=1.007772s stock_trials=[1.648174293, 1.599741235, 1.569713055] sf_trials=[1.085272501, 0.956108523, 1.007772471]"
+      ]
+    },
+    {
+      "run": "current-complex-last",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=2.354930",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.533581",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.286531",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.715510",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.591063",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.275469",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.218967",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.405797",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.538841",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.205032",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.551633",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.379659",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.306580",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.605764",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.583363",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.295593",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.289143",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.569933",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.487347",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.301799",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.536730",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.446883",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.433815",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.534449",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.614945",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.435937",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.417603",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.483846",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.514750",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.437323"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=row nulls=LAST rows=65536 keys=1024 Flink=1.538841s StreamFusion=1.218967s stock_trials=[1.591062937, 1.405796819, 1.538841225] sf_trials=[1.275468891, 1.218966699, 1.205032045]",
+        "[complex-rank] case=descending type=nested_array nulls=LAST rows=65536 keys=1024 Flink=1.569933s StreamFusion=1.295593s stock_trials=[1.583363402, 1.569933277, 1.487347407] sf_trials=[1.295593026, 1.289143198, 1.301798822]",
+        "[complex-rank] case=descending type=row_array nulls=LAST rows=65536 keys=1024 Flink=1.514750s StreamFusion=1.435937s stock_trials=[1.614945069, 1.483845577, 1.514750294] sf_trials=[1.435936993, 1.417602631, 1.437322875]"
+      ]
+    },
+    {
+      "run": "current-row-array-first",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=2.437285",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.657305",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.474469",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.812997",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.615039",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.402407",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.425494",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.624305",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.651726",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.393711"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=row_array nulls=FIRST rows=65536 keys=1024 Flink=1.624305s StreamFusion=1.402407s stock_trials=[1.615039089, 1.624304669, 1.651726053] sf_trials=[1.40240671, 1.425493993, 1.393711481]"
+      ]
+    },
+    {
+      "run": "current-scalar-control",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=2.040271",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.875741",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.627363",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.313413",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.245969",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.503182",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.505765",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.134415",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.149377",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.493668"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=BIGINT nulls=LAST rows=65536 keys=1024 Flink=1.149377s StreamFusion=0.503182s stock_trials=[1.245968812, 1.13441498, 1.149377365] sf_trials=[0.503182259, 0.505765099, 0.493668173]"
+      ]
+    },
+    {
+      "run": "actual-prior-array",
+      "trials": [
+        "[complex-rank-trial] case=ascending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.062571",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.726996",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.490669",
+        "[complex-rank-trial] case=ascending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.464690",
+        "[complex-rank-trial] case=ascending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.517837",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.434160",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.376050",
+        "[complex-rank-trial] case=ascending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.328411",
+        "[complex-rank-trial] case=ascending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.328392",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=0.517358",
+        "[complex-rank-trial] case=ascending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.533011",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.434847",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.338836",
+        "[complex-rank-trial] case=ascending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.311787",
+        "[complex-rank-trial] case=ascending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.355445",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.328519",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.320779",
+        "[complex-rank-trial] case=ascending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.340177",
+        "[complex-rank-trial] case=ascending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.316443",
+        "[complex-rank-trial] case=ascending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=0.312899",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.466361",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.584563",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.675060",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.422291",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.447709",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.388321",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.433804",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.425901",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.438328",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=FIRST seconds=1.407207",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.604187",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.423711",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.477791",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.503469",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.525151",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.523257",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.581935",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.788335",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.343799",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=array nulls=LAST seconds=1.263351"
+      ],
+      "summaries": [
+        "[complex-rank] case=ascending type=array nulls=FIRST rows=65536 keys=1024 Flink=0.328411s StreamFusion=0.434160s stock_trials=[0.517837419, 0.328410898, 0.328392054] sf_trials=[0.434159674, 0.376049982, 0.517358249]",
+        "[complex-rank] case=ascending type=array nulls=LAST rows=65536 keys=1024 Flink=0.340177s StreamFusion=0.320779s stock_trials=[0.35544548, 0.340177046, 0.316442896] sf_trials=[0.328518575, 0.320779336, 0.312898969]",
+        "[complex-rank] case=descending type=array nulls=FIRST rows=65536 keys=1024 Flink=1.438328s StreamFusion=1.407207s stock_trials=[1.447709444, 1.425900632, 1.438327606] sf_trials=[1.388321262, 1.433804017, 1.407207122]",
+        "[complex-rank] case=descending type=array nulls=LAST rows=65536 keys=1024 Flink=1.525151s StreamFusion=1.523257s stock_trials=[1.525151438, 1.788335423, 1.343799397] sf_trials=[1.523257256, 1.581934808, 1.263350623]"
+      ]
+    },
+    {
+      "run": "actual-prior-complex-last",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=2.444332",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.616043",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.556548",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.473387",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.417541",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.351431",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.409037",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.417454",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.382006",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row nulls=LAST seconds=1.480154",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.498314",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.335026",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.358087",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.369921",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.343382",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.329815",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.407380",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.410048",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.312957",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=nested_array nulls=LAST seconds=1.386151",
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.335452",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.429212",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.379499",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.379260",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.458966",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.482551",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.488175",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.420048",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.457761",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=LAST seconds=1.512015"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=row nulls=LAST rows=65536 keys=1024 Flink=1.417454s StreamFusion=1.409037s stock_trials=[1.417541249, 1.417454064, 1.382006123] sf_trials=[1.351431474, 1.409036967, 1.480154387]",
+        "[complex-rank] case=descending type=nested_array nulls=LAST rows=65536 keys=1024 Flink=1.343382s StreamFusion=1.386151s stock_trials=[1.343381517, 1.410048058, 1.312956647] sf_trials=[1.329815436, 1.407379963, 1.386150806]",
+        "[complex-rank] case=descending type=row_array nulls=LAST rows=65536 keys=1024 Flink=1.457761s StreamFusion=1.488175s stock_trials=[1.458965885, 1.420048003, 1.457761047] sf_trials=[1.48255138, 1.488175442, 1.512014536]"
+      ]
+    },
+    {
+      "run": "actual-prior-row-array-first",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=2.487187",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.846412",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.668265",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.611158",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.658349",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.613550",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.580473",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.622399",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.543114",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=row_array nulls=FIRST seconds=1.607647"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=row_array nulls=FIRST rows=65536 keys=1024 Flink=1.622399s StreamFusion=1.607647s stock_trials=[1.658349088, 1.622398696, 1.543114112] sf_trials=[1.61354987, 1.580473222, 1.607646927]"
+      ]
+    },
+    {
+      "run": "actual-prior-scalar-control",
+      "trials": [
+        "[complex-rank-trial] case=descending engine=Flink trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=2.134429",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=0 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.706626",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.592559",
+        "[complex-rank-trial] case=descending engine=Flink trial=1 warmup=true rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.340218",
+        "[complex-rank-trial] case=descending engine=Flink trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.299748",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=2 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.498840",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.488282",
+        "[complex-rank-trial] case=descending engine=Flink trial=3 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.138604",
+        "[complex-rank-trial] case=descending engine=Flink trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=1.168532",
+        "[complex-rank-trial] case=descending engine=StreamFusion trial=4 warmup=false rows=65536 keys=1024 nullEvery=31 type=BIGINT nulls=LAST seconds=0.467075"
+      ],
+      "summaries": [
+        "[complex-rank] case=descending type=BIGINT nulls=LAST rows=65536 keys=1024 Flink=1.168532s StreamFusion=0.488282s stock_trials=[1.299747992, 1.138604055, 1.168531854] sf_trials=[0.498840288, 0.488281664, 0.467074939]"
+      ]
+    }
+  ],
+  "diagnostics": [
+    "A gate-only prototype passed all eight NULLS FIRST cases but failed all eight NULLS LAST cases: Arrow propagated parent placement to children. The final planner projects a parent NULL flag and sorts nested values NULLS FIRST using the unchanged ranker.",
+    "Six RocksDB recovery cases with the old release library failed when list child names differed between decoded payload and restored schema. The final native changelog path uses the existing recursive Arrow cast helper to reconcile field names before the normal gather. All 46 released 2.2 SQL/recovery tests then passed.",
+    "Flink 1.18 rejects ordinary non-time OVER; its host capability gates remain. No 1.18 native performance claim is made.",
+    "The scalar control is already accelerated on the previous revision and measures the shared changelog path; it is not new coverage.",
+    "All warmups and measured jobs are retained. Complete-job startup and source allocation remain included; ratios are workload observations, not confidence intervals."
+  ],
+  "context_test_source_sha256": "10fb5baf7b4ac46eec476ff690eadea784075c26148f9efcd704ead212dcf4df",
+  "context_test_note": "Five additional default-NULL, unpartitioned and p=3 keyed-shuffle cases ran after exclusive timings. Primary 46 cases and production source hashes remain identical."
+}

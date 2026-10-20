@@ -1,0 +1,382 @@
+{
+  "purpose": "Correctness regression: retained OVER string caches must survive input batches that omit cache columns. Native fixture smoke and allocation diagnostics, with no complete-job timing or speed claim.",
+  "native_library": {
+    "base": "61e5bb80734d966723eb8f4156f86fcc8ca3a527",
+    "change": "Retain selected OVER caches when current input has no cache companion",
+    "sha256": "1d5a8b9d4029646ace0d6587ea0d4b5632cd2bde25ce0d3a6df9d1ca519369d7"
+  },
+  "validation": {
+    "native_over_checks": 18,
+    "native_over_log_sha256": "fd836e2961f4468dbeb63453ea4eedb3c50e8ddc8228872a1fb038e1a2f8e2dd",
+    "flink_2_2": {
+      "checks": 292,
+      "passed": 292,
+      "skipped": 0,
+      "log_sha256": "c98beba3b7fa4ee916510d4ea8769788a612861f62518e748b804092e0aa16fb"
+    },
+    "flink_1_18": {
+      "checks": 292,
+      "passed": 289,
+      "skipped": 3,
+      "log_sha256": "b14e9cfe6ae82d4a1b7e6ccbd65a1481bce2754fc8df98e651a66efc63b483b2"
+    },
+    "audit_agent": {
+      "checks": 51,
+      "passed": 50,
+      "skipped": 1,
+      "log_sha256": "b8b07ce339fe481bbda48b1e1f3558a2e046ac27f5c040e858919a7689d1bf69"
+    }
+  },
+  "criterion": {
+    "checks": 32,
+    "metadata": {
+      "timestamp_utc": "20261018T232758.199830Z",
+      "commit": "61e5bb80734d966723eb8f4156f86fcc8ca3a527",
+      "dirty": true,
+      "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: x86_64-unknown-linux-gnu\nrelease: 1.94.0\nLLVM version: 21.1.8\n",
+      "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+      "cpu_count": 16,
+      "mode": "smoke",
+      "suites": [
+        [
+          "streamfusion",
+          "over_sparse_string_cache"
+        ]
+      ],
+      "filter": null,
+      "features": [
+        "mimalloc"
+      ],
+      "save_baseline": null,
+      "baseline": null,
+      "commands": [
+        [
+          "cargo",
+          "bench",
+          "--manifest-path",
+          "/root/data/StreamFusion/.codex/aggregate-window-pr-ci/native/Cargo.toml",
+          "--locked",
+          "-p",
+          "streamfusion",
+          "--bench",
+          "over_sparse_string_cache",
+          "--features",
+          "mimalloc",
+          "--",
+          "--test"
+        ]
+      ],
+      "environment": {
+        "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64"
+      }
+    },
+    "log_sha256": "3cf1f3449eb4ed5a1ca980837e437b3eb6e9deea2252938e7523113d46de33a8",
+    "allocation_rows": [
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame0/kind1",
+        "allocation_calls": "139",
+        "requested_bytes": "19655",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame0/kind2",
+        "allocation_calls": "142",
+        "requested_bytes": "19799",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame0/kind5",
+        "allocation_calls": "139",
+        "requested_bytes": "19655",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame0/kind6",
+        "allocation_calls": "195",
+        "requested_bytes": "21071",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame1/kind1",
+        "allocation_calls": "393",
+        "requested_bytes": "39316",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame1/kind2",
+        "allocation_calls": "395",
+        "requested_bytes": "39436",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame1/kind5",
+        "allocation_calls": "457",
+        "requested_bytes": "45884",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame1/kind6",
+        "allocation_calls": "459",
+        "requested_bytes": "46004",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame2/kind1",
+        "allocation_calls": "407",
+        "requested_bytes": "51692",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame2/kind2",
+        "allocation_calls": "409",
+        "requested_bytes": "51812",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame2/kind5",
+        "allocation_calls": "471",
+        "requested_bytes": "58260",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame2/kind6",
+        "allocation_calls": "473",
+        "requested_bytes": "58380",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame3/kind1",
+        "allocation_calls": "139",
+        "requested_bytes": "19655",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame3/kind2",
+        "allocation_calls": "142",
+        "requested_bytes": "19799",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame3/kind5",
+        "allocation_calls": "139",
+        "requested_bytes": "19655",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "712"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows64/frame3/kind6",
+        "allocation_calls": "195",
+        "requested_bytes": "21071",
+        "shared_output_buffer_bytes": "1346",
+        "new_output_buffer_bytes": "594"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame0/kind1",
+        "allocation_calls": "150",
+        "requested_bytes": "461343",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame0/kind2",
+        "allocation_calls": "154",
+        "requested_bytes": "450095",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame0/kind5",
+        "allocation_calls": "150",
+        "requested_bytes": "461343",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame0/kind6",
+        "allocation_calls": "3663",
+        "requested_bytes": "534311",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame1/kind1",
+        "allocation_calls": "15962",
+        "requested_bytes": "1725164",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame1/kind2",
+        "allocation_calls": "15965",
+        "requested_bytes": "1713892",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame1/kind5",
+        "allocation_calls": "19494",
+        "requested_bytes": "2164884",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame1/kind6",
+        "allocation_calls": "19497",
+        "requested_bytes": "2153612",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame2/kind1",
+        "allocation_calls": "15988",
+        "requested_bytes": "2515716",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame2/kind2",
+        "allocation_calls": "15991",
+        "requested_bytes": "2504444",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame2/kind5",
+        "allocation_calls": "19520",
+        "requested_bytes": "2955436",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame2/kind6",
+        "allocation_calls": "19523",
+        "requested_bytes": "2944164",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame3/kind1",
+        "allocation_calls": "150",
+        "requested_bytes": "461343",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame3/kind2",
+        "allocation_calls": "154",
+        "requested_bytes": "450095",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame3/kind5",
+        "allocation_calls": "150",
+        "requested_bytes": "461343",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "45064"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "over_sparse_string_cache",
+        "case": "over_sparse_string_cache/rows4096/frame3/kind6",
+        "allocation_calls": "3663",
+        "requested_bytes": "534311",
+        "shared_output_buffer_bytes": "85946",
+        "new_output_buffer_bytes": "37386"
+      }
+    ],
+    "boundary": "Production OVER update/flush over 64/4096 subsequent string/NULL rows with no input cache companions, after seeding a cached value; MIN/MAX/FIRST/LAST across all four rowtime frames. Seed ingestion and operator/output teardown stay outside timing. Allocation requests and buffer-sharing records do not measure copied bytes."
+  },
+  "regression_evidence": {
+    "java_ci_failed_before_fix": 170,
+    "cache_failures": 168,
+    "obsolete_window_count_fallback_assertions": 2,
+    "upstream_audit": "Six parameterized WindowAggregateITCase retraction cases per state/runtime-4 suite passed data assertions but rejected the renamed supported-scalar COUNT fallback diagnostic. Refresh the exact expectation while retaining the fallback requirement.",
+    "java22_ci_log_sha256": "4dbf7f05e23d9c8acc1e0c98907078b76ef0a835ff454419d8c9cf1f877b3f7a",
+    "java118_ci_log_sha256": "e96daebbf6f5b4b8e8b3c98188b872796330b8f336a5b399dacffb3a23edcd3e"
+  },
+  "fixture_correction": "The initial native regression fixture used rowtime zero, which bounded frames correctly reject as already processed. Corrected only fixture timestamps to positive admitted values; retained the selected text/cache expectations.",
+  "source_sha256": {
+    "native/engine/src/over_agg.rs": "9361de37239f7a9d3a570b1c3514d46adc7c69f72a9afcaa6ec1a91627ca190b",
+    "native/engine/src/over_agg/tests.rs": "e667f970ecc7a5499f1ca4972c972c330b89a19ca260d1fec1ef317e0fd61ecb",
+    "native/engine/benches/over_sparse_string_cache.rs": "a282e53032f34a1c2863ad304a94ac9dd668846477e3a3f92777794023a8e00e",
+    "src/test/java/tech/streamfusion/FlinkStringWindowSqlHarnessTest.java": "30d58ca65d5315f3d4dbf6f04072dfbc620bf2bcf6642fecc1bd2d3f3d0b00bd",
+    "dev/flink-suite/agent/src/main/resources/native-execution.tsv": "5952c810eacd53cc470b34c2406250834701441cf2715e190cffe3eec7b3b7ba"
+  }
+}

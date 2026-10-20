@@ -3,7 +3,6 @@ package tech.streamfusion.planner;
 import java.util.Collections;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.planner.delegation.PlannerBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNodeBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNodeConfig;
@@ -28,6 +27,7 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
   private final int[] valueTypes;
   private final int[] valueColumns;
   private final int[] filterColumns;
+  private final int[] auxiliaryColumns;
   private final int[] keyColumns;
   private final int[] distinctViewSources;
   private final int[] keyTimestampPrecisions;
@@ -44,6 +44,34 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
       int[] keyColumns,
       int[] distinctViewSources,
       int[] keyTimestampPrecisions) {
+    this(
+        tableConfig,
+        inputProperty,
+        outputType,
+        description,
+        aggregateKinds,
+        valueTypes,
+        valueColumns,
+        filterColumns,
+        keyColumns,
+        distinctViewSources,
+        keyTimestampPrecisions,
+        new int[0]);
+  }
+
+  public NativeColumnarLocalGroupAggExecNode(
+      ReadableConfig tableConfig,
+      InputProperty inputProperty,
+      RowType outputType,
+      String description,
+      int[] aggregateKinds,
+      int[] valueTypes,
+      int[] valueColumns,
+      int[] filterColumns,
+      int[] keyColumns,
+      int[] distinctViewSources,
+      int[] keyTimestampPrecisions,
+      int[] auxiliaryColumns) {
     super(
         ExecNodeContext.newNodeId(),
         new ExecNodeContext("stream-exec-native-columnar-local-group-aggregate_1"),
@@ -55,6 +83,7 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
     this.valueTypes = valueTypes;
     this.valueColumns = valueColumns;
     this.filterColumns = filterColumns;
+    this.auxiliaryColumns = auxiliaryColumns;
     this.keyColumns = keyColumns;
     this.distinctViewSources = distinctViewSources;
     this.keyTimestampPrecisions = keyTimestampPrecisions;
@@ -67,7 +96,7 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
     Transformation<ArrowBatch> input =
         (Transformation<ArrowBatch>) getInputEdges().get(0).translateToPlan(planner);
     // The size trigger that caps the bundle, like Flink's CountBundleTrigger (mini-batch.size).
-    long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+    long miniBatchSize = tech.streamfusion.compat.FlinkCompat.miniBatchSize(config);
     Transformation<ArrowBatch> transformation =
         ExecNodeUtil.createOneInputTransformation(
             input,
@@ -80,7 +109,8 @@ public class NativeColumnarLocalGroupAggExecNode extends ExecNodeBase<ArrowBatch
                 keyColumns,
                 distinctViewSources,
                 keyTimestampPrecisions,
-                miniBatchSize),
+                miniBatchSize,
+                auxiliaryColumns),
             ArrowBatchTypeInformation.INSTANCE,
             input.getParallelism(),
             false);

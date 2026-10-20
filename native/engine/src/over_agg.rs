@@ -115,9 +115,9 @@ impl OverResultColumn {
 
     fn cache_array(&self, enabled: bool) -> Option<ArrayRef> {
         match self {
-            Self::Strings { caches, .. } if enabled => Some(string_cache_array(
-                caches.iter().map(|value| value.as_deref()),
-            )),
+            Self::Strings { caches, .. } if enabled || caches.iter().any(Option::is_some) => Some(
+                string_cache_array(caches.iter().map(|value| value.as_deref())),
+            ),
             _ => None,
         }
     }
@@ -203,6 +203,15 @@ fn over_value_column<'a>(
         DataType::Int32 => ValueColumn::I32(column.as_any().downcast_ref().expect("int32 value")),
         DataType::Int16 => ValueColumn::I16(column.as_any().downcast_ref().expect("int16 value")),
         DataType::Int8 => ValueColumn::I8(column.as_any().downcast_ref().expect("int8 value")),
+        DataType::Date32 => {
+            ValueColumn::Date(column.as_any().downcast_ref().expect("date OVER value"))
+        }
+        DataType::Time32(arrow::datatypes::TimeUnit::Millisecond) => {
+            ValueColumn::Time(column.as_any().downcast_ref().expect("time OVER value"))
+        }
+        DataType::Boolean => {
+            ValueColumn::Boolean(column.as_any().downcast_ref().expect("boolean OVER value"))
+        }
         DataType::Float64 => {
             ValueColumn::F64(column.as_any().downcast_ref().expect("float64 value"))
         }
@@ -246,6 +255,7 @@ pub(crate) struct OverAggState {
     agg: RunningAgg,
     non_null: i64,
     distinct: Option<DistinctSet>,
+    distinct_payload_bytes: usize,
     value_type: DataType,
 }
 
@@ -256,13 +266,18 @@ impl OverAggState {
             agg: RunningAgg::new_over(if distinct { kind - 100 } else { kind }, value_type),
             non_null: 0,
             distinct: distinct.then(|| DistinctSet::new(value_type)),
+            distinct_payload_bytes: 0,
             value_type: value_type.clone(),
         }
     }
 
     fn fold(&mut self, value: Num) {
         if let Some(seen) = &mut self.distinct {
-            if !seen.add_scalar(num_to_scalar(&self.value_type, Some(value))) {
+            let fresh = match value {
+                Num::Timestamp(value) => seen.add_timestamp(value),
+                value => seen.add_scalar(num_to_scalar(&self.value_type, Some(value))),
+            };
+            if !fresh {
                 return;
             }
         }
@@ -298,6 +313,17 @@ impl OverAggState {
         cache: Option<&[u16]>,
         retain: impl FnOnce() -> (Arc<str>, Option<Arc<[u16]>>),
     ) {
+        if let Some(seen) = &mut self.distinct {
+            assert!(
+                matches!(self.agg, RunningAgg::Count(_)),
+                "text DISTINCT OVER count"
+            );
+            if seen.change_string(candidate, false, 1) {
+                self.distinct_payload_bytes += candidate.len();
+                self.agg.fold(Num::I64(0));
+            }
+            return;
+        }
         let RunningAgg::OverStringValue {
             value,
             java_utf16,
@@ -346,11 +372,36 @@ impl OverAggState {
         }
     }
 
+    fn heap_bytes(&self) -> usize {
+        self.text_bytes()
+            + self
+                .distinct
+                .as_ref()
+                .map_or(0, DistinctSet::capacity_bytes)
+            + self.distinct_payload_bytes
+    }
+
+    fn remember_distinct(&mut self, value: ScalarValue) {
+        let payload = match &value {
+            ScalarValue::Utf8(Some(text)) => text.len(),
+            _ => 0,
+        };
+        if self
+            .distinct
+            .as_mut()
+            .expect("distinct state")
+            .add_scalar(value)
+        {
+            self.distinct_payload_bytes += payload;
+        }
+    }
+
     fn retract(&mut self, value: Num) {
-        assert!(
-            self.distinct.is_none(),
-            "persistent bounded DISTINCT reduction"
-        );
+        if let Some(seen) = &mut self.distinct {
+            if !seen.remove_scalar(&num_to_scalar(&self.value_type, Some(value))) {
+                return;
+            }
+        }
         self.agg.retract(value);
         if self.has_count_state() {
             self.non_null = self.non_null.wrapping_sub(1);
@@ -463,12 +514,12 @@ impl OverAggregator {
         self
     }
 
-    /// One key's state footprint, including variable-width winners.
+    /// One key's state footprint, including selected values and DISTINCT membership.
     fn key_state_bytes(&self, key: &[u8]) -> usize {
         byte_key_bytes(key)
             + self.kinds.len() * std::mem::size_of::<OverAggState>()
             + self.keys.get(key).map_or(0, |states| {
-                states.iter().map(OverAggState::text_bytes).sum::<usize>()
+                states.iter().map(OverAggState::heap_bytes).sum::<usize>()
             })
     }
 
@@ -536,34 +587,40 @@ impl OverAggregator {
             .zip(&self.value_types)
             .map(|(&kind, ty)| OverResultColumn::new(&OverAggState::new(kind, ty).result_type(), n))
             .collect::<Vec<_>>();
-        let variable_width = self.value_types.contains(&DataType::Utf8);
+        let dynamic_state = self.value_types.contains(&DataType::Utf8)
+            || self.kinds.iter().any(|&kind| kind >= 100);
         let mut start = 0;
         while start < n {
             let mut end = start + 1;
             while !self.rows_frame && end < n && rt.value(order[end]) == rt.value(order[start]) {
                 end += 1;
             }
-            // Fold every row of this rt group into its key before reading any (RANGE: tied rows of a
-            // key share the post-fold value); a null value is skipped, but the key's state is touched
-            // so the row still emits the running value.
+            // RANGE peers share the post-fold result; ROWS folds one input at a time.
             for &row in &order[start..end] {
                 let key = keys_encoded.row(row).data();
                 let keys_before = self.keys.len();
-                let previous_bytes = if self.track && variable_width && self.keys.contains_key(key)
-                {
-                    self.key_state_bytes(key)
+                let track = self.track;
+                let states = self.states(key);
+                let before = if track && dynamic_state {
+                    states.iter().map(OverAggState::heap_bytes).sum::<usize>()
                 } else {
                     0
                 };
-                let states = self.states(key);
                 for (a, state) in states.iter_mut().enumerate() {
                     value_columns[a].fold(row, state);
                 }
-                if self.track {
-                    if variable_width {
-                        self.bytes = self.bytes - previous_bytes + self.key_state_bytes(key);
-                    } else if self.keys.len() > keys_before {
-                        self.bytes += self.key_state_bytes(key);
+                let after = if track && dynamic_state {
+                    states.iter().map(OverAggState::heap_bytes).sum::<usize>()
+                } else {
+                    0
+                };
+                if track {
+                    if self.keys.len() > keys_before {
+                        self.bytes += byte_key_bytes(key)
+                            + self.kinds.len() * std::mem::size_of::<OverAggState>()
+                            + after;
+                    } else if dynamic_state {
+                        self.bytes = self.bytes - before + after;
                     }
                 }
             }
@@ -727,9 +784,8 @@ impl OverAggregator {
                         .expect("over distinct list");
                     let values = list.value(row);
                     let state = &mut aggregator.states(key)[i];
-                    let seen = state.distinct.as_mut().expect("distinct state");
                     for value in 0..values.len() {
-                        seen.add_scalar(
+                        state.remember_distinct(
                             ScalarValue::try_from_array(&values, value)
                                 .expect("over distinct scalar"),
                         );
@@ -1007,7 +1063,7 @@ impl BoundedOverAggregator {
             .map(|&code| value_data_type(code))
             .collect::<Vec<_>>();
         let decimal_arithmetic = kinds.iter().zip(&value_types).any(|(&kind, ty)| {
-            matches!(kind, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
+            matches!(kind % 100, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
         });
         let arithmetic_slots = kinds
             .iter()
@@ -1015,7 +1071,9 @@ impl BoundedOverAggregator {
             .enumerate()
             .filter_map(|(slot, (&kind, ty))| {
                 (decimal_arithmetic
-                    && (kind == 3
+                    && (matches!(kind, 100 | 104 | 122)
+                        && matches!(ty, DataType::Decimal128(_, _))
+                        || kind == 3
                         || kind == 4
                         || kind == 22
                         || (kind == 0 && matches!(ty, DataType::Decimal128(_, _)))))
@@ -1304,10 +1362,24 @@ impl BoundedOverAggregator {
                                 .fold_state()
                                 .expect("bounded arithmetic fold state");
                             let mut column = 0;
-                            for state in &mut states {
+                            for (&slot, state) in
+                                self.arithmetic_slots.iter().zip(states.iter_mut())
+                            {
                                 let width = state.state_types().len();
                                 state.restore_state(&saved[column..column + width]);
                                 column += width;
+                                if state.distinct.is_some() {
+                                    // Fold state preserves arithmetic history; retained rows rebuild
+                                    // multiplicities without applying that arithmetic a second time.
+                                    for previous in &buffer[..i] {
+                                        if let Some(value) = previous.values[slot] {
+                                            state.remember_distinct(num_to_scalar(
+                                                &state.value_type,
+                                                Some(value),
+                                            ));
+                                        }
+                                    }
+                                }
                             }
                         }
                         (0, i, states)
@@ -1996,7 +2068,7 @@ impl OverInner {
                     if inner.track {
                         inner.bytes -= byte_key_bytes(key)
                             + states.len() * std::mem::size_of::<OverAggState>()
-                            + states.iter().map(OverAggState::text_bytes).sum::<usize>();
+                            + states.iter().map(OverAggState::heap_bytes).sum::<usize>();
                     }
                 }
             }
@@ -3543,8 +3615,16 @@ impl OverWindowAggregator {
             let mut scalars: Vec<ScalarValue> = Vec::new();
             let mut rows: Vec<usize> = Vec::new();
             for row in 0..batch.num_rows() {
-                if let Some(value) = reader.at(row) {
-                    scalars.push(num_to_scalar(&value_types[agg], Some(value)));
+                let scalar = reader
+                    .at(row)
+                    .map(|value| num_to_scalar(&value_types[agg], Some(value)))
+                    .or_else(|| {
+                        reader
+                            .text(row)
+                            .map(|text| ScalarValue::Utf8(Some(text.to_owned())))
+                    });
+                if let Some(scalar) = scalar {
+                    scalars.push(scalar);
                     rows.push(row);
                 }
             }
@@ -3574,14 +3654,13 @@ impl OverWindowAggregator {
         {
             if hit {
                 let state = &mut inner.states(&key.0)[agg];
-                state
-                    .distinct
-                    .as_mut()
-                    .expect("distinct state")
-                    .add_scalar(scalar);
+                state.remember_distinct(scalar);
             } else {
                 additions.push(db_key);
             }
+        }
+        if inner.track {
+            inner.recompute_bytes();
         }
         Ok(additions)
     }
@@ -4314,11 +4393,7 @@ impl OverWindowAggregator {
                     };
                     let state = &mut inner.states(&fold.key)[agg];
                     for element in elements {
-                        state
-                            .distinct
-                            .as_mut()
-                            .expect("distinct state")
-                            .add_scalar(element);
+                        state.remember_distinct(element);
                     }
                 }
             }

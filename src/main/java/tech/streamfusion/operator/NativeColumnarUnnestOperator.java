@@ -25,16 +25,27 @@ public class NativeColumnarUnnestOperator extends FlinkStreamOperator<ArrowBatch
   private final boolean withOrdinality;
   private final boolean isLeft;
   private final boolean isMultiset;
+  private final int[] projection;
 
   private transient BufferAllocator allocator;
   private transient CDataDictionaryProvider dictionaries;
 
   public NativeColumnarUnnestOperator(
       int arrayColumn, boolean withOrdinality, boolean isLeft, boolean isMultiset) {
+    this(arrayColumn, withOrdinality, isLeft, isMultiset, null);
+  }
+
+  public NativeColumnarUnnestOperator(
+      int arrayColumn,
+      boolean withOrdinality,
+      boolean isLeft,
+      boolean isMultiset,
+      int[] projection) {
     this.arrayColumn = arrayColumn;
     this.withOrdinality = withOrdinality;
     this.isLeft = isLeft;
     this.isMultiset = isMultiset;
+    this.projection = projection;
   }
 
   @Override
@@ -57,15 +68,27 @@ public class NativeColumnarUnnestOperator extends FlinkStreamOperator<ArrowBatch
         ArrowArray outArray = ArrowArray.allocateNew(allocator);
         ArrowSchema outSchema = ArrowSchema.allocateNew(allocator)) {
       Data.exportVectorSchemaRoot(inAllocator, in, dictionaries, inArray, inSchema);
-      Native.unnest(
-          inArray.memoryAddress(),
-          inSchema.memoryAddress(),
-          outArray.memoryAddress(),
-          outSchema.memoryAddress(),
-          arrayColumn,
-          withOrdinality,
-          isLeft,
-          isMultiset);
+      if (projection == null)
+        Native.unnest(
+            inArray.memoryAddress(),
+            inSchema.memoryAddress(),
+            outArray.memoryAddress(),
+            outSchema.memoryAddress(),
+            arrayColumn,
+            withOrdinality,
+            isLeft,
+            isMultiset);
+      else
+        Native.unnestProjected(
+            inArray.memoryAddress(),
+            inSchema.memoryAddress(),
+            outArray.memoryAddress(),
+            outSchema.memoryAddress(),
+            arrayColumn,
+            withOrdinality,
+            isLeft,
+            isMultiset,
+            projection);
       unnested = Data.importVectorSchemaRoot(allocator, outArray, outSchema, dictionaries);
     } finally {
       in.close();

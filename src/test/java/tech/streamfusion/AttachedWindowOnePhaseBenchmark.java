@@ -27,7 +27,7 @@ class AttachedWindowOnePhaseBenchmark {
   @Test
   void rowwiseCountMaxCascadeRetainsNativeStateAndBothTransposes() throws Exception {
     assertTrue(ROWS > 0 && WARMUP >= 1 && RUNS >= 3);
-    for (String window : new String[] {"TUMBLE", "HOP"}) {
+    for (String window : new String[] {"TUMBLE", "HOP", "CUMULATE"}) {
       for (boolean rocks : new boolean[] {false, true}) {
         for (int keys : new int[] {64, 4096}) {
           if (!System.getProperty("attached.window", window).equals(window)
@@ -35,11 +35,17 @@ class AttachedWindowOnePhaseBenchmark {
                   != rocks
               || Integer.getInteger("attached.keys", keys) != keys) continue;
           String args =
-              window.equals("HOP")
-                  ? ", INTERVAL '2' SECOND, INTERVAL '10' SECOND"
+              !window.equals("TUMBLE")
+                  ? ", INTERVAL '2' SECOND, INTERVAL '"
+                      + Integer.getInteger("attached.sizeSeconds", 10)
+                      + "' SECOND"
                   : ", INTERVAL '10' SECOND";
           String query =
-              "INSERT INTO sink SELECT MAX(n), wstart, wend FROM (SELECT k, COUNT(*) AS n,"
+              "INSERT INTO sink SELECT "
+                  + (Boolean.getBoolean("attached.mixed")
+                      ? "SUM(n), MIN(n), MAX(n), AVG(n), COUNT(*)"
+                      : "MAX(n)")
+                  + ", wstart, wend FROM (SELECT k, COUNT(*) AS n,"
                   + " window_start AS wstart, window_end AS wend FROM TABLE("
                   + window
                   + "(TABLE src, DESCRIPTOR(rt)"
@@ -59,8 +65,15 @@ class AttachedWindowOnePhaseBenchmark {
                 var env = metrics.environment(configuration, 1, 0);
                 var table = StreamTableEnvironment.create(env);
                 table.getConfig().setLocalTimeZone(ZoneOffset.UTC);
-                table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-                table.getConfig().set("streamfusion.window.attached.single-phase.enabled", "true");
+                table
+                    .getConfig()
+                    .set(
+                        "table.optimizer.agg-phase-strategy",
+                        System.getProperty("attached.phase", "ONE_PHASE"));
+                if (Boolean.parseBoolean(System.getProperty("attached.optIn", "false")))
+                  table
+                      .getConfig()
+                      .set("streamfusion.window.attached.single-phase.enabled", "true");
                 LocalDateTime base = LocalDateTime.of(2020, 1, 1, 0, 0);
                 var stream =
                     env.fromSequence(0, ROWS - 1)
@@ -80,19 +93,29 @@ class AttachedWindowOnePhaseBenchmark {
                         .column("rt", DataTypes.TIMESTAMP(3))
                         .watermark("rt", "rt - INTERVAL '1' SECOND")
                         .build());
-                table.executeSql(
-                    "CREATE TABLE sink (n BIGINT, wstart TIMESTAMP(3), wend TIMESTAMP(3)) WITH"
-                        + " ('connector'='blackhole')");
+                var resolved =
+                    table
+                        .sqlQuery(query.substring("INSERT INTO sink ".length()))
+                        .getResolvedSchema();
+                table.createTemporaryTable(
+                    "sink",
+                    org.apache.flink.table.api.TableDescriptor.forConnector("blackhole")
+                        .schema(Schema.newBuilder().fromResolvedSchema(resolved).build())
+                        .build());
                 table.getConfig().set("streamfusion.native.enabled", Boolean.toString(engine == 1));
                 var scan = NativePlanner.install(table);
                 String plan = table.explainSql(query);
                 if (engine == 1 && EXPECT_NATIVE)
                   assertTrue(
-                      plan.contains("NativeColumnarWindowAggregate")
+                      (plan.contains("NativeColumnarWindowAggregate")
+                              || plan.contains("NativeColumnarGlobalWindowAggregate"))
                           && plan.contains("RowDataToArrow")
                           && plan.contains("ArrowToRowData"),
                       plan + scan.explainSummary());
-                else assertFalse(plan.contains("NativeColumnarWindowAggregate"), plan);
+                else {
+                  assertFalse(plan.contains("NativeColumnarWindowAggregate"), plan);
+                  assertFalse(plan.contains("NativeColumnarGlobalWindowAggregate"), plan);
+                }
                 System.out.printf(
                     "[attached-trial-begin] engine=%d window=%s rocks=%s keys=%d trial=%d%n",
                     engine, window, rocks, keys, trial);
@@ -123,7 +146,7 @@ class AttachedWindowOnePhaseBenchmark {
                                       && row.get("operator").toString().contains("WindowAgg")
                                       && ((Number) row.get("recordsIn")).longValue() > 0)
                           .collect(tech.streamfusion.compat.ListCollectors.toList());
-                  assertEquals(2, executed.size(), executed.toString());
+                  assertTrue(executed.size() >= 2, executed.toString());
                   assertTrue(
                       executed.stream()
                           .anyMatch(row -> ((Number) row.get("recordsIn")).longValue() == ROWS),
@@ -139,12 +162,17 @@ class AttachedWindowOnePhaseBenchmark {
           }
           System.out.printf(
               Locale.ROOT,
-              "[attached] rows=%d window=%s rocks=%s keys=%d native_route=%s stock_trials=%s"
+              "[attached] rows=%d window=%s rocks=%s keys=%d phase=%s size_seconds=%d mixed=%s"
+                  + " opt_in=%s native_route=%s stock_trials=%s"
                   + " enabled_trials=%s%n",
               ROWS,
               window,
               rocks,
               keys,
+              System.getProperty("attached.phase", "ONE_PHASE"),
+              Integer.getInteger("attached.sizeSeconds", 10),
+              Boolean.getBoolean("attached.mixed"),
+              Boolean.getBoolean("attached.optIn"),
               EXPECT_NATIVE,
               Arrays.toString(times[0]),
               Arrays.toString(times[1]));

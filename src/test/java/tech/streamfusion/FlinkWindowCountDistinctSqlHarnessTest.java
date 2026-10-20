@@ -26,7 +26,7 @@ class FlinkWindowCountDistinctSqlHarnessTest {
     "ONE_PHASE,TUMBLE", "TWO_PHASE,TUMBLE", "ONE_PHASE,HOP", "TWO_PHASE,HOP",
     "ONE_PHASE,CUMULATE", "TWO_PHASE,CUMULATE"
   })
-  void splitDistinctPreservesResultsAndTheAttachedWindowPhaseGate(String phase, String shape) {
+  void splitDistinctPreservesResultsAcrossBothPhases(String phase, String shape) {
     String sql = "SELECT k, window_start, window_end, COUNT(DISTINCT i), COUNT(DISTINCT s) "
         + "FROM TABLE(" + window(shape) + ") GROUP BY k, window_start, window_end";
     checkSplitDistinct(phase, sql);
@@ -48,8 +48,7 @@ class FlinkWindowCountDistinctSqlHarnessTest {
       table.getConfig().set("table.optimizer.distinct-agg.split.enabled", "true");
       return table;
     }, sql);
-    runs.assertSuccess(phase.equals("TWO_PHASE") ? NativeFailureParity.Route.NATIVE
-        : NativeFailureParity.Route.FALLBACK);
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
     assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
     assertTrue(runs.nativeRun().fallbackReasons().stream()
         .noneMatch(reason -> reason.contains("HASH_CODE")), runs.nativeRun().toString());
@@ -57,10 +56,6 @@ class FlinkWindowCountDistinctSqlHarnessTest {
       String plan = runs.nativeRun().plan();
       assertTrue(plan.contains("NativeColumnarLocalWindowAggregate"), plan);
       assertTrue(plan.contains("NativeColumnarGlobalWindowAggregate"), plan);
-    } else {
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("attached-window aggregation requires two-phase execution")),
-          runs.nativeRun().toString());
     }
   }
 
@@ -182,14 +177,7 @@ class FlinkWindowCountDistinctSqlHarnessTest {
             + window("TUMBLE")
             + ") GROUP BY k, window_start, window_end) "
             + "GROUP BY window_start, window_end";
-    if (phase.equals("ONE_PHASE")) {
-      NativeParity.assertFallbackReasonContains(
-          () -> environment(phase),
-          sql,
-          "attached-window aggregation requires two-phase execution");
-    } else {
-      check(phase, sql);
-    }
+    check(phase, sql);
   }
 
   @ParameterizedTest
@@ -235,8 +223,6 @@ class FlinkWindowCountDistinctSqlHarnessTest {
       strings = {
         "SUM(DISTINCT i)",
         "AVG(DISTINCT i)",
-        "COUNT(DISTINCT CAST(i AS DOUBLE))",
-        "COUNT(DISTINCT CAST(i AS DOUBLE)) FILTER (WHERE i > 0)",
         "SUM(DISTINCT i) FILTER (WHERE i > 0)",
         "AVG(DISTINCT i) FILTER (WHERE i > 0)"
       })

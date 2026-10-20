@@ -93,6 +93,11 @@ public class NativeDeduplicateExecNode extends ExecNodeBase<ArrowBatch>
             && config.get(
                 ExecutionConfigOptions.TABLE_EXEC_DEDUPLICATE_MINIBATCH_COMPACT_CHANGES_ENABLED);
     long miniBatchSize = config.get(ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+    if (miniBatchEnabled) {
+      org.apache.flink.util.Preconditions.checkArgument(
+          miniBatchSize > 0,
+          ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE.key() + " should be greater than 0.");
+    }
     // Flink defines no STATE_TTL hint on deduplicate, so the job-wide retention is the whole
     // story.
     long stateTtlMillis = config.getStateRetentionTime();

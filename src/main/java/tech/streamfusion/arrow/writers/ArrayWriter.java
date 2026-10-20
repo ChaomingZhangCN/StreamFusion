@@ -22,7 +22,10 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.typeutils.ArrayDataSerializer;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.util.Preconditions;
+import tech.streamfusion.arrow.NestedRepresentation;
 
 /** {@link ArrowFieldWriter} for Array. */
 @Internal
@@ -40,6 +43,13 @@ public abstract class ArrayWriter<T> extends ArrowFieldWriter<T> {
     // ------------------------------------------------------------------------------------------
 
     private final ArrowFieldWriter<ArrayData> elementWriter;
+    private ArrayDataSerializer normalizer;
+
+    public ArrayWriter<T> preserveArrayCopySemantics(LogicalType elementType) {
+        if (NestedRepresentation.contains(getValueVector().getField()))
+            normalizer = new ArrayDataSerializer(elementType);
+        return this;
+    }
 
     private ArrayWriter(ListVector listVector, ArrowFieldWriter<ArrayData> elementWriter) {
         super(listVector);
@@ -55,8 +65,9 @@ public abstract class ArrayWriter<T> extends ArrowFieldWriter<T> {
         if (!isNullAt(in, ordinal)) {
             ((ListVector) getValueVector()).startNewValue(getCount());
             ArrayData array = readArray(in, ordinal);
-      if (elementWriter instanceof IntWriter.IntWriterForArray && array.size() > 1) {
-        IntWriter.IntWriterForArray integers = ((IntWriter.IntWriterForArray) elementWriter);
+            if (normalizer != null) array = normalizer.copy(array);
+            if (elementWriter instanceof IntWriter.IntWriterForArray && array.size() > 1) {
+                IntWriter.IntWriterForArray integers = ((IntWriter.IntWriterForArray) elementWriter);
 
                 integers.writeArray(array);
             } else {

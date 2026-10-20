@@ -122,6 +122,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
   protected final long windowMillis;
 
   private transient ZoneId zone;
+  private transient boolean fixedBoundaryOffset;
   private transient long fixedAssignmentOffsetMillis;
   private transient ZoneId regionalAssignmentZone;
 
@@ -291,7 +292,8 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
   public void open() throws Exception {
     super.open();
     zone = ZoneId.of(timeZoneId);
-    if (zone.getRules().isFixedOffset()) {
+    fixedBoundaryOffset = zone.getRules().isFixedOffset();
+    if (fixedBoundaryOffset) {
       fixedAssignmentOffsetMillis = WindowTimeDomain.offsetMillis(timeZoneId);
       if (usesAlignedWindowAssignment()) {
         Native.setFixedWindowAssignmentOffset(handle, fixedAssignmentOffsetMillis);
@@ -356,6 +358,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
    * equi-join on the window bounds).
    */
   protected final long toEpochFromLocal(long localMillis) {
+    if (fixedBoundaryOffset) return Math.subtractExact(localMillis, fixedAssignmentOffsetMillis);
     return Instant.ofEpochMilli(localMillis)
         .atZone(ZoneOffset.UTC)
         .toLocalDateTime()
@@ -470,6 +473,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     BigIntVector windowEnd = new BigIntVector("window_end", allocator);
     FieldVector[] values = new FieldVector[valueColumns.length];
     FieldVector[] srcValues = new FieldVector[valueColumns.length];
+    boolean[] sharedValues = new boolean[valueColumns.length];
     FieldVector[] keys = new FieldVector[keyColumns.length];
     List<FieldVector> vectors = new ArrayList<>();
     vectors.add(windowStart);
@@ -477,6 +481,10 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     for (int a = 0; a < valueColumns.length; a++) {
       values[a] = newValueVector("value" + a, valueTypes[a]);
       srcValues[a] = valueColumns[a] < 0 ? null : in.getFieldVectors().get(valueColumns[a]);
+      sharedValues[a] =
+          values[a] instanceof BigIntVector
+              && srcValues[a] instanceof BigIntVector
+              && srcValues[a].getAllocator().getRoot() == allocator.getRoot();
       vectors.add(values[a]);
     }
     for (int j = 0; j < keyColumns.length; j++) {
@@ -488,6 +496,9 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     try (VectorSchemaRoot root = new VectorSchemaRoot(vectors);
         ArrowArray array = ArrowArray.allocateNew(allocator);
         ArrowSchema schema = ArrowSchema.allocateNew(allocator)) {
+      for (int a = 0; a < valueColumns.length; a++) {
+        if (sharedValues[a]) srcValues[a].makeTransferPair(values[a]).splitAndTransfer(0, rows);
+      }
       for (int i = 0; i < rows; i++) {
         // The upstream boundaries are session-zone wall-clock (see toEpochFromLocal); fold on epoch
         // millis so this aggregate's own boundary rendering shifts them exactly once, not twice.
@@ -500,6 +511,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
             i,
             usesLocalWindowBounds() ? srcEnd.getMillis(i) : toEpochFromLocal(srcEnd.getMillis(i)));
         for (int a = 0; a < valueColumns.length; a++) {
+          if (sharedValues[a]) continue;
           if (valueColumns[a] < 0) {
             ((BigIntVector) values[a]).setSafe(i, 1L); // COUNT(*): a non-null constant counts rows
           } else {
@@ -545,7 +557,7 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     List<FieldVector> vectors = new ArrayList<>();
     vectors.add(ts);
     for (int a = 0; a < valueColumns.length; a++) {
-      countValues[a] = aggregateKinds[a] == KIND_COUNT;
+      countValues[a] = aggregateKinds[a] == KIND_COUNT || aggregateKinds[a] == KIND_RETRACT_COUNT;
       if (countValues[a]) {
         values[a] = new BigIntVector("value" + a, allocator);
       } else if (isTimestamp(valueTypes[a]) && timestampPrecision(valueTypes[a]) <= 3

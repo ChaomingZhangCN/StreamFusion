@@ -113,6 +113,24 @@ pub(crate) fn unnest_array(
     is_left: bool,
     is_multiset: bool,
 ) -> RecordBatch {
+    unnest_projected(
+        input,
+        array_col,
+        with_ordinality,
+        is_left,
+        is_multiset,
+        None,
+    )
+}
+
+pub(crate) fn unnest_projected(
+    input: &RecordBatch,
+    array_col: usize,
+    with_ordinality: bool,
+    is_left: bool,
+    is_multiset: bool,
+    projection: Option<&[usize]>,
+) -> RecordBatch {
     let schema = input.schema();
     let row_kind_idx = schema
         .fields()
@@ -136,7 +154,11 @@ pub(crate) fn unnest_array(
             let list = column.as_any().downcast_ref::<ListArray>().expect("list");
             let values = list.values().clone();
             match values.data_type() {
-                DataType::Struct(sfields) => {
+                DataType::Struct(sfields)
+                    if !streamfusion_bridge::timestamp::is_component_timestamp(
+                        values.data_type(),
+                    ) =>
+                {
                     let sa = values
                         .as_any()
                         .downcast_ref::<StructArray>()
@@ -148,9 +170,33 @@ pub(crate) fn unnest_array(
                                 .unwrap_or(sfields.len()),
                         )
                         .enumerate()
-                        .map(|(i, f)| (f.as_ref().clone(), sa.column(i).clone()))
+                        .map(|(i, f)| {
+                            let child = sa.column(i);
+                            let array = if with_ordinality && sa.null_count() > 0 {
+                                let nulls = arrow::buffer::NullBuffer::union(
+                                    sa.nulls(),
+                                    child.logical_nulls().as_ref(),
+                                );
+                                make_array(
+                                    child
+                                        .to_data()
+                                        .into_builder()
+                                        .nulls(nulls)
+                                        .build()
+                                        .expect("nullable ROW element"),
+                                )
+                            } else {
+                                child.clone()
+                            };
+                            (f.as_ref().clone(), array)
+                        })
                         .collect();
-                    (list.value_offsets(), Some(values.clone()), children, None)
+                    (
+                        list.value_offsets(),
+                        (!with_ordinality).then(|| values.clone()),
+                        children,
+                        None,
+                    )
                 }
                 elem => (
                     list.value_offsets(),
@@ -215,7 +261,9 @@ pub(crate) fn unnest_array(
                     ord += 1;
                     take_rows.push(row as u32);
                     take_elems.push(Some(k as u32));
-                    ordinals.push(Some(ord));
+                    if with_ordinality {
+                        ordinals.push(Some(ord));
+                    }
                     emitted = true;
                 }
             }
@@ -224,48 +272,71 @@ pub(crate) fn unnest_array(
             // LEFT/outer: a row that produced no element is kept with the appended columns null.
             take_rows.push(row as u32);
             take_elems.push(None);
-            ordinals.push(None);
+            if with_ordinality {
+                ordinals.push(None);
+            }
         }
     }
     let rows_idx = UInt32Array::from(take_rows);
     let elems_idx = UInt32Array::from(take_elems);
 
-    let mut fields: Vec<Field> = Vec::with_capacity(data_end + children.len() + 1);
-    let mut columns: Vec<ArrayRef> = Vec::with_capacity(data_end + children.len() + 1);
-    for i in 0..data_end {
-        fields.push(schema.field(i).as_ref().clone());
-        columns.push(take(input.column(i), &rows_idx, None).expect("failed to fan out column"));
-    }
-    for (index, (field, child)) in children.iter().enumerate() {
-        // Flink permits NULL map keys despite Arrow's required-key field convention. LEFT
-        // padding also makes every appended column nullable.
-        let field = field
-            .clone()
-            .with_name(format!("unnest_{data_end}_{index}"));
-        fields.push(
-            if is_left || (index == 0 && matches!(column.data_type(), DataType::Map(..))) {
-                field.with_nullable(true)
-            } else {
-                field
-            },
+    let arity = data_end + children.len() + usize::from(with_ordinality);
+    let count = projection.map_or(arity, <[usize]>::len);
+    let mut fields: Vec<Field> = Vec::with_capacity(count + usize::from(row_kind_idx.is_some()));
+    let mut columns: Vec<ArrayRef> = Vec::with_capacity(fields.capacity());
+    let ordinal_array: ArrayRef = Arc::new(Int32Array::from(ordinals));
+    let mut selected: Vec<Option<ArrayRef>> = vec![None; arity];
+    for position in 0..count {
+        let index = projection.map_or(position, |projection| projection[position]);
+        assert!(index < arity, "UNNEST projection outside its output row");
+        let (field, source, indices) = if index < data_end {
+            (
+                schema.field(index).as_ref().clone(),
+                input.column(index),
+                &rows_idx,
+            )
+        } else if index < data_end + children.len() {
+            let child_index = index - data_end;
+            let (field, child) = &children[child_index];
+            let field = field
+                .clone()
+                .with_name(format!("unnest_{data_end}_{child_index}"));
+            // Flink permits NULL map keys, and LEFT padding makes all appended columns nullable.
+            let field =
+                if is_left || child_index == 0 && matches!(column.data_type(), DataType::Map(..)) {
+                    field.with_nullable(true)
+                } else {
+                    field
+                };
+            (field, child, &elems_idx)
+        } else {
+            fields.push(Field::new(
+                format!("unnest_ordinality_{data_end}"),
+                DataType::Int32,
+                is_left,
+            ));
+            columns.push(ordinal_array.clone());
+            continue;
+        };
+        fields.push(field);
+        columns.push(
+            selected[index]
+                .get_or_insert_with(|| {
+                    take(source.as_ref(), indices, None).expect("failed to take UNNEST output")
+                })
+                .clone(),
         );
-        columns
-            .push(take(child.as_ref(), &elems_idx, None).expect("failed to take unnest element"));
-    }
-    if with_ordinality {
-        fields.push(Field::new(
-            format!("unnest_ordinality_{data_end}"),
-            DataType::Int32,
-            is_left,
-        ));
-        columns.push(Arc::new(Int32Array::from(ordinals)));
     }
     if let Some(idx) = row_kind_idx {
         fields.push(schema.field(idx).as_ref().clone());
         columns.push(take(input.column(idx), &rows_idx, None).expect("failed to fan out row kind"));
     }
-    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
-        .expect("failed to build unnest batch")
+    RecordBatch::try_new_with_options(
+        Arc::new(Schema::new(fields)),
+        columns,
+        &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(rows_idx.len())),
+    )
+    .expect("failed to build unnest batch")
 }
 
 /// Stateless GROUPING SETS / CUBE / ROLLUP expansion over an Arrow batch the JVM exported.
@@ -327,3 +398,36 @@ pub extern "system" fn Java_tech_streamfusion_Native_unnest<'local>(
         export_record_batch(result, out_array_address, out_schema_address);
     })
 }
+
+#[no_mangle]
+pub extern "system" fn Java_tech_streamfusion_Native_unnestProjected<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    in_array_address: jlong,
+    in_schema_address: jlong,
+    out_array_address: jlong,
+    out_schema_address: jlong,
+    array_col: jint,
+    with_ordinality: jboolean,
+    is_left: jboolean,
+    is_multiset: jboolean,
+    projection: JIntArray<'local>,
+) {
+    crate::bridge::jni_guard(env, move |env| {
+        let projection = read_columns(&env, &projection);
+        let batch = import_record_batch(in_array_address, in_schema_address);
+        let result = unnest_projected(
+            &batch,
+            array_col as usize,
+            with_ordinality != 0,
+            is_left != 0,
+            is_multiset != 0,
+            Some(&projection),
+        );
+        export_record_batch(result, out_array_address, out_schema_address);
+    })
+}
+
+#[cfg(test)]
+#[path = "flatten_tests.rs"]
+mod projected_unnest_tests;

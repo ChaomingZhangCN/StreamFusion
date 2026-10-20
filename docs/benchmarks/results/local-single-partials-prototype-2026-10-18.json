@@ -1,0 +1,1697 @@
+{
+  "status": "Historical unshipped local-only prototype, preceding the global Arrow partial-buffer optimization. DATE, BOOLEAN, DECIMAL and TIMESTAMP still lose to matched stock and actual preceding StreamFusion in these retained trials. These measurements alone do not justify default admission; the later global-single-partials artifact records the completed optimization and its controls.",
+  "method": {
+    "flink": "2.2.1",
+    "jdk": "17",
+    "native": "release + mimalloc",
+    "candidate_dso_sha256": "b6a0759a27753da8cf52992475e2552bad8f7f131e13ee1d7998e55f4558ebfd",
+    "preceding_commit": "a29e097ea5c1fb5976fe198408a9aa9f1cfd22bd",
+    "preceding_dso_sha256": "803e0f0cbc25b351dbe3f0fe408d306dfd5f5ca2ff30f7c6edc2c4a40d8f4823",
+    "parallelism": 1,
+    "heap": "2GiB",
+    "timezone": "America/New_York",
+    "mini_batch_rows": 1024,
+    "local_zero_copy": false,
+    "warmup_pairs": 2,
+    "measured_pairs": 3,
+    "unique_keys": "one per input row; SINGLE_VALUE cardinality is one including NULL",
+    "nulls": "one eighth of values",
+    "source_and_sink": "runtime fromSequence/map row source and row blackhole; both Arrow transposes remain measured",
+    "native_assertions": "candidate plan has both aggregate stages and both transposes; execution metrics assert consumed work in both aggregate stages. Preceding expects zero native substitutions.",
+    "source": {
+      "head": "a29e097ea5c1fb5976fe198408a9aa9f1cfd22bd",
+      "source_hashes": {
+        "native/engine/src/group_agg.rs": "065321c081d58d25ecc4f26a8ed2aaae4e8d550f5764a732861264fb809dca8f",
+        "native/engine/src/group_agg/ordered_value.rs": "29745abcdc77cb3f4ebb7534c36c208f54dcc129eebcb6a2d077258b62a27c75",
+        "native/engine/src/group_agg/local_single.rs": "edf8222e5be6524152524d80ab6c51b6e8824476a049c0cedf9f60b9f593ad37",
+        "src/main/java/tech/streamfusion/planner/LocalGroupAggregateMatcher.java": "b4e396069d3f836bff73d6a94a5ee990160efefe667e0ab37b0762cb11d2a598",
+        "src/main/java/tech/streamfusion/planner/GlobalGroupAggregateMatcher.java": "03f305d4955b7ea324eb369ed94493aef4a9467a69ccf14a912a896ffe723c91",
+        "src/main/java/tech/streamfusion/planner/GroupAggregateMatcher.java": "a1b088bdc35c00048a41ddba7f940facf813db9c12f7a35e832b34c548ba23d0",
+        "src/test/java/tech/streamfusion/GroupedValueBenchmark.java": "37d6e815ef5166c5d7804201be5176f9669acd960b2cd6d557163e797d0e61c6",
+        "src/test/java/tech/streamfusion/FlinkCompactSingleValueSqlHarnessTest.java": "4de92af06024629692225023955570ad8eb74b10870600e4c7436c5eac079d5c",
+        "native/engine/benches/local_single_values.rs": "bc73a57c333d5c9b125ac09c6f12239637ef98cdeb23afcc5815cf3969cec03c"
+      },
+      "f_distinct_native_applied": false,
+      "native_dso_frozen_sha256": "b6a0759a27753da8cf52992475e2552bad8f7f131e13ee1d7998e55f4558ebfd",
+      "final_criterion_fixture_sha256": "34ab18f2339fecfd04947f295a02b907c609bfdfa69f86be6477c68a4303c9cc"
+    },
+    "variability": "Separate JVM controls move and measured ranges overlap. Preserve every control and do not infer a universal speedup."
+  },
+  "complete_unprofiled_job_count": 120,
+  "profiles": [
+    {
+      "phase": "compact",
+      "type": "BIGINT",
+      "rows": 500000,
+      "stock_median_seconds": 0.658149,
+      "streamfusion_median_seconds": 0.483171,
+      "stock_measured_seconds": [
+        0.670392595,
+        0.658148997,
+        0.545789508
+      ],
+      "streamfusion_measured_seconds": [
+        0.50444184,
+        0.483170894,
+        0.481320835
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.527003,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=0 warmup=true seconds=1.527003"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.847892,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=0 warmup=true seconds=0.847892"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.580096,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=1 warmup=true seconds=0.580096"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.584885,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=1 warmup=true seconds=0.584885"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.670393,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=2 warmup=false seconds=0.670393"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.504442,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=2 warmup=false seconds=0.504442"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.483171,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=3 warmup=false seconds=0.483171"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.658149,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=3 warmup=false seconds=0.658149"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.54579,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=4 warmup=false seconds=0.545790"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.481321,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=4 warmup=false seconds=0.481321"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=BIGINT two_phase=true rows=500000 Flink=0.658149s Native=0.483171s ratio=1.362x flink_trials=[0.670392595, 0.658148997, 0.545789508] native_trials=[0.50444184, 0.483170894, 0.481320835]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "compact",
+      "type": "DATE",
+      "rows": 500000,
+      "stock_median_seconds": 0.499373,
+      "streamfusion_median_seconds": 0.550039,
+      "stock_measured_seconds": [
+        0.409642686,
+        0.520159098,
+        0.499372654
+      ],
+      "streamfusion_measured_seconds": [
+        0.583107506,
+        0.550038531,
+        0.496335667
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.433692,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=0 warmup=true seconds=0.433692"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.553211,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=0 warmup=true seconds=0.553211"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.513399,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=1 warmup=true seconds=0.513399"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.430019,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=1 warmup=true seconds=0.430019"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.409643,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=2 warmup=false seconds=0.409643"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.583108,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=2 warmup=false seconds=0.583108"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.550039,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=3 warmup=false seconds=0.550039"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.520159,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=3 warmup=false seconds=0.520159"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.499373,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=4 warmup=false seconds=0.499373"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.496336,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=4 warmup=false seconds=0.496336"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=DATE two_phase=true rows=500000 Flink=0.499373s Native=0.550039s ratio=0.908x flink_trials=[0.409642686, 0.520159098, 0.499372654] native_trials=[0.583107506, 0.550038531, 0.496335667]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "compact",
+      "type": "TIME",
+      "rows": 500000,
+      "stock_median_seconds": 0.530813,
+      "streamfusion_median_seconds": 0.460173,
+      "stock_measured_seconds": [
+        0.530812516,
+        0.741408044,
+        0.522728175
+      ],
+      "streamfusion_measured_seconds": [
+        0.52431168,
+        0.457365488,
+        0.460172796
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.498607,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=0 warmup=true seconds=0.498607"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.503955,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=0 warmup=true seconds=0.503955"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.487486,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=1 warmup=true seconds=0.487486"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.457781,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=1 warmup=true seconds=0.457781"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.530813,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=2 warmup=false seconds=0.530813"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.524312,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=2 warmup=false seconds=0.524312"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.457365,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=3 warmup=false seconds=0.457365"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.741408,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=3 warmup=false seconds=0.741408"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.522728,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=4 warmup=false seconds=0.522728"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.460173,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=4 warmup=false seconds=0.460173"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=TIME two_phase=true rows=500000 Flink=0.530813s Native=0.460173s ratio=1.154x flink_trials=[0.530812516, 0.741408044, 0.522728175] native_trials=[0.52431168, 0.457365488, 0.460172796]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "compact",
+      "type": "BOOLEAN",
+      "rows": 500000,
+      "stock_median_seconds": 0.409873,
+      "streamfusion_median_seconds": 0.490549,
+      "stock_measured_seconds": [
+        0.409873418,
+        0.495731358,
+        0.408079604
+      ],
+      "streamfusion_measured_seconds": [
+        0.490548745,
+        0.49223091,
+        0.443237553
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.48411,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=0 warmup=true seconds=0.484110"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.466097,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=0 warmup=true seconds=0.466097"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.471172,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=1 warmup=true seconds=0.471172"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.415789,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=1 warmup=true seconds=0.415789"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.409873,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=2 warmup=false seconds=0.409873"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.490549,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=2 warmup=false seconds=0.490549"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.492231,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=3 warmup=false seconds=0.492231"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.495731,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=3 warmup=false seconds=0.495731"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.40808,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=4 warmup=false seconds=0.408080"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.443238,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=4 warmup=false seconds=0.443238"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=BOOLEAN two_phase=true rows=500000 Flink=0.409873s Native=0.490549s ratio=0.836x flink_trials=[0.409873418, 0.495731358, 0.408079604] native_trials=[0.490548745, 0.49223091, 0.443237553]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "compact",
+      "type": "DECIMAL",
+      "rows": 500000,
+      "stock_median_seconds": 0.522206,
+      "streamfusion_median_seconds": 0.559478,
+      "stock_measured_seconds": [
+        0.755443696,
+        0.522205824,
+        0.487138957
+      ],
+      "streamfusion_measured_seconds": [
+        0.548512352,
+        0.559478008,
+        0.571091905
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.518634,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=0 warmup=true seconds=0.518634"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.561249,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=0 warmup=true seconds=0.561249"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.479664,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=1 warmup=true seconds=0.479664"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.507538,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=1 warmup=true seconds=0.507538"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.755444,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=2 warmup=false seconds=0.755444"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.548512,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=2 warmup=false seconds=0.548512"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.559478,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=3 warmup=false seconds=0.559478"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.522206,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=3 warmup=false seconds=0.522206"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.487139,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=4 warmup=false seconds=0.487139"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.571092,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=4 warmup=false seconds=0.571092"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=DECIMAL two_phase=true rows=500000 Flink=0.522206s Native=0.559478s ratio=0.933x flink_trials=[0.755443696, 0.522205824, 0.487138957] native_trials=[0.548512352, 0.559478008, 0.571091905]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "compact",
+      "type": "TIMESTAMP",
+      "rows": 500000,
+      "stock_median_seconds": 0.447617,
+      "streamfusion_median_seconds": 0.599114,
+      "stock_measured_seconds": [
+        0.447616631,
+        0.440459006,
+        0.593072053
+      ],
+      "streamfusion_measured_seconds": [
+        0.556761182,
+        0.599113595,
+        0.6034975
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.492797,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=0 warmup=true seconds=0.492797"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.533639,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=0 warmup=true seconds=0.533639"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.519636,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=1 warmup=true seconds=0.519636"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.418794,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=1 warmup=true seconds=0.418794"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.447617,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=2 warmup=false seconds=0.447617"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.556761,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=2 warmup=false seconds=0.556761"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.599114,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=3 warmup=false seconds=0.599114"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.440459,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=3 warmup=false seconds=0.440459"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.593072,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=4 warmup=false seconds=0.593072"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.603498,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=4 warmup=false seconds=0.603498"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=TIMESTAMP two_phase=true rows=500000 Flink=0.447617s Native=0.599114s ratio=0.747x flink_trials=[0.447616631, 0.440459006, 0.593072053] native_trials=[0.556761182, 0.599113595, 0.6034975]",
+      "log_sha256": "5d9f7d853bd1225f7220462c49b141d9958178357476864cdf2d6bf2f2a50ac6"
+    },
+    {
+      "phase": "prior",
+      "type": "BIGINT",
+      "rows": 500000,
+      "stock_median_seconds": 0.533245,
+      "streamfusion_median_seconds": 0.541143,
+      "stock_measured_seconds": [
+        0.602449309,
+        0.460694616,
+        0.533244527
+      ],
+      "streamfusion_measured_seconds": [
+        0.529995229,
+        0.60951375,
+        0.541142949
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.332731,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=0 warmup=true seconds=1.332731"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.705062,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=0 warmup=true seconds=0.705062"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.638876,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=1 warmup=true seconds=0.638876"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.71114,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=1 warmup=true seconds=0.711140"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.602449,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=2 warmup=false seconds=0.602449"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.529995,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=2 warmup=false seconds=0.529995"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.609514,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=3 warmup=false seconds=0.609514"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.460695,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=3 warmup=false seconds=0.460695"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.533245,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=0 trial=4 warmup=false seconds=0.533245"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.541143,
+          "raw_line": "[grouped-value-trial] type=BIGINT engine=1 trial=4 warmup=false seconds=0.541143"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=BIGINT two_phase=true rows=500000 Flink=0.533245s Native=0.541143s ratio=0.985x flink_trials=[0.602449309, 0.460694616, 0.533244527] native_trials=[0.529995229, 0.60951375, 0.541142949]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    },
+    {
+      "phase": "prior",
+      "type": "DATE",
+      "rows": 500000,
+      "stock_median_seconds": 0.44701,
+      "streamfusion_median_seconds": 0.427701,
+      "stock_measured_seconds": [
+        0.44701013,
+        0.39608092,
+        0.527719476
+      ],
+      "streamfusion_measured_seconds": [
+        0.427700776,
+        0.436787729,
+        0.38263506
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.501089,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=0 warmup=true seconds=0.501089"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.546195,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=0 warmup=true seconds=0.546195"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.636788,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=1 warmup=true seconds=0.636788"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.527213,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=1 warmup=true seconds=0.527213"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.44701,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=2 warmup=false seconds=0.447010"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.427701,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=2 warmup=false seconds=0.427701"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.436788,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=3 warmup=false seconds=0.436788"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.396081,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=3 warmup=false seconds=0.396081"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.527719,
+          "raw_line": "[grouped-value-trial] type=DATE engine=0 trial=4 warmup=false seconds=0.527719"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.382635,
+          "raw_line": "[grouped-value-trial] type=DATE engine=1 trial=4 warmup=false seconds=0.382635"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=DATE two_phase=true rows=500000 Flink=0.447010s Native=0.427701s ratio=1.045x flink_trials=[0.44701013, 0.39608092, 0.527719476] native_trials=[0.427700776, 0.436787729, 0.38263506]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    },
+    {
+      "phase": "prior",
+      "type": "TIME",
+      "rows": 500000,
+      "stock_median_seconds": 0.450793,
+      "streamfusion_median_seconds": 0.479985,
+      "stock_measured_seconds": [
+        0.481487894,
+        0.450792735,
+        0.429578719
+      ],
+      "streamfusion_measured_seconds": [
+        0.388498238,
+        0.479984588,
+        0.547188661
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.494118,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=0 warmup=true seconds=0.494118"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.440156,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=0 warmup=true seconds=0.440156"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.442134,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=1 warmup=true seconds=0.442134"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.468638,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=1 warmup=true seconds=0.468638"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.481488,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=2 warmup=false seconds=0.481488"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.388498,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=2 warmup=false seconds=0.388498"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.479985,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=3 warmup=false seconds=0.479985"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.450793,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=3 warmup=false seconds=0.450793"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.429579,
+          "raw_line": "[grouped-value-trial] type=TIME engine=0 trial=4 warmup=false seconds=0.429579"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.547189,
+          "raw_line": "[grouped-value-trial] type=TIME engine=1 trial=4 warmup=false seconds=0.547189"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=TIME two_phase=true rows=500000 Flink=0.450793s Native=0.479985s ratio=0.939x flink_trials=[0.481487894, 0.450792735, 0.429578719] native_trials=[0.388498238, 0.479984588, 0.547188661]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    },
+    {
+      "phase": "prior",
+      "type": "BOOLEAN",
+      "rows": 500000,
+      "stock_median_seconds": 0.472828,
+      "streamfusion_median_seconds": 0.42872,
+      "stock_measured_seconds": [
+        0.448960513,
+        0.473697457,
+        0.47282788
+      ],
+      "streamfusion_measured_seconds": [
+        0.428719948,
+        0.458775711,
+        0.386054796
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.51207,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=0 warmup=true seconds=0.512070"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.48083,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=0 warmup=true seconds=0.480830"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.426521,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=1 warmup=true seconds=0.426521"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.448183,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=1 warmup=true seconds=0.448183"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.448961,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=2 warmup=false seconds=0.448961"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.42872,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=2 warmup=false seconds=0.428720"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.458776,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=3 warmup=false seconds=0.458776"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.473697,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=3 warmup=false seconds=0.473697"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.472828,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=0 trial=4 warmup=false seconds=0.472828"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.386055,
+          "raw_line": "[grouped-value-trial] type=BOOLEAN engine=1 trial=4 warmup=false seconds=0.386055"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=BOOLEAN two_phase=true rows=500000 Flink=0.472828s Native=0.428720s ratio=1.103x flink_trials=[0.448960513, 0.473697457, 0.47282788] native_trials=[0.428719948, 0.458775711, 0.386054796]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    },
+    {
+      "phase": "prior",
+      "type": "DECIMAL",
+      "rows": 500000,
+      "stock_median_seconds": 0.5396,
+      "streamfusion_median_seconds": 0.521811,
+      "stock_measured_seconds": [
+        0.601705794,
+        0.508097493,
+        0.539600208
+      ],
+      "streamfusion_measured_seconds": [
+        0.52080611,
+        0.521810747,
+        0.524516696
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.556392,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=0 warmup=true seconds=0.556392"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.542624,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=0 warmup=true seconds=0.542624"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.528823,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=1 warmup=true seconds=0.528823"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.506863,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=1 warmup=true seconds=0.506863"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.601706,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=2 warmup=false seconds=0.601706"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.520806,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=2 warmup=false seconds=0.520806"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.521811,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=3 warmup=false seconds=0.521811"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.508097,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=3 warmup=false seconds=0.508097"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.5396,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=0 trial=4 warmup=false seconds=0.539600"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.524517,
+          "raw_line": "[grouped-value-trial] type=DECIMAL engine=1 trial=4 warmup=false seconds=0.524517"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=DECIMAL two_phase=true rows=500000 Flink=0.539600s Native=0.521811s ratio=1.034x flink_trials=[0.601705794, 0.508097493, 0.539600208] native_trials=[0.52080611, 0.521810747, 0.524516696]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    },
+    {
+      "phase": "prior",
+      "type": "TIMESTAMP",
+      "rows": 500000,
+      "stock_median_seconds": 0.486663,
+      "streamfusion_median_seconds": 0.438505,
+      "stock_measured_seconds": [
+        0.486662506,
+        0.498181203,
+        0.447791752
+      ],
+      "streamfusion_measured_seconds": [
+        0.401783582,
+        0.538022008,
+        0.438505005
+      ],
+      "all_trials": [
+        {
+          "engine": 0,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.539303,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=0 warmup=true seconds=0.539303"
+        },
+        {
+          "engine": 1,
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.520414,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=0 warmup=true seconds=0.520414"
+        },
+        {
+          "engine": 1,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.392135,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=1 warmup=true seconds=0.392135"
+        },
+        {
+          "engine": 0,
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.516363,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=1 warmup=true seconds=0.516363"
+        },
+        {
+          "engine": 0,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.486663,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=2 warmup=false seconds=0.486663"
+        },
+        {
+          "engine": 1,
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.401784,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=2 warmup=false seconds=0.401784"
+        },
+        {
+          "engine": 1,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.538022,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=3 warmup=false seconds=0.538022"
+        },
+        {
+          "engine": 0,
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.498181,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=3 warmup=false seconds=0.498181"
+        },
+        {
+          "engine": 0,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.447792,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=0 trial=4 warmup=false seconds=0.447792"
+        },
+        {
+          "engine": 1,
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.438505,
+          "raw_line": "[grouped-value-trial] type=TIMESTAMP engine=1 trial=4 warmup=false seconds=0.438505"
+        }
+      ],
+      "raw_summary": "[grouped-value] single=true distinct=false type=TIMESTAMP two_phase=true rows=500000 Flink=0.486663s Native=0.438505s ratio=1.110x flink_trials=[0.486662506, 0.498181203, 0.447791752] native_trials=[0.401783582, 0.538022008, 0.438505005]",
+      "log_sha256": "ea74470260f9e2d6d7b0d3ed1ba576c2396803a5b2ee4155b8847529a9628f12"
+    }
+  ],
+  "validation": {
+    "flink_2_2": {
+      "checks": 146,
+      "passed": 146,
+      "skipped": 0,
+      "log_sha256": "b5dfb2068c16e0cdb449bf040b389afdf05c53d9ba8de357942e7ce070e85da1"
+    },
+    "flink_1_18": {
+      "checks": 146,
+      "passed": 127,
+      "skipped": 19,
+      "log_sha256": "44a2f66dbdc0c595e273df9f71819516bed93937014b05cb22e0a3cb3e34e46c"
+    },
+    "native_group_checks": 100,
+    "native_group_log_sha256": "4cca387ba8964f1435124851a69d7a24c4d63330d03fb3c6ae52d1b6cfd5e294",
+    "criterion_checks": 54,
+    "criterion_metadata": {
+      "timestamp_utc": "20261018T221240.007172Z",
+      "commit": "a29e097ea5c1fb5976fe198408a9aa9f1cfd22bd",
+      "dirty": true,
+      "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: x86_64-unknown-linux-gnu\nrelease: 1.94.0\nLLVM version: 21.1.8\n",
+      "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+      "cpu_count": 16,
+      "mode": "smoke",
+      "suites": [
+        [
+          "streamfusion",
+          "local_single_values"
+        ]
+      ],
+      "filter": null,
+      "features": [
+        "mimalloc"
+      ],
+      "save_baseline": null,
+      "baseline": null
+    },
+    "allocation_rows": [
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16/physical1",
+        "allocation_calls": "311",
+        "requested_bytes": "25082",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "260"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16/physical13",
+        "allocation_calls": "98",
+        "requested_bytes": "8258",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "260"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "196",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16/physical1",
+        "allocation_calls": "311",
+        "requested_bytes": "25138",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "134"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16/physical13",
+        "allocation_calls": "98",
+        "requested_bytes": "8202",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "134"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "70",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16/physical1",
+        "allocation_calls": "311",
+        "requested_bytes": "25210",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "388"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16/physical13",
+        "allocation_calls": "98",
+        "requested_bytes": "8386",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "388"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "324",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16/physical1",
+        "allocation_calls": "393",
+        "requested_bytes": "33190",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "324"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16/physical13",
+        "allocation_calls": "124",
+        "requested_bytes": "10430",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "324"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "260",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16/physical1",
+        "allocation_calls": "314",
+        "requested_bytes": "26018",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "304"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16/physical13",
+        "allocation_calls": "101",
+        "requested_bytes": "8634",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "304"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "240",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16/physical1",
+        "allocation_calls": "318",
+        "requested_bytes": "33826",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3528"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16/physical13",
+        "allocation_calls": "105",
+        "requested_bytes": "16442",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3528"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16/physical16",
+        "allocation_calls": "54",
+        "requested_bytes": "5918",
+        "shared_output_buffer_bytes": "3464",
+        "new_output_buffer_bytes": "64"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/1024/physical1",
+        "allocation_calls": "16601",
+        "requested_bytes": "1481414",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "16640"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/1024/physical13",
+        "allocation_calls": "2355",
+        "requested_bytes": "339070",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "16640"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "12544",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/1024/physical1",
+        "allocation_calls": "16601",
+        "requested_bytes": "1481534",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8576"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/1024/physical13",
+        "allocation_calls": "2355",
+        "requested_bytes": "331630",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8576"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "4480",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/1024/physical1",
+        "allocation_calls": "16601",
+        "requested_bytes": "1489606",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "24832"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/1024/physical13",
+        "allocation_calls": "2355",
+        "requested_bytes": "347262",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "24832"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "20736",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/1024/physical1",
+        "allocation_calls": "20715",
+        "requested_bytes": "1921198",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "20736"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/1024/physical13",
+        "allocation_calls": "2689",
+        "requested_bytes": "378174",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "20736"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "16640",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/1024/physical1",
+        "allocation_calls": "16606",
+        "requested_bytes": "1533806",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "19564"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/1024/physical13",
+        "allocation_calls": "2360",
+        "requested_bytes": "353662",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "19564"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "15468",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/1024/physical1",
+        "allocation_calls": "16611",
+        "requested_bytes": "2041710",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "237060"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/1024/physical13",
+        "allocation_calls": "2365",
+        "requested_bytes": "861566",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "237060"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/1024/physical1024",
+        "allocation_calls": "1074",
+        "requested_bytes": "225758",
+        "shared_output_buffer_bytes": "232964",
+        "new_output_buffer_bytes": "4096"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16384/physical1",
+        "allocation_calls": "264567",
+        "requested_bytes": "23671734",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "266240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16384/physical13",
+        "allocation_calls": "36639",
+        "requested_bytes": "5391038",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "266240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/bigint/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "200704",
+        "new_output_buffer_bytes": "65536"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16384/physical1",
+        "allocation_calls": "264567",
+        "requested_bytes": "23673774",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "137216"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16384/physical13",
+        "allocation_calls": "36639",
+        "requested_bytes": "5272094",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "137216"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/boolean/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "71680",
+        "new_output_buffer_bytes": "65536"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16384/physical1",
+        "allocation_calls": "264567",
+        "requested_bytes": "23802806",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "397312"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16384/physical13",
+        "allocation_calls": "36639",
+        "requested_bytes": "5522110",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "397312"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/decimal20/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "331776",
+        "new_output_buffer_bytes": "65536"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16384/physical1",
+        "allocation_calls": "330121",
+        "requested_bytes": "30689438",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "331776"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16384/physical13",
+        "allocation_calls": "41701",
+        "requested_bytes": "5996590",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "331776"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/timestamp9/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "266240",
+        "new_output_buffer_bytes": "65536"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16384/physical1",
+        "allocation_calls": "264572",
+        "requested_bytes": "24507486",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "313052"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16384/physical13",
+        "allocation_calls": "36644",
+        "requested_bytes": "5621870",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "313052"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string8/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "247516",
+        "new_output_buffer_bytes": "65536"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16384/physical1",
+        "allocation_calls": "264577",
+        "requested_bytes": "32633950",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3795716"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16384/physical13",
+        "allocation_calls": "36649",
+        "requested_bytes": "13748334",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3795716"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "local_single_values",
+        "case": "local_single_values/string256/16384/physical16384",
+        "allocation_calls": "16442",
+        "requested_bytes": "3574302",
+        "shared_output_buffer_bytes": "3730180",
+        "new_output_buffer_bytes": "65536"
+      }
+    ]
+  },
+  "diagnostic_profile": {
+    "event": "cpu",
+    "interval": "1ms",
+    "stack": "dwarf",
+    "profiler": "async-profiler 4.5",
+    "rows": 1000000,
+    "type": "TIMESTAMP",
+    "all_jvm_samples": 41062,
+    "native_group_scope_samples": 2487,
+    "note": "Entire JVM including startup and both engines. Inclusive counts overlap and cannot be summed. Diagnostic elapsed times are excluded from all speed claims.",
+    "inclusive_samples": {
+      "global_update": 1361,
+      "global_flush": 731,
+      "global_create_in_update": 544,
+      "local_update": 116,
+      "local_flush": 43
+    },
+    "html_sha256": "88053e8d4bd3373a44adcc26930f062b49ff119aa33e43a2e7ce208fa6f25f92",
+    "log_sha256": "d5aed587e8abfa8f3b8ccd09205ee238ddf2db180b307db713c8ec9a1b62f96b",
+    "parser_sha256": "9826a6aa097a492fb843522de9d53b39b240c9ef6f2a7127bc6647832240b4ca",
+    "parser_checks": "All self counts nonnegative; root and native scope self sums agree. Includes initial compressed n() root.",
+    "summary": "samples 41062 native_group_samples 2487\nnative group self\n476 19.1% streamfusion::group_agg::GroupAggregator<S>::update\n324 13.0% streamfusion::group_agg::GroupAggregator<S>::flush_mini_batch_at\n282 11.3% clear_page_erms\n210 8.4% core::hash::BuildHasher::hash_one\n178 7.2% core::ptr::drop_in_place<streamfusion::group_agg::GroupAggState>\n139 5.6% /usr/lib/x86_64-linux-gnu/libc.so.6\n61 2.5% malloc\n60 2.4% hashbrown::raw::RawTable<T,A>::reserve_rehash\n57 2.3% streamfusion::group_agg::GroupAggregator<S>::create\n42 1.7% <core::iter::adapters::GenericShunt<I,R> as core::iter::traits::iterator::Iterator>::next\n42 1.7% streamfusion::group_agg::ordered_value::OrderedValueState::new\n36 1.4% streamfusion::group_agg::GroupAggregator<S>::finish_mini_batch::{{closure}}\n36 1.4% streamfusion::group_agg::LocalGroupAggregator::update\n35 1.4% streamfusion::group_agg::output_of\n24 1.0% mi_free\n23 0.9% core::ptr::drop_in_place<alloc::collections::vec_deque::VecDeque<datafusion_common::scalar::ScalarValue>>\n23 0.9% _mi_arena_contains\n22 0.9% hashbrown::map::HashMap<K,V,S,A>::insert\n17 0.7% <alloc::vec::Vec<T,A> as core::clone::Clone>::clone\n16 0.6% streamfusion::group_agg::ordered_value::compact_value\n14 0.6% __rustc::__rust_no_alloc_shim_is_unstable_v2\n14 0.6% streamfusion::group_agg::ordered_value::OrderedValueState::merge_single\n11 0.4% free\n11 0.4% __tls_get_addr\n11 0.4% SymbolTable::do_lookup\nselected inclusive\n2689 6.5% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.processElement\n2587 6.3% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator$$Lambda$3835.0x000077448cf79b30.accept\n2587 6.3% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.ingest\n1509 3.7% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.update\n1399 3.4% tech/streamfusion/Native.updateGroupAggregator\n1391 3.4% Java_tech_streamfusion_Native_updateGroupAggregator\n1361 3.3% streamfusion::group_agg::GroupAggregator<S>::update\n1024 2.5% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.flushBundle\n867 2.1% org/apache/flink/table/runtime/typeutils/RowDataSerializer.copy\n761 1.9% tech/streamfusion/Native.flushGroupAggregator\n752 1.8% Java_tech_streamfusion_Native_flushGroupAggregator\n731 1.8% streamfusion::group_agg::GroupAggregator<S>::flush_mini_batch_at\n672 1.6% tech/streamfusion/operator/RowDataToArrowOperator.processElement\n544 1.3% streamfusion::group_agg::GroupAggregator<S>::create\n542 1.3% tech/streamfusion/operator/RowDataToArrowOperator.flush\n521 1.3% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.processElement\n320 0.8% org/apache/flink/table/runtime/typeutils/RowDataSerializer.copyRowData\n288 0.7% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.flushBundle\n256 0.6% org/apache/flink/table/runtime/typeutils/RowDataSerializer.deserialize\n240 0.6% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.update\n237 0.6% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.close\n236 0.6% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.closeHandle\n236 0.6% tech/streamfusion/Native.closeGroupAggregator\n236 0.6% Java_tech_streamfusion_Native_closeGroupAggregator\n236 0.6% core::ptr::drop_in_place<streamfusion::group_agg::GroupAggregator>\n232 0.6% org/apache/flink/table/runtime/typeutils/RowDataSerializer.serialize\n207 0.5% org/apache/flink/table/runtime/typeutils/RowDataSerializer.toBinaryRow\n183 0.4% tech/streamfusion/operator/ArrowToRowDataOperator.processElement\n159 0.4% org/apache/flink/core/memory/MemorySegment.getInt\n157 0.4% tech/streamfusion/Native.updateLocalGroupAggregator\n156 0.4% org/apache/flink/core/memory/MemorySegmentFactory.allocateUnpooledOffHeapMemory\n154 0.4% org/apache/flink/core/memory/MemorySegmentFactory.allocateDirectMemory\n144 0.4% Java_tech_streamfusion_Native_updateLocalGroupAggregator\n126 0.3% org/apache/flink/table/runtime/typeutils/BinaryRowDataSerializer.deserialize\n122 0.3% org/apache/flink/core/memory/MemorySegmentFactory.wrap\n116 0.3% streamfusion::group_agg::LocalGroupAggregator::update\n95 0.2% tech/streamfusion/planner/StreamPhysicalRowDataToArrow.translateToExecNode\n93 0.2% tech/streamfusion/planner/RowDataToArrowExecNode.<init>\n79 0.2% org/apache/flink/core/memory/MemorySegment.get\n61 0.1% org/apache/flink/core/memory/MemorySegment.put\n60 0.1% streamfusion::group_agg::GroupAggregator<S>::finish_mini_batch::{{closure}}\n59 0.1% tech/streamfusion/Native.flushLocalGroupAggregator\n58 0.1% Java_tech_streamfusion_Native_flushLocalGroupAggregator\n57 0.1% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.createHandle\n56 0.1% org/apache/flink/core/memory/MemorySegment.<init>\n53 0.1% streamfusion::group_agg::ordered_value::OrderedValueState::new\n44 0.1% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.processWatermark\n43 0.1% streamfusion::group_agg::LocalGroupAggregator::try_flush\n33 0.1% streamfusion::group_agg::ordered_value::OrderedValueState::merge_single\n26 0.1% org/apache/flink/table/data/writer/BinaryRowWriter.reset\n25 0.1% tech/streamfusion/planner/ArrowToRowDataExecNode.translateToPlanInternal\n25 0.1% tech/streamfusion/planner/NativeColumnarGroupAggExecNode.translateToPlanInternal\n23 0.1% core::ptr::drop_in_place<alloc::collections::vec_deque::VecDeque<datafusion_common::scalar::ScalarValue>>\n20 0.0% tech/streamfusion/operator/NativeAllocator$TaskBudgetListener.onPreAllocation\n20 0.0% tech/streamfusion/planner/NativeColumnarLocalGroupAggExecNode.translateToPlanInternal\n19 0.0% tech/streamfusion/planner/RowDataToArrowExecNode.translateToPlanInternal\n15 0.0% org/apache/flink/runtime/io/network/buffer/LocalBufferPool.requestMemorySegment\n15 0.0% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.processWatermark\n13 0.0% tech/streamfusion/arrow/vectors/ArrowTimestampColumnVector.isNullAt\n13 0.0% streamfusion::group_agg::ordered_value::OrderedValueColumn::value\n11 0.0% tech/streamfusion/operator/NativeAllocator$TaskBudgetListener.onRelease\n11 0.0% org/apache/flink/table/runtime/typeutils/BinaryRowDataSerializer.serialize\n10 0.0% org/apache/flink/core/memory/MemorySegment.putLong\n10 0.0% <datafusion_common::scalar::ScalarValue as core::convert::TryFrom<&arrow_schema::datatype::DataType>>::try_from\n10 0.0% datafusion_common::scalar::ScalarValue::try_new_null\n9 0.0% org/apache/flink/core/memory/MemorySegment.size\n9 0.0% org/apache/flink/table/runtime/typeutils/BinaryRowDataSerializer.serializeWithoutLength\n9 0.0% tech/streamfusion/operator/RowDataToArrowOperator.armFlushTimer\n8 0.0% core::ptr::drop_in_place<datafusion_common::scalar::ScalarValue>\n7 0.0% <arrow_array::array::struct_array::StructArray as core::convert::From<arrow_data::data::ArrayData>>::from\n7 0.0% <datafusion_common::scalar::ScalarValue as core::clone::Clone>::clone\n7 0.0% tech/streamfusion/arrow/vectors/ArrowTimestampColumnVector.getTimestamp\n6 0.0% org/apache/flink/table/runtime/typeutils/RowDataSerializer.<init>\n6 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.writeInt\n6 0.0% <arrow_array::array::struct_array::StructArray as arrow_array::array::Array>::to_data\n5 0.0% tech/streamfusion/operator/NativeAllocator.<clinit>\n5 0.0% org/apache/flink/core/memory/MemorySegment.putInt\n5 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.writeTimestamp\n4 0.0% org/apache/flink/core/memory/MemorySegment.getIntBigEndian\n4 0.0% org/apache/flink/runtime/io/network/api/serialization/SpanningWrapper.addNextChunkFromMemorySegment\n4 0.0% datafusion_common::scalar::ScalarValue::size\n3 0.0% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.open\n3 0.0% arrow_array::array::struct_array::<impl core::convert::From<arrow_array::array::struct_array::StructArray> for arrow_data::data::ArrayData>::from\n3 0.0% core::ptr::drop_in_place<arrow_array::array::struct_array::StructArray>\n3 0.0% tech/streamfusion/operator/NativeColumnarLocalGroupAggregateOperator.publishStateBytes\n2 0.0% tech/streamfusion/Native.createLocalGroupAggregator\n2 0.0% Java_tech_streamfusion_Native_createLocalGroupAggregator\n2 0.0% tech/streamfusion/operator/RowDataToArrowOperator.open\n2 0.0% org/apache/flink/runtime/io/network/buffer/LocalBufferPool.returnMemorySegment\n2 0.0% org/apache/flink/runtime/io/network/buffer/NetworkBufferPool.recyclePooledMemorySegment\n2 0.0% org/apache/flink/runtime/io/network/buffer/ReadOnlySlicedNetworkBuffer.getMemorySegment\n2 0.0% org/apache/flink/runtime/io/network/buffer/NetworkBuffer.getMemorySegment\n2 0.0% arrow_array::array::struct_array::StructArray::try_new_with_length\n2 0.0% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.stateBytesHandle\n2 0.0% <arrow_array::array::struct_array::StructArray as core::convert::From<arrow_array::record_batch::RecordBatch>>::from\n2 0.0% <arrow_array::array::struct_array::StructArray as core::clone::Clone>::clone\n2 0.0% streamfusion::group_agg::local_single::LocalSingleValue::gather\n1 0.0% org/apache/flink/table/runtime/typeutils/RowDataSerializer.duplicate\n1 0.0% tech/streamfusion/operator/NativeColumnarGroupAggregateOperator.open\n1 0.0% tech/streamfusion/operator/NativeAllocator.initializeFor\n1 0.0% core::ptr::drop_in_place<core::option::Option<alloc::boxed::Box<std::collections::hash::map::HashMap<datafusion_common::scalar::ScalarValue,i64,ahash::random_state::RandomState>>>>\n1 0.0% org/apache/flink/runtime/io/network/buffer/NetworkBufferPool.internalRecycleMemorySegments\n1 0.0% arrow_array::array::struct_array::StructArray::new\n1 0.0% arrow_array::array::struct_array::StructArray::try_new\n1 0.0% core::ptr::drop_in_place<alloc::vec::into_iter::IntoIter<datafusion_common::scalar::ScalarValue>>\n1 0.0% tech/streamfusion/arrow/vectors/ArrowTimestampColumnVector.<init>\n1 0.0% streamfusion::group_agg::ordered_value::OrderedValueColumn::new\n1 0.0% core::ptr::drop_in_place<alloc::vec::Vec<datafusion_common::scalar::ScalarValue>>\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.complete\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.setNullAt\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.setNullBit\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.writeRowKind\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.getFieldOffset\n1 0.0% org/apache/flink/table/data/writer/BinaryRowWriter.setOffsetAndSize\n1 0.0% <arrow_array::record_batch::RecordBatch as core::convert::From<arrow_array::array::struct_array::StructArray>>::from\n1 0.0% org/apache/flink/core/memory/MemorySegmentFactory.<clinit>\n1 0.0% tech/streamfusion/planner/StreamPhysicalNativeColumnarLocalGroupAggregate.translateToExecNode\n1 0.0% org/apache/flink/table/runtime/typeutils/RowDataSerializer$$Lambda$2578.0x000077448cc5c928.apply\n1 0.0% org/apache/flink/table/runtime/typeutils/RowDataSerializer.lambda$new$2\n1 0.0% org/apache/flink/table/runtime/typeutils/BinaryRowDataSerializer.<init>\n",
+    "complete_diagnostic_jobs": 6,
+    "raw_job_lines": [
+      "[grouped-value-trial] type=TIMESTAMP engine=0 trial=0 warmup=true seconds=2.406199",
+      "[grouped-value-trial] type=TIMESTAMP engine=1 trial=0 warmup=true seconds=1.576510",
+      "[grouped-value-trial] type=TIMESTAMP engine=1 trial=1 warmup=false seconds=1.140297",
+      "[grouped-value-trial] type=TIMESTAMP engine=0 trial=1 warmup=false seconds=1.162124",
+      "[grouped-value-trial] type=TIMESTAMP engine=0 trial=2 warmup=false seconds=1.158249",
+      "[grouped-value-trial] type=TIMESTAMP engine=1 trial=2 warmup=false seconds=1.133668"
+    ]
+  },
+  "fixture_corrections": [
+    "Native type-matrix fixture initially labeled timestamp with DATE code 8; corrected to timestamp code 7. Four initial unit checks passed and the full five-check matrix then passed. Latest broader native suite passes 100 checks.",
+    "First Criterion probe compared Arc object identity against unsliced input. Full slice creates new array objects while sharing buffers. Corrected probe compares returned array to its physical input; production code unchanged. Final 54 fixtures pass."
+  ]
+}

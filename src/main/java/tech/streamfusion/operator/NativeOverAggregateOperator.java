@@ -40,6 +40,7 @@ public class NativeOverAggregateOperator extends AbstractNativeStatefulOperator<
   private final boolean proctime;
   private final long stateTtlMillis;
   private final RowType rowType;
+  private final boolean mapListInput;
   private transient Counter numLateRecordsDropped;
   private transient long reportedLateRecords;
 
@@ -67,6 +68,9 @@ public class NativeOverAggregateOperator extends AbstractNativeStatefulOperator<
     this.proctime = proctime;
     this.stateTtlMillis = stateTtlMillis;
     this.rowType = rowType;
+    this.mapListInput =
+        tech.streamfusion.arrow.MapListRepresentation.requiredForCounts(
+            rowType, valueColumns, aggregateKinds);
   }
 
   @Override
@@ -264,6 +268,14 @@ public class NativeOverAggregateOperator extends AbstractNativeStatefulOperator<
       if (columns != null) {
         prepared = new VectorSchemaRoot(columns);
         prepared.setRowCount(in.getRowCount());
+      }
+      if (mapListInput) {
+        var safeSchema = tech.streamfusion.arrow.MapListRepresentation.forIpc(prepared.getSchema());
+        if (safeSchema != prepared.getSchema()) {
+          // A borrowed schema view; C export retains the original buffers independently.
+          prepared =
+              new VectorSchemaRoot(safeSchema, prepared.getFieldVectors(), prepared.getRowCount());
+        }
       }
       try (ArrowArray inArray = ArrowArray.allocateNew(inAllocator);
           ArrowSchema inSchema = ArrowSchema.allocateNew(inAllocator)) {

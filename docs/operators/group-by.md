@@ -8,6 +8,11 @@ back](#still-falls-back).
 Flink picks between the two plan shapes itself, based on `table.exec.mini-batch.enabled`; this page
 covers both, since a query only accelerates when whichever shape Flink chose is fully native.
 
+When the selected aggregate uses a mini-batch trigger, translation uses the released host's
+size validation. Unset/default `-1`, zero and negative `table.exec.mini-batch.size` values
+fail during planning with the same exception and message as Flink, for single-phase and
+local/global plans. Mini-batch-disabled aggregation does not validate an unused size.
+
 ## Single-phase
 
 Flink's internal `SUM0` admits nullable TINYINT, SMALLINT, INT, BIGINT and DECIMAL,
@@ -39,7 +44,7 @@ at that value; a retraction after overflow starts it at the negated value. NULL 
 the accumulator unchanged. This rule also applies after restore and to filtered SUMs.
 Decimal AVG has a separate accumulator whose overflow stays NULL.
 
-Single-phase `AVG(DISTINCT)` admits TINYINT, SMALLINT, INT, BIGINT and DECIMAL. A value folds
+Single-phase `AVG(DISTINCT)` admits TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE and DECIMAL. A value folds
 into the existing widened AVG accumulator only on its first occurrence and retracts only
 when its last occurrence leaves the distinct set. The denominator counts distinct non-NULL
 values. Integer results retain their input width and truncate toward zero; decimal results
@@ -47,8 +52,9 @@ retain Flink's DECIMAL(38, max(6, input-scale)) type and rounding. FILTER, chang
 empty/all-NULL groups, state TTL, and checkpoint restoration use the existing grouped path.
 The running sum and distinct count are checkpointed directly alongside membership so restore
 does not refold an overflow-sensitive decimal sum in map order. Both memory and typed RocksDB
-state retain this contract, including migrations between the two. Floating AVG DISTINCT
-still falls back. Insert-only two-phase AVG DISTINCT supports integers and DECIMAL precision
+state retain this contract, including migrations between the two. Floating averages accumulate
+in DOUBLE and retain the input result width; DISTINCT uses Java boxed equality, canonicalizing
+NaNs and distinguishing opposite zero signs. Insert-only two-phase AVG DISTINCT supports integers and DECIMAL precision
 up to 38, as described below.
 
 `TINYINT` and `SMALLINT` `SUM`/`MIN`/`MAX` retain their input width, including the local
@@ -127,7 +133,8 @@ secondary input metadata does not determine the emission mode.
 
 ### LISTAGG
 
-Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, with an
+Single-phase LISTAGG runs over CHAR/VARCHAR for append and retracting input, and
+ordinary append LISTAGG also admits local/global plans. Both forms use an
 omitted comma separator or a verified non-null character literal. Empty, quoted and
 multi-byte separators are supported. NULL values are skipped; empty strings and
 duplicates contribute in arrival order. A retraction removes the first matching
@@ -139,7 +146,34 @@ owned occurrences and pending unmatched retractions, matching released Flink. Ve
 binary accumulator snapshots preserve this state across memory/native RocksDB restores.
 Tests compare ordered RowKinds and schemas on Flink 2.2.1 and 1.18.1; four recovery
 profiles each force two restores and verify native consumption and released memory.
-Positive state TTL, DISTINCT, explicit ordering and local/global LISTAGG remain fallback.
+Single-phase DISTINCT uses string membership around the same ordered accumulator. Duplicate
+inserts do not concatenate again; retracting input decrements multiplicity and removes a
+value only when its last occurrence leaves. Reinsertion appends it at the new arrival position.
+NULLs never enter membership; separator literals, FILTER, CHAR casts, mixed aggregates and
+mini-batches use the same contract. Checkpoints preserve membership and ordered values, and
+native retained-memory accounting includes owned membership keys and table capacity.
+Ordinary append LISTAGG admits positive state TTL in single-phase, single-phase mini-batch
+and local/global plans. Its separator/prefix accumulator is one TTL value state, so existing
+whole-group expiry and write refresh preserve released behavior, including NULL writes.
+DISTINCT or retracting LISTAGG with positive retention remains fallback because its supporting
+MapView/ListView state has independent lifetimes. DISTINCT/retracting local/global merges
+also remain fallback without retention.
+Released Flink rejects LISTAGG WITHIN GROUP ordering. Both releases produce real
+local/global plans under TWO_PHASE; ordinary append input now accelerates. The local
+emits the declared pair of STRING fields (separator, prefix), and the global concatenates
+prefixes using each incoming separator. FILTER, default and literal separators, CHAR
+casts, mixed numeric aggregates and adjacent DISTINCT-count views retain their positional
+layouts. Both halves and the exchange remain columnar.
+
+The local drains before checkpoints; the global persists its ordered prefix through the
+existing state codec. Four profiles exercise two restores on memory/native RocksDB with
+bundle sizes 3 and 11. Checkpoint drains can change intermediate mini-batch updates, so
+recovery compares the materialized changelog, including exact final string order and counts;
+uninterrupted SQL checks retain raw kinded changelog comparisons. All 79 SQL/operator checks
+are covered on each release (2.2 uses the 73 unchanged controls plus the corrected six-case
+recovery suite; 1.18 runs all 79 together). A native partial/merge/restore test and 92 release
+fixtures cover default/literal separators, NULL-only groups, 17-row physical chunks and
+independent final prefix/count oracles.
 JSON array/object coverage is described below.
 
 Release measurements on JDK 17/Flink 2.2.1 use p=1, 2 GiB heap, production IPC,
@@ -171,6 +205,102 @@ Reproduce complete jobs with `SF_BENCHMARK=true mvn test -Pbench
 -Dsf.benchmarkJvmArgs="-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false"`; workload properties are
 `stringagg.rows`, `stringagg.keys`, `stringagg.width` and `stringagg.updating`.
 
+Single-phase DISTINCT is qualified separately on release+mimalloc, JDK 17, p=1,
+2 GiB heap, UTC, 1,024-row production transposes and IPC, with two warmups and three
+alternating trials. Complete row-source/row-sink jobs retain JNI and state costs and
+assert native execution. All 65 SQL/operator checks pass on both released Flink lines,
+including four two-restore memory/RocksDB profiles; 76 native fixtures pass (20 new
+DISTINCT update/checkpoint fixtures).
+
+| DISTINCT workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 500k rows, 16,384 keys, 16-byte strings, append | 1.014 s | 0.924 s | 0.416 s | 2.44× |
+| Same, insert/insert/delete | 1.252 s | 1.202 s | 0.422 s | 2.97× |
+| 500k rows, 8,192 keys, 128-byte strings | 1.204 s | — | 0.705 s | 1.71× |
+| 1M rows, one key, 16-byte strings | 0.633 s | — | 0.325 s | 1.95× |
+| Wide profile, Flink 1.18.1 | 1.211 s | — | 0.717 s | 1.69× |
+
+Actual previous `cc17301b` falls back for DISTINCT, with the identical query and fixture;
+append/retract medians improve by 2.22×/2.85×. Its paired stock medians are 1.015/1.181 s.
+An ordinary LISTAGG control remains native in both revisions: 0.333 s current versus
+0.326 s previous, with overlapping 0.307–0.344/0.321–0.335 s ranges. The 2.1% median
+difference does not establish a general regression or improvement. These short complete
+jobs retain startup costs; arbitrary per-key string sizes are not qualified. All 90 jobs,
+means, medians, variability, source/library hashes and allocation probes are retained in
+[the DISTINCT artifact](../benchmarks/results/listagg-distinct-2026-10-19.json).
+Reproduce with the command above plus `-Dstringagg.distinct=true`; use
+`stringagg.warmup=2` and `stringagg.runs=3` for this measurement configuration.
+
+Ordinary append **TWO_PHASE** measurements use release+mimalloc, JDK 17, p=1,
+2 GiB heap, UTC, 1,024-row transposes and 4,096-row mini-batches. Two warmups and three
+alternating trials retain both transposes, production IPC/JNI, local/global state,
+row source/sink and native execution metrics.
+
+| 500k-row split workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| 64 keys, 16-byte strings | 0.636 s | 0.598 s | 0.263 s | 2.42× |
+| 16,384 keys, 16-byte strings | 0.872 s | 0.819 s | 0.551 s | 1.58× |
+| 8,192 keys, 128-byte strings | 2.072 s | — | 1.875 s | 1.11× |
+| Wide profile, Flink 1.18.1 | 2.062 s | — | 1.889 s | 1.09× |
+
+Actual previous `a0dd888d` falls back for these split queries; compact low/high medians
+improve 2.27×/1.49×. Its stock controls are 0.613/0.829 s. The ordinary ONE_PHASE control
+remains native: 0.334 s current versus 0.343 s previous, with overlapping
+0.312–0.345/0.313–0.346 s ranges. Wide-profile improvements are modest and do not cover
+arbitrarily larger per-key strings; the 1.18 wide profile includes one measured native
+trial slower than its paired stock trial. Mean and median comparisons across each full
+profile still favor native. Low-cardinality jobs retain startup costs and substantial
+variation (0.173–0.291 s native). All 80 jobs, variability, source/library hashes and
+allocation records are retained in
+[the two-phase artifact](../benchmarks/results/listagg-two-phase-2026-10-19.json).
+Reproduce with `StringAggregateBenchmark`, `-Dstringagg.phase=TWO_PHASE
+-Dstringagg.batchSize=4096 -Dstringagg.rows=500000 -Dstringagg.warmup=2
+-Dstringagg.runs=3` and the table's `stringagg.keys`/`stringagg.width`.
+`stringagg.phase` defaults to ONE_PHASE; the separate control disables mini-batching.
+
+Positive-retention admission is pinned by 20 direct operator comparisons per release.
+Tests extract Flink's generated keyed aggregate from a real SQL transformation graph,
+synchronize the TTL provider and processing-time clocks, and compare each kinded output.
+They cover two keys, NULL write refresh, immediately-before/exact expiry, checkpoint
+restore, both separator forms, memory/native RocksDB, and single/single-mini/global-mini
+contexts. Six additional SQL profiles force two restores with one-hour retention. The
+combined integration passes 288 checks on Flink 2.2.1 and 252 with 36 declared host skips
+on 1.18.1. All 47 grouped native state tests and 352 selected release fixtures pass;
+four new fixtures independently check refresh, restore and fresh INSERT after expiry.
+
+Positive-TTL complete jobs use the integrated runtime, p=1/JDK 17/2 GiB/UTC,
+release+mimalloc, 500k nullable rows, 1,024-row transposes and both IPC/JNI boundaries.
+Retention is one hour; controlled-clock tests establish expiry separately. Two warmups
+and three alternating trials retain every measurement.
+
+| Retention workload | Stock median | Previous StreamFusion median | Native median | Native vs stock |
+|---|---:|---:|---:|---:|
+| ONE_PHASE, 16,384 keys, 16-byte strings | 1.226 s | 1.224 s | 0.400 s | 3.06× |
+| ONE_PHASE, 8,192 keys, 128-byte strings | 2.261 s | — | 1.612 s | 1.40× |
+| TWO_PHASE, 16,384 keys, 16-byte strings | 1.494 s | 1.450 s | 0.535 s | 2.79× |
+| TWO_PHASE, 8,192 keys, 128-byte strings | 2.883 s | — | 2.090 s | 1.38× |
+| ONE_PHASE mini-batch, compact profile | 1.353 s | — | 0.531 s | 2.55× |
+| TWO_PHASE wide profile, Flink 1.18.1 | 2.882 s | — | 1.888 s | 1.53× |
+
+The actual previous `5c110c1a` falls back for positive retention; compact ONE/TWO medians
+improve 3.06×/2.71×. Its paired stock medians are 1.261/1.450 s. The current build also
+integrates the independently qualified typed ordered-value implementation, preserving
+all earlier feature heads. No-TTL controls remain native: ONE_PHASE medians are
+0.342/0.342 s current/previous. Wide TWO_PHASE medians are 1.930/1.837 s (current about
+5% slower), while means are 1.919/1.927 s and ranges overlap (1.891–1.935/1.821–2.122 s).
+These controls do not establish a general no-TTL change. Native allocation probes show
+identical output-buffer observations and only two extra small per-batch requests in the
+shared dispatch; allocation requests do not measure copied bytes.
+
+All 120 jobs, means, medians, variability, provenance and allocation probes remain in
+[the retention artifact](../benchmarks/results/listagg-retention-2026-10-19.json).
+Short jobs retain startup costs; arbitrary per-key widths/cardinalities are unmeasured.
+Reproduce with `StringAggregateBenchmark`, `-Dstringagg.ttl='1 h'`, the table's
+`stringagg.phase`, `stringagg.keys` and `stringagg.width`, plus `stringagg.batchSize=4096`,
+`stringagg.rows=500000`, `stringagg.warmup=2` and `stringagg.runs=3`.
+`stringagg.miniBatch=true` separately selects single-phase mini-batching; its default
+follows TWO_PHASE. Omitting `stringagg.ttl` retains the prior zero-retention default.
+
 ### JSON_ARRAYAGG and JSON_OBJECTAGG
 
 Single-phase JSON array/object aggregation accepts append and retracting input whose
@@ -184,8 +314,17 @@ Duplicate keys fail before ABSENT ON NULL can omit a NULL value.
 
 The result retains VARCHAR(2000) NOT NULL. Owned per-key strings checkpoint through
 the existing binary state representation; ordered arrays are not stored as unordered
-multisets. Positive state TTL, DISTINCT, explicit ordering and local/global JSON
-aggregation remain fallback. Both released parsers reject JSON aggregate FILTER syntax.
+multisets. JSON_ARRAYAGG also admits inline ORDER BY and WITHIN GROUP ordering clauses.
+Released Flink 2.2.1 and 1.18.1 retain arrival order for these clauses rather than sorting;
+the native accumulator preserves that released behavior, including retractions. These
+clauses therefore do not promise sorted JSON arrays. Positive state TTL remains a
+native restriction for both functions. JSON_OBJECTAGG local/global aggregation also
+falls back. JSON_ARRAYAGG has no merge method in either released version: even a
+TWO_PHASE request retains a single-phase plan, which runs natively. Released Flink
+2.2.1 and 1.18.1 reject DISTINCT JSON aggregates, JSON_OBJECTAGG WITHIN GROUP ordering,
+and JSON aggregate FILTER syntax; these are host limitations rather than acceleration
+gaps. Eight additional released-SQL checks pin the actual phase plans, native execution,
+NULL modes, and parser/validator failures.
 Flink 1.18 decimal JSON_STRING expressions use the existing generated evaluator
 inside Calc because that line strips decimal scale; the grouped accumulator still runs
 natively. The 2.2 expression retains scale.
@@ -247,6 +386,57 @@ for numeric object values, `stringagg.updating=true` for retracting input, and
 `stringagg.warmup`/`stringagg.runs` for the recorded trial counts. The smaller controls use
 `stringagg.rows=500000` and `stringagg.keys=16384`; the wide case sets `stringagg.width=128`.
 
+### JSON array ordering clauses
+
+`FlinkJsonArrayOrderingSqlHarnessTest` passes twelve checks on each of released Flink
+2.2.1 and 1.18.1. ASC, DESC and WITHIN GROUP deliberately use sort keys that disagree
+with arrival order. Each append/retract case checks all three NULL policies, exact
+ordered RowKinds, result types and native aggregation. Nullable and multiple sort keys
+also preserve arrival order. Four recovery cases each
+exercise both inline and WITHIN GROUP forms through two restores, using memory or
+native RocksDB state and append or retracting input. They verify native work and
+released memory. The existing 19 JSON aggregate checks also pass on both releases.
+Ordering metadata uses the existing JSON array accumulator and its existing native
+string/JSON update and checkpoint Criterion fixtures; it adds no sort state or kernel.
+
+Release complete-job measurements on Flink 2.2.1/JDK 17 use parallelism one, 2 GiB
+heap, production Arrow IPC, mimalloc, 1,024-row transposes, ONE_PHASE and no
+mini-batching. Each profile has two warmups and three alternating measured trials
+per engine in a fresh JVM. The runtime row source, both transposes, serialization,
+JNI, aggregate state and row blackhole sink remain measured. Strings are 16 bytes;
+values include NULLs, and retracting profiles cycle insert/insert/delete rounds.
+
+| Value, order, changelog, rows / keys | Stock median | Previous StreamFusion median | Native median |
+|---|---:|---:|---:|
+| STRING, ASC, append, 2M / 65,536 | 9.080 s | 9.035 s | 2.026 s |
+| STRING, ASC, retracting, 2M / 65,536 | 5.699 s | 5.500 s | 1.498 s |
+| STRING, DESC, append, 2M / 65,536 | 9.340 s | 9.053 s | 1.962 s |
+| STRING, DESC, retracting, 2M / 65,536 | 5.706 s | 5.409 s | 1.504 s |
+| BIGINT, ASC, append, 2M / 65,536 | 9.279 s | 9.288 s | 1.543 s |
+| BIGINT, ASC, retracting, 2M / 65,536 | 5.916 s | 5.918 s | 1.373 s |
+| BIGINT, DESC, append, 2M / 65,536 | 9.256 s | 9.162 s | 1.508 s |
+| BIGINT, DESC, retracting, 2M / 65,536 | 5.861 s | 5.656 s | 1.349 s |
+| STRING, ASC, append, 1M / 16,384 | 6.751 s | 6.757 s | 1.252 s |
+| STRING, DESC, retracting, 1M / 16,384 | 3.477 s | 3.435 s | 0.961 s |
+
+All ten profiles beat stock by **3.617–6.136×** and frozen prior StreamFusion
+`d85b241a` by **3.574–6.074×**. Every candidate trial range lies below the stock
+and prior ranges. Separate-JVM paired stock medians differ by at most 4.6%, so
+fine differences between ordering directions are not meaningful. These are bounded
+per-key arrays, not a performance guarantee for arbitrary array sizes. The unchanged
+native array accumulator provides the gain when the planner admits these clauses.
+[Raw measured/warmup jobs, trial arrays, configuration and source/library hashes](../benchmarks/results/json-array-ordering-2026-10-18.json)
+retain all measurements. Reproduce using `StringAggregateBenchmark` above with
+`stringagg.order=ASC|DESC`, `stringagg.value=string|bigint`, and the recorded row,
+key, warmup and trial counts.
+
+Two additional profiles run the new planner with the frozen prior native library,
+independently of the unshipped SINGLE_VALUE optimization present in the development
+library. STRING/ASC append measures **1.966 s native versus 9.508 s stock**; BIGINT/DESC
+retracting measures **1.380 s versus 5.946 s**. These retain the same resources, warmups,
+three alternating measurements and native-consumption assertions. Their complete jobs
+are also retained in the artifact; no new native operation is needed for this admission.
+
 ### Floating aggregate validation
 
 `FlinkFloatingGroupAggregateSqlHarnessTest` compares released Flink values, result schemas,
@@ -265,7 +455,8 @@ stock, previous fallback and native comparison, raw trials, workload limits and 
 
 The one-argument forms run natively in the single-phase plan over TINYINT, SMALLINT,
 INT, BIGINT, FLOAT, DOUBLE, DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP and
-TIMESTAMP_LTZ. Each preserves the input value's type and precision. FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
+TIMESTAMP_LTZ. Results follow Flink's declared type, precision and value semantics.
+FIRST_VALUE/LAST_VALUE support per-aggregate FILTER.
 Flink 1.18.1 cannot plan CHAR or temporal FIRST_VALUE/LAST_VALUE and fails a type assertion for
 SINGLE_VALUE over TIME(0), including string casts to TIME(3) that resolve to TIME(0);
 those host limitations remain unavailable on that release. Typed TIME(3) input is supported.
@@ -278,12 +469,16 @@ zero signs do not. Removing every contributing value yields NULL, and removing t
 record deletes the group. Results depend on arrival order, so SQL parity fixtures use a
 controlled source rather than asserting equal results from independently reordered inputs.
 
-`FIRST_VALUE(DISTINCT string)` and `LAST_VALUE(DISTINCT string)` also run in a single
-phase over STRING/VARCHAR. They retain the arrival order of unique live values and their
+`FIRST_VALUE(DISTINCT value)` and `LAST_VALUE(DISTINCT value)` also run in a single
+phase over the same scalar types as their ordinary forms. They retain the arrival order of unique live values and their
 multiplicities: inserting a duplicate does not move its position, and only the last
 retraction removes it. Reinsertion after complete removal gives it a new position. NULLs
 are ignored, and filtered instances have independent membership. Checkpoints retain both
-order and multiplicities. These DISTINCT forms require zero state retention because
+order and multiplicities. Floating membership treats all NaN payloads as one value and
+distinguishes the two zero signs; the ordered queue preserves the first inserted payload.
+Typed maps retain integer widths, physical DATE/TIME values, exact decimals and inline
+timestamp nanoseconds.
+These DISTINCT forms require zero state retention because
 Flink's separate membership/order maps can expire independently.
 
 Ordered aggregate state now resides inline in the existing per-aggregate storage, avoiding a
@@ -298,9 +493,26 @@ the preceding result from that accumulator. Filtered and mixed aggregates retain
 mini-batch emission and snapshot formats are unchanged.
 
 SINGLE_VALUE counts every element, including NULL. Zero elements yield NULL; one element
-yields that value. A second element raises Flink's `TableRuntimeException` with the same
+yields that value. A second element raises Flink's release-specific exception with the same
 cardinality diagnostic. Retraction clears the retained value and decrements the count;
 released Flink rejects a SQL FILTER clause on SINGLE_VALUE during planning.
+
+Released Flink's SQL planner removes DISTINCT from SINGLE_VALUE. Consequently
+`SINGLE_VALUE(DISTINCT v)` runs as ordinary SINGLE_VALUE: duplicate values and duplicate
+NULLs still count as separate elements and can raise the same cardinality error. This
+SQL form already runs natively; it is not a distinct-membership acceleration gap.
+An internal physical aggregate that retains a DISTINCT flag still has no native path.
+`FlinkSingleValueDistinctSqlHarnessTest` verifies twelve checks on each released line:
+duplicate and NULL failures, singleton/empty input, and actual local/global string
+plans with one-row and multi-row bundles. It compares host/native failure classes,
+diagnostics and evaluation phase, alongside exact successful changelogs and types.
+
+After a local bundle update or flush fails, cleanup never flushes that partially
+updated bundle again. Close still releases its native handle and memory reservation.
+This preserves the original cardinality error when Flink 1.18 cleanup invokes finish;
+a secondary Arrow key-gather failure must not replace it. The operator harness covers
+both one-row physical batches and a multi-row batch, followed by finish, checkpoint
+and watermark callbacks, and verifies that no partial output escapes.
 
 Checkpoints preserve the scalar/count or ordered occurrences. Append-only first/last and
 SINGLE_VALUE support the enclosing group's TTL. Retracting FIRST_VALUE/LAST_VALUE with a
@@ -308,9 +520,8 @@ positive retention, including a STATE_TTL hint, fall back: Flink independently e
 value-to-order and order-to-value map entries, which a single group lifetime does not model.
 These aggregate states use the existing raw keyed snapshot path with both memory and RocksDB
 backends; the direct RocksDB accumulator-row codec does not yet encode ordered occurrences.
-Two-phase FIRST_VALUE/LAST_VALUE plans, SINGLE_VALUE DISTINCT, DISTINCT first/last over types other
-than STRING/VARCHAR, two-argument value/order dialects, and other value types retain explicit
-fallback gates.
+Two-phase FIRST_VALUE/LAST_VALUE plans, physical SINGLE_VALUE with a retained DISTINCT flag,
+two-argument value/order dialects, and other value types retain explicit fallback gates.
 
 `GroupedValueBenchmark` measures append-only FIRST_VALUE/LAST_VALUE with a release native
 build (`-Pbench`, mimalloc), 2 million rows, 64 keys, one-eighth NULL values, parallelism 1,
@@ -406,12 +617,13 @@ state used by single-phase AVG DISTINCT; it does not add the local sums/counts, 
 count values appearing in several bundles more than once. Decimal sum fields must retain
 precision 38 and the input scale, and the result type must match Flink's AVG type.
 
-Insert-only two-phase `SINGLE_VALUE` over STRING/VARCHAR, FLOAT and DOUBLE retains a typed
+Insert-only two-phase `SINGLE_VALUE` over the single-phase scalar value types retains a typed
 value and an INT count in each local bundle. NULL increments the count. Both local accumulation and global merging
 raise Flink's cardinality exception on a second element; global checkpoints preserve that
 count even when the value is NULL. The global consumes the count partial, rather than
 counting bundles. The declared value partial must match the input type, and its count must
-be INT. Other value types and retracting SINGLE_VALUE splits remain on Flink.
+be INT. Flink may declare a TIME(3) partial for TIME(0) input; both use millisecond storage
+and preserve the input value. Retracting SINGLE_VALUE splits remain on Flink.
 Local execution failures use the same Flink exception mapping as global aggregation, after
 releasing imported Arrow input, so cardinality failures are not reported as memory limits.
 
@@ -623,13 +835,13 @@ separate JVMs with stock drift, so they do not isolate an exact percentage effec
 See the [probe technique](../optimizations/borrowed-key-probes.md#experimental-jvm-aggregate-keys).
 
 [All diagnostic trials and profiles](../benchmarks/results/jvm-aggregates-investigation-2026-10-15.json)
-retain the variability, GC observations and interference records. There is no default admission:
-Broader key/accumulator contracts and representative preceding-fallback comparisons remain
-outstanding. The isolated results below now cover both Flink lines. An additional cold-key bypass run measured
+retain the variability, GC observations and interference records. These historical profiles
+did not establish a throughput win. Broader key/accumulator contracts and representative
+preceding-fallback comparisons remain outstanding. The isolated results below now cover both Flink lines. An additional cold-key bypass run measured
 1.770 s native versus 1.769 s stock but overlapped another build, so it is diagnostic only.
 [Isolated release diagnostics](../benchmarks/jvm-aggregates.md) build and finish correctness
 checks before measuring typed key/cardinality cases and collecting Java/Rust profiles on
-separate GitHub runners. Stock Flink remains the default.
+separate GitHub runners. Default UDF coverage now follows the accepted performance exception.
 
 ### Isolated typed-key results (2026-10-16)
 
@@ -703,7 +915,7 @@ isolated run so later revisions preserve that comparison.
 The [completed symmetric-preflight matrix](../benchmarks/results/jvm-aggregates-symmetric-isolated-2026-10-16.json)
 retains 18 aggregate cases and eight Java/Rust profiles across both Flink lines. Medium numeric
 keys improve; STRING and distinct-key results remain mixed, with regressions and broad ranges
-retained. It does not establish default admission or complete #237.
+retained. It does not establish a general speedup or complete #237.
 
 The next default-off [borrowed STRING exit experiment](../optimizations/zero-copy-exit-transpose.md#experimental-borrowed-string-exit)
 shares the batch-scoped UTF-8 view helper used by cache probes, retaining owned cache keys and
@@ -752,12 +964,14 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 
 **Single-phase / either two-phase half in common:**
 
-- LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
-- A UDAF outside the verified synchronous single-phase JVM boundary described below.
-  Verified UDAFs run by default under the accepted performance exception.
+- DISTINCT or retracting LISTAGG with positive state TTL; JSON aggregates with positive state TTL.
+  Released Flink rejects LISTAGG WITHIN GROUP ordering and JSON DISTINCT/object-ordering
+  syntax; these are host limitations. JSON_ARRAYAGG ordering clauses preserve the
+  released host's arrival-order behavior described above.
+- A UDAF outside the verified synchronous single-phase JVM boundary described above.
+  Verified UDAFs default on under the accepted performance exception.
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
-- `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
-  over types other than STRING/VARCHAR.
+- Two-phase `AVG(DISTINCT)` over FLOAT/DOUBLE and physical SINGLE_VALUE with a retained DISTINCT flag.
   (`COUNT(DISTINCT x)` keeps a per-key
   value set; `SUM(DISTINCT x)` adds a running sum folded as values enter/leave it; `MIN`/`MAX
   (DISTINCT)` run as their plain, multiplicity-blind forms.)
@@ -788,7 +1002,8 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Local group aggregate (two-phase local half) only:**
 
-- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or insert-only SINGLE_VALUE over STRING/VARCHAR/FLOAT/DOUBLE.
+- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, insert-only SINGLE_VALUE over the
+  supported single-phase scalar types, or ordinary append LISTAGG over the string pair above.
 - A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/float/double/decimal (MIN/MAX also admit
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
   bigint/int/smallint/tinyint/float/double/decimal.
@@ -803,9 +1018,10 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Global group aggregate (two-phase merge) only:**
 
-- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0 or the typed SINGLE_VALUE split described above.
-- A partial column outside bigint/int/smallint/tinyint/float/double/decimal (strings, DATE, TIME, BOOLEAN and timestamps
-  allowed under MIN/MAX).
+- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, the typed SINGLE_VALUE split, or
+  ordinary append LISTAGG with its (separator, prefix) string pair.
+- A partial column outside bigint/int/smallint/tinyint/float/double/decimal, except the typed
+  MIN/MAX, SINGLE_VALUE and LISTAGG partials described above.
 - An AVG whose partial pair isn't `(bigint, bigint)` for an integer average, `(double, bigint)` for
   float/double, or `(decimal(38, s), bigint)` for decimal.
 - A distinct merge outside the local half's `COUNT`/`SUM(DISTINCT)` scope.
@@ -1061,6 +1277,44 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
   -Dsf.extraJvmArgs=-Xmx2g
 ```
 
+#### Floating DISTINCT average comparison
+
+Single-phase FLOAT/DOUBLE DISTINCT averages reuse the typed membership set and widened
+sum/count state. Eighteen SQL checks on each released Flink line cover duplicates, filters,
+retractions, group recreation, global/empty output, NaN payloads, infinities, signed zero,
+and two completed-checkpoint restores on memory and RocksDB. Sixteen Criterion fixtures
+exercise the production floating DISTINCT average at 256/4096 rows, one/64 keys and
+nullable/non-null input.
+
+The October 18, 2026 release+mimalloc comparison uses Flink 2.2.1, JDK 17, a 2 GiB heap,
+parallelism one and two million runtime rows on an Intel i7-12650H/Linux WSL2. One query
+computes FLOAT and DOUBLE DISTINCT averages; NULLs occur every seventh row. The source
+generates byte/long inputs, with both casts retained in the measured SQL. Each engine gets
+two warmups and five measured jobs, alternating engine order. Native jobs assert both
+transposes and consumed native group-aggregate records. The row source, blackhole sink,
+JNI, membership and changelog costs remain included.
+
+| Keys | Stock median (s) | Previous origin (s) | Native median (s) | Stock/native | Origin/native |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 64 | 0.894357 | 0.871940 | 0.787801 | 1.135x | 1.107x |
+| 4,096 | 2.909029 | 2.744675 | 1.674566 | 1.737x | 1.639x |
+
+At 64 keys, stock samples range 0.867606–1.024014 s and native samples
+0.775587–0.884581 s. At 4,096 keys they range 2.733308–3.095016 s and
+1.634739–1.715133 s respectively. Original-origin measurements use the identical fixture
+with native planning enabled and its aggregate fallback asserted. Their separate JVM has
+paired stock controls, retained alongside every warmup/sample in the
+[raw artifact](../benchmarks/results/floating-distinct-avg-2026-10-18.json). These are
+complete jobs including startup; the smaller difference at 64 keys is workload-specific.
+
+```sh
+SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
+  -Dtest=DistinctAggregateBenchmark -Ddistinct.floating=true \
+  -Ddistinct.rows=2000000 -Ddistinct.keys=64 -Ddistinct.warmup=2 \
+  -Ddistinct.runs=5 -Dsf.extraJvmArgs=-Xmx2g
+# Repeat with distinct.keys=4096. Original origin additionally uses distinct.expectNative=false.
+```
+
 ### Two-phase DISTINCT averages
 
 The released-Flink SQL checks now include split AVG DISTINCT over narrow/wide integers and
@@ -1127,6 +1381,59 @@ from 0.796–0.925 s; native trials ranged from 0.712–0.747 s. This is a workl
 whole-job result for duplicate-heavy append-only input; it does not establish a speedup for
 high-cardinality or retracting workloads. The unsupported baseline routes this query to Flink.
 
+### Typed DISTINCT first/last
+
+Runtime-source SQL checks extend the same membership and arrival-order semantics to
+integer widths, FLOAT/DOUBLE, DECIMAL, CHAR, DATE/TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ.
+Filtered and unfiltered instances are compared independently. Floating sources include
+both zero signs, different NaN payloads and infinities, duplicate removals and group
+recreation. Memory and RocksDB recovery fixtures cross two restores before completing
+membership removal and reinsertion; execution metrics require the native grouped operator.
+Released-host capability skips apply to CHAR and temporal first/last on Flink 1.18.
+The focused grouped-value, floating DISTINCT, state-recovery and SINGLE_VALUE DISTINCT
+selection, including temporal COUNT DISTINCT partial/recovery checks, passes 171 checks on
+Flink 2.2.1 and 135 with 36 host-capability skips on 1.18.1.
+The native grouped regression selection passes 128 checks.
+
+The `distinct_ordered_values` release Criterion suite checks 256 combinations against an
+independent unique-arrival-order and multiplicity oracle, including exact selected floating
+payloads. It covers 64/4,096 rows, one/64 keys, four/128 source values, append/delete batches,
+NULL-only groups, narrow/wide decimals, nanosecond timestamps and 8/256-byte strings.
+Thirty-two mixed COUNT DISTINCT/COUNT(*) cases additionally verify every ordered changelog
+row against an independent preimage/postimage oracle, including NaNs and signed zero.
+Fixture construction and retract seeding stay outside timing. Allocation requests and
+Arrow sharing accompany every case; they do not measure copied bytes or whole-job speed.
+
+`GroupedValueBenchmark` accepts the existing scalar `grouped.value.types` names with
+`-Dgrouped.value.distinct=true`. Optional `grouped.value.keys` and
+`grouped.value.cardinality` change the key count and value modulus; defaults remain 64
+and 1,024. TINYINT, DATE and BOOLEAN retain their bounded source domains. With
+`-Dgrouped.value.retract=true`, the first three quarters of rows insert and the final
+quarter delete the identical first-quarter records. Retractions require single-phase
+first/last. With DISTINCT first/last, `-Dgrouped.value.mixed=true` adds COUNT(DISTINCT v);
+`-Dgrouped.value.recordCount=true` additionally emits COUNT(*), exercising a result change
+on every contributing row. The source remains rowwise and the measured job retains both transposes,
+JNI/state work and the rowwise sink. Candidate, stock and preceding-StreamFusion runs
+use identical fixtures and resources.
+
+The final release+mimalloc comparisons use JDK 17, Flink 2.2.1, parallelism 1, two warmups
+and five measured trials on Intel Core i7-12650H/Linux/WSL. Pure two-million-row BIGINT,
+DOUBLE, wide DECIMAL, TIMESTAMP and STRING queries improve **1.218–1.462x** over paired
+stock Flink. DATE/DOUBLE/STRING mixed COUNT DISTINCT queries, with and without COUNT(*),
+improve **1.062–1.435x**. Retracting DATE/TIMESTAMP/STRING jobs with 256 keys, an 8,192-value
+modulus and 1 GiB heap improve **2.107–2.251x**; the default jobs use 64 keys, a 1,024-value
+modulus and 2 GiB heap. Matched preceding-StreamFusion controls improve **1.059–2.065x**
+across these two-million-row profiles. Those controls reuse retained runs of the identical
+fixture and resources; their full ranges remain explicit.
+
+At 500,000 rows, the three measured BIGINT/DOUBLE/STRING jobs improve 1.185–1.535x over
+stock, with startup/JIT variability retained. A released-1.18.1 DOUBLE job improves 1.207x
+at two million rows. These are representative workload results rather than a universal
+speed guarantee. The [complete measurement artifact](../benchmarks/results/typed-distinct-ordered-values-2026-10-19.json)
+retains 252 new jobs, 196 reused preceding-control jobs, all trials/configurations, source/DSO
+hashes and 256 native allocation records. It links the initial type/mixed-query losses,
+CPU diagnosis and DATE confirmation losses; profiled timings are excluded from speed claims.
+
 ### Two-phase SINGLE_VALUE strings
 
 Runtime-source regressions require both native aggregate stages and compare values/types
@@ -1157,6 +1464,29 @@ release+mimalloc measured 200,000 rows/keys with one-eighth NULLs: median **0.37
 and 0.327 s for native (1.144x)**. Flink trials ranged from 0.370–0.483 s; native trials ranged
 from 0.293–0.444 s. The ranges overlap, so this short workload establishes coverage with a
 modestly faster observed median, not a general speedup. The unsupported baseline uses Flink.
+
+### Scalar SINGLE_VALUE partials
+
+Insert-only splits also admit the single-phase scalar value types. Pure local groups
+retain Arrow key/value rows and compact counts; fresh singleton global partials reuse
+their Arrow columns for output while keeping the existing keyed checkpoint state.
+Mixed groups retain the general accumulator. Timestamp state uses an exact inline
+nanosecond carrier internally while Arrow and checkpoint fields keep their declared types.
+
+The selected SQL/operator matrix passes 148 checks on Flink 2.2.1 and 129 with 19 host
+planning skips on 1.18.1. It includes NULL/composite keys, physical splits, local/global
+cardinality failures, two memory/RocksDB restores, mixed aggregates and direct runtime
+TIME(3) values on both releases. Native coverage includes 104 group regressions and
+218 release Criterion fixtures.
+
+`GroupedValueBenchmark` accepts `-Dgrouped.value.mixed=true` with SINGLE_VALUE to add
+AVG and COUNT DISTINCT, and `-Dgrouped.value.types=DECIMAL_WIDE` for actual 20-digit
+DECIMAL(20,3) values. Two-million-row scalar jobs improve 1.30–1.53x over stock Flink
+and 1.35–1.47x over the preceding StreamFusion revision in the measured configurations.
+The [partial-buffer optimization](../optimizations/aggregate-specialization-fast-paths.md#single_value-partials-retain-arrow-rows-through-split-aggregation)
+records mixed/scalar/released-1.18 comparisons, variability, the initial INT slowdown and
+its longer confirmation, retained intermediate losses, ownership and checkpoint contracts.
+Both transposes and the runtime row source/blackhole sink remain measured.
 
 ### Retracting SUM partial validation and release comparison
 

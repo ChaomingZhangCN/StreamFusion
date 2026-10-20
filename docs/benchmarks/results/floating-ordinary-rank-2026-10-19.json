@@ -1,0 +1,808 @@
+{
+  "date": "2026-10-19",
+  "feature": "ordinary scalar FLOAT/DOUBLE ROW_NUMBER using mutable Flink sort groups",
+  "source_identity": {
+    "prior": "bd87a08533536630f0cb0b3328cfa6663c5d230d",
+    "dsos": {
+      "current": "ca4ec6e0738a5c8248f6d79eb2006dad9038e6351eccdb85b1ed5093b8e9bfc3",
+      "actual-prior": "b2057a28c67ca2ba1d1723a263485b3c1e04fff330ec0390f973db7a8f8c5096"
+    },
+    "sources": {
+      "src/test/java/tech/streamfusion/NonTimeFloatingRankBenchmark.java": "3c6bb8a869798635be74744723651020082aab38f206a8287ad81f8d9aa4caa1",
+      "src/main/java/tech/streamfusion/planner/NonTimeRowNumberMatcher.java": "5fe85dea309b0f84c0dca34d69c5a4de2f0102f7fa8b5f7b4ae6879cd0e0ad84",
+      "src/main/java-flink1.18/tech/streamfusion/compat/RuntimeCompat.java": "bb8a9ba7e8dadb93793bd7eb5a8fb34cf125e4e4dd26f2a72fed3efea3f4b0e5",
+      "src/main/java-flink2.2/tech/streamfusion/compat/RuntimeCompat.java": "bfcbff532a4fff192e78721114f5819f0a0d1b2098f2a269236f20255a720be2",
+      "native/engine/src/topn.rs": "3ea027cebc0cff96fc363a995df1a4bca86ce05b6148706d111e70957087fa76",
+      "native/engine/src/topn/non_time_row_number_tests.rs": "7a84d636cd7b852c5a05ce3009e6b4b81ba7ba3da235351c96813cff8a9dd622",
+      "native/engine/benches/non_time_row_number.rs": "d0d720e2012f9c92dad47b36e481cdc070ea4495a3fb2b142490a8898a707289",
+      "native/engine/benches/non_time_row_number/floating.rs": "0665a968c8626a5fb69c165d5c6467afbf1dcf153b871be796574e30cb0a381c",
+      "src/test/java/tech/streamfusion/FlinkFloatingNonTimeRankSqlHarnessTest.java": "385a0181aaac4ab6a7dbae76558d1475b485dc55311e2af171bf2b02c605ac9e",
+      "src/test/java/tech/streamfusion/FlinkNonTimeRowNumberSqlHarnessTest.java": "18556d154515b0bbe1eee5ff11ec60a8ab4db6b3c2878b39a6c250ae8d348093"
+    }
+  },
+  "configuration": {
+    "flink": "2.2.1",
+    "correctness_lines": [
+      "2.2.1",
+      "1.18.1"
+    ],
+    "jdk": 17,
+    "native": "separately frozen release+mimalloc current DSO and actual-prior b205 DSO, SHA256 values in source_identity",
+    "heap": "2 GiB",
+    "time_zone": "UTC",
+    "parallelism": 1,
+    "rows": 131072,
+    "partitions": 1024,
+    "entry_batch_rows": 1024,
+    "source": "runtime FLOAT/DOUBLE values; mixed nonmonotonic IEEE data (two NaN signs/payloads, both zero signs, infinities and subnormals), NULL every31rows; all_nan control has no NULLs; BIGINT control uses finite runtime longs",
+    "arrival": "ascending/descending finite component; SQL ORDER BY always ascending",
+    "warmups_per_engine": 2,
+    "trials_per_engine": 3,
+    "order": "alternating engines",
+    "boundary": "complete jobs retaining startup, both row/Arrow transposes, production IPC shuffle, JNI, all retained rank state, every rank change and row blackhole sink",
+    "native_proof": "NativeColumnarTopN and both transposes asserted per native plan; consumed native records required per job; actual-prior floating fallback asserted; BIGINT executes natively on both revisions",
+    "exclusive_local_heavy_work": true,
+    "reproduce": "SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=NonTimeFloatingRankBenchmark -Drank.float.types=FLOAT,DOUBLE -Drank.float.arrivals=ascending,descending -Drank.float.corpus=mixed -Drank.float.rows=131072 -Drank.float.keys=1024 -Drank.float.warmup=2 -Drank.float.runs=3 -Dsf.extraJvmArgs=-Xmx2g",
+    "controls": "all_nan: DOUBLE,ascending,nullEvery=0; scalar-control: BIGINT,ascending,finite,nullEvery=31. Prior uses identical fixture on bd87a085 and prior b205 library."
+  },
+  "summary": {
+    "stock_native_ratio_range": [
+      2.0559732604307346,
+      2.7539109529247887
+    ],
+    "actual_prior_native_ratio_range": [
+      1.3400512403283675,
+      3.175563539113873
+    ]
+  },
+  "qualification": {
+    "22": [
+      "[INFO] Tests run: 32, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 18.53 s -- in tech.streamfusion.FlinkNonTimeComplexRankSqlHarnessTest",
+      "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.607 s -- in tech.streamfusion.FlinkComplexRankContextSqlHarnessTest",
+      "[WARNING] Tests run: 15, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 11.10 s -- in tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest",
+      "[WARNING] Tests run: 30, Failures: 0, Errors: 0, Skipped: 2, Time elapsed: 9.454 s -- in tech.streamfusion.FlinkFloatingNonTimeRankSqlHarnessTest",
+      "[WARNING] Tests run: 82, Failures: 0, Errors: 0, Skipped: 3"
+    ],
+    "118": [
+      "[WARNING] Tests run: 32, Failures: 0, Errors: 0, Skipped: 32, Time elapsed: 1.301 s -- in tech.streamfusion.FlinkNonTimeComplexRankSqlHarnessTest",
+      "[WARNING] Tests run: 5, Failures: 0, Errors: 0, Skipped: 5, Time elapsed: 0.121 s -- in tech.streamfusion.FlinkComplexRankContextSqlHarnessTest",
+      "[WARNING] Tests run: 15, Failures: 0, Errors: 0, Skipped: 12, Time elapsed: 2.579 s -- in tech.streamfusion.FlinkNonTimeRowNumberSqlHarnessTest",
+      "[WARNING] Tests run: 30, Failures: 0, Errors: 0, Skipped: 28, Time elapsed: 0.428 s -- in tech.streamfusion.FlinkFloatingNonTimeRankSqlHarnessTest",
+      "[WARNING] Tests run: 82, Failures: 0, Errors: 0, Skipped: 77"
+    ]
+  },
+  "native_unit_tests": {
+    "filter": "topn::",
+    "passed": 28,
+    "includes": "Independent linear group-list comparator model updates representative on equal insertion and verifies every emitted identity through repeated raw snapshots."
+  },
+  "native_fixture_allocation_records": [
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=16/keys=1/reverse=false\",148,14131,0,456",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=16/keys=1/reverse=false\",148,13739,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=16/keys=1/reverse=false\",148,13493,0,330",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=16/keys=1/reverse=false\",148,13575,0,348",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=16/keys=1/reverse=false\",148,14915,0,600",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=16/keys=1/reverse=false\",234,22297,0,534",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=16/keys=1/reverse=false\",148,13739,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=16/keys=1/reverse=false\",148,13739,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=16/keys=1/reverse=false\",151,15139,0,1078",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=16/keys=1/reverse=false\",155,14803,0,508",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=16/keys=1/reverse=false\",155,37715,0,4228",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=16/keys=1/reverse=true\",157,25435,0,5050",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=16/keys=1/reverse=true\",157,24315,0,4250",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=16/keys=1/reverse=true\",157,23523,0,3650",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=16/keys=1/reverse=true\",157,23787,0,3850",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=16/keys=1/reverse=true\",157,27675,0,6650",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=16/keys=1/reverse=true\",243,34353,0,5900",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=16/keys=1/reverse=true\",157,24315,0,4250",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=16/keys=1/reverse=true\",157,24315,0,4250",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=16/keys=1/reverse=true\",151,15139,0,1078",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=16/keys=1/reverse=true\",164,26835,0,5830",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=16/keys=1/reverse=true\",164,94883,0,54686",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=16/keys=64/reverse=false\",175,20267,0,456",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=16/keys=64/reverse=false\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=16/keys=64/reverse=false\",175,19629,0,330",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=16/keys=64/reverse=false\",175,19711,0,348",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=16/keys=64/reverse=false\",175,21051,0,600",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=16/keys=64/reverse=false\",261,28433,0,534",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=16/keys=64/reverse=false\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=16/keys=64/reverse=false\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=16/keys=64/reverse=false\",175,19659,0,315",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=16/keys=64/reverse=false\",182,20939,0,508",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=16/keys=64/reverse=false\",182,43851,0,4228",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=16/keys=64/reverse=true\",175,20267,0,456",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=16/keys=64/reverse=true\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=16/keys=64/reverse=true\",175,19629,0,330",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=16/keys=64/reverse=true\",175,19711,0,348",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=16/keys=64/reverse=true\",175,21051,0,600",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=16/keys=64/reverse=true\",261,28433,0,534",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=16/keys=64/reverse=true\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=16/keys=64/reverse=true\",175,19875,0,384",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=16/keys=64/reverse=true\",175,19659,0,315",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=16/keys=64/reverse=true\",182,20939,0,508",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=16/keys=64/reverse=true\",182,43851,0,4228",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=1024/keys=1/reverse=false\",3228,3694867,0,1282550",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=1024/keys=1/reverse=false\",3228,3471211,0,1079374",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=1024/keys=1/reverse=false\",3237,24147093,0,8152678",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=1024/keys=1/reverse=false\",3228,3359383,0,977786",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=1024/keys=1/reverse=false\",3228,4142179,0,1688902",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=1024/keys=1/reverse=false\",3314,4007761,0,1498426",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=1024/keys=1/reverse=false\",3228,3471211,0,1079374",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=1024/keys=1/reverse=false\",3228,3471211,0,1079374",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=1024/keys=1/reverse=false\",3234,12410875,0,4347852",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=1024/keys=1/reverse=false\",3235,3521603,0,1087082",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=1024/keys=1/reverse=false\",3235,4993027,0,1325906",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=1024/keys=1/reverse=true\",3240,53213611,0,21352108",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=1024/keys=1/reverse=true\",3240,49810619,0,17969596",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=1024/keys=1/reverse=true\",3237,24156301,0,8165380",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=1024/keys=1/reverse=true\",3240,48109123,0,16278340",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=1024/keys=1/reverse=true\",3240,60019595,0,28117132",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=1024/keys=1/reverse=true\",3326,56904521,0,24946028",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=1024/keys=1/reverse=true\",3240,49810619,0,17969596",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=1024/keys=1/reverse=true\",3240,49810619,0,17969596",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=1024/keys=1/reverse=true\",3234,12410875,0,4347852",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=1024/keys=1/reverse=true\",3247,56219683,0,24335976",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=1024/keys=1/reverse=true\",3247,254809939,0,221693632",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=1024/keys=64/reverse=false\",3467,619091,0,55752",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=1024/keys=64/reverse=false\",3467,589779,0,46920",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=1024/keys=64/reverse=false\",3473,1088481,0,182026",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=1024/keys=64/reverse=false\",3467,575123,0,42504",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=1024/keys=64/reverse=false\",3467,677715,0,73416",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=1024/keys=64/reverse=false\",3553,725489,0,65136",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=1024/keys=64/reverse=false\",3467,589779,0,46920",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=1024/keys=64/reverse=false\",3467,589779,0,46920",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=1024/keys=64/reverse=false\",3467,581827,0,62065",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=1024/keys=64/reverse=false\",3474,640171,0,54628",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=1024/keys=64/reverse=false\",3474,2111595,0,293452",
+    "NATIVE_ALLOCATION,\"non_time_row_number/bigint/rows=1024/keys=64/reverse=true\",3476,1935723,0,481922",
+    "NATIVE_ALLOCATION,\"non_time_row_number/int/rows=1024/keys=64/reverse=true\",3476,1838899,0,405578",
+    "NATIVE_ALLOCATION,\"non_time_row_number/tinyint/rows=1024/keys=64/reverse=true\",3473,1076037,0,164872",
+    "NATIVE_ALLOCATION,\"non_time_row_number/smallint/rows=1024/keys=64/reverse=true\",3476,1790487,0,367406",
+    "NATIVE_ALLOCATION,\"non_time_row_number/decimal/rows=1024/keys=64/reverse=true\",3476,2129371,0,634610",
+    "NATIVE_ALLOCATION,\"non_time_row_number/timestamp9/rows=1024/keys=64/reverse=true\",3562,2113857,0,563038",
+    "NATIVE_ALLOCATION,\"non_time_row_number/date/rows=1024/keys=64/reverse=true\",3476,1838899,0,405578",
+    "NATIVE_ALLOCATION,\"non_time_row_number/time/rows=1024/keys=64/reverse=true\",3476,1838899,0,405578",
+    "NATIVE_ALLOCATION,\"non_time_row_number/boolean/rows=1024/keys=64/reverse=true\",3467,581827,0,62065",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string8/rows=1024/keys=64/reverse=true\",3483,2024315,0,548310",
+    "NATIVE_ALLOCATION,\"non_time_row_number/string256/rows=1024/keys=64/reverse=true\",3483,7681483,0,4972878",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=1/nulls_first=false/nan_first=false\",182,28850,0,5388",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=1/nulls_first=false/nan_first=true\",180,28714,0,5300",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=1/nulls_first=true/nan_first=false\",182,28794,0,5320",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=1/nulls_first=true/nan_first=true\",180,28714,0,5300",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=1/nulls_first=false/nan_first=false\",182,27770,0,4740",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=1/nulls_first=false/nan_first=true\",180,27642,0,4660",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=1/nulls_first=true/nan_first=false\",182,27722,0,4680",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=1/nulls_first=true/nan_first=true\",180,27642,0,4660",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=64/nulls_first=false/nan_first=false\",200,23306,0,600",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=64/nulls_first=false/nan_first=true\",195,22642,0,530",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=64/nulls_first=true/nan_first=false\",197,22706,0,532",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=16/keys=64/nulls_first=true/nan_first=true\",195,22642,0,530",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=64/nulls_first=false/nan_first=false\",200,22802,0,528",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=64/nulls_first=false/nan_first=true\",195,22146,0,466",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=64/nulls_first=true/nan_first=false\",197,22210,0,468",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=16/keys=64/nulls_first=true/nan_first=true\",195,22146,0,466",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=1/nulls_first=false/nan_first=false\",941,3815434,0,1721220",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=1/nulls_first=false/nan_first=true\",941,3815210,0,1720954",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=1/nulls_first=true/nan_first=false\",941,3818266,0,1724546",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=1/nulls_first=true/nan_first=true\",941,3819106,0,1725542",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=1/nulls_first=false/nan_first=false\",941,3602178,0,1514156",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=1/nulls_first=false/nan_first=true\",941,3601986,0,1513922",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=1/nulls_first=true/nan_first=false\",941,3604610,0,1517082",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=1/nulls_first=true/nan_first=true\",941,3605330,0,1517958",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=64/nulls_first=false/nan_first=false\",1048,179962,0,27398",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=64/nulls_first=false/nan_first=true\",1048,179738,0,27132",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=64/nulls_first=true/nan_first=false\",1048,179850,0,27266",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=false/rows=256/keys=64/nulls_first=true/nan_first=true\",1048,180706,0,28264",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=64/nulls_first=false/nan_first=false\",1048,170474,0,24102",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=64/nulls_first=false/nan_first=true\",1048,170282,0,23868",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=64/nulls_first=true/nan_first=false\",1048,170378,0,23986",
+    "NATIVE_ALLOCATION,\"non_time_floating_rank/single=true/rows=256/keys=64/nulls_first=true/nan_first=true\",1048,171114,0,24864"
+  ],
+  "profiles": [
+    {
+      "type": "FLOAT",
+      "arrival": "ascending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "current-mixed",
+      "host_seconds": [
+        2.99898715,
+        2.789521819,
+        2.89736775
+      ],
+      "host_median": 2.89736775,
+      "host_range": [
+        2.789521819,
+        2.99898715
+      ],
+      "host_mean": 2.8952922396666665,
+      "native_seconds": [
+        1.097547756,
+        1.068322068,
+        1.123360772
+      ],
+      "native_median": 1.097547756,
+      "native_range": [
+        1.068322068,
+        1.123360772
+      ],
+      "native_mean": 1.0964101986666668,
+      "stock_native_median_ratio": 2.6398557458305256,
+      "actual_prior_median": 2.625583302,
+      "actual_prior_native_ratio": 2.392226932857034,
+      "actual_prior_range": [
+        2.620392361,
+        2.742202312
+      ]
+    },
+    {
+      "type": "FLOAT",
+      "arrival": "descending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "current-mixed",
+      "host_seconds": [
+        4.594002661,
+        4.517280586,
+        4.662358307
+      ],
+      "host_median": 4.594002661,
+      "host_range": [
+        4.517280586,
+        4.662358307
+      ],
+      "host_mean": 4.591213851333333,
+      "native_seconds": [
+        1.668174004,
+        1.585556781,
+        1.677170013
+      ],
+      "native_median": 1.668174004,
+      "native_range": [
+        1.585556781,
+        1.677170013
+      ],
+      "native_mean": 1.6436335993333333,
+      "stock_native_median_ratio": 2.7539109529247887,
+      "actual_prior_median": 5.297392544,
+      "actual_prior_native_ratio": 3.175563539113873,
+      "actual_prior_range": [
+        5.258144367,
+        5.526562651
+      ]
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "ascending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "current-mixed",
+      "host_seconds": [
+        2.729592375,
+        2.721636382,
+        2.621135246
+      ],
+      "host_median": 2.721636382,
+      "host_range": [
+        2.621135246,
+        2.729592375
+      ],
+      "host_mean": 2.690788001,
+      "native_seconds": [
+        1.167772506,
+        1.154999384,
+        1.113762614
+      ],
+      "native_median": 1.154999384,
+      "native_range": [
+        1.113762614,
+        1.167772506
+      ],
+      "native_mean": 1.1455115013333332,
+      "stock_native_median_ratio": 2.3563963926754785,
+      "actual_prior_median": 2.542820684,
+      "actual_prior_native_ratio": 2.2015775239582296,
+      "actual_prior_range": [
+        2.541202566,
+        2.574905341
+      ]
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "descending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "current-mixed",
+      "host_seconds": [
+        4.534191556,
+        4.433303531,
+        4.656259114
+      ],
+      "host_median": 4.534191556,
+      "host_range": [
+        4.433303531,
+        4.656259114
+      ],
+      "host_mean": 4.5412514003333335,
+      "native_seconds": [
+        1.85896179,
+        1.750772937,
+        1.780628965
+      ],
+      "native_median": 1.780628965,
+      "native_range": [
+        1.750772937,
+        1.85896179
+      ],
+      "native_mean": 1.7967878973333333,
+      "stock_native_median_ratio": 2.546398854070084,
+      "actual_prior_median": 5.325533126,
+      "actual_prior_native_ratio": 2.9908157345963424,
+      "actual_prior_range": [
+        4.30497744,
+        6.042074374
+      ]
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "ascending",
+      "corpus": "all_nan",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "0",
+      "run": "current-all-nan",
+      "host_seconds": [
+        0.415062739,
+        0.359718384,
+        0.230125509
+      ],
+      "host_median": 0.359718384,
+      "host_range": [
+        0.230125509,
+        0.415062739
+      ],
+      "host_mean": 0.33496887733333336,
+      "native_seconds": [
+        0.154521319,
+        0.174962579,
+        0.188207383
+      ],
+      "native_median": 0.174962579,
+      "native_range": [
+        0.154521319,
+        0.188207383
+      ],
+      "native_mean": 0.17256376033333334,
+      "stock_native_median_ratio": 2.0559732604307346,
+      "actual_prior_median": 0.234458821,
+      "actual_prior_native_ratio": 1.3400512403283675,
+      "actual_prior_range": [
+        0.210273085,
+        0.238353709
+      ]
+    },
+    {
+      "type": "BIGINT",
+      "arrival": "ascending",
+      "corpus": "finite",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "current-scalar-control",
+      "host_seconds": [
+        0.866172456,
+        0.771589763,
+        0.639830019
+      ],
+      "host_median": 0.771589763,
+      "host_range": [
+        0.639830019,
+        0.866172456
+      ],
+      "host_mean": 0.7591974126666667,
+      "native_seconds": [
+        0.251794893,
+        0.270740843,
+        0.252840707
+      ],
+      "native_median": 0.252840707,
+      "native_range": [
+        0.251794893,
+        0.270740843
+      ],
+      "native_mean": 0.25845881433333334,
+      "stock_native_median_ratio": 3.0516832995566654,
+      "actual_prior_median": 0.242938024,
+      "actual_prior_native_ratio": 0.9608343011000994,
+      "actual_prior_range": [
+        0.209388072,
+        0.287349052
+      ]
+    },
+    {
+      "type": "FLOAT",
+      "arrival": "ascending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "actual-prior-mixed",
+      "host_seconds": [
+        2.637453534,
+        2.678553681,
+        2.555813396
+      ],
+      "host_median": 2.637453534,
+      "host_range": [
+        2.555813396,
+        2.678553681
+      ],
+      "host_mean": 2.623940203666667,
+      "native_seconds": [
+        2.625583302,
+        2.742202312,
+        2.620392361
+      ],
+      "native_median": 2.625583302,
+      "native_range": [
+        2.620392361,
+        2.742202312
+      ],
+      "native_mean": 2.6627259916666666,
+      "stock_native_median_ratio": 1.0045209885327036
+    },
+    {
+      "type": "FLOAT",
+      "arrival": "descending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "actual-prior-mixed",
+      "host_seconds": [
+        5.138695784,
+        5.39165036,
+        5.269193312
+      ],
+      "host_median": 5.269193312,
+      "host_range": [
+        5.138695784,
+        5.39165036
+      ],
+      "host_mean": 5.266513152,
+      "native_seconds": [
+        5.258144367,
+        5.297392544,
+        5.526562651
+      ],
+      "native_median": 5.297392544,
+      "native_range": [
+        5.258144367,
+        5.526562651
+      ],
+      "native_mean": 5.360699854,
+      "stock_native_median_ratio": 0.9946767713047923
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "ascending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "actual-prior-mixed",
+      "host_seconds": [
+        2.557505767,
+        2.614548211,
+        2.669379223
+      ],
+      "host_median": 2.614548211,
+      "host_range": [
+        2.557505767,
+        2.669379223
+      ],
+      "host_mean": 2.613811067,
+      "native_seconds": [
+        2.542820684,
+        2.541202566,
+        2.574905341
+      ],
+      "native_median": 2.542820684,
+      "native_range": [
+        2.541202566,
+        2.574905341
+      ],
+      "native_mean": 2.552976197,
+      "stock_native_median_ratio": 1.02820785887551
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "descending",
+      "corpus": "mixed",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "actual-prior-mixed",
+      "host_seconds": [
+        5.443412795,
+        4.451907983,
+        4.202090758
+      ],
+      "host_median": 4.451907983,
+      "host_range": [
+        4.202090758,
+        5.443412795
+      ],
+      "host_mean": 4.699137178666667,
+      "native_seconds": [
+        6.042074374,
+        5.325533126,
+        4.30497744
+      ],
+      "native_median": 5.325533126,
+      "native_range": [
+        4.30497744,
+        6.042074374
+      ],
+      "native_mean": 5.22419498,
+      "stock_native_median_ratio": 0.8359553640301589
+    },
+    {
+      "type": "DOUBLE",
+      "arrival": "ascending",
+      "corpus": "all_nan",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "0",
+      "run": "actual-prior-all-nan",
+      "host_seconds": [
+        0.362973764,
+        0.242392714,
+        0.277921067
+      ],
+      "host_median": 0.277921067,
+      "host_range": [
+        0.242392714,
+        0.362973764
+      ],
+      "host_mean": 0.29442918166666665,
+      "native_seconds": [
+        0.210273085,
+        0.238353709,
+        0.234458821
+      ],
+      "native_median": 0.234458821,
+      "native_range": [
+        0.210273085,
+        0.238353709
+      ],
+      "native_mean": 0.227695205,
+      "stock_native_median_ratio": 1.1853726202948023
+    },
+    {
+      "type": "BIGINT",
+      "arrival": "ascending",
+      "corpus": "finite",
+      "rows": "131072",
+      "keys": "1024",
+      "nullEvery": "31",
+      "run": "actual-prior-scalar-control",
+      "host_seconds": [
+        0.768615795,
+        0.781317107,
+        0.716025945
+      ],
+      "host_median": 0.768615795,
+      "host_range": [
+        0.716025945,
+        0.781317107
+      ],
+      "host_mean": 0.7553196156666667,
+      "native_seconds": [
+        0.287349052,
+        0.209388072,
+        0.242938024
+      ],
+      "native_median": 0.242938024,
+      "native_range": [
+        0.209388072,
+        0.287349052
+      ],
+      "native_mean": 0.24655838266666666,
+      "stock_native_median_ratio": 3.1638348840772657
+    }
+  ],
+  "raw_runs": [
+    {
+      "run": "current-mixed",
+      "trials": [
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=3.875232",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=1.351533",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=1.236600",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=2.989669",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=2.998987",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=1.097548",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=1.068322",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=2.789522",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=2.897368",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=1.123361",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=6.091560",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=1.725687",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=1.604487",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=4.469867",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=4.594003",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=1.668174",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=1.585557",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=4.517281",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=4.662358",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=1.677170",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=2.754611",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=1.158849",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=1.151317",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=2.640755",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=2.729592",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=1.167773",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=1.154999",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=2.721636",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=2.621135",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=1.113763",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=4.305419",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=1.784230",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=1.668811",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=4.400026",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=4.534192",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=1.858962",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=1.750773",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=4.433304",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=4.656259",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=1.780629"
+      ],
+      "summaries": [
+        "[floating-rank] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=2.895292s native_mean=1.096410s host_trials=[2.99898715, 2.789521819, 2.89736775] native_trials=[1.097547756, 1.068322068, 1.123360772]",
+        "[floating-rank] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=4.591214s native_mean=1.643634s host_trials=[4.594002661, 4.517280586, 4.662358307] native_trials=[1.668174004, 1.585556781, 1.677170013]",
+        "[floating-rank] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=2.690788s native_mean=1.145512s host_trials=[2.729592375, 2.721636382, 2.621135246] native_trials=[1.167772506, 1.154999384, 1.113762614]",
+        "[floating-rank] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=4.541251s native_mean=1.796788s host_trials=[4.534191556, 4.433303531, 4.656259114] native_trials=[1.85896179, 1.750772937, 1.780628965]"
+      ]
+    },
+    {
+      "run": "current-all-nan",
+      "trials": [
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=0 warmup=true seconds=0.896620",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=0 warmup=true seconds=0.433908",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=1 warmup=true seconds=0.266166",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=1 warmup=true seconds=0.428138",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=2 warmup=false seconds=0.415063",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=2 warmup=false seconds=0.154521",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=3 warmup=false seconds=0.174963",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=3 warmup=false seconds=0.359718",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=4 warmup=false seconds=0.230126",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=4 warmup=false seconds=0.188207"
+      ],
+      "summaries": [
+        "[floating-rank] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 host_mean=0.334969s native_mean=0.172564s host_trials=[0.415062739, 0.359718384, 0.230125509] native_trials=[0.154521319, 0.174962579, 0.188207383]"
+      ]
+    },
+    {
+      "run": "current-scalar-control",
+      "trials": [
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=1.435187",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=0.508405",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=0.338415",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=0.862960",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=0.866172",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=0.251795",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=0.270741",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=0.771590",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=0.639830",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=0.252841"
+      ],
+      "summaries": [
+        "[floating-rank] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 host_mean=0.759197s native_mean=0.258459s host_trials=[0.866172456, 0.771589763, 0.639830019] native_trials=[0.251794893, 0.270740843, 0.252840707]"
+      ]
+    },
+    {
+      "run": "actual-prior-mixed",
+      "trials": [
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=3.578327",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=2.957743",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=2.866597",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=2.894400",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=2.637454",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=2.625583",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=2.742202",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=2.678554",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=2.555813",
+        "[floating-rank-trial] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=2.620392",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=4.341622",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=4.493581",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=4.546495",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=4.659244",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=5.138696",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=5.258144",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=5.297393",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=5.391650",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=5.269193",
+        "[floating-rank-trial] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=5.526563",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=3.658613",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=2.813857",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=2.613613",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=2.599758",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=2.557506",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=2.542821",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=2.541203",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=2.614548",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=2.669379",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=2.574905",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=4.440564",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=4.554100",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=4.978682",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=5.530213",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=5.443413",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=6.042074",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=5.325533",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=4.451908",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=4.202091",
+        "[floating-rank-trial] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=4.304977"
+      ],
+      "summaries": [
+        "[floating-rank] type=FLOAT arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=2.623940s native_mean=2.662726s host_trials=[2.637453534, 2.678553681, 2.555813396] native_trials=[2.625583302, 2.742202312, 2.620392361]",
+        "[floating-rank] type=FLOAT arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=5.266513s native_mean=5.360700s host_trials=[5.138695784, 5.39165036, 5.269193312] native_trials=[5.258144367, 5.297392544, 5.526562651]",
+        "[floating-rank] type=DOUBLE arrival=ascending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=2.613811s native_mean=2.552976s host_trials=[2.557505767, 2.614548211, 2.669379223] native_trials=[2.542820684, 2.541202566, 2.574905341]",
+        "[floating-rank] type=DOUBLE arrival=descending corpus=mixed rows=131072 keys=1024 nullEvery=31 host_mean=4.699137s native_mean=5.224195s host_trials=[5.443412795, 4.451907983, 4.202090758] native_trials=[6.042074374, 5.325533126, 4.30497744]"
+      ]
+    },
+    {
+      "run": "actual-prior-all-nan",
+      "trials": [
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=0 warmup=true seconds=0.933791",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=0 warmup=true seconds=0.611855",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=1 warmup=true seconds=0.377147",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=1 warmup=true seconds=0.365214",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=2 warmup=false seconds=0.362974",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=2 warmup=false seconds=0.210273",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=3 warmup=false seconds=0.238354",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=3 warmup=false seconds=0.242393",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=Flink trial=4 warmup=false seconds=0.277921",
+        "[floating-rank-trial] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 engine=StreamFusion trial=4 warmup=false seconds=0.234459"
+      ],
+      "summaries": [
+        "[floating-rank] type=DOUBLE arrival=ascending corpus=all_nan rows=131072 keys=1024 nullEvery=0 host_mean=0.294429s native_mean=0.227695s host_trials=[0.362973764, 0.242392714, 0.277921067] native_trials=[0.210273085, 0.238353709, 0.234458821]"
+      ]
+    },
+    {
+      "run": "actual-prior-scalar-control",
+      "trials": [
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=0 warmup=true seconds=1.423362",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=0 warmup=true seconds=0.535139",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=1 warmup=true seconds=0.311798",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=1 warmup=true seconds=0.831354",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=2 warmup=false seconds=0.768616",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=2 warmup=false seconds=0.287349",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=3 warmup=false seconds=0.209388",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=3 warmup=false seconds=0.781317",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=Flink trial=4 warmup=false seconds=0.716026",
+        "[floating-rank-trial] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 engine=StreamFusion trial=4 warmup=false seconds=0.242938"
+      ],
+      "summaries": [
+        "[floating-rank] type=BIGINT arrival=ascending corpus=finite rows=131072 keys=1024 nullEvery=31 host_mean=0.755320s native_mean=0.246558s host_trials=[0.768615795, 0.781317107, 0.716025945] native_trials=[0.287349052, 0.209388072, 0.242938024]"
+      ]
+    }
+  ],
+  "diagnostics": [
+    "Gate-only admission passed8 finite cases but failed8 NaN raw-bit changelog cases.",
+    "The first proxy-key candidate retained the first group representative. Its unit/fixture model made the same assumption; released SQL failed8 NaN and8 recovery cases. Corrected model follows actual latest-key replacement, retaining mutable group boundaries and order.",
+    "Tagged negative group lengths use existing optional count metadata; raw codec preserves negatives and grouped restore preserves order. Original payload bytes remain independent.",
+    "Expanded tests compare raw floating bits, all changelog kinds, NULL placements, physical batches1/7, two memory/RocksDB restores, mini-batches and three-way shuffle.",
+    "Native admission could bypass released1.18 factory rejection. New compatibility gating covers all ordinary types; explicit FLOAT/DOUBLE/BIGINT controls assert failure class/message/phase.",
+    "The BIGINT control median is4.1%higher on current than prior, with overlapping trial ranges; no scalar speedup claimed.",
+    "All complete-job timings include startup and source/output allocation. All-NaN and scalar-control timings have larger relative variability. No universal or sustained-throughput claim."
+  ]
+}

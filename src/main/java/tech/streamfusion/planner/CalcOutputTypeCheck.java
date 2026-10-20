@@ -40,7 +40,9 @@ final class CalcOutputTypeCheck {
 
   static String mismatch(RexExpression encoded, RelDataType inputType, RowType declared) {
     Schema input =
-        ArrowConversion.toArrowSchema(FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType));
+        ArrowConversion.toArrowInputSchema(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType),
+            encoded.requiresCollectionRepresentation());
     try (BufferAllocator allocator = new RootAllocator();
         ArrowSchema inputSchema = ArrowSchema.allocateNew(allocator);
         ArrowSchema outputSchema = ArrowSchema.allocateNew(allocator)) {

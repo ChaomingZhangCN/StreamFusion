@@ -240,9 +240,9 @@ and blackhole sink, and both transposes:
 The counters verify 14M rows consumed directly per case and 28M timestamp values sharing buffers
 in identity, including warmups. Text and epoch improve against their paired controls; identity
 remains about 1% slower. Cross-JVM control drift and the missing final repeat against the previous
-correct fallback prevent broader admission. The temporal option and both experiments stay off by
-default. The maintainer accepted shipping this implementation on October 16; #368 has merged
-and [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389) tracks deferred performance/default admission.
+correct fallback prevent broader admission. The two experiments stay off by default; temporal
+UDF coverage itself defaults on under the accepted UDF performance exception. The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
+[issue #389](https://github.com/datafusion-contrib/StreamFusion/issues/389) tracks the remaining default-performance work.
 
 ### Java and Rust profiling evidence
 
@@ -316,9 +316,7 @@ activity was observed. Median elapsed seconds are:
 are retained. Text conversion wins at both cardinalities, but identity and epoch still
 regress. These measurements supersede earlier figures for the current fixture; they
 are not a repeat against the previous fallback or the second supported Flink line.
-The temporal PR has merged after explicit maintainer acceptance of the performance
-tradeoff. All temporal experiments remain off by default; further performance/default
-admission work is tracked in [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389).
+The temporal semantic implementation has merged in PR #368; all temporal experiments remain off by default.
 
 
 The same corrected fixture has separate CPU/allocation profiles for identity, epoch
@@ -333,3 +331,66 @@ identity also reconstructs at output conversion and Flink's copying chain. Whole
 CPU profiles include cluster setup and substantial JIT work, and cannot alone establish
 a steady-state CPU bottleneck. These observations identify investigation targets, without
 claiming an optimization or enabling a slower path.
+
+
+## Complete generated Calcs with primitive inputs
+
+When the complete Calc already uses Flink's generated evaluator, no native expression remains
+outside that program. Insert-only batches with primitive numeric/boolean arguments and ordinary
+nonempty numeric/boolean/character outputs now borrow the input vectors directly and write a flat Arrow
+result in the existing columnar operator. This avoids the Java-to-Rust-to-Java batch handover,
+the outer nullable struct writer, and exporting/importing the result merely to expose its fields.
+The predicate and projections still execute together, one row at a time, using the same task-bound
+function instances and lifecycle. Rejected rows are omitted immediately. Result ownership remains
+independent of the consumed input, and failures close partial results.
+
+This follows the existing borrowed-row evaluation contract. Unlike Comet's general scalar
+expression callback, the complete generated program has no remaining native expressions to
+compose; see the [boundary decision](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/47-complete-jvm-calc-without-native-roundtrip.md).
+String arguments, represented values, binary/decimal/temporal outputs and batches carrying
+RowKind metadata retain the previous bridge. No expression or shared-stateful default gate is
+broadened. The existing temporal experiments keep their separate eligibility.
+
+The release/mimalloc comparison uses main `4222bc0c`, released Flink 2.2.1, JDK 11.0.27 for
+both compilation and runtime,
+Apple M4 Pro ARM64, a 2 GiB heap, parallelism one, five million rows, two warmups and five
+alternating engine pairs per cohort. Complete `executeSql(...).await()` jobs retain the runtime
+row source, both transposes and rowwise blackhole sink. Explain-plan checks and environment
+construction are outside the clock. Cohorts run serially in separate JVMs; no other audit build
+or test runs during these measurements. Timings include startup and are not isolated kernel costs.
+
+| Two shared calls | Main opt-in (s) | Direct opt-in (s) | Main paired Flink (s) | Direct paired Flink (s) | Main default fallback (s) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| INT | 0.736596 | 0.527483 | 0.433012 | 0.403507 | 0.407535 |
+| BIGINT | 0.765150 | 0.523923 | 0.457788 | 0.446857 | 0.447063 |
+| STRING | 1.577065 | 1.416182 | 1.003320 | 0.957119 | 0.851145 |
+
+These are medians. The opt-in reduction is about 28%, 32% and 10%, respectively; paired stock
+controls drift, particularly between the separate default-fallback and STRING cohorts. Every
+measured array is retained in the [raw results](../benchmarks/results/shared-stateful-direct-calc-2026-10-18.json).
+The headline uses the final-source JDK 11 cohort; earlier candidate and final-source JDK 17-compiled
+diagnostics remain labeled separately. The final direct trials range from 0.516-0.556 s for INT,
+0.522-0.540 s for BIGINT and 1.389-1.433 s for STRING. Their paired stock ranges are 0.394-0.433 s,
+0.432-0.464 s and 0.953-0.969 s, respectively.
+The direct path remains 31%, 17% and 48% slower than its paired stock controls. It improves the
+existing opt-in implementation but does not establish default performance admission for
+[issue #398](https://github.com/datafusion-contrib/StreamFusion/issues/398).
+
+```sh
+SF_BENCHMARK=true mvn -Pbench -pl :streamfusion-runtime -am test \
+  -Dtest=SharedStatefulScalarBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dsharedscalar.rows=5000000 -Dsharedscalar.warmup=2 -Dsharedscalar.runs=5 \
+  -Dsharedscalar.expectDirect=true -Dsf.extraJvmArgs=-Xmx2g
+```
+
+Use the same candidate benchmark source in each worktree; its additional switches and assertions
+are test-only. On the preceding main checkout, omit `sharedscalar.expectDirect` to measure its opt-in bridge.
+To measure the unchanged default fallback, also pass `-Dsharedscalar.enabled=false
+-Dsharedscalar.expectNative=false`. The benchmark asserts the native plan, both transposes,
+consumed row counts and the direct-evaluation counter for the candidate.
+
+
+Shared stateful and temporal UDF coverage now defaults on under the maintainer-approved UDF
+performance exception. The earlier opt-in/fallback controls above retain their original scope;
+they establish optimization effects, not a faster-than-Flink claim. The alternative direct-temporal
+and timestamp-alias execution experiments retain their own defaults and type guards.

@@ -22,6 +22,22 @@ import org.junit.jupiter.params.provider.CsvSource;
     matches = "false")
 class FlinkJvmAggregateSqlHarnessTest {
   @Test
+  void explicitlyDisabledAggregateRetainsHostFallback() throws Exception {
+    String property = "streamfusion.experimental.jvmGroupAggregates";
+    String previous = System.getProperty(property);
+    try {
+      System.setProperty(property, "false");
+      NativeParity.assertFallbackReasonContains(
+          () -> PortableSqlFixtures.environment(RuntimeExecutionMode.STREAMING, Map.of()),
+          "SELECT k, test_aggregate(v) FROM test_input GROUP BY k",
+          "only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE aggregates");
+    } finally {
+      if (previous == null) System.clearProperty(property);
+      else System.setProperty(property, previous);
+    }
+  }
+
+  @Test
   void appendAndCdcRetainReleasedFunctionChangelogAndLifecycle() {
     for (String source : new String[] {"test_input", "cdc_input"}) {
       var comparison =

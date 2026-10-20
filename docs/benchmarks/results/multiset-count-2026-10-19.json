@@ -1,0 +1,1691 @@
+{
+  "date": "2026-10-19",
+  "feature": "standalone MULTISET COUNT in windows and event-time OVER",
+  "source_identity": {
+    "prior": "a038f539ebfc1f23eb210ab2f5469dd17b1468f6",
+    "dso_sha256": "b2057a28c67ca2ba1d1723a263485b3c1e04fff330ec0390f973db7a8f8c5096",
+    "native_production_unchanged_from": "7513ed7b",
+    "sources": {
+      "src/test/java/tech/streamfusion/WindowComplexCountBenchmark.java": "3e5a26675f2ef13a3c9e118c618d0afd293641f559a043fd1dd2e97024d1e069",
+      "src/test/java/tech/streamfusion/OverComplexCountBenchmark.java": "1da480fc899c575556abfac98c350d4a5ea2adcb3791ebfe5c0013344ef94dcb",
+      "src/main/java/tech/streamfusion/arrow/MapListRepresentation.java": "33176f9f1ac9f4d88d52a9bdf164e112d20fcaeb14a851c9b07b2d2d581e10be",
+      "src/main/java/tech/streamfusion/planner/WindowAggregateMatcher.java": "9f907adbc71884f36887208a0f198c87bc59f225594a1d58223b25a809a319c2",
+      "src/main/java/tech/streamfusion/planner/OverAggregateMatcher.java": "f5098bdf03ef39111c4c8ce7c1e43dc8cc5d959898498892c50edd88ae224ebc",
+      "native/engine/benches/over_complex_count.rs": "b39e8bbaf384a319fa4263312afb59488f4753f00626c07d68737fc4a7e0b4f8",
+      "native/engine/benches/window_complex_counts.rs": "fcf694e3664b12af544b1e00aec249d6e3995ec997ab909893b201e3a803b436",
+      "src/test/java/tech/streamfusion/FlinkOverMultisetCountSqlHarnessTest.java": "84af2bd0df463afbfc44b78e1bcb35746cc233911703db6b3e7fa80a584fdcd7",
+      "src/test/java/tech/streamfusion/FlinkWindowComplexCountSqlHarnessTest.java": "79bca7acd2a451ba8a73ef8bbb8983c13122b65168ccc1fd5dab1e66af26e645",
+      "src/test/java/tech/streamfusion/operator/NativeComplexWindowCountTest.java": "9d4bea327477fd399a1aa35036b85e90ea8710e3f68260620e22e66810d344e8"
+    }
+  },
+  "configuration": {
+    "flink": [
+      "2.2.1",
+      "1.18.1"
+    ],
+    "jdk": 17,
+    "native": "same frozen release+mimalloc b205 library for current/actual-prior; production Rust unchanged7513",
+    "parallelism": 2,
+    "heap": "2 GiB",
+    "time_zone": "UTC",
+    "batch_rows": 1024,
+    "window_mini_batch_rows": 1024,
+    "source": "runtime nullable Map<String,Integer> MULTISET, empty bags, NULL element, positive occurrence counts",
+    "rows": {
+      "windows": 1000000,
+      "over_running": 500000,
+      "over_bounded": 50000,
+      "wide_window": 250000,
+      "wide_over": 50000
+    },
+    "keys": [
+      64,
+      4096
+    ],
+    "widths": [
+      4,
+      32
+    ],
+    "warmups_per_engine": 2,
+    "trials_per_engine": 3,
+    "order": "alternating engines",
+    "boundary": "complete jobs with startup, runtime row source, both transposes, production IPC, JNI/state, row blackhole sink",
+    "native_proof": "Native operators and both transposes asserted per plan; window execution counters checked per profile; OVER execution counters checked per job. Actual-prior window/OVER fallback asserted.",
+    "exclusive_local_heavy_work": true,
+    "reproduce_window": "SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=WindowComplexCountBenchmark -Dwindow.cases=multiset -Dwindow.rows=1000000 -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE,HOP,CUMULATE -Dwindow.warmup=2 -Dwindow.runs=3 -Dsf.extraJvmArgs=-Xmx2g",
+    "reproduce_over": "Use OverComplexCountBenchmark -Dover.cases=multiset -Dover.frames=3,0 -Dover.rows=500000 -Dover.warmup=2 -Dover.runs=3. Bounded frames1,2 use50000rows; wide controls use4096keys/32elements."
+  },
+  "qualification": {
+    "22": [
+      "[INFO] Tests run: 128, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 46.67 s -- in tech.streamfusion.FlinkWindowComplexCountSqlHarnessTest",
+      "[INFO] Tests run: 24, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.794 s -- in tech.streamfusion.operator.NativeComplexWindowCountTest",
+      "[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.625 s -- in tech.streamfusion.FlinkWindowCountTypesSqlHarnessTest",
+      "[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.465 s -- in tech.streamfusion.FlinkOverMultisetCountSqlHarnessTest",
+      "[INFO] Tests run: 181, Failures: 0, Errors: 0, Skipped: 0"
+    ],
+    "118": [
+      "[WARNING] Tests run: 128, Failures: 0, Errors: 0, Skipped: 48, Time elapsed: 30.88 s -- in tech.streamfusion.FlinkWindowComplexCountSqlHarnessTest",
+      "[INFO] Tests run: 24, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.675 s -- in tech.streamfusion.operator.NativeComplexWindowCountTest",
+      "[WARNING] Tests run: 18, Failures: 0, Errors: 0, Skipped: 6, Time elapsed: 5.035 s -- in tech.streamfusion.FlinkWindowCountTypesSqlHarnessTest",
+      "[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.365 s -- in tech.streamfusion.FlinkOverMultisetCountSqlHarnessTest",
+      "[WARNING] Tests run: 181, Failures: 0, Errors: 0, Skipped: 54"
+    ]
+  },
+  "native_fixture_allocations": {
+    "window_complex_counts": [
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1/split=false\",71,9472,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1/split=true\",132,15464,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1/split=false\",72,9592,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1/split=true\",133,15584,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1/split=false\",73,9592,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1/split=true\",134,15584,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=1/split=false\",72,9592,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=1/split=true\",133,15584,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=64/split=false\",474,72183,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=64/split=true\",1060,133916,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=64/split=false\",475,72303,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=64/split=true\",1061,134036,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=64/split=false\",476,72303,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=64/split=true\",1062,134036,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=64/split=false\",475,72303,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=64/split=true\",1061,134036,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1024/split=false\",866,146527,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=128/keys=1024/split=true\",1970,274268,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1024/split=false\",867,146647,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=128/keys=1024/split=true\",1971,274388,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1024/split=false\",868,146647,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=128/keys=1024/split=true\",1972,274388,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=1024/split=false\",867,146647,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=128/keys=1024/split=true\",1971,274388,0,4096",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1/split=false\",76,108672,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1/split=true\",137,114664,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1/split=false\",77,108792,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1/split=true\",138,114784,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1/split=false\",78,108792,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1/split=true\",139,114784,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=1/split=false\",77,108792,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=1/split=true\",138,114784,0,32",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=64/split=false\",730,170359,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=64/split=true\",1316,232092,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=64/split=false\",731,170479,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=64/split=true\",1317,232212,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=64/split=false\",732,170479,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=64/split=true\",1318,232212,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=64/split=false\",731,170479,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=64/split=true\",1317,232212,0,2048",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1024/split=false\",6263,1197103,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/array/rows=4096/keys=1024/split=true\",14550,2191436,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1024/split=false\",6264,1197223,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/map/rows=4096/keys=1024/split=true\",14551,2191556,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1024/split=false\",6265,1197223,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/row/rows=4096/keys=1024/split=true\",14552,2191556,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=1024/split=false\",6264,1197223,0,32768",
+      "NATIVE_ALLOCATION,\"window_complex_count/multiset/rows=4096/keys=1024/split=true\",14551,2191556,0,32768"
+    ],
+    "over_complex_count": [
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=0/proctime=false\",134,18458,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=1/proctime=false\",267,74954,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=2/proctime=false\",276,76688,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=3/proctime=false\",134,18458,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=0/proctime=true\",65,12878,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=1/proctime=true\",198,69374,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=1/frame=3/proctime=true\",65,12878,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=0/proctime=false\",134,18458,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=1/proctime=false\",267,74954,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=2/proctime=false\",276,76688,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=3/proctime=false\",134,18458,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=0/proctime=true\",65,12878,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=1/proctime=true\",198,69374,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=1/frame=3/proctime=true\",65,12878,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=0/proctime=false\",145,19590,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=1/proctime=false\",278,76086,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=2/proctime=false\",287,77820,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=3/proctime=false\",145,19590,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=0/proctime=true\",65,12878,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=1/proctime=true\",198,69374,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=1/frame=3/proctime=true\",65,12878,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=0/proctime=false\",145,19590,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=1/proctime=false\",278,76086,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=2/proctime=false\",287,77820,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=3/proctime=false\",145,19590,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=0/proctime=true\",65,12878,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=1/proctime=true\",198,69374,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=1/frame=3/proctime=true\",65,12878,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=0/proctime=false\",143,19262,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=1/proctime=false\",276,75758,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=2/proctime=false\",285,77492,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=3/proctime=false\",143,19262,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=0/proctime=true\",65,12878,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=1/proctime=true\",198,69374,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=1/frame=3/proctime=true\",65,12878,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=0/proctime=false\",143,19262,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=1/proctime=false\",276,75758,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=2/proctime=false\",285,77492,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=3/proctime=false\",143,19262,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=0/proctime=true\",65,12878,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=1/proctime=true\",198,69374,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=1/frame=3/proctime=true\",65,12878,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=0/proctime=false\",138,18854,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=1/proctime=false\",271,75350,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=2/proctime=false\",280,77084,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=3/proctime=false\",138,18854,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=0/proctime=true\",65,12878,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=1/proctime=true\",198,69374,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=1/frame=3/proctime=true\",65,12878,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=1/frame=0/proctime=false\",145,19590,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=1/frame=1/proctime=false\",278,76086,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=1/frame=2/proctime=false\",287,77820,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=1/frame=3/proctime=false\",145,19590,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=1/frame=0/proctime=false\",145,19590,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=1/frame=1/proctime=false\",278,76086,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=1/frame=2/proctime=false\",287,77820,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=1/frame=3/proctime=false\",145,19590,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=1/frame=0/proctime=false\",143,19262,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=1/frame=1/proctime=false\",276,75758,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=1/frame=2/proctime=false\",285,77492,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=1/frame=3/proctime=false\",143,19262,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=1/frame=0/proctime=false\",143,19262,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=1/frame=1/proctime=false\",276,75758,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=1/frame=2/proctime=false\",285,77492,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=1/frame=3/proctime=false\",143,19262,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=0/proctime=false\",265,40361,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=1/proctime=false\",394,91049,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=2/proctime=false\",538,102117,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=3/proctime=false\",265,40361,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=0/proctime=true\",196,34781,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=1/proctime=true\",325,85469,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=64/keys=64/frame=3/proctime=true\",196,34781,2909,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=0/proctime=false\",265,40361,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=1/proctime=false\",394,91049,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=2/proctime=false\",538,102117,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=3/proctime=false\",265,40361,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=0/proctime=true\",196,34781,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=1/proctime=true\",325,85469,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=64/keys=64/frame=3/proctime=true\",196,34781,19484,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=0/proctime=false\",276,41493,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=1/proctime=false\",405,92181,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=2/proctime=false\",549,103249,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=3/proctime=false\",276,41493,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=0/proctime=true\",196,34781,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=1/proctime=true\",325,85469,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=64/keys=64/frame=3/proctime=true\",196,34781,4001,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=0/proctime=false\",276,41493,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=1/proctime=false\",405,92181,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=2/proctime=false\",549,103249,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=3/proctime=false\",276,41493,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=0/proctime=true\",196,34781,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=1/proctime=true\",325,85469,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=64/keys=64/frame=3/proctime=true\",196,34781,38732,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=0/proctime=false\",274,41165,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=1/proctime=false\",403,91853,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=2/proctime=false\",547,102921,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=3/proctime=false\",274,41165,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=0/proctime=true\",196,34781,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=1/proctime=true\",325,85469,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=64/keys=64/frame=3/proctime=true\",196,34781,3746,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=0/proctime=false\",274,41165,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=1/proctime=false\",403,91853,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=2/proctime=false\",547,102921,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=3/proctime=false\",274,41165,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=0/proctime=true\",196,34781,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=1/proctime=true\",325,85469,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=64/keys=64/frame=3/proctime=true\",196,34781,35400,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=0/proctime=false\",269,40757,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=1/proctime=false\",398,91445,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=2/proctime=false\",542,102513,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=3/proctime=false\",269,40757,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=0/proctime=true\",196,34781,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=1/proctime=true\",325,85469,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=64/keys=64/frame=3/proctime=true\",196,34781,2064,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=64/frame=0/proctime=false\",276,41493,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=64/frame=1/proctime=false\",405,92181,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=64/frame=2/proctime=false\",549,103249,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=64/keys=64/frame=3/proctime=false\",276,41493,3984,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=64/frame=0/proctime=false\",276,41493,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=64/frame=1/proctime=false\",405,92181,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=64/frame=2/proctime=false\",549,103249,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=64/keys=64/frame=3/proctime=false\",276,41493,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=64/frame=0/proctime=false\",274,41165,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=64/frame=1/proctime=false\",403,91853,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=64/frame=2/proctime=false\",547,102921,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=64/keys=64/frame=3/proctime=false\",274,41165,3729,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=64/frame=0/proctime=false\",274,41165,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=64/frame=1/proctime=false\",403,91853,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=64/frame=2/proctime=false\",547,102921,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=64/keys=64/frame=3/proctime=false\",274,41165,38460,512",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=0/proctime=false\",141,554610,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=1/proctime=false\",8344,4191522,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=2/proctime=false\",8353,4261800,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=3/proctime=false\",141,554610,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=0/proctime=true\",72,501262,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=1/frame=3/proctime=true\",72,501262,186184,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=0/proctime=false\",141,554610,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=1/proctime=false\",8344,4191522,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=2/proctime=false\",8353,4261800,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=3/proctime=false\",141,554610,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=0/proctime=true\",72,501262,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=1/frame=3/proctime=true\",72,501262,1250884,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=0/proctime=false\",152,555742,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=1/proctime=false\",8355,4192654,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=2/proctime=false\",8364,4262932,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=3/proctime=false\",152,555742,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=0/proctime=true\",72,501262,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=1/frame=3/proctime=true\",72,501262,256076,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=0/proctime=false\",152,555742,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=1/proctime=false\",8355,4192654,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=2/proctime=false\",8364,4262932,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=3/proctime=false\",152,555742,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=0/proctime=true\",72,501262,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=1/frame=3/proctime=true\",72,501262,2487032,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=0/proctime=false\",150,555414,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=1/proctime=false\",8353,4192326,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=2/proctime=false\",8362,4262604,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=3/proctime=false\",150,555414,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=0/proctime=true\",72,501262,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=1/frame=3/proctime=true\",72,501262,239696,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=0/proctime=false\",150,555414,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=1/proctime=false\",8353,4192326,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=2/proctime=false\",8362,4262604,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=3/proctime=false\",150,555414,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=0/proctime=true\",72,501262,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=1/frame=3/proctime=true\",72,501262,2273000,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=0/proctime=false\",145,555006,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=1/proctime=false\",8348,4191918,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=2/proctime=false\",8357,4262196,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=3/proctime=false\",145,555006,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=0/proctime=true\",72,501262,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=1/proctime=true\",8275,4138174,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=1/frame=3/proctime=true\",72,501262,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=1/frame=0/proctime=false\",152,555742,254984,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=1/frame=1/proctime=false\",8355,4192654,254984,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=1/frame=2/proctime=false\",8364,4262932,254984,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=1/frame=3/proctime=false\",152,555742,254984,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=1/frame=0/proctime=false\",152,555742,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=1/frame=1/proctime=false\",8355,4192654,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=1/frame=2/proctime=false\",8364,4262932,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=1/frame=3/proctime=false\",152,555742,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=1/frame=0/proctime=false\",150,555414,238604,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=1/frame=1/proctime=false\",8353,4192326,238604,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=1/frame=2/proctime=false\",8362,4262604,238604,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=1/frame=3/proctime=false\",150,555414,238604,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=1/frame=0/proctime=false\",150,555414,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=1/frame=1/proctime=false\",8353,4192326,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=1/frame=2/proctime=false\",8362,4262604,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=1/frame=3/proctime=false\",150,555414,2469560,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=0/proctime=false\",272,576513,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=1/proctime=false\",8721,4192257,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=2/proctime=false\",8865,4271869,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=3/proctime=false\",272,576513,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=0/proctime=true\",203,523165,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=4/rows=4096/keys=64/frame=3/proctime=true\",203,523165,185079,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=0/proctime=false\",272,576513,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=1/proctime=false\",8721,4192257,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=2/proctime=false\",8865,4271869,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=3/proctime=false\",272,576513,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=0/proctime=true\",203,523165,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/array/width=64/rows=4096/keys=64/frame=3/proctime=true\",203,523165,1233204,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=0/proctime=false\",283,577645,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=1/proctime=false\",8732,4193389,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=2/proctime=false\",8876,4273001,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=3/proctime=false\",283,577645,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=0/proctime=true\",203,523165,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=4/rows=4096/keys=64/frame=3/proctime=true\",203,523165,253883,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=0/proctime=false\",283,577645,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=1/proctime=false\",8732,4193389,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=2/proctime=false\",8876,4273001,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=3/proctime=false\",283,577645,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=0/proctime=true\",203,523165,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map/width=64/rows=4096/keys=64/frame=3/proctime=true\",203,523165,2450108,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=0/proctime=false\",281,577317,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=1/proctime=false\",8730,4193061,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=2/proctime=false\",8874,4272673,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=3/proctime=false\",281,577317,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=0/proctime=true\",203,523165,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=4/rows=4096/keys=64/frame=3/proctime=true\",203,523165,237758,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=0/proctime=false\",281,577317,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=1/proctime=false\",8730,4193061,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=2/proctime=false\",8874,4272673,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=3/proctime=false\",281,577317,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=0/proctime=true\",203,523165,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/map_list/width=64/rows=4096/keys=64/frame=3/proctime=true\",203,523165,2239408,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=0/proctime=false\",276,576909,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=1/proctime=false\",8725,4192653,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=2/proctime=false\",8869,4272265,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=3/proctime=false\",276,576909,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=0/proctime=true\",203,523165,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=1/proctime=true\",8652,4138909,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/row/width=1/rows=4096/keys=64/frame=3/proctime=true\",203,523165,132096,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=64/frame=0/proctime=false\",283,577645,252808,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=64/frame=1/proctime=false\",8732,4193389,252808,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=64/frame=2/proctime=false\",8876,4273001,252808,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=4/rows=4096/keys=64/frame=3/proctime=false\",283,577645,252808,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=64/frame=0/proctime=false\",283,577645,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=64/frame=1/proctime=false\",8732,4193389,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=64/frame=2/proctime=false\",8876,4273001,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset/width=64/rows=4096/keys=64/frame=3/proctime=false\",283,577645,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=64/frame=0/proctime=false\",281,577317,236683,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=64/frame=1/proctime=false\",8730,4193061,236683,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=64/frame=2/proctime=false\",8874,4272673,236683,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=4/rows=4096/keys=64/frame=3/proctime=false\",281,577317,236683,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=64/frame=0/proctime=false\",281,577317,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=64/frame=1/proctime=false\",8730,4193061,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=64/frame=2/proctime=false\",8874,4272673,2432908,32768",
+      "NATIVE_ALLOCATION,\"over_complex_count/multiset_list/width=64/rows=4096/keys=64/frame=3/proctime=false\",281,577317,2432908,32768"
+    ]
+  },
+  "profiles": [
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        1.002403468,
+        1.005168641,
+        0.966679329
+      ],
+      "host_median": 1.002403468,
+      "host_range": [
+        0.966679329,
+        1.005168641
+      ],
+      "host_mean": 0.991417146,
+      "native_seconds": [
+        0.927763339,
+        0.911189991,
+        0.922723154
+      ],
+      "native_median": 0.922723154,
+      "native_range": [
+        0.911189991,
+        0.927763339
+      ],
+      "native_mean": 0.920558828,
+      "stock_native_median_ratio": 1.086353435106279,
+      "actual_prior_median": 1.00622235,
+      "actual_prior_native_ratio": 1.0904921434322217
+    },
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.92273022,
+        0.954079922,
+        0.988540295
+      ],
+      "host_median": 0.954079922,
+      "host_range": [
+        0.92273022,
+        0.988540295
+      ],
+      "host_mean": 0.9551168123333333,
+      "native_seconds": [
+        0.82667752,
+        0.822417281,
+        0.813540488
+      ],
+      "native_median": 0.822417281,
+      "native_range": [
+        0.813540488,
+        0.82667752
+      ],
+      "native_mean": 0.8208784296666667,
+      "stock_native_median_ratio": 1.1600922597831453,
+      "actual_prior_median": 0.961504572,
+      "actual_prior_native_ratio": 1.1691200978059213
+    },
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.919899207,
+        0.875821491,
+        0.852718335
+      ],
+      "host_median": 0.875821491,
+      "host_range": [
+        0.852718335,
+        0.919899207
+      ],
+      "host_mean": 0.882813011,
+      "native_seconds": [
+        0.829428483,
+        0.824879582,
+        0.816001815
+      ],
+      "native_median": 0.824879582,
+      "native_range": [
+        0.816001815,
+        0.829428483
+      ],
+      "native_mean": 0.8234366266666667,
+      "stock_native_median_ratio": 1.0617567825796905,
+      "actual_prior_median": 0.892430603,
+      "actual_prior_native_ratio": 1.0818919785069914
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.989607955,
+        0.990567731,
+        0.981406424
+      ],
+      "host_median": 0.989607955,
+      "host_range": [
+        0.981406424,
+        0.990567731
+      ],
+      "host_mean": 0.9871940366666666,
+      "native_seconds": [
+        0.737299103,
+        0.746907214,
+        0.739666284
+      ],
+      "native_median": 0.739666284,
+      "native_range": [
+        0.737299103,
+        0.746907214
+      ],
+      "native_mean": 0.741290867,
+      "stock_native_median_ratio": 1.3379114019478546,
+      "actual_prior_median": 0.984346681,
+      "actual_prior_native_ratio": 1.330798364468915
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.980156135,
+        0.990390992,
+        0.967282355
+      ],
+      "host_median": 0.980156135,
+      "host_range": [
+        0.967282355,
+        0.990390992
+      ],
+      "host_mean": 0.979276494,
+      "native_seconds": [
+        0.75241985,
+        0.744784894,
+        0.743750075
+      ],
+      "native_median": 0.744784894,
+      "native_range": [
+        0.743750075,
+        0.75241985
+      ],
+      "native_mean": 0.7469849396666667,
+      "stock_native_median_ratio": 1.3160257987187371,
+      "actual_prior_median": 0.91479717,
+      "actual_prior_native_ratio": 1.228270306459787
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "current-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.983588581,
+        0.930401588,
+        0.901895383
+      ],
+      "host_median": 0.930401588,
+      "host_range": [
+        0.901895383,
+        0.983588581
+      ],
+      "host_mean": 0.9386285173333333,
+      "native_seconds": [
+        0.751853359,
+        0.742386819,
+        0.738564024
+      ],
+      "native_median": 0.742386819,
+      "native_range": [
+        0.738564024,
+        0.751853359
+      ],
+      "native_mean": 0.7442680673333334,
+      "stock_native_median_ratio": 1.253257148683293,
+      "actual_prior_median": 0.918626769,
+      "actual_prior_native_ratio": 1.2373963889032893
+    },
+    {
+      "type": "multiset",
+      "frame": "3",
+      "proctime": "false",
+      "rows": "500000",
+      "keys": "64",
+      "width": 4,
+      "run": "current-over-running",
+      "operator": "over",
+      "host_seconds": [
+        1.163912846,
+        1.270443208,
+        1.187611716
+      ],
+      "host_median": 1.187611716,
+      "host_range": [
+        1.163912846,
+        1.270443208
+      ],
+      "host_mean": 1.20732259,
+      "native_seconds": [
+        0.659370766,
+        0.649923616,
+        0.6311274
+      ],
+      "native_median": 0.649923616,
+      "native_range": [
+        0.6311274,
+        0.659370766
+      ],
+      "native_mean": 0.6468072606666667,
+      "stock_native_median_ratio": 1.8273096818811394,
+      "actual_prior_median": 1.128107307,
+      "actual_prior_native_ratio": 1.7357536781676202
+    },
+    {
+      "type": "multiset",
+      "frame": "0",
+      "proctime": "false",
+      "rows": "500000",
+      "keys": "64",
+      "width": 4,
+      "run": "current-over-running",
+      "operator": "over",
+      "host_seconds": [
+        1.295531773,
+        1.175104835,
+        1.119707255
+      ],
+      "host_median": 1.175104835,
+      "host_range": [
+        1.119707255,
+        1.295531773
+      ],
+      "host_mean": 1.1967812876666666,
+      "native_seconds": [
+        0.640745605,
+        0.795343999,
+        0.562750559
+      ],
+      "native_median": 0.640745605,
+      "native_range": [
+        0.562750559,
+        0.795343999
+      ],
+      "native_mean": 0.6662800543333334,
+      "stock_native_median_ratio": 1.8339647214591506,
+      "actual_prior_median": 1.044168542,
+      "actual_prior_native_ratio": 1.6296148328633482
+    },
+    {
+      "type": "multiset",
+      "frame": "1",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "64",
+      "width": 4,
+      "run": "current-over-bounded",
+      "operator": "over",
+      "host_seconds": [
+        0.472744576,
+        0.388930561,
+        0.327932739
+      ],
+      "host_median": 0.388930561,
+      "host_range": [
+        0.327932739,
+        0.472744576
+      ],
+      "host_mean": 0.3965359586666667,
+      "native_seconds": [
+        0.202612606,
+        0.214847584,
+        0.115266944
+      ],
+      "native_median": 0.202612606,
+      "native_range": [
+        0.115266944,
+        0.214847584
+      ],
+      "native_mean": 0.17757571133333333,
+      "stock_native_median_ratio": 1.9195773090248887,
+      "actual_prior_median": 0.345901075,
+      "actual_prior_native_ratio": 1.707204116411197
+    },
+    {
+      "type": "multiset",
+      "frame": "2",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "64",
+      "width": 4,
+      "run": "current-over-bounded",
+      "operator": "over",
+      "host_seconds": [
+        0.437109944,
+        0.316321639,
+        0.258266357
+      ],
+      "host_median": 0.316321639,
+      "host_range": [
+        0.258266357,
+        0.437109944
+      ],
+      "host_mean": 0.33723264666666664,
+      "native_seconds": [
+        0.136079933,
+        0.125492333,
+        0.126759019
+      ],
+      "native_median": 0.126759019,
+      "native_range": [
+        0.125492333,
+        0.136079933
+      ],
+      "native_mean": 0.12944376166666666,
+      "stock_native_median_ratio": 2.495456666479882,
+      "actual_prior_median": 0.248367607,
+      "actual_prior_native_ratio": 1.9593683270773812
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "250000",
+      "keys": "4096",
+      "run": "current-wide-window",
+      "operator": "window",
+      "width": 32,
+      "host_seconds": [
+        1.074690897,
+        0.981095761,
+        1.013328647
+      ],
+      "host_median": 1.013328647,
+      "host_range": [
+        0.981095761,
+        1.074690897
+      ],
+      "host_mean": 1.023038435,
+      "native_seconds": [
+        0.969611054,
+        0.950607215,
+        0.912183191
+      ],
+      "native_median": 0.950607215,
+      "native_range": [
+        0.912183191,
+        0.969611054
+      ],
+      "native_mean": 0.94413382,
+      "stock_native_median_ratio": 1.065980387072909,
+      "actual_prior_median": 0.981871023,
+      "actual_prior_native_ratio": 1.032888250274852
+    },
+    {
+      "type": "multiset",
+      "frame": "1",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "4096",
+      "width": 32,
+      "run": "current-wide-over",
+      "operator": "over",
+      "host_seconds": [
+        0.454759215,
+        0.363535157,
+        0.364389924
+      ],
+      "host_median": 0.364389924,
+      "host_range": [
+        0.363535157,
+        0.454759215
+      ],
+      "host_mean": 0.39422809866666664,
+      "native_seconds": [
+        0.359088028,
+        0.357013831,
+        0.306546105
+      ],
+      "native_median": 0.357013831,
+      "native_range": [
+        0.306546105,
+        0.359088028
+      ],
+      "native_mean": 0.3408826546666667,
+      "stock_native_median_ratio": 1.0206605244937974,
+      "actual_prior_median": 0.370001297,
+      "actual_prior_native_ratio": 1.0363780472135267
+    },
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        1.034889465,
+        0.981734682,
+        1.027608096
+      ],
+      "host_median": 1.027608096,
+      "host_range": [
+        0.981734682,
+        1.034889465
+      ],
+      "host_mean": 1.014744081,
+      "native_seconds": [
+        1.00622235,
+        1.015408444,
+        1.004706068
+      ],
+      "native_median": 1.00622235,
+      "native_range": [
+        1.004706068,
+        1.015408444
+      ],
+      "native_mean": 1.008778954,
+      "stock_native_median_ratio": 1.021253499288701
+    },
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.937798128,
+        0.867851388,
+        0.932404211
+      ],
+      "host_median": 0.932404211,
+      "host_range": [
+        0.867851388,
+        0.937798128
+      ],
+      "host_mean": 0.9126845756666666,
+      "native_seconds": [
+        0.974291372,
+        0.939965353,
+        0.961504572
+      ],
+      "native_median": 0.961504572,
+      "native_range": [
+        0.939965353,
+        0.974291372
+      ],
+      "native_mean": 0.9585870989999999,
+      "stock_native_median_ratio": 0.9697345578508597
+    },
+    {
+      "case": "multiset",
+      "phase": "ONE_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.867343861,
+        0.867898361,
+        0.873777153
+      ],
+      "host_median": 0.867898361,
+      "host_range": [
+        0.867343861,
+        0.873777153
+      ],
+      "host_mean": 0.869673125,
+      "native_seconds": [
+        0.932567291,
+        0.875031364,
+        0.892430603
+      ],
+      "native_median": 0.892430603,
+      "native_range": [
+        0.875031364,
+        0.932567291
+      ],
+      "native_mean": 0.9000097526666667,
+      "stock_native_median_ratio": 0.9725107566711269
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.991938665,
+        0.994761415,
+        0.988474905
+      ],
+      "host_median": 0.991938665,
+      "host_range": [
+        0.988474905,
+        0.994761415
+      ],
+      "host_mean": 0.991724995,
+      "native_seconds": [
+        0.984346681,
+        0.98114674,
+        0.985398294
+      ],
+      "native_median": 0.984346681,
+      "native_range": [
+        0.98114674,
+        0.985398294
+      ],
+      "native_mean": 0.9836305716666667,
+      "stock_native_median_ratio": 1.007712713565801
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.920169854,
+        0.932643347,
+        0.907767008
+      ],
+      "host_median": 0.920169854,
+      "host_range": [
+        0.907767008,
+        0.932643347
+      ],
+      "host_mean": 0.920193403,
+      "native_seconds": [
+        0.91479717,
+        0.985394696,
+        0.908518826
+      ],
+      "native_median": 0.91479717,
+      "native_range": [
+        0.908518826,
+        0.985394696
+      ],
+      "native_mean": 0.9362368973333334,
+      "stock_native_median_ratio": 1.0058730876922148
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "CUMULATE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "actual-prior-windows",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        0.930865456,
+        0.911060133,
+        0.913763583
+      ],
+      "host_median": 0.913763583,
+      "host_range": [
+        0.911060133,
+        0.930865456
+      ],
+      "host_mean": 0.9185630573333333,
+      "native_seconds": [
+        0.912118916,
+        0.996428035,
+        0.918626769
+      ],
+      "native_median": 0.918626769,
+      "native_range": [
+        0.912118916,
+        0.996428035
+      ],
+      "native_mean": 0.94239124,
+      "stock_native_median_ratio": 0.9947060262512338
+    },
+    {
+      "type": "multiset",
+      "frame": "3",
+      "proctime": "false",
+      "rows": "500000",
+      "keys": "64",
+      "width": 4,
+      "run": "actual-prior-over-running",
+      "operator": "over",
+      "host_seconds": [
+        1.049800611,
+        1.135631126,
+        1.124811021
+      ],
+      "host_median": 1.124811021,
+      "host_range": [
+        1.049800611,
+        1.135631126
+      ],
+      "host_mean": 1.1034142526666666,
+      "native_seconds": [
+        1.162843261,
+        1.104473315,
+        1.128107307
+      ],
+      "native_median": 1.128107307,
+      "native_range": [
+        1.104473315,
+        1.162843261
+      ],
+      "native_mean": 1.131807961,
+      "stock_native_median_ratio": 0.9970780386054178
+    },
+    {
+      "type": "multiset",
+      "frame": "0",
+      "proctime": "false",
+      "rows": "500000",
+      "keys": "64",
+      "width": 4,
+      "run": "actual-prior-over-running",
+      "operator": "over",
+      "host_seconds": [
+        1.093976343,
+        1.003968762,
+        1.064410973
+      ],
+      "host_median": 1.064410973,
+      "host_range": [
+        1.003968762,
+        1.093976343
+      ],
+      "host_mean": 1.0541186926666666,
+      "native_seconds": [
+        1.081690832,
+        1.044168542,
+        0.978696822
+      ],
+      "native_median": 1.044168542,
+      "native_range": [
+        0.978696822,
+        1.081690832
+      ],
+      "native_mean": 1.0348520653333333,
+      "stock_native_median_ratio": 1.0193861720457769
+    },
+    {
+      "type": "multiset",
+      "frame": "1",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "64",
+      "width": 4,
+      "run": "actual-prior-over-bounded",
+      "operator": "over",
+      "host_seconds": [
+        0.34031861,
+        0.330091962,
+        0.318521081
+      ],
+      "host_median": 0.330091962,
+      "host_range": [
+        0.318521081,
+        0.34031861
+      ],
+      "host_mean": 0.32964388433333336,
+      "native_seconds": [
+        0.345901075,
+        0.358152072,
+        0.33562632
+      ],
+      "native_median": 0.345901075,
+      "native_range": [
+        0.33562632,
+        0.358152072
+      ],
+      "native_mean": 0.3465598223333333,
+      "stock_native_median_ratio": 0.954295854674635
+    },
+    {
+      "type": "multiset",
+      "frame": "2",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "64",
+      "width": 4,
+      "run": "actual-prior-over-bounded",
+      "operator": "over",
+      "host_seconds": [
+        0.333869135,
+        0.260490475,
+        0.287636244
+      ],
+      "host_median": 0.287636244,
+      "host_range": [
+        0.260490475,
+        0.333869135
+      ],
+      "host_mean": 0.293998618,
+      "native_seconds": [
+        0.248367607,
+        0.248298485,
+        0.273859696
+      ],
+      "native_median": 0.248367607,
+      "native_range": [
+        0.248298485,
+        0.273859696
+      ],
+      "native_mean": 0.25684192933333333,
+      "stock_native_median_ratio": 1.1581069185080968
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "HOP",
+      "backend": "memory",
+      "rows": "250000",
+      "keys": "4096",
+      "run": "actual-prior-wide-window",
+      "operator": "window",
+      "width": 32,
+      "host_seconds": [
+        0.966498798,
+        0.963917448,
+        0.929372456
+      ],
+      "host_median": 0.963917448,
+      "host_range": [
+        0.929372456,
+        0.966498798
+      ],
+      "host_mean": 0.9532629006666666,
+      "native_seconds": [
+        0.981871023,
+        0.99895967,
+        0.954016808
+      ],
+      "native_median": 0.981871023,
+      "native_range": [
+        0.954016808,
+        0.99895967
+      ],
+      "native_mean": 0.9782825003333333,
+      "stock_native_median_ratio": 0.9817149354859819
+    },
+    {
+      "type": "multiset",
+      "frame": "1",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "4096",
+      "width": 32,
+      "run": "actual-prior-wide-over",
+      "operator": "over",
+      "host_seconds": [
+        0.379459312,
+        0.37147976,
+        0.346558627
+      ],
+      "host_median": 0.37147976,
+      "host_range": [
+        0.346558627,
+        0.379459312
+      ],
+      "host_mean": 0.36583256633333333,
+      "native_seconds": [
+        0.372618548,
+        0.370001297,
+        0.348661127
+      ],
+      "native_median": 0.370001297,
+      "native_range": [
+        0.348661127,
+        0.372618548
+      ],
+      "native_mean": 0.363760324,
+      "stock_native_median_ratio": 1.003995831938935
+    },
+    {
+      "case": "multiset",
+      "phase": "TWO_PHASE",
+      "shape": "TUMBLE",
+      "backend": "memory",
+      "rows": "1000000",
+      "keys": "64",
+      "run": "released118-window",
+      "operator": "window",
+      "width": 4,
+      "host_seconds": [
+        1.047983355,
+        1.067330696,
+        1.018738333
+      ],
+      "host_median": 1.047983355,
+      "host_range": [
+        1.018738333,
+        1.067330696
+      ],
+      "host_mean": 1.0446841279999999,
+      "native_seconds": [
+        0.805859991,
+        0.810540281,
+        0.820978912
+      ],
+      "native_median": 0.810540281,
+      "native_range": [
+        0.805859991,
+        0.820978912
+      ],
+      "native_mean": 0.812459728,
+      "stock_native_median_ratio": 1.2929441997713622
+    },
+    {
+      "type": "multiset",
+      "frame": "1",
+      "proctime": "false",
+      "rows": "50000",
+      "keys": "64",
+      "width": 4,
+      "run": "released118-over",
+      "operator": "over",
+      "host_seconds": [
+        0.536313863,
+        0.41098774,
+        0.350439618
+      ],
+      "host_median": 0.41098774,
+      "host_range": [
+        0.350439618,
+        0.536313863
+      ],
+      "host_mean": 0.432580407,
+      "native_seconds": [
+        0.227253716,
+        0.221819963,
+        0.152036938
+      ],
+      "native_median": 0.221819963,
+      "native_range": [
+        0.152036938,
+        0.227253716
+      ],
+      "native_mean": 0.20037020566666666,
+      "stock_native_median_ratio": 1.8527987041454874
+    }
+  ],
+  "raw_runs": [
+    {
+      "run": "current-windows",
+      "trials": [
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.966749",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.374934",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=1.000277",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.043038",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=1.002403",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.927763",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.911190",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=1.005169",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.966679",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.922723",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=1.016849",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=0.914635",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=0.826722",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=0.932645",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=0.922730",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.826678",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.822417",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.954080",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=0.988540",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.813540",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=0 warmup=true seconds=0.862603",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=0 warmup=true seconds=0.877752",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=1 warmup=true seconds=0.815295",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=1 warmup=true seconds=0.869524",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=2 warmup=false seconds=0.919899",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=2 warmup=false seconds=0.829428",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=3 warmup=false seconds=0.824880",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=3 warmup=false seconds=0.875821",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=4 warmup=false seconds=0.852718",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=4 warmup=false seconds=0.816002",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.029294",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=0.793475",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.745062",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.989231",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.989608",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.737299",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.746907",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.990568",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.981406",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.739666",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=0.985944",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=0.747656",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=0.751981",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=0.979506",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=0.980156",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.752420",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.744785",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.990391",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=0.967282",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.743750",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=0 warmup=true seconds=0.912192",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=0 warmup=true seconds=0.739567",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=1 warmup=true seconds=0.745562",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=1 warmup=true seconds=0.973349",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=2 warmup=false seconds=0.983589",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=2 warmup=false seconds=0.751853",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=3 warmup=false seconds=0.742387",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=3 warmup=false seconds=0.930402",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=4 warmup=false seconds=0.901895",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=4 warmup=false seconds=0.738564"
+      ],
+      "summaries": [
+        "[complex-window] case=multiset phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.991417s native_mean=0.920559s host_trials=[1.002403468, 1.005168641, 0.966679329] native_trials=[0.927763339, 0.911189991, 0.922723154]",
+        "[complex-window] case=multiset phase=ONE_PHASE shape=HOP backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.955117s native_mean=0.820878s host_trials=[0.92273022, 0.954079922, 0.988540295] native_trials=[0.82667752, 0.822417281, 0.813540488]",
+        "[complex-window] case=multiset phase=ONE_PHASE shape=CUMULATE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.882813s native_mean=0.823437s host_trials=[0.919899207, 0.875821491, 0.852718335] native_trials=[0.829428483, 0.824879582, 0.816001815]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.987194s native_mean=0.741291s host_trials=[0.989607955, 0.990567731, 0.981406424] native_trials=[0.737299103, 0.746907214, 0.739666284]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=HOP backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.979276s native_mean=0.746985s host_trials=[0.980156135, 0.990390992, 0.967282355] native_trials=[0.75241985, 0.744784894, 0.743750075]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=CUMULATE backend=memory native_expected=true rows=1000000 keys=64 host_mean=0.938629s native_mean=0.744268s host_trials=[0.983588581, 0.930401588, 0.901895383] native_trials=[0.751853359, 0.742386819, 0.738564024]"
+      ]
+    },
+    {
+      "run": "current-over-running",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=2.116685",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=1.137691",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.793495",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=1.355368",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=1.163913",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.659371",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.649924",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=1.270443",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=1.187612",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.631127",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=1.287557",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.664467",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.564685",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=1.258970",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=1.295532",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.640746",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.795344",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=1.175105",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=1.119707",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.562751"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 host_mean=1.207323s native_mean=0.646807s host_trials=[1.163912846, 1.270443208, 1.187611716] native_trials=[0.659370766, 0.649923616, 0.6311274]",
+        "[over-complex] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 host_mean=1.196781s native_mean=0.666280s host_trials=[1.295531773, 1.175104835, 1.119707255] native_trials=[0.640745605, 0.795343999, 0.562750559]"
+      ]
+    },
+    {
+      "run": "current-over-bounded",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=1.280614",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.464396",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.276588",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=0.723735",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=0.472745",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.202613",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.214848",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=0.388931",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=0.327933",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.115267",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=0.637247",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.131139",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.120712",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=0.762172",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=0.437110",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.136080",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.125492",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=0.316322",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=0.258266",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.126759"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 host_mean=0.396536s native_mean=0.177576s host_trials=[0.472744576, 0.388930561, 0.327932739] native_trials=[0.202612606, 0.214847584, 0.115266944]",
+        "[over-complex] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 host_mean=0.337233s native_mean=0.129444s host_trials=[0.437109944, 0.316321639, 0.258266357] native_trials=[0.136079933, 0.125492333, 0.126759019]"
+      ]
+    },
+    {
+      "run": "current-wide-window",
+      "trials": [
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=2.071913",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=1.280818",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=1.019656",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=1.097146",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=1.074691",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.969611",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.950607",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.981096",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=1.013329",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.912183"
+      ],
+      "summaries": [
+        "[complex-window] case=multiset phase=TWO_PHASE shape=HOP backend=memory native_expected=true rows=250000 keys=4096 host_mean=1.023038s native_mean=0.944134s host_trials=[1.074690897, 0.981095761, 1.013328647] native_trials=[0.969611054, 0.950607215, 0.912183191]"
+      ]
+    },
+    {
+      "run": "current-wide-over",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=0 warmup=true seconds=1.196496",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=0 warmup=true seconds=0.626006",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=1 warmup=true seconds=0.411883",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=1 warmup=true seconds=0.490831",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=2 warmup=false seconds=0.454759",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=2 warmup=false seconds=0.359088",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=3 warmup=false seconds=0.357014",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=3 warmup=false seconds=0.363535",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=4 warmup=false seconds=0.364390",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=4 warmup=false seconds=0.306546"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 host_mean=0.394228s native_mean=0.340883s host_trials=[0.454759215, 0.363535157, 0.364389924] native_trials=[0.359088028, 0.357013831, 0.306546105]"
+      ]
+    },
+    {
+      "run": "actual-prior-windows",
+      "trials": [
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=2.010946",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.144101",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=1.070643",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.033585",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=1.034889",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=1.006222",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=1.015408",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.981735",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=1.027608",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=1.004706",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=1.000072",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=0.950764",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=0.949761",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=0.959130",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=0.937798",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.974291",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.939965",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.867851",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=0.932404",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.961505",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=0 warmup=true seconds=0.882318",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=0 warmup=true seconds=1.009722",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=1 warmup=true seconds=0.932351",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=1 warmup=true seconds=0.878629",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=2 warmup=false seconds=0.867344",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=2 warmup=false seconds=0.932567",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=3 warmup=false seconds=0.875031",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=3 warmup=false seconds=0.867898",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=Flink trial=4 warmup=false seconds=0.873777",
+        "[complex-window-trial] case=multiset phase=ONE_PHASE shape=CUMULATE engine=StreamFusion trial=4 warmup=false seconds=0.892431",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.053258",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.043573",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=1.009608",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=0.981339",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=0.991939",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.984347",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.981147",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=0.994761",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=0.988475",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.985398",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=0.986333",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=0.984199",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=1.007458",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=0.983780",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=0.920170",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.914797",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.985395",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.932643",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=0.907767",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.908519",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=0 warmup=true seconds=0.921285",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=0 warmup=true seconds=0.985180",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=1 warmup=true seconds=0.902368",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=1 warmup=true seconds=0.917846",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=2 warmup=false seconds=0.930865",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=2 warmup=false seconds=0.912119",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=3 warmup=false seconds=0.996428",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=3 warmup=false seconds=0.911060",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=Flink trial=4 warmup=false seconds=0.913764",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=CUMULATE engine=StreamFusion trial=4 warmup=false seconds=0.918627"
+      ],
+      "summaries": [
+        "[complex-window] case=multiset phase=ONE_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=1.014744s native_mean=1.008779s host_trials=[1.034889465, 0.981734682, 1.027608096] native_trials=[1.00622235, 1.015408444, 1.004706068]",
+        "[complex-window] case=multiset phase=ONE_PHASE shape=HOP backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.912685s native_mean=0.958587s host_trials=[0.937798128, 0.867851388, 0.932404211] native_trials=[0.974291372, 0.939965353, 0.961504572]",
+        "[complex-window] case=multiset phase=ONE_PHASE shape=CUMULATE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.869673s native_mean=0.900010s host_trials=[0.867343861, 0.867898361, 0.873777153] native_trials=[0.932567291, 0.875031364, 0.892430603]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.991725s native_mean=0.983631s host_trials=[0.991938665, 0.994761415, 0.988474905] native_trials=[0.984346681, 0.98114674, 0.985398294]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=HOP backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.920193s native_mean=0.936237s host_trials=[0.920169854, 0.932643347, 0.907767008] native_trials=[0.91479717, 0.985394696, 0.908518826]",
+        "[complex-window] case=multiset phase=TWO_PHASE shape=CUMULATE backend=memory native_expected=false rows=1000000 keys=64 host_mean=0.918563s native_mean=0.942391s host_trials=[0.930865456, 0.911060133, 0.913763583] native_trials=[0.912118916, 0.996428035, 0.918626769]"
+      ]
+    },
+    {
+      "run": "actual-prior-over-running",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=2.104318",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=1.354871",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=1.135752",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=1.204187",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=1.049801",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=1.162843",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=1.104473",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=1.135631",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=1.124811",
+        "[over-complex-trial] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=1.128107",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=1.140425",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=1.133620",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=1.149249",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=1.185429",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=1.093976",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=1.081691",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=1.044169",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=1.003969",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=1.064411",
+        "[over-complex-trial] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.978697"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=3 proctime=false rows=500000 keys=64 width=4 host_mean=1.103414s native_mean=1.131808s host_trials=[1.049800611, 1.135631126, 1.124811021] native_trials=[1.162843261, 1.104473315, 1.128107307]",
+        "[over-complex] type=multiset frame=0 proctime=false rows=500000 keys=64 width=4 host_mean=1.054119s native_mean=1.034852s host_trials=[1.093976343, 1.003968762, 1.064410973] native_trials=[1.081690832, 1.044168542, 0.978696822]"
+      ]
+    },
+    {
+      "run": "actual-prior-over-bounded",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=1.298484",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.608297",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.570612",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=0.396361",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=0.340319",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.345901",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.358152",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=0.330092",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=0.318521",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.335626",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=0.614527",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.741368",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.536115",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=0.298044",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=0.333869",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.248368",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.248298",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=0.260490",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=0.287636",
+        "[over-complex-trial] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.273860"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 host_mean=0.329644s native_mean=0.346560s host_trials=[0.34031861, 0.330091962, 0.318521081] native_trials=[0.345901075, 0.358152072, 0.33562632]",
+        "[over-complex] type=multiset frame=2 proctime=false rows=50000 keys=64 width=4 host_mean=0.293999s native_mean=0.256842s host_trials=[0.333869135, 0.260490475, 0.287636244] native_trials=[0.248367607, 0.248298485, 0.273859696]"
+      ]
+    },
+    {
+      "run": "actual-prior-wide-window",
+      "trials": [
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=0 warmup=true seconds=2.069375",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=0 warmup=true seconds=1.173967",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=1 warmup=true seconds=1.060564",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=1 warmup=true seconds=1.005754",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=2 warmup=false seconds=0.966499",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=2 warmup=false seconds=0.981871",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=3 warmup=false seconds=0.998960",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=3 warmup=false seconds=0.963917",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=Flink trial=4 warmup=false seconds=0.929372",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=HOP engine=StreamFusion trial=4 warmup=false seconds=0.954017"
+      ],
+      "summaries": [
+        "[complex-window] case=multiset phase=TWO_PHASE shape=HOP backend=memory native_expected=false rows=250000 keys=4096 host_mean=0.953263s native_mean=0.978283s host_trials=[0.966498798, 0.963917448, 0.929372456] native_trials=[0.981871023, 0.99895967, 0.954016808]"
+      ]
+    },
+    {
+      "run": "actual-prior-wide-over",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=0 warmup=true seconds=1.175183",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=0 warmup=true seconds=0.513128",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=1 warmup=true seconds=0.562081",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=1 warmup=true seconds=0.372402",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=2 warmup=false seconds=0.379459",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=2 warmup=false seconds=0.372619",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=3 warmup=false seconds=0.370001",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=3 warmup=false seconds=0.371480",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=Flink trial=4 warmup=false seconds=0.346559",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 engine=StreamFusion trial=4 warmup=false seconds=0.348661"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=1 proctime=false rows=50000 keys=4096 width=32 host_mean=0.365833s native_mean=0.363760s host_trials=[0.379459312, 0.37147976, 0.346558627] native_trials=[0.372618548, 0.370001297, 0.348661127]"
+      ]
+    },
+    {
+      "run": "released118-window",
+      "trials": [
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=0 warmup=true seconds=1.895178",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=0 warmup=true seconds=1.215466",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=1 warmup=true seconds=0.884415",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=1 warmup=true seconds=1.085676",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=2 warmup=false seconds=1.047983",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=2 warmup=false seconds=0.805860",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=3 warmup=false seconds=0.810540",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=3 warmup=false seconds=1.067331",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=Flink trial=4 warmup=false seconds=1.018738",
+        "[complex-window-trial] case=multiset phase=TWO_PHASE shape=TUMBLE engine=StreamFusion trial=4 warmup=false seconds=0.820979"
+      ],
+      "summaries": [
+        "[complex-window] case=multiset phase=TWO_PHASE shape=TUMBLE backend=memory native_expected=true rows=1000000 keys=64 host_mean=1.044684s native_mean=0.812460s host_trials=[1.047983355, 1.067330696, 1.018738333] native_trials=[0.805859991, 0.810540281, 0.820978912]"
+      ]
+    },
+    {
+      "run": "released118-over",
+      "trials": [
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=0 warmup=true seconds=1.252050",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=0 warmup=true seconds=0.436432",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=1 warmup=true seconds=0.328040",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=1 warmup=true seconds=0.787365",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=2 warmup=false seconds=0.536314",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=2 warmup=false seconds=0.227254",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=3 warmup=false seconds=0.221820",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=3 warmup=false seconds=0.410988",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=Flink trial=4 warmup=false seconds=0.350440",
+        "[over-complex-trial] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 engine=StreamFusion trial=4 warmup=false seconds=0.152037"
+      ],
+      "summaries": [
+        "[over-complex] type=multiset frame=1 proctime=false rows=50000 keys=64 width=4 host_mean=0.432580s native_mean=0.200370s host_trials=[0.536313863, 0.41098774, 0.350439618] native_trials=[0.227253716, 0.221819963, 0.152036938]"
+      ]
+    }
+  ],
+  "remaining_gap": {
+    "description": "Proctime MAP/MULTISET storage retains prior performance fallback. DISTINCT unchanged.",
+    "issue": "https://github.com/datafusion-contrib/StreamFusion/issues/419"
+  },
+  "limits": [
+    "These complete jobs include startup/source allocation, especially material for the short bounded profiles. No sustained-throughput or universal improvement claim.",
+    "Wide MULTISET gains can be modest and trial ranges overlap actual-prior execution. Paired prior stock controls are retained to expose process drift.",
+    "Native fixtures use default release codegen1 and allocation instrumentation; whole-job timings use the same frozen release+mimalloc DSO for both revisions. Allocation requests/buffer sharing are not copied bytes.",
+    "No new JNI, native operator or snapshot implementation; the new logical type uses existing validity-only counts and nullable-key list transport."
+  ],
+  "summary": {
+    "window": {
+      "stock": [
+        1.0617567825796905,
+        1.3379114019478546
+      ],
+      "actual_prior": [
+        1.032888250274852,
+        1.330798364468915
+      ]
+    },
+    "over": {
+      "stock": [
+        1.0206605244937974,
+        2.495456666479882
+      ],
+      "actual_prior": [
+        1.0363780472135267,
+        1.9593683270773812
+      ]
+    }
+  }
+}

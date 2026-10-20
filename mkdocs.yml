@@ -58,6 +58,7 @@ nav:
   - Blogs:
       - blogs/index.md
       - Streaming for the AI age: blogs/streaming-for-the-ai-age.md
+      - StreamFusion Connectors: blogs/streamfusion-connectors.md
   - Connectors:
       - connectors/index.md
       - Kafka: connectors/kafka.md
@@ -66,6 +67,7 @@ nav:
       - Parquet: connectors/parquet.md
       - ORC: connectors/orc.md
       - Delta Lake: connectors/delta.md
+      - Apache Iceberg: connectors/iceberg.md
       - Apache Paimon: connectors/paimon.md
       - Formats:
           - JSON: connectors/formats/json.md
@@ -82,6 +84,7 @@ nav:
       - Union: operators/union.md
       - Expand: operators/expand.md
       - Changelog normalize: operators/changelog-normalize.md
+      - Drop update-before: operators/drop-update-before.md
       - Unnest / Correlate: operators/unnest-correlate.md
       - GROUP BY: operators/group-by.md
       - Window aggregate: operators/window-aggregate.md
@@ -118,12 +121,16 @@ nav:
   - Portable SQL audit: sql-parity-audit.md
   - Benchmarks:
       - benchmarks.md
+      - Evidence and experiment index: benchmarks/evidence.md
       - Native Criterion suites: benchmarks/native-criterion.md
       - AppendFast Top-1: benchmarks/append-top1.md
       - Performance audit reproduction: benchmarks/performance-audit.md
       - Scalar functions: benchmarks/scalar-functions.md
       - Nested Java scalars: benchmarks/nested-scalars.md
       - Decimal expressions: benchmarks/decimal-expressions.md
+      - Fast Iceberg I/O loop: benchmarks/iceberg-io.md
+      - Iceberg streaming results: benchmarks/iceberg-optimized-20261017/README.md
+      - Kafka to Iceberg results: benchmarks/kafka-iceberg-final-20261017/README.md
       - Basic type coverage: benchmarks/basic-type-coverage.md
       - JVM aggregate investigation: benchmarks/jvm-aggregates.md
       - Floating GROUP BY: benchmarks/floating-group-by.md
@@ -143,6 +150,7 @@ nav:
       - Exact decimal division: optimizations/decimal-division.md
       - SQL/JSON parsing: optimizations/sql-json-parsing.md
       - Calc projection before filtering: optimizations/calc-projection-before-filter.md
+      - Collection representation work: optimizations/collection-representation-work.md
       - Export Calc schemas once: optimizations/calc-schema-once-c-data.md
       - Shared FFI allocator: optimizations/shared-ffi-allocator.md
       - DataFusion hash joins: optimizations/datafusion-hash-joins.md
@@ -175,6 +183,8 @@ nav:
       - Lookup joins kept in the island: optimizations/lookup-join-in-island.md
       - Identity expression passthroughs: optimizations/identity-expression-passthroughs.md
       - Parquet sink file coalescing: optimizations/parquet-sink-file-coalescing.md
+      - Iceberg boundary setup: optimizations/iceberg-boundary-overhead.md
+      - Canonical state installation: optimizations/canonical-state-installation.md
       - Delta batch sink handoff: optimizations/delta-batch-sink-handoff.md
       - Retire dead Delta checkpoint buffers: optimizations/delta-live-buffer-retirement.md
       - Preserve Paimon partition pruning: optimizations/paimon-partition-pruning.md

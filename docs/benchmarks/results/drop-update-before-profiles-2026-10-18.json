@@ -1,0 +1,29 @@
+{
+  "scope": "CPU diagnostics only; unguarded standalone row-source filter, stock and native jobs in one profiled JVM; inclusive samples overlap and are not additive",
+  "profiler": "async-profiler 4.5 CPU, 1 ms, dwarf native stacks",
+  "parameters": {
+    "operand": "identity",
+    "rows": 12000000,
+    "width": 2,
+    "keys": 65536,
+    "updating": true,
+    "allKinds": true,
+    "warmup": 0,
+    "runs": 1
+  },
+  "html_sha256": "4256113297e979402f91edfb9fe71209d17adc70ac1633d00734f16f32274339",
+  "native_library_sha256": "803e0f0cbc25b351dbe3f0fe408d306dfd5f5ca2ff30f7c6edc2c4a40d8f4823",
+  "samples": 19095,
+  "selected_inclusive_samples": {
+    "RowDataToArrowOperator.processElement": 1675,
+    "NativeColumnarDropUpdateBeforeOperator.processElement": 1243,
+    "ArrowToRowDataOperator.processElement": 466,
+    "Flink StreamFilter.processElement": 289
+  },
+  "selected_self_samples_under_native_filter": {
+    "RowData field getter": 152,
+    "Arrow bit-mask copy": 97
+  },
+  "decision": "Keep a lone row-source filter on stock by default; remove its complete Arrow round trip. Retain columnar admission inside larger native pipelines and for columnar input. Explicit standalone opt-in remains available.",
+  "sample_total_method": "Full flamegraph root count, including its initial compressed n() record and all JVM threads. Selected operator/kernel counts and unprofiled elapsed trials are unchanged."
+}

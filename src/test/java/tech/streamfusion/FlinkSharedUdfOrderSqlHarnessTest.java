@@ -61,11 +61,10 @@ class FlinkSharedUdfOrderSqlHarnessTest {
   }
 
   @Test
-  void defaultKeepsTheFasterHostRouteForNewSharedScalarShapes() throws Exception {
-    NativeParity.assertFallbackReasonContains(
+  void defaultIncludesVerifiedSharedScalarShapes() throws Exception {
+    NativeParity.assertOrderedKindedParity(
         () -> FlinkCoalesceEvaluationSqlHarnessTest.environment(2051),
-        "SELECT id, tick(id), tick(id + 10) FROM src",
-        "shared stateful scalar UDF");
+        "SELECT id, tick(id), tick(id + 10) FROM src");
   }
 
   private static TableEnvironment environment(int count) {

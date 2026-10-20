@@ -763,6 +763,52 @@ impl AppendTopN {
         operator
     }
 
+    pub fn non_time_row_number_orders(partitions: Vec<usize>, orders: &[(usize, bool)]) -> Self {
+        let mut ranker = TopNRanker::new(
+            partitions,
+            orders
+                .iter()
+                .map(|&(index, nulls_first)| SortColumn {
+                    index,
+                    ascending: true,
+                    nulls_first,
+                })
+                .collect(),
+            i64::MAX,
+            true,
+            false,
+        );
+        ranker.enable_non_time_row_number();
+        Self(ranker)
+    }
+
+    pub fn restore_non_time_row_number_orders(
+        partitions: Vec<usize>,
+        orders: &[(usize, bool)],
+        snapshots: &[Vec<u8>],
+    ) -> Self {
+        let key_types = vec![0; partitions.len()];
+        let mut ranker = TopNRanker::restore_partitions(
+            partitions,
+            key_types,
+            orders
+                .iter()
+                .map(|&(index, nulls_first)| SortColumn {
+                    index,
+                    ascending: true,
+                    nulls_first,
+                })
+                .collect(),
+            i64::MAX,
+            true,
+            false,
+            snapshots,
+            0,
+        );
+        ranker.enable_non_time_row_number();
+        Self(ranker)
+    }
+
     pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
         self.0.push(batch, 0).expect("budget exceeded")
     }
@@ -904,6 +950,14 @@ pub fn split_by_key(
 pub struct GroupBy(GroupAggregator);
 
 impl GroupBy {
+    pub fn single_value_partials(value_type: i64) -> Self {
+        Self(
+            GroupAggregator::new(vec![14], vec![value_type], vec![1], vec![0], true)
+                .with_count_columns(vec![2])
+                .with_mini_batch(),
+        )
+    }
+
     pub fn new(
         kinds: Vec<i64>,
         value_types: Vec<i64>,
@@ -939,6 +993,91 @@ impl GroupBy {
             )
             .with_count_columns(vec![if kind >= 28 { 2 } else { -1 }]),
         )
+    }
+
+    pub fn distinct_listagg(retracting: bool) -> Self {
+        Self(
+            GroupAggregator::new(
+                vec![if retracting { 33 } else { 32 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
+    pub fn restore_distinct_listagg(retracting: bool, snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![if retracting { 33 } else { 32 }],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![2]),
+        )
+    }
+
+    pub fn listagg_merge() -> Self {
+        Self(
+            GroupAggregator::new(vec![24, 0], vec![3, 0], vec![2, 3], vec![0], true)
+                .with_count_columns(vec![1, -1])
+                .with_mini_batch(),
+        )
+    }
+
+    pub fn restore_listagg_merge(snapshots: &[Vec<u8>]) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![24, 0],
+                vec![3, 0],
+                vec![2, 3],
+                vec![0],
+                true,
+                snapshots,
+                0,
+            )
+            .with_count_columns(vec![1, -1])
+            .with_mini_batch(),
+        )
+    }
+
+    pub fn listagg_retention(separator_column: i64, ttl_ms: i64) -> Self {
+        Self(
+            GroupAggregator::new(vec![24], vec![3], vec![1], vec![0], true)
+                .with_count_columns(vec![separator_column])
+                .with_state_ttl(ttl_ms),
+        )
+    }
+
+    pub fn restore_listagg_retention(
+        separator_column: i64,
+        ttl_ms: i64,
+        snapshot: &[Vec<u8>],
+        now_ms: i64,
+    ) -> Self {
+        Self(
+            GroupAggregator::restore_partitions(
+                vec![24],
+                vec![3],
+                vec![1],
+                vec![0],
+                true,
+                snapshot,
+                now_ms,
+            )
+            .with_count_columns(vec![separator_column])
+            .with_state_ttl(ttl_ms),
+        )
+    }
+
+    pub fn update_at(&mut self, batch: &RecordBatch, now_ms: i64) -> RecordBatch {
+        self.0.update(batch, now_ms).expect("budget exceeded")
     }
 
     pub fn listagg(retracting: bool) -> Self {
@@ -1144,6 +1283,19 @@ impl Normalize {
 pub struct LocalGroupBy(LocalGroupAggregator);
 
 impl LocalGroupBy {
+    pub fn listagg(separator_column: i64) -> Self {
+        let mut local = LocalGroupAggregator::new(
+            vec![24, 3],
+            vec![3, 0],
+            vec![1, -1],
+            vec![-1, -1],
+            vec![0],
+            vec![],
+        );
+        local.configure_arguments(vec![separator_column, -1]);
+        Self(local)
+    }
+
     pub fn new(
         kinds: Vec<i64>,
         value_types: Vec<i64>,
@@ -1360,6 +1512,15 @@ pub fn expand_grouping_sets(batch: &RecordBatch) -> RecordBatch {
 
 pub fn unnest(batch: &RecordBatch, left: bool, ordinality: bool) -> RecordBatch {
     crate::flatten::unnest_array(batch, 1, ordinality, left, false)
+}
+
+pub fn unnest_projected(
+    batch: &RecordBatch,
+    left: bool,
+    ordinality: bool,
+    projection: &[usize],
+) -> RecordBatch {
+    crate::flatten::unnest_projected(batch, 1, ordinality, left, false, Some(projection))
 }
 
 pub struct TemporalSort(crate::sorter::TemporalSorter);
@@ -2005,6 +2166,72 @@ pub struct PersistentOver(OverWindowAggregator);
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentOver {
+    pub fn distinct_count(
+        directory: &str,
+        schema: SchemaRef,
+        options: &str,
+        value_type: i64,
+        rows: bool,
+    ) -> Self {
+        let frame = if rows { 3 } else { 0 };
+        let store = crate::state::RocksOverAggStore::create(
+            PersistentSort::config(directory, options),
+            &rocks_over_state_types(&[value_type], &[103], frame, false).unwrap(),
+            &[],
+            &[value_data_type(value_type)],
+            schema,
+            0..=0,
+        )
+        .expect("persistent DISTINCT OVER fixture");
+        let operator = OverWindowAggregator::new(
+            vec![value_type],
+            vec![103],
+            2,
+            vec![1],
+            vec![0],
+            frame,
+            0,
+            false,
+        )
+        .with_key_timestamp_precisions(vec![-1]);
+        Self(operator.with_store(store, vec![DataType::Int64]))
+    }
+
+    pub fn restore_distinct_count(
+        directory: &str,
+        schema: SchemaRef,
+        options: &str,
+        source: &str,
+        generation: i64,
+        value_type: i64,
+        rows: bool,
+    ) -> Self {
+        let frame = if rows { 3 } else { 0 };
+        let store = crate::state::RocksOverAggStore::open_merged(
+            PersistentSort::config(directory, options),
+            &rocks_over_state_types(&[value_type], &[103], frame, false).unwrap(),
+            &[],
+            &[value_data_type(value_type)],
+            schema,
+            0..=0,
+            &[(source.to_owned(), generation)],
+            true,
+        )
+        .expect("persistent DISTINCT OVER restore");
+        let operator = OverWindowAggregator::new(
+            vec![value_type],
+            vec![103],
+            2,
+            vec![1],
+            vec![0],
+            frame,
+            0,
+            false,
+        )
+        .with_key_timestamp_precisions(vec![-1]);
+        Self(operator.with_store(store, vec![DataType::Int64]))
+    }
+
     pub fn new(directory: &str, schema: SchemaRef, options: &str) -> Self {
         let store = crate::state::RocksOverAggStore::create(
             PersistentSort::config(directory, options),
@@ -2085,4 +2312,9 @@ impl StringOverReduction {
     pub fn value(&self) -> ScalarValue {
         self.0.emit()
     }
+}
+
+/// Production changelog metadata filter; includes mask construction and Arrow filtering.
+pub fn drop_update_before(batch: &RecordBatch) -> RecordBatch {
+    crate::changelog_filter::drop_update_before(batch)
 }

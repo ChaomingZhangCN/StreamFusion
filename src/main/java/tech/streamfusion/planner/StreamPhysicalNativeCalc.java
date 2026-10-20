@@ -35,6 +35,7 @@ public class StreamPhysicalNativeCalc extends StreamPhysicalNativeSingleRel
   // The original projection coordinates, before optional input pruning. Used only to prove
   // relationships between output expressions; execution uses the encoded, remapped program.
   private final RexProgram sourceProgram;
+  private final boolean preserveCollections;
 
   public StreamPhysicalNativeCalc(
       RelOptCluster cluster,
@@ -67,7 +68,8 @@ public class StreamPhysicalNativeCalc extends StreamPhysicalNativeSingleRel
         encoded.conditionRoot(),
         encoded.outputNames(),
         encoded.udfBinding(),
-        sourceProgram);
+        sourceProgram,
+        encoded.requiresCollectionRepresentation());
   }
 
   private StreamPhysicalNativeCalc(
@@ -85,7 +87,8 @@ public class StreamPhysicalNativeCalc extends StreamPhysicalNativeSingleRel
       int conditionRoot,
       String[] outputNames,
       NativeUdf.Binding udfBinding,
-      RexProgram sourceProgram) {
+      RexProgram sourceProgram,
+      boolean preserveCollections) {
     super(cluster, traitSet, input, outputRowType);
     this.kinds = kinds;
     this.payload = payload;
@@ -98,15 +101,21 @@ public class StreamPhysicalNativeCalc extends StreamPhysicalNativeSingleRel
     this.outputNames = outputNames;
     this.udfBinding = udfBinding;
     this.sourceProgram = sourceProgram;
+    this.preserveCollections = preserveCollections;
   }
 
   RexProgram sourceProgram() {
     return sourceProgram;
   }
 
+  boolean preservesCollections() {
+    return preserveCollections;
+  }
+
   @Override
   public RelWriter explainTerms(RelWriter writer) {
     return super.explainTerms(writer)
+        .itemIf("collectionRepresentation", true, preserveCollections)
         .itemIf(
             "jsonEvaluation",
             "JVM",
@@ -137,7 +146,8 @@ public class StreamPhysicalNativeCalc extends StreamPhysicalNativeSingleRel
         conditionRoot,
         outputNames,
         udfBinding,
-        sourceProgram);
+        sourceProgram,
+        preserveCollections);
   }
 
   @Override

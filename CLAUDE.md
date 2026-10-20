@@ -109,7 +109,8 @@ outside timed execution and state the measured boundary. Use `bin/bench-native.p
 suites and `--smoke` to validate fixtures; the coverage inventory and methodology live in
 [docs/benchmarks/native-criterion.md](docs/benchmarks/native-criterion.md). Record allocation requests
 and Arrow buffer sharing when investigating copies, without equating either metric with copied bytes.
-Criterion isolates native costs; it does not replace the end-to-end Flink comparison below.
+Criterion isolates native costs; it does not supply the stock-Flink comparison required for the
+functionality gates below.
 
 ### Performance requirements for new features
 
@@ -122,8 +123,9 @@ baseline is insufficient if the new native path still loses to Flink. The regres
 passing parity tests is only one part of completing a feature.
 
 Use release builds, identical queries/data/resources, warmup, and repeated measurements. Include representative
-sizes, cardinalities, and types for the feature, and retain all production conversion, JNI, and state costs in
-the measured path. Verify that the intended native operators actually execute. Report stock Flink and native
+sizes, cardinalities, and types for the feature. Retain production JNI, state, and conversions intrinsic to the
+functionality being measured; complete-job benchmarks also retain all perimeter conversion costs. Verify that
+the intended native operators actually execute. Report stock Flink and native
 results, variability, and the benchmark configuration in the PR and relevant documentation; include measured
 improvements in the commit message. Distinguish startup-dominated results from sustained processing performance
 without discarding unfavorable end-to-end results.

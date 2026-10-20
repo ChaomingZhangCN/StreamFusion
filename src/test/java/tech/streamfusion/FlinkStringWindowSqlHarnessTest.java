@@ -155,13 +155,12 @@ class FlinkStringWindowSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void ordinaryStringCountRemainsOutsideAdmission(String phase) throws Exception {
-    NativeParity.assertFallbackReasonContains(
-        () -> environment(phase),
+  void ordinaryStringCountUsesNativeValidityState(String phase) throws Exception {
+    check(
+        phase,
         "SELECT k, window_start, window_end, COUNT(text_value) FROM TABLE("
             + window("TUMBLE")
-            + ") GROUP BY k, window_start, window_end",
-        "window aggregate:");
+            + ") GROUP BY k, window_start, window_end");
   }
 
   private static void check(String phase, String sql) throws Exception {
@@ -241,16 +240,38 @@ class FlinkStringWindowSqlHarnessTest {
     return table;
   }
 
+  @Test
+  void unverifiedLegacyStringExtremaStayOnFlinkByDefault() throws Exception {
+    NativeParity.assertFallbackReasonContains(
+        () -> environment("ONE_PHASE", false),
+        "SELECT k, TUMBLE_START(rt, INTERVAL '10' SECOND), MIN(text_value), MAX(text_value),"
+            + " COUNT(*) FROM src GROUP BY k, TUMBLE(rt, INTERVAL '10' SECOND)",
+        "single-phase string MIN/MAX requires"
+            + " streamfusion.window.string-extrema.single-phase.enabled=true");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"TUMBLE", "HOP", "CUMULATE"})
-  void singlePhaseStringExtremaStayOnFlinkByDefault(String shape) throws Exception {
-    NativeParity.assertFallbackReasonContains(
+  void measuredSinglePhaseShapesRunNativelyWithoutAnOptIn(String shape) throws Exception {
+    NativeParity.assertKindedParity(
         () -> environment("ONE_PHASE", false),
         "SELECT k, window_start, window_end, MIN(text_value), MAX(text_value), COUNT(*) "
             + "FROM TABLE("
             + window(shape)
+            + ") GROUP BY k, window_start, window_end");
+  }
+
+  @Test
+  void explicitFalseRetainsStockForAnOtherwiseAdmittedShape() throws Exception {
+    NativeParity.assertFallbackReasonContains(
+        () -> {
+          var table = environment("ONE_PHASE", false);
+          table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "false");
+          return table;
+        },
+        "SELECT k, window_start, window_end, MIN(text_value) FROM TABLE("
+            + window("TUMBLE")
             + ") GROUP BY k, window_start, window_end",
-        "single-phase string MIN/MAX requires"
-            + " streamfusion.window.string-extrema.single-phase.enabled=true");
+        "single-phase string MIN/MAX requires");
   }
 }

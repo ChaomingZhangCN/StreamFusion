@@ -53,6 +53,35 @@ public class StreamPhysicalNativeOverAggregate extends StreamPhysicalNativeSingl
     this.proctime = proctime;
   }
 
+  int preferredInputBatchRows() {
+    if (proctime) {
+      for (int i = 0; i < aggregateKinds.length; i++) {
+        if (aggregateKinds[i] != 3 || valueColumns[i] < 0) continue;
+        switch (getInput()
+            .getRowType()
+            .getFieldList()
+            .get(valueColumns[i])
+            .getType()
+            .getSqlTypeName()) {
+          case ARRAY:
+          case MAP:
+          case ROW:
+            return 4096;
+          default:
+            break;
+        }
+      }
+    }
+    return 1024;
+  }
+
+  boolean usesMapListTransport() {
+    return tech.streamfusion.arrow.MapListRepresentation.requiredForCounts(
+        FlinkTypeFactory$.MODULE$.toLogicalRowType(getInput().getRowType()),
+        valueColumns,
+        aggregateKinds);
+  }
+
   @Override
   public boolean requireWatermark() {
     return !proctime; // proctime OVER emits eagerly in arrival order; rowtime needs a watermark

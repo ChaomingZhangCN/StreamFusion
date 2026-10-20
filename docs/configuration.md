@@ -12,7 +12,8 @@ serialized operator configuration rather than process-global state before a stab
 - **`-Dstreamfusion.operator.<name>.enabled=false`** — keep one operator on the host (e.g. leave a
   lone cheap `filter` on a row source, which can't earn back the transpose round-trip). A switch
   covers every shape that reaches the same native operator — e.g. `groupAggregate` also covers the
-  two-phase global half, `windowRank` also covers window deduplication. All default on.
+  two-phase global half, `windowRank` also covers window deduplication, and `dropUpdateBefore`
+  controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
 - **`streamfusion.experimental.jvmGroupAggregates`** (system property, default true) — enable
@@ -23,16 +24,30 @@ serialized operator configuration rather than process-global state before a stab
   verified external Java Row callbacks and the matching nested RowKind/raw BINARY transport.
   Configure the same value in planner and task JVMs; false restores the preceding transport and
   nested-signature fallback. See [Calc/filter](operators/calc-filter.md).
-- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
-  native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
-  Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
-  measurements. Existing admitted binary/generated shapes are unaffected. See
-  [Calc/filter](operators/calc-filter.md) for the scope and results.
-- **`streamfusion.calc.temporalUdf.enabled`** (default false) — opt into complete-row generated
-  Calc evaluation for scalar UDFs using `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ
-  arguments/results. Standalone row-source projections remain slower than stock Flink in release
-  measurements. The default preserves host execution; builtin temporal functions retain their
-  existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone
+  changelog filter after verified Rust-side Arrow admission. Explicit `false` retains stock
+  for the standalone shape. Complete row-source jobs can still lose because of perimeter costs.
+  Filters inside an admitted native pipeline retain ordinary admission. See
+  [drop update-before](operators/drop-update-before.md).
+- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default true) — complete-row native
+  Calc evaluation for shared non-deterministic scalar calls, preserving Flink invocation order.
+  Explicit `false` retains the shared-call host route. Slower JVM UDF execution is an accepted
+  tradeoff for correct coverage. See [Calc/filter](operators/calc-filter.md).
+- **`streamfusion.calc.temporalUdf.enabled`** (default true) — complete-row generated Calc
+  evaluation for verified `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ UDF signatures.
+  Explicit `false` forces those UDFs to stock. Correctness/type/lifecycle gates remain in force;
+  slower UDF execution alone does not block coverage. See
+  [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.experimental.collectionExpressions`** (default true) — enable the
+  collection kernels and generated collection/constructor programs described in
+  [Calc/filter coverage](operators/calc-filter.md#collection-expressions). The planner serializes
+  the required Java string-cache and nested row-kind layout into the entry transpose and generated
+  result schema. Standalone row-source queries can be slower; the maintainer accepted this
+  tradeoff on 2026-10-17. Set false to keep these extensions on Flink.
+- **`streamfusion.experimental.metadataExpressions`** (default true) — enable `TYPEOF` and
+  `CURRENT_DATABASE`. Aggregate pipelines improve in the measured workloads, while standalone
+  projections still lose to stock Flink. This tradeoff was accepted on 2026-10-17; set false
+  to disable the extension. See [metadata coverage](operators/calc-filter.md#type-and-database-metadata).
 - **`-Dstreamfusion.fluss.enabled=false`** — disable the optional Fluss extension’s source/sink
   substitutions. This JVM property defaults to true when `streamfusion-fluss` is installed;
   only the verified combinations in [Fluss](connectors/fluss.md) accelerate.
@@ -45,9 +60,10 @@ serialized operator configuration rather than process-global state before a stab
   (two branches scanning the same native source normally collapse into one read); restores one
   source per branch. Flink's `table.optimizer.reuse-source-enabled=false` and
   `table.optimizer.reuse-sub-plan-enabled=false` also disable native source sharing.
-- **`streamfusion.transpose.batchRows`** (default 1024) — maximum rows buffered by each
+- **`streamfusion.transpose.batchRows`** (default 1024; proctime complex COUNT input islands prefer 4096) — maximum rows buffered by each
   row-to-Arrow boundary. Must be positive. Read from the job's Flink configuration at planning
-  time and serialized into the operator; the same-named JVM property is a fallback. Watermarks,
+  time and serialized into the operator; the same-named JVM property is a fallback. Explicit
+  table/JVM settings override the preferred batch size. Watermarks,
   checkpoints, end-of-input and the latency timer can flush a smaller batch. This does not set
   Flink's logical mini-batch size or the post-exchange coalescer's target size. Accepted rows are
   copied directly into owned Arrow storage, including partial batches; operator close releases
@@ -100,20 +116,22 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 
 ## Experimental Window Coverage
 
-`streamfusion.window.string-extrema.single-phase.enabled` defaults to `false`. Set it to `true`
-in Flink table configuration to admit single-phase CHAR/VARCHAR MIN/MAX, including admitted
-processing-time, session and legacy windows. High-cardinality single-phase CUMULATE regressed
-against Flink in the complete-job comparison, so stock Flink remains the default for these
-string aggregates. Two-phase local/global string extrema do not require this option. See
-[Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+Single-phase event-time TVF TUMBLE/HOP/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
+The optional `streamfusion.window.string-extrema.single-phase.enabled` overrides admission:
+`false` forces stock execution, while `true` also admits otherwise supported
+processing-time, session and legacy string windows. The Rust-side string selection optimization removes
+the former high-cardinality HOP restriction.
+Two-phase local/global string extrema do not require this option.
+See [Window aggregate](operators/window-aggregate.md#string-minmax).
 
-`streamfusion.window.attached.single-phase.enabled` also defaults to `false`. Set it to `true`
-in table configuration to admit verified append-only event-time TUMBLE/HOP/CUMULATE
-re-aggregation over attached window bounds in ONE_PHASE plans. Default stock execution
-preserves the measured HOP/high-cardinality and persistent COUNT performance limitations;
-the existing AUTO/TWO_PHASE attached route retains its admission. See
-[Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
-for exact coverage and retained performance results.
+Single-phase attached-window re-aggregation now runs natively for all otherwise supported
+append-only event-time TUMBLE/HOP/CUMULATE layouts, including regional calendars, wider overlap
+and upstream aggregates beyond COUNT. The optional
+`streamfusion.window.attached.single-phase.enabled=false` forces stock execution; `true`
+now matches the default. FILTER, retracting inputs and unsupported types still fall back.
+[The admission audit](benchmarks/feature-admission-2026-10-19.md) compares stock RowData with
+matching prebuilt Arrow inputs, with intrinsic conversions included. Complete-job timings
+remain separate evidence, including retained slower wide-overlap jobs.
 
 ## Diagnostics
 
