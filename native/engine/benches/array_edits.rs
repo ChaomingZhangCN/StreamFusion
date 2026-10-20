@@ -1,0 +1,89 @@
+use std::sync::Arc;
+
+use arrow::array::{ArrayRef, Int64Array, ListArray, RecordBatch};
+use arrow::datatypes::{DataType, Field, Int64Type};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use streamfusion::bench::CalcProgram;
+use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
+
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+fn fixture(kind: &DataType, rows: usize, width: usize, nulls: bool) -> (RecordBatch, ArrayRef) {
+    let samples = (0..=rows)
+        .map(|row| {
+            (!nulls || row % 7 != 0).then(|| {
+                (0..width)
+                    .map(|i| (!nulls || i % 5 != 0).then_some(((row + i) % 9) as i64 - 4))
+                    .collect::<Vec<_>>()
+            })
+        })
+        .collect::<Vec<_>>();
+    let needles = (0..=rows)
+        .map(|row| (!nulls || row % 3 != 0).then_some((row % 9) as i64 - 4))
+        .collect::<Vec<_>>();
+    let expected = samples
+        .iter()
+        .zip(&needles)
+        .map(|(array, needle)| {
+            array.as_ref().map(|a| {
+                let mut a = a.clone();
+                a.push(*needle);
+                a
+            })
+        })
+        .collect::<Vec<_>>();
+    let list_type = DataType::List(Arc::new(Field::new_list_field(kind.clone(), true)));
+    let lists = ListArray::from_iter_primitive::<Int64Type, _, _>(samples).slice(1, rows);
+    let expected = ListArray::from_iter_primitive::<Int64Type, _, _>(expected).slice(1, rows);
+    let lists = arrow::compute::cast(&lists, &list_type).unwrap();
+    let needles = arrow::compute::cast(&Int64Array::from(needles).slice(1, rows), kind).unwrap();
+    (
+        RecordBatch::try_from_iter([("a", lists), ("n", needles)]).unwrap(),
+        arrow::compute::cast(&expected, &list_type).unwrap(),
+    )
+}
+
+fn run(c: &mut Criterion) {
+    header();
+    let mut group = c.benchmark_group("array_edits");
+    for rows in [0, 16, 1024] {
+        for width in [0, 8, 64] {
+            for nulls in [false, true] {
+                for kind in [
+                    DataType::Int8,
+                    DataType::Int16,
+                    DataType::Int32,
+                    DataType::Int64,
+                    DataType::Decimal128(38, 9),
+                ] {
+                    let (batch, expected) = fixture(&kind, rows, width, nulls);
+                    let mut calc = CalcProgram::new(
+                        vec![6, 0, 0],
+                        vec![182, 0, 1],
+                        vec![2, 0, 0],
+                        vec![],
+                        vec![],
+                        vec![],
+                    );
+                    let label = format!("append/{kind}/{rows}/width={width}/nulls={nulls}");
+                    assert_eq!(
+                        calc.run(batch.clone()).column(0).as_ref(),
+                        expected.as_ref(),
+                        "{label}"
+                    );
+                    let (output, allocations) = measure(|| calc.run(batch.clone()));
+                    report(&label, batch.columns(), output.columns(), allocations);
+                    group.throughput(Throughput::Elements(rows as u64));
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| std::hint::black_box(calc.run(batch.clone())))
+                    });
+                }
+            }
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, run);
+criterion_main!(benches);

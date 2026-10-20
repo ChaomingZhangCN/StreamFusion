@@ -33,6 +33,7 @@ pub(crate) mod to_date;
 
 mod array_constructor;
 mod array_distinct;
+mod array_edit;
 #[cfg(test)]
 mod array_extrema_tests;
 pub(crate) mod array_item;
@@ -217,6 +218,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         181 => datafusion::functions_nested::min_max::array_max_udf()
             .as_ref()
             .clone(),
+        182 => array_edit::function(),
         _ => return None,
     })
 }

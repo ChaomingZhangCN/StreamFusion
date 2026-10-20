@@ -1516,6 +1516,14 @@ final class RexExpression {
     }
   }
 
+  private static boolean nativeBasicArray(RelDataType type) {
+    return type.getSqlTypeName() == SqlTypeName.ARRAY
+        && type.getComponentType().isNullable()
+        && java.util.Set.of(SqlTypeName.BOOLEAN, SqlTypeName.TINYINT, SqlTypeName.SMALLINT,
+                SqlTypeName.INTEGER, SqlTypeName.BIGINT, SqlTypeName.DECIMAL)
+            .contains(type.getComponentType().getSqlTypeName());
+  }
+
   private boolean emitCall(RexCall call) {
     if (containsMetadataDependentDecimalRounding(call)) {
       if (!validateDecimalRoundingBoundary(call)) return false;
@@ -1955,6 +1963,16 @@ final class RexExpression {
         return reject(functionName + " uses Flink evaluation for non-null needles");
       }
       return emitBuiltinCall(call, "ARRAY_CONTAINS".equals(functionName) ? 178 : 179);
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_APPEND".equals(functionName)) {
+      var args = call.getOperands();
+      if (args.size() != 2 || !nativeBasicArray(args.get(0).getType())
+          || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
+              args.get(0).getType().getComponentType(), args.get(1).getType())
+          || args.stream().anyMatch(this::requiresRowShortCircuit)) {
+        return reject(functionName + " uses Flink evaluation outside total matching basic arrays");
+      }
+      return emitBuiltinCall(call, 182);
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {

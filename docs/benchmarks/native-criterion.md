@@ -370,6 +370,7 @@ Some historical suites use
 | Registered Flink scalar functions | `scalar_registry` | Every registered numeric opcode; completeness assertion requires a fixture for new registrations; ASCII/null/Unicode profiles |
 | Basic ARRAY searches | `array_search` | Compiled production CONTAINS/POSITION, 0/16/1024 rows, widths 0/8/64, INTEGER/BIGINT/BOOLEAN/DECIMAL, NULL parents/elements/needles, duplicates, misses and sliced buffers; warm expression execution with allocation and buffer probes |
 | Integer/DECIMAL ARRAY extrema | `array_extrema` | 360 compiled production MIN/MAX fixtures, 0/16/1024 rows, widths 0/8/31/32/33/64, four integer types and DECIMAL(38,9), sliced arrays and NULL parents/elements; released DataFusion scalar/Arrow paths, result allocation and buffer probes |
+| Basic ARRAY edits | `array_edits` | Production ARRAY_APPEND through compiled Calc; sliced inputs, 0/16/1024 rows, widths 0/8/64, integer/DECIMAL types and NULL parents/elements/needles; independent expected arrays, allocation requests and buffer probes |
 | Parameterized scalar kernels | `scalar_registry` | Decimal cast/round/truncate/arithmetic/float conversion, integer parse/format/divide, FROM_UNIXTIME, array item, literal/dynamic map lookup, random, clock, float comparison |
 | JSON decode | `json_decode`, `json_codecs` | Direct production decode, projection, wide messages, historical nested Nexmark corpus |
 | Raw decode | `raw_decode` | All admitted primitive/string/binary types, endianness, null bodies, slices |

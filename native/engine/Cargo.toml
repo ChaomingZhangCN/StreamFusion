@@ -101,6 +101,10 @@ name = "scalar_registry"
 harness = false
 
 [[bench]]
+name = "array_edits"
+harness = false
+
+[[bench]]
 name = "keys_and_checkpoints"
 harness = false
 
