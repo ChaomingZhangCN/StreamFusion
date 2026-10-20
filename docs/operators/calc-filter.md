@@ -1120,14 +1120,14 @@ falls back before execution. The reported reason starts with `legacy binary vari
 Runtime-source tests cover widths 1/2/4/16, NULLs, zero padding, truncation, non-text bytes,
 typed literals, ELT selection, short-circuiting, and 5,003-row inputs. Bridge tests cover
 sliced fixed/variable vectors, output ownership after input closure, and allocator balance.
-Binary ELT SQL tests require stock execution and the performance-admission fallback
-reason while comparing results, including nested compositions and empty selections.
+Binary ELT SQL tests require native execution by default and separately verify the
+explicit false override, including nested compositions and empty selections.
 Separate binary STARTSWITH/ENDSWITH tests still require native execution.
 
 [Low-cardinality grouped-count measurements](../optimizations/scalar-function-kernels.md#binary-keys-composed-with-grouped-counts)
 show 19–35% less native time at 2M rows and 22–26% less at 5M for binary-cast and
-ELT keys, retaining both transposes. ELT remains on stock execution because its standalone
-workloads regress; these historical composed measurements do not override that gate.
+ELT keys, retaining both transposes. These historical composed measurements are separate
+from the Rust-side functionality gate used for current binary ELT default admission.
 The admitted binary-cast composed workloads are faster than Flink;
 the [synchronous entry optimization](../optimizations/projection-pruning-transpose.md#borrowing-at-the-synchronous-consumer)
 also makes the measured non-null standalone STRING-to-BINARY cast faster than both baselines.
@@ -2465,7 +2465,7 @@ for the later accepted large-domain optimization.
 Boolean ARRAY_DISTINCT, and DOUBLE TRUNCATE including consumer evaluation and exception behavior. It requires native
 Calc and both transposes without starting a job. Plan checks supplement, rather than replace,
 runtime parity and performance checks. The admitted plans run on each released Flink line.
-Binary ELT retains runtime fallback witnesses; STRING ARRAY_DISTINCT now has default-enabled
+Binary ELT retains explicit-false runtime fallback witnesses; STRING ARRAY_DISTINCT now has default-enabled
 generated-program parity coverage under the accepted collection performance tradeoff. Seven in-process Arrow/JNI ownership tests and three DOUBLE TRUNCATE
 helper/admission tests pass on each line.
 Two generated-evaluator checks additionally validate omitted and dynamic scales, NULLs, bits
@@ -2477,8 +2477,8 @@ Nonfinite DOUBLE TRUNCATE consumer checks compare independent released Flink and
 The recovered release revision passes the complete 54-check selected suite on Flink 1.18.1
 with four unavailable-ELT checks skipped, and the corresponding Flink 2.2.1 checks pass.
 Eleven DOUBLE TRUNCATE runtime checks and nine Boolean/string ARRAY_DISTINCT checks pass on
-both released lines. These are historical correctness results. Binary ELT remains
-on stock execution pending performance admission. STRING ARRAY_DISTINCT uses the verified
+both released lines. These are historical correctness results. Binary ELT now uses the
+Rust-side functionality gate described below. STRING ARRAY_DISTINCT uses the verified
 generated collection route described above; fixed binary casts, Boolean ARRAY_DISTINCT,
 and the bounded DOUBLE TRUNCATE helper remain admitted.
 
