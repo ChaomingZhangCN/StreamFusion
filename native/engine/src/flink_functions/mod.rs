@@ -224,6 +224,9 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         183 => array_edit::function(true),
         184 => array_remove::function(),
         185 => array_concat::function(arity),
+        186 => datafusion::functions_nested::set_ops::array_union_udf()
+            .as_ref()
+            .clone(),
         _ => return None,
     })
 }

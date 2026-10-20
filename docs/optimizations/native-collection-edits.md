@@ -73,6 +73,15 @@ NULL-skipping concatenation. The builder works on Arrow storage for matching
 basic nullable element types; it does not reconstruct individual JVM containers.
 Variadic and independently NULL operands are covered by runtime SQL tests.
 
+## Union of arrays
+
+ARRAY_UNION reuses DataFusion 54's released stable-union implementation for matching
+nullable basic types. It preserves first occurrence across the left input then the
+right input, including one NULL element, and returns NULL if either container is
+NULL. The planner retains generated evaluation for other representations and
+fallible operands. SQL fixtures exercise distinct left/right lengths and both
+operand orders rather than assuming that a set operation may reorder its result.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -117,3 +126,18 @@ Query: `ARRAY_CONCAT(arr,arr)`, 2,000,000 rows, BIGINT, width 8. Method and reso
 Elapsed time changes by -44.02% versus the prior evaluator and -15.97% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
 
 [All 20 trials](../benchmarks/collection-array-concat-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-concat-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-concat-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.
+
+## ARRAY_UNION complete-job evidence
+
+Query: `ARRAY_UNION(arr,arr)`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 8.542574 | 8.498861-8.561808 |
+| baseline streamfusion | 9.010223 | 8.957234-9.215945 |
+| candidate stock | 8.587815 | 8.560695-8.662645 |
+| candidate streamfusion | 1.440899 | 1.397706-1.456708 |
+
+Elapsed time changes by -84.01% versus the prior evaluator and -83.22% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
+
+[All 20 trials](../benchmarks/collection-array-union-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-union-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-union-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.
