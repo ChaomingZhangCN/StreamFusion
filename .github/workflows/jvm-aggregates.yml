@@ -49,7 +49,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: ./.github/actions/setup-rust
       - name: Fingerprint native release inputs before restoring build outputs
         id: native-inputs
         env:
