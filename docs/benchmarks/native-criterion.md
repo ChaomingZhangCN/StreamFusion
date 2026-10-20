@@ -2792,3 +2792,5 @@ string/collection consumer retains generated evaluation, preserving their Java
 representation. Other array element types/nullability and fallible operands stay
 generated. DataFusion's explicit NULL replacement skips elements, so it is not a
 direct substitute for this Flink kernel.
+
+The scalar registry also exercises ELEMENT's Flink 1.18 exception variant (opcode 201); its successful extraction kernel is shared with the 2.2 variant.

@@ -2160,7 +2160,11 @@ final class RexExpression {
       if (args.size()!=1 || !nativeBasicArray(args.get(0).getType())
           || requiresRowShortCircuit(args.get(0)))
         return reject("ELEMENT uses Flink evaluation outside total basic nullable arrays");
-      return emitBuiltinCall(call,190);
+      if (!tech.streamfusion.compat.FlinkCompat.TABLE_RUNTIME_ELEMENT_EXCEPTION
+          && java.util.Set.of(SqlTypeName.TINYINT,SqlTypeName.SMALLINT)
+              .contains(args.get(0).getType().getComponentType().getSqlTypeName()))
+        return reject("ELEMENT retains Flink 1.18's narrow-element code-generation failure");
+      return emitBuiltinCall(call,tech.streamfusion.compat.FlinkCompat.TABLE_RUNTIME_ELEMENT_EXCEPTION ? 190 : 201);
     }
     if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_SORT".equals(functionName)) {
       var args = call.getOperands();

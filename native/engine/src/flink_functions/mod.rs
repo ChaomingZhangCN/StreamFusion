@@ -239,7 +239,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         189 => datafusion::functions_nested::sort::array_sort_udf()
             .as_ref()
             .clone(),
-        190 => element::function(),
+        190 => element::function(false),
         191 => map_arrays::function(),
         192 => map_projection::function(0),
         193 => map_projection::function(1),
@@ -250,6 +250,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         198 => datafusion::functions::core::named_struct().as_ref().clone(),
         199 => datafusion::functions::core::named_struct().as_ref().clone(),
         200 => array_join::function(arity),
+        201 => element::function(true),
         _ => return None,
     })
 }

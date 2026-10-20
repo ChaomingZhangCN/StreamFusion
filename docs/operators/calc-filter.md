@@ -2083,7 +2083,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_INTERSECT | Rust stable intersection for matching nullable BOOLEAN/integer/DECIMAL arrays; distinct matches follow left-side order even when the left array is shorter; NULL is a value, either NULL container returns NULL |
 | ARRAY_SORT | Released DataFusion Rust sort for nullable integer/DECIMAL arrays proven shorter than 32 elements or produced by native ARRAY_DISTINCT, with non-NULL constant Boolean options; unrestricted, runtime-option, sensitive and fallible signatures retain Flink's comparator behavior |
 | ARRAY_JOIN | Rust UTF-8 join for total nullable string arrays and string options, including strict explicit NULL replacement; co-projected sensitive values and unverified consumers remain generated |
-| ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
+| ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise the selected Flink line's exception with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
 | MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
 | MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
 | MAP_VALUES | Rust shared-value view under the same verified basic-map admission |
@@ -2746,3 +2746,12 @@ string/collection consumer retains generated evaluation, preserving their Java
 representation. Other array element types/nullability and fallible operands stay
 generated. DataFusion's explicit NULL replacement skips elements, so it is not a
 direct substitute for this Flink kernel.
+
+ELEMENT preserves the selected released line's exception: Flink 1.18 throws
+java.lang.RuntimeException for multiple elements, whereas Flink 2.2 throws
+TableRuntimeException. The compatibility profile selects that native variant;
+empty, NULL and singleton arrays keep identical values on both lines.
+
+Flink 1.18 ELEMENT over TINYINT/SMALLINT retains stock fallback: the released
+host's narrow-result conditional does not compile in Janino. The parity tests
+retain this host compilation failure rather than asserting a successful value.

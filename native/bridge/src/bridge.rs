@@ -31,6 +31,13 @@ impl FlinkException {
         }
     }
 
+    pub fn java_runtime(message: String) -> Self {
+        Self {
+            class: "java/lang/RuntimeException",
+            message,
+        }
+    }
+
     pub fn table_runtime(message: String) -> Self {
         Self {
             class: "org/apache/flink/table/api/TableRuntimeException",

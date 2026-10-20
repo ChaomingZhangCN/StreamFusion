@@ -5,18 +5,24 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-pub(super) fn function() -> ScalarUDF {
+pub(super) fn function(legacy_exception: bool) -> ScalarUDF {
     ScalarUDF::new_from_impl(Element {
+        legacy_exception,
         signature: Signature::any(1, Volatility::Immutable),
     })
 }
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Element {
+    legacy_exception: bool,
     signature: Signature,
 }
 impl ScalarUDFImpl for Element {
     fn name(&self) -> &str {
-        "flink_element"
+        if self.legacy_exception {
+            "flink_element_legacy"
+        } else {
+            "flink_element"
+        }
     }
     fn signature(&self) -> &Signature {
         &self.signature
@@ -28,10 +34,13 @@ impl ScalarUDFImpl for Element {
         }
     }
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        datafusion::functions::utils::make_scalar_function(element, vec![])(&args.args)
+        datafusion::functions::utils::make_scalar_function(
+            |arrays| element(arrays, self.legacy_exception),
+            vec![],
+        )(&args.args)
     }
 }
-fn element(args: &[ArrayRef]) -> Result<ArrayRef> {
+fn element(args: &[ArrayRef], legacy_exception: bool) -> Result<ArrayRef> {
     let array = as_list_array(&args[0])?;
     let mut indices = Vec::with_capacity(array.len());
     for row in 0..array.len() {
@@ -42,11 +51,15 @@ fn element(args: &[ArrayRef]) -> Result<ArrayRef> {
         } else if length == 1 {
             Some(start as u32)
         } else {
-            return Err(DataFusionError::External(Box::new(
+            return Err(DataFusionError::External(Box::new(if legacy_exception {
+                streamfusion_bridge::FlinkException::java_runtime(
+                    "Array has more than one element.".into(),
+                )
+            } else {
                 streamfusion_bridge::FlinkException::table_runtime(
                     "Array has more than one element.".into(),
-                ),
-            )));
+                )
+            })));
         });
     }
     Ok(arrow::compute::take(
@@ -76,13 +89,13 @@ mod tests {
             .slice(1, 4),
         );
         assert_eq!(
-            element(&[arrays]).unwrap().as_ref(),
+            element(&[arrays], false).unwrap().as_ref(),
             &Int64Array::from(vec![None, None, None, Some(i64::MIN)])
         );
         let arrays: ArrayRef = Arc::new(ListArray::from_iter_primitive::<Int64Type, _, _>([Some(
             vec![None, None],
         )]));
-        let error = element(&[arrays]).unwrap_err();
+        let error = element(&[arrays], false).unwrap_err();
         assert!(error
             .to_string()
             .contains("Array has more than one element."));

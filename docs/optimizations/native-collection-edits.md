@@ -119,7 +119,7 @@ Flink evaluation. This is deliberately partial native admission.
 
 ELEMENT selects a nullable child index for each basic array and gathers it with
 Arrow. Empty and NULL arrays produce NULL; multiple elements produce the released
-`TableRuntimeException` and message, carried through the existing typed-error
+exception class and message, carried through the existing typed-error
 bridge. The planner counts ELEMENT as a failure site so other failing expressions
 cannot be reordered across rows. The scalar registry covers empty, singleton,
 NULL-element and NULL-parent arrays; SQL tests cover multi-element failures,
@@ -154,6 +154,14 @@ projection pattern while accepting Flink's nullable-key representation. No
 per-entry gathering or JVM container reconstruction is necessary.
 
 MAP_VALUES uses the same verified basic-map admission and shared-buffer view, selecting the value child without changing NULLs or entry order.
+
+## Released ELEMENT exception types
+
+The Flink compatibility profile selects ELEMENT's released exception class without
+an extra per-row argument, lookup or reflective class detection. Flink 1.18 uses
+RuntimeException and Flink 2.2 uses TableRuntimeException; both use the exact same
+array kernel and message. This changes only the error path and does not alter the
+successful kernel or the complete-job measurements above.
 
 ## ARRAY_PREPEND complete-job evidence
 
@@ -439,3 +447,9 @@ Query: `ARRAY_JOIN(arr,'|','NULL')`, 1,000,000 rows, STRING, width 8. Method and
 Elapsed time changes by -32.87% versus the prior evaluator and +8.63% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-array-join-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-join-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-array-join-allocations-2026-10-20.csv) retain the evidence. Four released SQL tests cover runtime separators/replacements, isolated UTF-16 source surrogates, NULLs, filters and sensitive co-projections.
+
+Released 1.18 probes also expose Janino's int-to-byte/short assignment failure in
+ELEMENT. Those two result types stay on stock fallback in 1.18; BOOLEAN, INT, BIGINT and
+DECIMAL use the native variant. Flink 2.2 admits the verified narrow types.
+
+[Nine release allocation fixtures](../benchmarks/collection-element-legacy-allocations-2026-10-20.csv) also cover the 1.18 ELEMENT variant.
