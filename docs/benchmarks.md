@@ -2,6 +2,17 @@
 
 ## Methodology
 
+- **Small functionality admission.** Flink starts in Java on prebuilt `RowData`;
+  StreamFusion starts in Rust on prebuilt Arrow `RecordBatch` buffers. Match logical rows,
+  types, NULLs, widths, cardinalities, resources and equivalent output consumption. Prepare
+  inputs/operator setup outside timing. The StreamFusion clock starts and stops **inside Rust**,
+  after initial Arrow import and before final export; Java-side JNI/C Data entry/exit and
+  perimeter transposes are excluded. Intrinsic operation/state work and JVM/UDF callbacks
+  remain timed. A Java timer around JNI is a separate wrapper diagnostic. Use release builds,
+  warmup, repeated trials, parity checks and verified native execution. Correct UDF coverage
+  may be slower than Flink: this accepted tradeoff does not require a performance-only opt-in
+  or justify a speedup claim. Nexmark, connector, complete-pipeline and end-to-end measurements
+  retain their full production boundaries and costs.
 - **Nexmark, end to end.** The headline numbers below are an end-to-end, exactly-once Kafka
   pipeline — not a blackhole sink. Stock Flink and StreamFusion run at **parallelism 4**, read the
   same 2M-event Kafka JSON corpus from a four-partition topic (one split per source subtask), and
