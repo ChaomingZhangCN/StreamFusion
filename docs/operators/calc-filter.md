@@ -2084,7 +2084,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_SORT | Released DataFusion Rust sort for nullable integer/DECIMAL arrays proven shorter than 32 elements or produced by native ARRAY_DISTINCT, with non-NULL constant Boolean options; unrestricted, runtime-option, sensitive and fallible signatures retain Flink's comparator behavior |
 | ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
-| MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION | Same generated program |
+| MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
+| MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_UNION | Same generated program |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
 | Runtime MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
 

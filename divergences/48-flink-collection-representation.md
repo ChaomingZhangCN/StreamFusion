@@ -51,7 +51,15 @@ and the [scalar benchmark page](../docs/benchmarks/scalar-functions.md#extended-
 
 Ordinary OVER COUNT over a newly admitted complex argument needs an IPC-safe retained carrier
 when its input schema contains MAP, including MAP columns only passed through as payload.
-Arrow Java's MAP key declaration is non-nullable even when Flink supplies NULL keys. Rust IPC
+Arrow Java's MAP key declaration is non-nullable even when Flink supplies NULL keys. Native
+MAP_FROM_ARRAYS results therefore reuse the List-of-entry-Struct carrier, with nullable
+key/value children and a `streamfusion.map-list` marker on the list's child field. Keeping
+the marker in the DataType child preserves it through expression type inference without
+unsafe Arrow schema construction. This follows the existing IPC carrier; the Java reader
+recognizes either its original outer marker or the expression child marker. Matching
+input offsets share both flattened child buffers; other offsets are aligned by row.
+NULL keys, duplicate keys and entry order remain visible to subsequent consumers.
+Rust IPC
 validates it during restore. For these newly admitted queries, a metadata-only schema view aliases
 MAP buffers as List-of-entry-Struct with nullable keys before native import. Map and List share
 offset/validity/value layout; Comet's C export/load ownership pattern retains the original buffers

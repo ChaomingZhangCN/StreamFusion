@@ -60,6 +60,7 @@ mod json_path;
 mod json_serialize;
 mod json_value;
 mod locate;
+mod map_arrays;
 pub(crate) mod map_lookup;
 pub(crate) mod numeric;
 pub(crate) mod numeric_cast;
@@ -235,6 +236,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
             .as_ref()
             .clone(),
         190 => element::function(),
+        191 => map_arrays::function(),
         _ => return None,
     })
 }

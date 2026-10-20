@@ -136,6 +136,16 @@ STRING/nested and NOT NULL-element projections retain their previous evaluator.
 SQL fixtures verify typed NULL literals, exact wide decimals, DATE/TIME and
 TIMESTAMP/LTZ at millisecond and nanosecond precision.
 
+## Constructing maps from arrays
+
+MAP_FROM_ARRAYS shares the flattened input buffers when their offsets agree and
+aligns visible ranges otherwise. Duplicate and NULL keys are retained, both
+parents must be present, and length mismatch uses Flink's exception class/message.
+The existing List-of-entry-Struct carrier permits nullable keys without unsafe
+Arrow construction or a new ownership protocol. Its marker lives on the child
+field so expression type inference preserves it. Only basic nullable key/value
+types are admitted; representation-sensitive inputs retain generated evaluation.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -270,3 +280,18 @@ Query: `ARRAY[idx,idx+1]`, 2,000,000 rows, INT, width 8. Method and resources ma
 Elapsed time changes by -5.81% versus the prior evaluator and +18.34% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-array-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-2026-10-20.json) and [18 allocation probes](../benchmarks/collection-array-allocations-2026-10-20.csv) retain the evidence. Thirteen released SQL tests cover exact DECIMAL, typed NULLs and pre-epoch temporal values at precision 3 and 9.
+
+## MAP_FROM_ARRAYS complete-job evidence
+
+Query: `MAP_FROM_ARRAYS(arr,arr)`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.683158 | 0.674097-0.701060 |
+| baseline streamfusion | 0.892107 | 0.882873-0.896468 |
+| candidate stock | 0.622768 | 0.615380-0.648856 |
+| candidate streamfusion | 0.563137 | 0.547667-0.563784 |
+
+Elapsed time changes by -36.88% versus the prior evaluator and -9.58% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-map-from-arrays-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-from-arrays-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-from-arrays-allocations-2026-10-20.csv) retain the evidence. Seven released SQL tests cover NULL/duplicate keys, entry order, length errors and all-filtered batches; native tests verify sharing and sliced offsets.

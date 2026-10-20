@@ -38,6 +38,13 @@ impl FlinkException {
         }
     }
 
+    pub fn flink_runtime(message: String) -> Self {
+        Self {
+            class: "org/apache/flink/util/FlinkRuntimeException",
+            message,
+        }
+    }
+
     pub fn class_cast(source: &str, target: &str) -> Self {
         Self {
             class: "java/lang/ClassCastException",

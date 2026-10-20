@@ -2737,3 +2737,8 @@ empty values, event-time ROWS/RANGE and proctime ROWS. Fixture/operator construc
 outside timing. The measured production push/fire performs RocksDB frame and payload writes;
 checks compare independent membership counts and every returned payload. Native unit and Java
 operator fixtures separately cover checkpoint and canonical backend transitions.
+
+MAP_FROM_ARRAYS (191) has scalar-registry fixtures with sliced nullable and
+duplicate-key arrays at three batch sizes. Rust regressions verify aligned-buffer
+sharing, differing offsets, empty arrays, NULL suppression and typed errors; SQL
+fixtures retain both conversion boundaries.
