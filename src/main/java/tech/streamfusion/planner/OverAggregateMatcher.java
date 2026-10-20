@@ -12,6 +12,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory$;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalOverAggregate;
@@ -307,6 +308,11 @@ final class OverAggregateMatcher {
 
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
+    if (type == SqlTypeName.VARBINARY
+        || type.getFamily() == SqlTypeFamily.INTERVAL_DAY_TIME
+        || type.getFamily() == SqlTypeFamily.INTERVAL_YEAR_MONTH) {
+      return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
+    }
     if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW
         || type == SqlTypeName.MULTISET) {
       return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
