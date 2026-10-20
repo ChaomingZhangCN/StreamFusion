@@ -2612,7 +2612,9 @@ and seven event/processing-time frame shapes. NULL-only partitions, exact-width 
 values and repeated 17-row checkpoint continuation are verified outside timing. Timed work
 includes push/flush, frame eviction, accumulator updates and output construction; fixture
 and operator setup are outside timing. Floating cancellation and legacy checkpoint
-compatibility have separate native and released-Flink parity tests.
+compatibility have separate native and released-Flink parity tests. The helper lives under
+`over_zero_sum/mod.rs` so Cargo discovers only the owning `over_basic_values` executable;
+all 336 fixtures remain part of that target.
 
 The complex OVER COUNT suite now includes proctime MULTISET and nullable-element List carriers
 in all three admitted processing-time frames: 48 additional fixtures, 308 total. They use the
