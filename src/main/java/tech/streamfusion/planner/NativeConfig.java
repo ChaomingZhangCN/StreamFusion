@@ -79,14 +79,14 @@ public final class NativeConfig {
     return booleanValue("streamfusion.native.enabled", true);
   }
 
-  /** Complete-row shared scalar evaluation remains opt-in after operator-format comparisons. */
+  /** Correct shared scalar execution is enabled under the accepted UDF performance exception. */
   public static boolean sharedStatefulUdfEnabled() {
-    return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", false);
+    return booleanValue("streamfusion.calc.sharedStatefulUdf.enabled", true);
   }
 
-  /** Temporal scalar conversion remains opt-in while operator-format comparisons lose to Flink. */
+  /** Correct temporal scalar conversion is enabled under the accepted UDF performance exception. */
   public static boolean temporalUdfEnabled() {
-    return booleanValue("streamfusion.calc.temporalUdf.enabled", false);
+    return booleanValue("streamfusion.calc.temporalUdf.enabled", true);
   }
 
   /** Verified collection coverage is enabled with the accepted standalone performance tradeoff. */

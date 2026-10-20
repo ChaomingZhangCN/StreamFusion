@@ -90,14 +90,25 @@ class FlinkTemporalUdfSqlHarnessTest {
   }
 
   @Test
-  void defaultAdmissionKeepsTheVerifiedHostRoute() throws Exception {
+  void explicitFalseKeepsTheVerifiedHostRoute() throws Exception {
     for (String expression :
         new String[] {"ts_identity(t)", "ts_text(t)", "ltz_identity(z)", "ltz_epoch(z)"}) {
       NativeParity.assertFallbackReasonContains(
-          () -> environment(3, "UTC", 32, null, false),
+          () -> {
+            var table = environment(3, "UTC", 32, null, false);
+            table.getConfig().set("streamfusion.calc.temporalUdf.enabled", "false");
+            return table;
+          },
           "SELECT " + expression + " FROM src",
-          "temporal scalar UDFs await operator performance admission");
+          "temporal scalar UDF execution is explicitly disabled");
     }
+  }
+
+  @Test
+  void defaultAdmissionIncludesVerifiedTemporalFunctions() throws Exception {
+    NativeParity.assertKindedParity(
+        () -> environment(9, "UTC", 1031, null, false),
+        "SELECT id, ts_identity(t), ltz_epoch(z), ts_text(t) FROM src");
   }
 
   @ParameterizedTest

@@ -388,3 +388,9 @@ are test-only. On the preceding main checkout, omit `sharedscalar.expectDirect` 
 To measure the unchanged default fallback, also pass `-Dsharedscalar.enabled=false
 -Dsharedscalar.expectNative=false`. The benchmark asserts the native plan, both transposes,
 consumed row counts and the direct-evaluation counter for the candidate.
+
+
+Shared stateful and temporal UDF coverage now defaults on under the maintainer-approved UDF
+performance exception. The earlier opt-in/fallback controls above retain their original scope;
+they establish optimization effects, not a faster-than-Flink claim. The alternative direct-temporal
+and timestamp-alias execution experiments retain their own defaults and type guards.

@@ -1,4 +1,10 @@
-# Feature admission with native input formats, 2026-10-19
+# Java operator wrapper audit, 2026-10-19
+
+This historical audit timed the Java operator wrapper, including its JNI/C Data handoffs.
+The maintainer subsequently required small-functionality clocks to start inside Rust on
+prepared Arrow; see the [current methodology](../benchmarks.md#methodology). These timings
+remain wrapper diagnostics. The decisions below describe the measured revision; shared and
+temporal UDF coverage now defaults on under the accepted UDF performance exception.
 
 This audit starts from canonical main `adbdafe4d125b40eeea3b995c0eb40591615e0bc`.
 It compares production operators using **prebuilt BinaryRowData for Flink and prebuilt Arrow
@@ -7,7 +13,7 @@ The [result artifact](results/feature-admission-2026-10-19.json) retains every w
 trial, configurations, release-library hash, parity checks and CPU-profile summaries.
 Earlier conversion-inclusive complete-job results remain valid at their recorded boundary.
 
-## Decisions
+## Decisions at the measured revision
 
 | Performance admission switch | Result |
 | --- | --- |

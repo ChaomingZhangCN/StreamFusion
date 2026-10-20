@@ -20,16 +20,15 @@ serialized operator configuration rather than process-global state before a stab
   row-source changelog filter that loses to stock Flink because of the two Arrow conversions.
   Filters inside an admitted native pipeline retain ordinary admission. See
   [drop update-before](operators/drop-update-before.md).
-- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
-  native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
-  Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
-  measurements. Existing admitted binary/generated shapes are unaffected. See
-  [Calc/filter](operators/calc-filter.md) for the scope and results.
-- **`streamfusion.calc.temporalUdf.enabled`** (default false) — opt into complete-row generated
-  Calc evaluation for scalar UDFs using `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ
-  arguments/results. Standalone row-source projections remain slower than stock Flink in release
-  measurements. The default preserves host execution; builtin temporal functions retain their
-  existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default true) — complete-row native
+  Calc evaluation for shared non-deterministic scalar calls, preserving Flink invocation order.
+  Explicit `false` retains the shared-call host route. Slower JVM UDF execution is an accepted
+  tradeoff for correct coverage. See [Calc/filter](operators/calc-filter.md).
+- **`streamfusion.calc.temporalUdf.enabled`** (default true) — complete-row generated Calc
+  evaluation for verified `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ UDF signatures.
+  Explicit `false` forces those UDFs to stock. Correctness/type/lifecycle gates remain in force;
+  slower UDF execution alone does not block coverage. See
+  [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
 - **`streamfusion.experimental.collectionExpressions`** (default true) — enable the
   collection kernels and generated collection/constructor programs described in
   [Calc/filter coverage](operators/calc-filter.md#collection-expressions). The planner serializes

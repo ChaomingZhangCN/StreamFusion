@@ -410,9 +410,10 @@ NULL/empty buffers, zero-argument stateful calls and multi-batch inputs.
 
 With `streamfusion.calc.sharedStatefulUdf.enabled=true`, non-deterministic scalar function
 identifiers used at multiple call sites select Flink's generated evaluator for the complete Calc:
-its predicate and projections execute together in row order. This option defaults to **false**
-because the new standalone projections are slower than stock Flink; without it, shapes previously
-gated for shared scalar calls keep their host fallback. Existing complete-row binary and other
+its predicate and projections execute together in row order. This option now defaults to **true**
+under the maintainer-approved UDF performance exception.
+Explicit `false` retains the shared-call host fallback; slower UDF execution is accepted for
+correct coverage without a standalone acceleration claim. Existing complete-row binary and other
 already admitted generated expressions keep their existing admission.
 This covers INT, BIGINT and STRING results, nested calls, CASE/COALESCE branches and repeated
 calls that Flink reuses. The existing column-at-a-time shared-call guard remains in place;
@@ -436,8 +437,8 @@ function lifecycle. Empty results and exceptional partial outputs release their 
 
 The [release comparison](../optimizations/udf-columnar-upcall.md#complete-generated-calcs-with-primitive-inputs)
 reduces the existing opt-in INT/BIGINT/STRING job times by about 28%/32%/10%. These isolated jobs
-remain slower than stock Flink, so this does not change the shared-stateful option's default or
-complete [issue #398](https://github.com/datafusion-contrib/StreamFusion/issues/398).
+remain slower than stock Flink. Default admission now follows the accepted UDF exception;
+this does not complete [issue #398](https://github.com/datafusion-contrib/StreamFusion/issues/398).
 
 Runtime tests compare ordered values, types, every changelog tag and invocation counts, including
 nullable inputs/results, nested and conditional calls, all-filtered and empty inputs, exceptions,
@@ -452,8 +453,7 @@ A diagnostic CPU profile records 972 JVM-callback, 2,433 entry-transpose and 673
 samples among 6,769 total samples. These inclusive stack counts overlap; they identify boundary
 and callback work, not an additive cost breakdown. The row evaluator already reuses its input
 row and batches JNI calls; further primitive Arrow conversion work is tracked in
-[#248](https://github.com/datafusion-contrib/StreamFusion/issues/248). No default acceleration or
-standalone speedup is claimed. The opt-in supports composition with surrounding native operators,
+[#248](https://github.com/datafusion-contrib/StreamFusion/issues/248). No standalone speedup is claimed. Default UDF admission supports composition with surrounding native operators,
 whose performance must be measured for the complete query.
 
 
@@ -467,8 +467,8 @@ its predicate and sibling projections. This retains calendar fields for TIMESTAM
 for LTZ, declared result types, NULL callbacks, shared function order and one task lifecycle.
 Results remain Arrow columns for downstream native operators, including GROUP BY.
 
-The option defaults to **false** because standalone row-source projections lose to stock Flink.
-The diagnostic is `temporal scalar UDFs await operator performance admission`. Builtin temporal
+The option now defaults to **true** under the accepted UDF performance exception.
+Explicit `false` reports `temporal scalar UDF execution is explicitly disabled`. Builtin temporal
 expressions retain their current native coverage. Specialized functions, unsupported conversion
 classes (including alternate timestamp result classes), fixed BINARY signatures and nested UDF
 types retain their own gates. Other expression contexts keep their existing admission rules.
@@ -497,7 +497,8 @@ native Calc counters are asserted.
 The previous correct fallback measured 0.524/0.858/0.478 s, with paired stock controls
 0.511/0.864/0.479 s. These are separate JVMs with control drift; they do not isolate an
 optimization gain. The original opt-in callback path is slower than stock in all three fixtures.
-No standalone acceleration or default admission is claimed. The
+These historical timings claim no standalone acceleration. Default coverage is now enabled
+under the UDF exception. The
 [raw results](../benchmarks/results/temporal-udf-2026-10-15.json) retain every warmup and
 measured trial, the previous fallback, initial prototype, and rejected experiments.
 
@@ -508,13 +509,13 @@ writes, inline Calc evaluation inside that loop and bulk timestamp component val
 performance admission. A direct typed-output kernel likewise passed correctness checks but
 still lost to stock, including a variant that writes timestamp components directly. None is retained. See the
 [rejected experiments](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/364-temporal-row-output-shortcuts.md).
-Performance admission remains tracked in [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389),
+Further performance work remains tracked in [#389](https://github.com/datafusion-contrib/StreamFusion/issues/389),
 including further measured conversion work and complete-job measurements inside surrounding
-native operators before any broader admission.
+native operators; correctness-verified UDF admission no longer requires a speedup.
 
 An experimental direct Java Arrow-batch path removes the Rust round trip when the entire Calc
 is already generated JVM code and every argument is a timestamp input column. It requires
-`-Dstreamfusion.experimental.directTemporalCalc=true` in addition to the default-off temporal
+`-Dstreamfusion.experimental.directTemporalCalc=true` in addition to the normally enabled temporal
 UDF option. Changelog-tagged input and other argument expressions retain the existing callback.
 The task-local function binding carries the verified input-column mapping; runtime code does
 not decode the expression ABI. Predicate evaluation, function lifecycle and row-major call
@@ -2304,8 +2305,21 @@ and the bounded DOUBLE TRUNCATE helper remain admitted.
 [The admission audit](../benchmarks/feature-admission-2026-10-19.md) excludes perimeter
 transposes and compares the same logical BinaryRowData/Arrow inputs. Shared stateful INT,
 BIGINT and STRING evaluators still do not establish a repeatable win; temporal identity,
-text and epoch UDFs remain slower. Their opt-ins stay off. A mixed temporal direct-evaluation
+text and epoch UDFs remain slower. Their earlier opt-ins stayed off at that revision.
+A mixed temporal direct-evaluation
 candidate reduced native time but still lost to Flink and was rejected. Existing diagnostic
 execution switches retain their prior contracts. Collection and metadata feature switches
 already default on and do not block coverage. The earlier full-job timings remain diagnostic
 evidence rather than the small-functionality admission gate.
+
+
+The maintainer subsequently clarified the gate: small-functionality timing begins inside Rust
+with Arrow already imported, while Flink starts in Java with RowData. The earlier Java-wrapper
+operator measurements remain diagnostics. Correct UDF execution is explicitly allowed to be
+slower, so shared stateful and temporal scalar coverage now defaults on. No faster UDF execution
+is claimed. Explicit false overrides, unsupported signatures and semantic safeguards remain.
+
+
+The default-admission change passes 79 affected checks on each released Flink line (2.2.1 and
+1.18.1), covering shared order, balanced lifecycle, failure parity and exact temporal types.
+Both explicit false overrides retain stock execution.

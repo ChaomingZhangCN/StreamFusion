@@ -582,7 +582,7 @@ final class RexExpression {
     RexProgram program = calc.getProgram();
     if (containsTemporalUdf(program)) {
       if (!NativeConfig.temporalUdfEnabled()) {
-        return reject("temporal scalar UDFs await operator performance admission");
+        return reject("temporal scalar UDF execution is explicitly disabled");
       }
       jvmExecutionReason = "temporal scalar UDFs require Flink's external/internal conversions";
       return emitRowCalc(calc);
