@@ -70,6 +70,12 @@ pub(crate) trait KeyedStateStore<V> {
         0
     }
 
+    /// A read-through store's currently resident state, excluding separately reserved caches.
+    /// Resident backends use the operator's incremental accounting instead.
+    fn resident_bytes(&self) -> Option<usize> {
+        None
+    }
+
     /// Retains only the entries `keep` approves — the TTL sweep's surface for reclaiming keys that
     /// are never touched again. Default no-op: a persistent backend enforces TTL through its own
     /// read filtering and compaction instead of materializing the key space; only the resident

@@ -20,10 +20,6 @@ public final class FlinkCompat {
     return config.get(org.apache.flink.table.api.config.ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
   }
 
-  public static int applyParsedTimePrecision(int millis, int precision) {
-    return millis;
-  }
-
   public static int timestampToTimeTruncationFactor(int precision) {
     return 1;
   }

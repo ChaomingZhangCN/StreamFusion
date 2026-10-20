@@ -9,6 +9,10 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public final class RuntimeCompat {
   private RuntimeCompat() {}
 
+  public static int applyParsedTimePrecision(int millis, int precision) {
+    return millis;
+  }
+
   public static boolean supportsNonTimeOverRowNumber() {
     return false;
   }

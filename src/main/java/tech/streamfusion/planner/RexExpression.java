@@ -1066,7 +1066,7 @@ final class RexExpression {
         resultType = new org.apache.flink.table.types.logical.RowType(fields);
       }
       var function =
-          new FlinkExpressionFunction(
+          FlinkExpressionGenerator.generate(
               projections,
               condition,
               types.toArray(org.apache.flink.table.types.logical.LogicalType[]::new),
@@ -3713,9 +3713,9 @@ final class RexExpression {
       var argumentTypes = types.toArray(org.apache.flink.table.types.logical.LogicalType[]::new);
       function =
           expression instanceof RexCall && isExactDoubleTruncate(((RexCall) expression))
-              ? FlinkExpressionFunction.doubleTruncate(
+              ? FlinkExpressionGenerator.doubleTruncate(
                   ((RexCall) expression), argumentTypes, temporalConfig, expressionClassLoader)
-              : new FlinkExpressionFunction(
+              : FlinkExpressionGenerator.generate(
                   expression,
                   argumentTypes,
                   temporalConfig,
@@ -3733,7 +3733,7 @@ final class RexExpression {
             tech.streamfusion.operator.NativeUdf.Descriptor.forFunction(
                 function, eval, codes.stream().mapToInt(Integer::intValue).toArray(), returnCode));
     RexCall decimalRound =
-        call == projectionRoot ? FlinkExpressionFunction.decimalRoundingTextCall(expression) : null;
+        call == projectionRoot ? FlinkExpressionGenerator.decimalRoundingTextCall(expression) : null;
     boolean numericCast =
         Boolean.TRUE.equals(legacyCastBehaviour)
             && expression instanceof RexCall

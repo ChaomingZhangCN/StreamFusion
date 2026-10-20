@@ -32,7 +32,7 @@ class GeneratedDoubleTruncateTest {
         explicit ? List.of(value, scale) : List.of(value));
     var arguments = explicit ? new LogicalType[] {new DoubleType(), new IntType()}
         : new LogicalType[] {new DoubleType()};
-    var function = FlinkExpressionFunction.doubleTruncate(call, arguments,
+    var function = FlinkExpressionGenerator.doubleTruncate(call, arguments,
         TableConfig.getDefault(), getClass().getClassLoader());
     function.open(new FunctionContext(null) {
       @Override
@@ -81,9 +81,9 @@ class GeneratedDoubleTruncateTest {
         List.of(rex.makeLiteral(true), truncate,
             rex.makeApproxLiteral(java.math.BigDecimal.ONE, valueType)));
     var arguments = new LogicalType[] {new DoubleType(), new IntType()};
-    var candidate = new FlinkExpressionFunction(consumer, arguments,
+    var candidate = FlinkExpressionGenerator.generate(consumer, arguments,
         TableConfig.getDefault(), getClass().getClassLoader(), false);
-    var reference = new FlinkExpressionFunction(consumer, arguments,
+    var reference = FlinkExpressionGenerator.generate(consumer, arguments,
         TableConfig.getDefault(), getClass().getClassLoader(), false, false);
     var field = FlinkExpressionFunction.class.getDeclaredField("generated");
     field.setAccessible(true);

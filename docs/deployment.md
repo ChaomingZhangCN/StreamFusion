@@ -64,6 +64,14 @@ not bundle the stock connectors.
 
 ## Kubernetes or Docker
 
+Generated Calc/filter bindings contain runtime-only functions; code generation remains in the
+planner process. TaskManagers do not need the planner or Calcite to restore or execute these
+bindings. An `ExprCodeGenerator` or `CodeGeneratorContext` linkage failure while restoring a
+factory through `StreamConfig.getStreamOperatorFactory` indicates a planner/runtime dependency
+leak. Upgrade matching compiler and runtime payloads and regenerate the job graph; adding the
+whole planner to worker job resources is not the fix. See the isolated-worker regression on the
+[Calc/filter page](operators/calc-filter.md#admission-and-routing).
+
 Create a job-neutral image directly from the Maven Central artifacts:
 
 ```Dockerfile

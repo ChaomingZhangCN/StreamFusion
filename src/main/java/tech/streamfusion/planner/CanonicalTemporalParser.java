@@ -40,7 +40,7 @@ public final class CanonicalTemporalParser {
     try {
       Integer value = parseTimeMillis(input);
       if (value == null) value = org.apache.flink.table.utils.DateTimeUtils.parseTime(input.toString());
-      return value == null ? null : tech.streamfusion.compat.FlinkCompat.applyParsedTimePrecision(value, precision);
+      return value == null ? null : tech.streamfusion.compat.RuntimeCompat.applyParsedTimePrecision(value, precision);
     } catch (RuntimeException invalid) {
       return null;
     }

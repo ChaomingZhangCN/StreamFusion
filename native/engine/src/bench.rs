@@ -890,6 +890,18 @@ pub struct PersistentTop1 {
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentTop1 {
+    pub fn with_memory_budget(mut self, bytes: i64) -> Self {
+        self.operator = self
+            .operator
+            .with_read_through_budget(bytes)
+            .expect("top-1 state budget");
+        self
+    }
+
+    pub fn state_bytes(&self) -> usize {
+        self.operator.memory.state_bytes
+    }
+
     pub fn new(
         directory: &str,
         options: &str,

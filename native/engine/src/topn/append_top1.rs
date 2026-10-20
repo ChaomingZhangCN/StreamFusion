@@ -196,12 +196,13 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 }
             }
         }
+        self.account(delta)?;
+        let output = self.emit(output, kinds, ranks);
         if !self.net_diff {
             self.groups.end_bundle()?;
+            self.account(0)?;
         }
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
-        Ok(self.emit(output, kinds, ranks))
+        Ok(output)
     }
 }
 

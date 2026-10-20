@@ -37,6 +37,14 @@ three natively:
   refreshed by every record processed for that partition — modeling Flink's own per-record
   `SortedMap` rewrite.
 
+With the RocksDB backend, all three strategies charge their live read-through working sets
+rather than accumulating reservations for persisted keys. Active mini-batches retain charges
+for their preimages, and the append Top-1 decoded cache remains independently bounded. Bundle
+completion returns the released state reservation without discarding durable rank state; the
+memory backend continues to charge all resident partitions. See
+[Memory management](../memory-management.md#exhaustion-and-spilling) for lifecycle and regression
+details. This does not change changelog, TTL or checkpoint encodings.
+
 Unfiltered scalar ROW_NUMBER on Flink 2.2 uses the same retained-row representation through
 [a separate OVER matcher](over.md#ordinary-row_number-flink-22). It retains every row and
 emits updates by row identity, rather than changing occupants of bounded rank slots. Its narrower
