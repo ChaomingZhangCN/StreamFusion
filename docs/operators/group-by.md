@@ -724,10 +724,10 @@ including alongside value aggregates.
 
 ## JVM aggregate investigation
 
-Performance admission now requires symmetric stock/native preflight. Earlier v1 measurements
+Complete-job diagnostics use symmetric stock/native preflight. Earlier v1 measurements
 below explained only native before timing and remain historical diagnostics. The corrected
 [method and first complete-job trials](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
-retain the distinct-key regression and require further comparisons.
+retain the distinct-key regression for deferred performance work.
 
 JVM aggregate functions now default enabled under the accepted UDF performance exception;
 remaining coverage is tracked by [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
@@ -770,8 +770,11 @@ accumulator types and two-phase merge/reset remain pending.
 
 Mini-batching, positive idle retention or state-TTL hints, asynchronous state, specialized
 functions, DISTINCT, approximate aggregates, FILTER and ordered calls are excluded from this
-prototype. Two-phase merge/reset, OVER functions, nested scalar results and broader table
-function types remain separate work in #237. This experiment does not claim those contracts.
+boundary. Two-phase merge/reset, OVER functions and the remaining nested/table-function
+type gaps stay tracked in [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
+Verified [nested scalar results](calc-filter.md#nested-java-scalar-results) and
+[scalar table-function types](unnest-correlate.md#jvm-table-functions) are already enabled
+under their own documented boundaries.
 
 `streamfusion.experimental.jvmAccumulatorCacheEntries` defaults to zero. A positive value
 stages accumulators for a single INT, BIGINT or VARCHAR grouping key in an entry-bounded heap cache.
