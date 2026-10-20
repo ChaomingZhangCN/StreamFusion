@@ -14,34 +14,35 @@ import org.junit.jupiter.api.Test;
 class StatefulMapPayloadParityTest {
   @Test
   void limitWithMapPayload() throws Exception {
-    NativeParity.assertFallback(() -> maps(false), "SELECT id, m FROM n LIMIT 1");
+    NativeParity.assertKindedParity(() -> maps(false), "SELECT id, m FROM n LIMIT 1");
   }
 
   @Test
   void mapProjectionRemainsNative() throws Exception {
     NativeParity.assertParity(() -> maps(false), "SELECT id + 1, m FROM n");
   }
+
   @Test
   void integerJoinWithMapPayload() throws Exception {
-    NativeParity.assertFallback(() -> maps(false),
-        "SELECT a.id, a.m FROM n a JOIN n b ON a.id = b.id");
+    NativeParity.assertKindedParity(
+        () -> maps(false), "SELECT a.id, a.m FROM n a JOIN n b ON a.id = b.id");
   }
 
   @Test
-  void crossJoinWithMapPayloadFallsBack() throws Exception {
-    NativeParity.assertFallbackReasonContains(() -> maps(false),
-        "SELECT a.m, b.id FROM n a CROSS JOIN n b", "Arrow row codec cannot carry MAP");
+  void crossJoinWithMapPayload() throws Exception {
+    NativeParity.assertKindedParity(() -> maps(false), "SELECT a.m, b.id FROM n a CROSS JOIN n b");
   }
 
   @Test
   void mapJoinKey() throws Exception {
-    NativeParity.assertFallback(() -> maps(false),
-        "SELECT a.id, b.id FROM n a JOIN n b ON a.m = b.m");
+    NativeParity.assertFallback(
+        () -> maps(false), "SELECT a.id, b.id FROM n a JOIN n b ON a.m = b.m");
   }
 
   @Test
   void topNWithMapPayload() throws Exception {
-    NativeParity.assertFallback(() -> maps(false),
+    NativeParity.assertKindedParity(
+        () -> maps(false),
         "SELECT id, m FROM (SELECT id, m, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM n) "
             + "WHERE rn <= 1");
   }

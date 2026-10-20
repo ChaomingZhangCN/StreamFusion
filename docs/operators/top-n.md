@@ -383,7 +383,9 @@ checks retain their existing correct fallback. Flink 1.18 skips eight ordinary n
 ROW_NUMBER cases because the released host lacks that operator.
 
 The final combined matrix passes 238 checks on Flink 2.2.1 and 230 with eight capability skips
-on 1.18.1, including 57 explicit correctness-fallback cases per line.
+on 1.18.1, including 57 explicit correctness-fallback cases per line. Another 21 existing
+stateful map-carrier and nested SQL/JSON controls pass on each line; append-only payload
+checks now require native execution while the map-key check retains fallback.
 
 The [benchmark evidence](../benchmarks/results/retained-map-payloads-2026-10-20.json) retains every
 trial, independent full output oracle, native profile and allocation probe. The prepared-format

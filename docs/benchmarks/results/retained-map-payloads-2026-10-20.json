@@ -173,7 +173,18 @@
       "correct_fallback": 57,
       "skips": "Ordinary non-time ROW_NUMBER is unavailable on this released host."
     },
-    "oracle_notes": "Ranking compares complete raw row/RowKind multisets; independently interleaved updating joins compare final multiplicities and types. The first guarded-join fixture incorrectly required identical raw intermediate rows across restores; final runs use the same materialization rule as outer joins."
+    "oracle_notes": "Ranking compares complete raw row/RowKind multisets; independently interleaved updating joins compare final multiplicities and types. The first guarded-join fixture incorrectly required identical raw intermediate rows across restores; final runs use the same materialization rule as outer joins.",
+    "existing_controls": {
+      "flink_2.2.1": {
+        "pass": 21,
+        "fail": 0
+      },
+      "flink_1.18.1": {
+        "pass": 21,
+        "fail": 0
+      },
+      "coverage": "Six existing stateful MAP payload/key checks now require native carriage for append-only payloads and fallback for MAP keys; fifteen nested SQL/JSON controls retain their previous admission."
+    }
   },
   "native_allocation_probes": [
     {
