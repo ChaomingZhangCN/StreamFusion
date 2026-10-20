@@ -146,7 +146,7 @@ jobs:
       - name: Run Java test suite
         run: mvn -B -ntp ${{ matrix.profile }} test
 
-      - name: Verify opt-in JVM boundaries on the freshly built native library
+      - name: Verify JVM boundary defaults and optional cache on the freshly built native library
         if: matrix.jdk == '17'
         run: >-
           mvn -B -ntp ${{ matrix.profile }} -pl streamfusion-runtime
@@ -154,7 +154,7 @@ jobs:
           -Dnative.resource.directory="$GITHUB_WORKSPACE/native/target/debug"
           -Dtest=FlinkJvmAggregateSqlHarnessTest,FlinkNestedScalarSqlHarnessTest,FlinkNestedFixedBinarySqlHarnessTest,FlinkTemporalUdfSqlHarnessTest,FlinkBinaryRowHashParityTest,FlinkMapJsonJvmSqlHarnessTest,FlinkJsonJvmSqlHarnessTest,NativeParityValueTest,TransposeOperatorsTest,Utf8WriterReuseTest,FlinkEltSqlHarnessTest,FlinkFixedBinarySqlHarnessTest,FlinkBinaryStringBuiltinsSqlHarnessTest,FlinkVariableBinaryEltSqlHarnessTest,FlinkNestedScalarRecoveryTest,FlinkNestedScalarRemoteDeploymentTest
           -Dsf.testForks=1
-          "-Dsf.extraJvmArgs=-Djava.library.path=$GITHUB_WORKSPACE/native/target/debug -Dstreamfusion.experimental.nestedScalarUdfs=true -Dstreamfusion.experimental.temporalScalarUdfs=true -Dstreamfusion.experimental.jvmGroupAggregates=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=65536 -Dstreamfusion.experimental.borrowedStringExit=true -Dstreamfusion.experimental.binaryElt=true"
+          "-Dsf.extraJvmArgs=-Djava.library.path=$GITHUB_WORKSPACE/native/target/debug -Dstreamfusion.experimental.temporalScalarUdfs=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=65536 -Dstreamfusion.experimental.borrowedStringExit=true -Dstreamfusion.experimental.binaryElt=true"
           surefire:test@default-test
 
       - name: Check deployed Java 11 bytecode including embedded payloads
@@ -204,6 +204,10 @@ jobs:
             jdk: '17'
             profile: delta
             module: streamfusion-delta
+          - name: Iceberg
+            jdk: '17'
+            profile: iceberg,iceberg-upstream
+            module: streamfusion-iceberg
           - name: Paimon Parquet
             jdk: '17'
             profile: paimon

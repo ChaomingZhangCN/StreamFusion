@@ -930,6 +930,17 @@ use their existing native buffers, which flush by size into level-0 files.
 
 ## Benchmark
 
+The fresh [Kafka→Paimon streaming RocksDB/off suite](../benchmarks/kafka-paimon-final-20261017/README.md)
+uses 2M unchanged events, four Kafka partitions, four output buckets, Flink 2.2.1,
+512 MiB managed memory across four slots, and one warmup plus three alternating
+measured pairs. All 23 queries pass committed-table validation. Repeated-median
+geomeans are **1.43× overall**, **1.24× append** and **1.97× primary-key**; q5/q20/q23
+remain slower. The corresponding Iceberg run is 1.44× overall, with different
+append/update results and wide ranges retained. `bin/bench-paimon.sh` reproduces
+the release/mimalloc run. The report includes every trial, full-value fingerprints,
+plans and Rust Parquet file witnesses. The older memory-state figures below use
+a different sampling method and host.
+
 The measurements below use Parquet files. [ORC diagnostics](orc.md#build-and-verification)
 report that format's reader and writer results separately.
 
@@ -1605,3 +1616,11 @@ configuration, snapshot IDs, all counters, replay boundary and limitations; its
 the cutoff assertion and representative duplicate terminal images. The finite replay starts at
 snapshot 1 and does not reconstruct live scheduling. Warehouse capture is diagnostic evidence,
 not an atomic backup. This proof does not establish the cause of every separate legacy timeout.
+
+## Nested ROW execution metadata
+
+Internal nested RowKind children remain outside persisted SQL schemas. File schemas and
+reader projections contain only declared fields; Arrow file writes retain the original
+value buffers while excluding these execution sidecars. Nested ROWs loaded from files have
+INSERT kind, matching Flink. Top-level changelog columns retain their existing contract.
+See [nested Java scalar results](../operators/calc-filter.md#nested-java-scalar-results).

@@ -1,11 +1,13 @@
 //! Production transformations and stateful paths missing from the historical operator suite.
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, Int64Builder, ListBuilder, RecordBatch, StringArray};
+use arrow::array::{
+    ArrayRef, Int64Array, Int64Builder, Int8Array, ListBuilder, RecordBatch, StringArray,
+};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use streamfusion::bench::{
-    decode_ipc, encode_ipc, expand_grouping_sets, unnest, ArrivalFirstN, Projection, TemporalJoin,
-    TemporalSort,
+    decode_ipc, drop_update_before, encode_ipc, expand_grouping_sets, unnest, unnest_projected,
+    ArrivalFirstN, Projection, TemporalJoin, TemporalSort,
 };
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 
@@ -35,6 +37,167 @@ fn batch(rows: usize, width: usize, keys: usize) -> RecordBatch {
         ),
     ])
     .unwrap()
+}
+
+fn changelog_filtering(c: &mut Criterion) {
+    header();
+    let mut group = c.benchmark_group("engine/drop_update_before");
+    for rows in [16, 1024, 16384] {
+        for width in [8, 264] {
+            for mode in ["no_kind", "retained", "mixed", "removed"] {
+                let input = batch(rows, width, 64);
+                let input = if mode == "no_kind" {
+                    input
+                } else {
+                    let kinds = Int8Array::from_iter_values((0..rows).map(|i| match mode {
+                        "retained" => [0, 2, 3][i % 3],
+                        "mixed" => (i % 4) as i8,
+                        "removed" => 1,
+                        _ => unreachable!(),
+                    }));
+                    let mut fields = input.schema().fields().to_vec();
+                    fields.push(Arc::new(arrow::datatypes::Field::new(
+                        "$row_kind$",
+                        arrow::datatypes::DataType::Int8,
+                        false,
+                    )));
+                    let mut columns = input.columns().to_vec();
+                    columns.push(Arc::new(kinds));
+                    RecordBatch::try_new(Arc::new(arrow::datatypes::Schema::new(fields)), columns)
+                        .unwrap()
+                };
+                let label = format!("{mode}/{rows}/bytes={width}");
+                let (output, allocations) = measure(|| drop_update_before(&input));
+                assert_eq!(
+                    output.num_rows(),
+                    match mode {
+                        "removed" => 0,
+                        "mixed" => rows - rows / 4,
+                        _ => rows,
+                    }
+                );
+                report(&label, input.columns(), output.columns(), allocations);
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                    b.iter(|| {
+                        std::hint::black_box(drop_update_before(std::hint::black_box(&input)))
+                    })
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+fn cached_rows(c: &mut Criterion) {
+    use arrow::array::{Array, BinaryArray, Int8Array, StructArray};
+    use arrow::buffer::NullBuffer;
+    use arrow::datatypes::{DataType, Field, Schema};
+    use std::collections::HashMap;
+
+    header();
+    let mut group = c.benchmark_group("engine/cached_rows");
+    for rows in [16, 1024, 16384] {
+        for width in [8, 264] {
+            let text = "x".repeat(width);
+            let payloads = (0..rows)
+                .map(|row| {
+                    if row % 11 == 0 || row % 17 == 0 {
+                        return None;
+                    }
+                    let null = row % 7 == 0;
+                    let len = if null { 24 } else { (24 + width + 7) & !7 };
+                    let mut bytes = vec![0u8; len];
+                    bytes[0] = (row % 4) as u8;
+                    if null {
+                        bytes[1] = 1;
+                    } else {
+                        bytes[8..16]
+                            .copy_from_slice(&(((24u64) << 32) | width as u64).to_le_bytes());
+                        bytes[24..24 + width].copy_from_slice(text.as_bytes());
+                    }
+                    bytes[16..24].copy_from_slice(&(row as i64).to_le_bytes());
+                    Some(bytes)
+                })
+                .collect::<Vec<_>>();
+            let fields = vec![
+                Arc::new(Field::new("s", DataType::Utf8, true)),
+                Arc::new(Field::new("v", DataType::Int64, false)),
+                Arc::new(
+                    Field::new("__sf_binary_row", DataType::Binary, true).with_metadata(
+                        HashMap::from([("streamfusion.nested-row-binary".into(), "1".into())]),
+                    ),
+                ),
+                Arc::new(
+                    Field::new("__sf_nested_row_kind", DataType::Int8, true).with_metadata(
+                        HashMap::from([("streamfusion.nested-row-kind".into(), "1".into())]),
+                    ),
+                ),
+            ];
+            let cached: ArrayRef = Arc::new(StructArray::new(
+                fields.into(),
+                vec![
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|row| (row % 7 != 0).then_some(text.as_str())),
+                    )),
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)),
+                    Arc::new(BinaryArray::from_iter(
+                        payloads.iter().map(|value| value.as_deref()),
+                    )),
+                    Arc::new(Int8Array::from_iter_values((0..rows).map(|row| {
+                        (row % 4) as i8 | if payloads[row].is_some() { 16 } else { 0 }
+                    }))),
+                ],
+                Some(NullBuffer::from_iter((0..rows).map(|row| row % 17 != 0))),
+            ));
+            let schema = Arc::new(Schema::new(vec![
+                Field::new("value", cached.data_type().clone(), true),
+                Field::new("$row_kind$", DataType::Int8, false),
+            ]));
+            let input = RecordBatch::try_new(
+                schema,
+                vec![
+                    cached,
+                    Arc::new(Int8Array::from_iter_values(
+                        (0..rows).map(|row| (row % 4) as i8),
+                    )),
+                ],
+            )
+            .unwrap();
+            let encoded = encode_ipc(&input);
+            assert_eq!(decode_ipc(&encoded), vec![input.clone()]);
+            group.throughput(Throughput::Elements(rows as u64));
+            let label = format!("cached_row_ipc_encode/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| encode_ipc(&input));
+            report(&label, input.columns(), &[], allocations);
+            std::hint::black_box(output);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(encode_ipc(std::hint::black_box(&input))))
+            });
+            let label = format!("cached_row_ipc_decode/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| decode_ipc(&encoded));
+            report(&label, &[], output[0].columns(), allocations);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(decode_ipc(std::hint::black_box(&encoded))))
+            });
+            let label = format!("cached_row_drop_update_before/{rows}/bytes={width}");
+            let (output, allocations) = measure(|| drop_update_before(&input));
+            assert_eq!(output.num_rows(), rows - rows / 4);
+            assert_eq!(output.schema(), input.schema());
+            let selected = arrow::array::UInt32Array::from_iter_values(
+                (0..rows).filter(|row| row % 4 != 1).map(|row| row as u32),
+            );
+            assert_eq!(
+                output,
+                arrow::compute::take_record_batch(&input, &selected).unwrap()
+            );
+            report(&label, input.columns(), output.columns(), allocations);
+            group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                b.iter(|| std::hint::black_box(drop_update_before(std::hint::black_box(&input))))
+            });
+        }
+    }
+    group.finish();
 }
 
 fn transformations(c: &mut Criterion) {
@@ -95,6 +258,27 @@ fn transformations(c: &mut Criterion) {
             ])
             .unwrap();
             for left in [false, true] {
+                for (shape, projection) in [
+                    ("key_element", vec![0, 2]),
+                    ("repeat_ordinal", vec![3, 2, 2]),
+                ] {
+                    let label =
+                        format!("unnest_projected/{rows}/width={width}/left={left}/{shape}");
+                    let (output, allocations) =
+                        measure(|| unnest_projected(&input, left, true, &projection));
+                    assert_eq!(output.num_rows(), unnest(&input, left, true).num_rows());
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| {
+                            std::hint::black_box(unnest_projected(
+                                std::hint::black_box(&input),
+                                left,
+                                true,
+                                &projection,
+                            ))
+                        })
+                    });
+                }
                 let label = format!("unnest/{rows}/width={width}/left={left}");
                 let (output, allocations) = measure(|| unnest(&input, left, true));
                 report(&label, input.columns(), output.columns(), allocations);
@@ -103,6 +287,81 @@ fn transformations(c: &mut Criterion) {
                         std::hint::black_box(unnest(std::hint::black_box(&input), left, true))
                     })
                 });
+            }
+        }
+    }
+    for rows in [16, 1024, 16384] {
+        for width in [2, 16] {
+            let count = rows * width;
+            for shape in ["timestamp", "one_field_row"] {
+                let values: ArrayRef = if shape == "timestamp" {
+                    Arc::new(streamfusion_bridge::timestamp::timestamp_array(
+                        (0..count).map(|i| {
+                            (i % 7 != 0).then(|| {
+                                streamfusion_bridge::timestamp::TimestampValue::from_nanos(
+                                    i as i128 * 1234567 - 999999,
+                                )
+                                .unwrap()
+                            })
+                        }),
+                    ))
+                } else {
+                    Arc::new(arrow::array::StructArray::new(
+                        vec![Arc::new(arrow::datatypes::Field::new(
+                            "a",
+                            arrow::datatypes::DataType::Int64,
+                            true,
+                        ))]
+                        .into(),
+                        vec![Arc::new(Int64Array::from_iter_values(0..count as i64))],
+                        Some(arrow::buffer::NullBuffer::from(
+                            (0..count).map(|i| i % 7 != 0).collect::<Vec<_>>(),
+                        )),
+                    ))
+                };
+                let list = arrow::array::ListArray::new(
+                    Arc::new(arrow::datatypes::Field::new(
+                        "item",
+                        values.data_type().clone(),
+                        true,
+                    )),
+                    arrow::buffer::OffsetBuffer::new(
+                        (0..=rows)
+                            .map(|i| (i * width) as i32)
+                            .collect::<Vec<_>>()
+                            .into(),
+                    ),
+                    values,
+                    Some(arrow::buffer::NullBuffer::from(
+                        (0..rows).map(|i| i % 11 != 0).collect::<Vec<_>>(),
+                    )),
+                );
+                let input = RecordBatch::try_from_iter(vec![
+                    (
+                        "key",
+                        Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                    ),
+                    ("items", Arc::new(list) as ArrayRef),
+                ])
+                .unwrap();
+                group.throughput(Throughput::Elements(rows as u64));
+                for left in [false, true] {
+                    let label = format!("unnest_typed/{shape}/{rows}/width={width}/left={left}");
+                    let (output, allocations) =
+                        measure(|| unnest_projected(&input, left, true, &[0, 2, 3]));
+                    assert_eq!(output.num_columns(), 3);
+                    report(&label, input.columns(), output.columns(), allocations);
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| {
+                            std::hint::black_box(unnest_projected(
+                                std::hint::black_box(&input),
+                                left,
+                                true,
+                                &[0, 2, 3],
+                            ))
+                        })
+                    });
+                }
             }
         }
     }
@@ -177,5 +436,11 @@ fn stateful(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, transformations, stateful);
+criterion_group!(
+    benches,
+    transformations,
+    stateful,
+    changelog_filtering,
+    cached_rows
+);
 criterion_main!(benches);

@@ -10,11 +10,21 @@ iterations, earlier steps are summarized as history within that page rather than
 their own — this ledger tracks what the code does today, not a commit-by-commit changelog (that's
 what `git log` is for).
 
+The [benchmark evidence index](../benchmarks/evidence.md) separates complete-job
+comparisons from component measurements, profiles and rejected experiments.
+Those historical records support a decision; this ledger describes the current
+technique and its measured limits.
+
 CI build reuse and runner scheduling are documented separately in the
 [upstream-suite guide](../upstream-flink-suite.md#shared-builds-and-runtime-shards): compiled Flink
 caching, shared build artifacts, grouped connector suites and combined coverage verification.
 Those measurements describe CI job counts and elapsed time, not SQL execution throughput.
 
+- [Copy canonical state directly](canonical-state-installation.md): remove a full temporary payload copy while retaining managed chunk ownership.
+- [Reuse Iceberg boundary setup](iceberg-boundary-overhead.md): cached task schemas and serializers, shared Arrow leases and routing maps.
+
+- [Columnar changelog operators](columnar-changelog-operators.md): pass unchanged filter batches by ownership and avoid standalone row/Arrow round trips.
+- [Collection representation work](collection-representation-work.md): omit unnecessary snapshots, reuse nested-row readers and prune UNNEST expansion before copying.
 - [Shared-window state costs](shared-window-state.md): exact memory deltas, batched reservations and preserved accumulator state.
 - [Compact window-rank timestamp cells](window-rank-timestamp-cells.md): exact numeric digits avoid per-row timestamp struct slicing.
 - [Top-1 winner state](top1-winner-state.md): conditional winner updates and bounded clean decoded RocksDB state.

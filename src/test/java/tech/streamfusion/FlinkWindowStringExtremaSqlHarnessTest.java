@@ -53,11 +53,10 @@ class FlinkWindowStringExtremaSqlHarnessTest {
       java.util.function.UnaryOperator<TableEnvironment> configure = table -> {
         table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
         table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-        table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
         table.getConfig().set("streamfusion.transpose.batchRows", "3");
         return table;
       };
-      String query = "SELECT k, window_start, window_end, MIN(s), MAX(s), COUNT(*) FROM TABLE("
+      String query = "SELECT k, window_start, window_end, MIN(s), MAX(s), COUNT(s), COUNT(*) FROM TABLE("
           + "HOP(TABLE recovery_input, DESCRIPTOR(rt), INTERVAL '1' SECOND, INTERVAL '2' SECOND)) "
           + "GROUP BY k, window_start, window_end";
       var runs = NativeFailureParity.runRecovery(() -> configure.apply(recovery.uninterrupted()),
@@ -97,12 +96,11 @@ class FlinkWindowStringExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void ordinaryStringCountRetainsItsSeparateTypeGate(String phase) {
+  void ordinaryStringCountSharesTheWindowWithStringExtrema(String phase) {
     var runs = NativeFailureParity.run(() -> environment(phase, 2),
         sql("TUMBLE", "MIN(s), MAX(s), COUNT(s)"));
-    runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-    assertTrue(runs.nativeRun().fallbackReasons().stream()
-        .anyMatch(reason -> reason.contains("window aggregate")), runs.toString());
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
   }
 
   @ParameterizedTest
@@ -185,20 +183,12 @@ class FlinkWindowStringExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void attachedWindowsRetainTheSinglePhaseGate(String phase) {
+  void attachedWindowsPreserveStringValuesInBothPhases(String phase) {
     String query = "SELECT window_start, window_end, MIN(lo), MAX(hi), COUNT(*) FROM ("
         + "SELECT k, window_start, window_end, MIN(s) AS lo, MAX(s) AS hi FROM TABLE("
         + window("TUMBLE") + ") GROUP BY k, window_start, window_end) "
         + "GROUP BY window_start, window_end";
-    if (phase.equals("TWO_PHASE")) {
-      check(() -> environment(phase, 2), query, phase);
-    } else {
-      var runs = NativeFailureParity.run(() -> environment(phase, 2), query);
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("attached-window aggregation requires two-phase execution")),
-          runs.toString());
-    }
+    check(() -> environment(phase, 2), query, phase);
   }
 
   private static void check(Supplier<TableEnvironment> factory, String query, String phase) {
@@ -236,7 +226,6 @@ class FlinkWindowStringExtremaSqlHarnessTest {
     var table = StreamTableEnvironment.create(env);
     table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
     table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-    table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
     var input = env.fromSequence(0, 5002).map(id -> Row.of(
         id % 5 == 0 ? null : (int) (id % 5),
         id % 5 == 4 || id % 7 == 0 ? null : values[(int) (id % values.length)],

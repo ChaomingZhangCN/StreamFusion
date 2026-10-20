@@ -35,6 +35,78 @@ class FlinkParquetSinkSqlHarnessTest {
     assertEquals(sorted(readBack(hostDirectory)), sorted(readBack(nativeDirectory)));
   }
 
+  @Test
+  void nestedRowKindsStayInsideExecutionAndOutOfTheFileSchema() throws Exception {
+    var directories = new ArrayList<Path>();
+    for (boolean nativeSink : new boolean[] {false, true}) {
+      Path path = Files.createTempDirectory("nested-file-fields");
+      directories.add(path);
+      var env = StreamExecutionEnvironment.getExecutionEnvironment();
+      env.setParallelism(1);
+      env.enableCheckpointing(100);
+      var table = StreamTableEnvironment.create(env);
+      var nested = Types.ROW_NAMED(new String[] {"n", "s"}, Types.LONG, Types.STRING);
+      table.createTemporaryView(
+          "nested_source",
+          fromData(
+              env,
+              Types.ROW_NAMED(new String[] {"k", "r"}, Types.INT, nested),
+              Row.of(1, Row.ofKind(org.apache.flink.types.RowKind.DELETE, 42L, "é🙂")),
+              Row.of(2, Row.ofKind(org.apache.flink.types.RowKind.UPDATE_BEFORE, null, "")),
+              Row.of(3, null)));
+      table.executeSql(
+          "CREATE TABLE nested_file(k INT, r ROW<n BIGINT, s STRING>) WITH "
+              + "('connector'='filesystem', 'format'='parquet', 'path'='"
+              + path.toUri()
+              + "')");
+      PhysicalPlanScan scan = nativeSink ? NativePlanner.install(table) : null;
+      table.executeSql("INSERT INTO nested_file SELECT * FROM nested_source").await();
+      if (scan != null) assertTrue(scan.substitutions() > 0, "Native file sink must execute");
+      try (var files = Files.walk(path)) {
+        for (Path file :
+            files
+                .filter(Files::isRegularFile)
+                .filter(file -> file.getFileName().toString().startsWith("part-"))
+                .collect(java.util.stream.Collectors.toList())) {
+          try (var reader =
+              org.apache.parquet.hadoop.ParquetFileReader.open(
+                  org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(
+                      new org.apache.hadoop.fs.Path(file.toUri()),
+                      new org.apache.hadoop.conf.Configuration()))) {
+            assertEquals(
+                2,
+                reader
+                    .getFooter()
+                    .getFileMetaData()
+                    .getSchema()
+                    .getType("r")
+                    .asGroupType()
+                    .getFieldCount());
+          }
+        }
+      }
+    }
+    var results = new ArrayList<List<String>>();
+    for (Path path : directories) {
+      var table =
+          StreamTableEnvironment.create(StreamExecutionEnvironment.getExecutionEnvironment());
+      table.getConfig().set("table.exec.resource.default-parallelism", "1");
+      table.executeSql(
+          "CREATE TABLE nested_file(k INT, r ROW<n BIGINT, s STRING>) WITH "
+              + "('connector'='filesystem', 'format'='parquet', 'path'='"
+              + path.toUri()
+              + "')");
+      var rows = new ArrayList<String>();
+      try (var iterator = table.executeSql("SELECT * FROM nested_file").collect()) {
+        while (iterator.hasNext()) rows.add(iterator.next().toString());
+      }
+      rows.sort(String::compareTo);
+      assertEquals(3, rows.size());
+      results.add(rows);
+    }
+    assertEquals(results.get(0), results.get(1));
+  }
+
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
   void int96SqlSinkMatchesHost(boolean utc) throws Exception {

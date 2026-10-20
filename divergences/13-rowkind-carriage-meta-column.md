@@ -34,3 +34,14 @@ keeps the data schema unchanged (the kind rides alongside, not among, the fields
 This is the representational foundation for the native changelog operators that build on it: the
 non-windowed `GROUP BY` aggregate, the regular (updating) INNER join, and append-only streaming
 Top-N all honor and emit these kinds.
+
+## Dropping update-before images
+
+Flink's `DropUpdateBeforeFunction` filters byte 1 and retains DELETE byte 3. The corresponding
+columnar operator filters every Arrow field with one mask, including hidden string-cache columns,
+and selects row-aligned lineage with the same rule. This cannot use Arroyo's two-way retract flag,
+which would also discard DELETE. Arroyo's `session_aggregating_window.rs` (watermark filtering)
+and `lookup_join.rs` (nullable output filtering) provide the `filter_record_batch` structure;
+there is no equivalent four-way changelog policy to copy. Java borrows the kind vector to avoid
+JNI for an unchanged batch, preserving shared-consumer ownership. Mixed batches follow the existing
+Comet-inspired C Data import/export ownership bridge and guarded JNI exception boundary.

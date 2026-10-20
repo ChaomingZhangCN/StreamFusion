@@ -33,7 +33,11 @@ public final class NativePaimonFileReader implements AutoCloseable {
     this.codec = codec;
     input = io.newInputStream(path);
     try (ArrowSchema schema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
-      Data.exportSchema(NativeAllocator.SHARED, output, NativeAllocator.DICTIONARIES, schema);
+      Data.exportSchema(
+          NativeAllocator.SHARED,
+          tech.streamfusion.arrow.ArrowFileBatch.schema(output),
+          NativeAllocator.DICTIONARIES,
+          schema);
       handle = codec.createDecoder(this, length, schema.memoryAddress(), names, batchRows);
     } catch (Throwable failure) {
       input.close();

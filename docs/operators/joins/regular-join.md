@@ -91,6 +91,14 @@ Outer, SEMI and ANTI joins retain their existing output construction.
 
 ## Mini-batch coalescing
 
+With mini-batching enabled, translation preserves the selected Flink release's validation
+of `table.exec.mini-batch.size`. Flink 2.2 rejects unset, zero and negative sizes for
+INNER/LEFT/RIGHT/FULL joins, including updating non-unique inputs for which the native
+runtime executes immediately. Flink 1.18 joins do not construct a mini-batch trigger and
+therefore do not validate this unused size. SEMI/ANTI joins and mini-batch-disabled joins
+also retain the host's behavior. Invalid sizes fail during planning with the host exception
+and message; the internal timer-only boundary sentinel remains unchanged.
+
 Equality joins canonicalize floating NaN elements inside ARRAY keys, matching Flink's binary
 array serializer. Different NaN payloads therefore match across inputs. Scalar floating keys
 retain their existing raw-bit equality, and signed-zero array elements remain distinct.

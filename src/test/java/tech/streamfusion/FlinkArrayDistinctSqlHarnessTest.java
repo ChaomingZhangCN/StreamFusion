@@ -39,11 +39,10 @@ class FlinkArrayDistinctSqlHarnessTest {
   }
 
   @Test
-  void stringDistinctKeepsStockExecutionUntilPerformanceAdmission() throws Exception {
+  void stringDistinctUsesReleasedGeneratedEquality() throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction("ARRAY_DISTINCT");
-    NativeParity.assertFallbackReasonContains(
-        () -> scalarEnvironment("STRING"), "SELECT ARRAY_DISTINCT(a) FROM src",
-        "ARRAY_DISTINCT requires a BOOLEAN or integer ARRAY");
+    BuiltinFunctionParity.assertParity(
+        () -> scalarEnvironment("STRING"), "SELECT ARRAY_DISTINCT(a) FROM src");
   }
 
   static TableEnvironment scalarEnvironment(String kind) {
@@ -103,15 +102,14 @@ class FlinkArrayDistinctSqlHarnessTest {
   }
 
   @Test
-  void unverifiedEqualityTypesKeepFallback() throws Exception {
+  void floatingDistinctUsesReleasedGeneratedEquality() throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction("ARRAY_DISTINCT");
-    NativeParity.assertFallbackReasonContains(
+    BuiltinFunctionParity.assertParity(
         () ->
             BuiltinFunctionParity.environment(
                 ROW(FIELD("a", ARRAY(DOUBLE()))),
                 List.of(Row.of((Object) new Double[] {0.0, -0.0, Double.NaN, Double.NaN, null}))),
-        "SELECT ARRAY_DISTINCT(a) FROM src",
-        "ARRAY_DISTINCT requires a BOOLEAN or integer ARRAY");
+        "SELECT ARRAY_DISTINCT(a) FROM src");
   }
 
   static TableEnvironment environment(String kind) {

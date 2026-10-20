@@ -18,11 +18,15 @@
 
 package tech.streamfusion.arrow.writers;
 
+import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.binary.BinaryArrayData;
+import org.apache.flink.table.data.binary.BinaryRowData;
+import tech.streamfusion.arrow.NestedRepresentation;
 
 /** {@link ArrowFieldWriter} for Row. */
 @Internal
@@ -42,13 +46,15 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
 
   protected final ArrowFieldWriter<RowData>[] fieldsWriters;
   private final GenericRowData nullRow;
-  private final org.apache.arrow.vector.TinyIntVector kinds;
+  private final TinyIntVector kinds;
+  private final org.apache.arrow.vector.VarBinaryVector binaryRows;
 
   private RowWriter(StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
     super(structVector);
     this.fieldsWriters = fieldsWriters;
     this.nullRow = new GenericRowData(fieldsWriters.length);
-    this.kinds = tech.streamfusion.arrow.NestedRowKinds.vector(structVector);
+    kinds = NestedRepresentation.kinds(structVector);
+    binaryRows = NestedRepresentation.binaryRows(structVector);
   }
 
   abstract boolean isNullAt(T in, int ordinal);
@@ -65,10 +71,30 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
       row = readRow(in, ordinal);
       ((StructVector) getValueVector()).setIndexDefined(getCount());
     }
-    if (kinds != null) kinds.setSafe(getCount(), row.getRowKind().toByteValue());
     for (int i = 0; i < fieldsWriters.length; i++) {
       fieldsWriters[i].write(row, i);
     }
+    if (binaryRows != null) {
+      if (row instanceof BinaryRowData
+          || row instanceof org.apache.flink.table.data.binary.NestedRowData) {
+        org.apache.flink.table.data.binary.BinarySection binary =
+            (org.apache.flink.table.data.binary.BinarySection) row;
+        binaryRows.setSafe(
+            getCount(),
+            org.apache.flink.table.data.binary.BinarySegmentUtils.copyToBytes(
+                binary.getSegments(), binary.getOffset(), binary.getSizeInBytes()));
+      } else binaryRows.setNull(getCount());
+    }
+    if (kinds != null)
+      kinds.setSafe(
+          getCount(),
+          row.getRowKind().toByteValue()
+              | (row instanceof BinaryRowData ? NestedRepresentation.BINARY_ROW : 0)
+              | (binaryRows != null
+                      && row instanceof org.apache.flink.table.data.binary.NestedRowData
+                  ? NestedRepresentation.NESTED_ROW
+                  : 0)
+              | (in instanceof BinaryArrayData ? NestedRepresentation.BINARY_ARRAY : 0));
   }
 
   @Override
@@ -78,6 +104,7 @@ public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
       fieldsWriter.finish();
     }
     if (kinds != null) kinds.setValueCount(getCount());
+    if (binaryRows != null) binaryRows.setValueCount(getCount());
   }
 
   @Override

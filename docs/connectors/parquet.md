@@ -45,6 +45,9 @@ Falls back to Flink on:
 
 - INT64 timestamp columns without `'parquet.utc-timezone' = 'true'` set.
 - Unsupported leaf types such as `RAW` and intervals, including when nested.
+- Extended collection layouts produced by generated collection/constructor programs. These results
+  require a row sink and retain whole-query fallback; ordinary nullable primitive array results
+  still use the native sink. See [collection boundaries](../operators/calc-filter.md#collection-expressions).
 - Tables where every column is a partition key, leaving a zero-column file schema.
 - `'auto-compaction' = 'true'`.
 - Unsupported compression codecs, or multithreaded zstd.
@@ -92,3 +95,11 @@ file encoder applies that property to the Arrow write schema and the Parquet des
 so definition levels agree and keys survive readback. Operator batches retain their existing Arrow
 representation. The partitioned SQL sink parity check compares data, directories, success markers
 and complete footer schemas. See [Flink line compatibility](../flink-compatibility.md).
+
+## Nested ROW execution metadata
+
+Internal nested RowKind children remain outside persisted SQL schemas. File schemas and
+reader projections contain only declared fields; Arrow file writes retain the original
+value buffers while excluding these execution sidecars. Nested ROWs loaded from files have
+INSERT kind, matching Flink. Top-level changelog columns retain their existing contract.
+See [nested Java scalar results](../operators/calc-filter.md#nested-java-scalar-results).

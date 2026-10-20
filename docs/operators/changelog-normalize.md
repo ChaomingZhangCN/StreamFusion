@@ -7,6 +7,10 @@ stream by keeping per-key state. It's one of the changelog-aware operators exemp
 insert-only guard — see the [operator index](index.md#global-switches) — since accepting a
 retracting/updating input is the entire point of the operator.
 
+Mini-batch-enabled translation validates `table.exec.mini-batch.size` through the selected
+released Flink planner. Unset/default `-1`, zero and negative sizes fail during planning
+with the host exception and message. Disabled mini-batching does not validate an unused size.
+
 ## Fallback
 
 - **A pushed filter condition** on the operator.

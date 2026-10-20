@@ -1,8 +1,11 @@
 use crate::*;
 
+mod floating_distinct;
 mod floating_extreme;
 mod retracting_window;
+mod scalar_extreme;
 mod timestamp_extreme;
+pub(crate) use scalar_extreme::{ScalarExtremeAccumulator, ScalarExtremeColumn};
 mod window_count;
 pub(crate) use window_count::WindowCountAccumulator;
 mod zero_sum;
@@ -657,6 +660,7 @@ pub(crate) enum WindowAggregate {
     RetractingSum(DataType),
     RetractingCount,
     Builtin(AggregateFunctionExpr),
+    FloatingDistinctCount(AggregateFunctionExpr, DataType),
     IntegerAvg(DataType),
     WrappingIntSum,
     WrappingNarrowSum(DataType),
@@ -665,6 +669,7 @@ pub(crate) enum WindowAggregate {
     DoubleAvg,
     FloatingExtreme { kind: i64, value_type: DataType },
     TimestampExtreme { minimum: bool },
+    ScalarExtreme { minimum: bool, value_type: DataType },
     // Decimal SUM/AVG carry Flink's semantics, which DataFusion's decimal aggregates don't: SUM is
     // an i128 running sum at the input scale reported as DECIMAL(38, s) with overflow → NULL (not an
     // error), and AVG divides that sum by the non-null count with Flink's exact decimal division,
@@ -698,6 +703,13 @@ impl WindowAggregate {
             )),
             _ => Ok(None),
         }
+    }
+
+    pub(crate) fn scalar_column<'a>(
+        &self,
+        values: &'a ArrayRef,
+    ) -> Option<ScalarExtremeColumn<'a>> {
+        matches!(self, Self::ScalarExtreme { .. }).then(|| ScalarExtremeColumn::new(values))
     }
 
     fn new(kind: i64, value_type: &DataType) -> Self {
@@ -738,6 +750,19 @@ impl WindowAggregate {
             (1 | 2, dt) if streamfusion_bridge::timestamp::is_timestamp(dt) => {
                 WindowAggregate::TimestampExtreme { minimum: kind == 1 }
             }
+            (
+                1 | 2,
+                DataType::Date32
+                | DataType::Time32(arrow::datatypes::TimeUnit::Millisecond)
+                | DataType::Boolean,
+            ) => WindowAggregate::ScalarExtreme {
+                minimum: kind == 1,
+                value_type: value_type.clone(),
+            },
+            (7, DataType::Float32 | DataType::Float64) => WindowAggregate::FloatingDistinctCount(
+                build_builtin(kind, value_type),
+                value_type.clone(),
+            ),
             (0..=3 | 7, _) => WindowAggregate::Builtin(build_builtin(kind, value_type)),
             // Float AVG sums in double and narrows to float; double AVG stays double; integer AVG
             // truncates to its type.
@@ -779,6 +804,9 @@ impl WindowAggregate {
             WindowAggregate::RetractingCount => {
                 Box::new(retracting_window::RetractingWindowAccumulator::new(None))
             }
+            WindowAggregate::FloatingDistinctCount(_, value_type) => Box::new(
+                floating_distinct::FloatingDistinctCountAccumulator::new(value_type),
+            ),
             WindowAggregate::Builtin(aggregate) => aggregate
                 .create_accumulator()
                 .expect("failed to create accumulator"),
@@ -795,6 +823,10 @@ impl WindowAggregate {
             WindowAggregate::FloatingExtreme { kind, value_type } => Box::new(
                 floating_extreme::FloatingExtremeAccumulator::new(*kind, value_type),
             ),
+            WindowAggregate::ScalarExtreme {
+                minimum,
+                value_type,
+            } => Box::new(ScalarExtremeAccumulator::new(*minimum, value_type)),
             WindowAggregate::TimestampExtreme { minimum } => Box::new(
                 timestamp_extreme::TimestampExtremeAccumulator::new(*minimum),
             ),
@@ -817,7 +849,8 @@ impl WindowAggregate {
                 Field::new("count", DataType::Int64, false),
             ],
             WindowAggregate::RetractingCount => vec![Field::new("count", DataType::Int64, false)],
-            WindowAggregate::Builtin(aggregate) => aggregate
+            WindowAggregate::Builtin(aggregate)
+            | WindowAggregate::FloatingDistinctCount(aggregate, _) => aggregate
                 .state_fields()
                 .expect("state fields")
                 .iter()
@@ -837,6 +870,9 @@ impl WindowAggregate {
             }
             WindowAggregate::FloatSum => vec![Field::new("sum", DataType::Float32, true)],
             WindowAggregate::FloatingExtreme { value_type, .. } => {
+                vec![Field::new("extreme", value_type.clone(), true)]
+            }
+            WindowAggregate::ScalarExtreme { value_type, .. } => {
                 vec![Field::new("extreme", value_type.clone(), true)]
             }
             WindowAggregate::TimestampExtreme { .. } => vec![Field::new(
@@ -865,13 +901,17 @@ impl WindowAggregate {
             WindowAggregate::ZeroSum(value_type) => RunningAgg::new(22, value_type).result_type(),
             WindowAggregate::RetractingSum(value_type) => value_type.clone(),
             WindowAggregate::RetractingCount => DataType::Int64,
-            WindowAggregate::Builtin(aggregate) => aggregate.field().data_type().clone(),
+            WindowAggregate::Builtin(aggregate)
+            | WindowAggregate::FloatingDistinctCount(aggregate, _) => {
+                aggregate.field().data_type().clone()
+            }
             WindowAggregate::IntegerAvg(result_type) => result_type.clone(),
             WindowAggregate::WrappingIntSum => DataType::Int32,
             WindowAggregate::WrappingNarrowSum(data_type) => data_type.clone(),
             WindowAggregate::FloatSum | WindowAggregate::FloatAvg => DataType::Float32,
             WindowAggregate::DoubleAvg => DataType::Float64,
             WindowAggregate::FloatingExtreme { value_type, .. } => value_type.clone(),
+            WindowAggregate::ScalarExtreme { value_type, .. } => value_type.clone(),
             WindowAggregate::TimestampExtreme { .. } => {
                 streamfusion_bridge::timestamp::timestamp_type()
             }
@@ -1030,6 +1070,9 @@ pub(crate) enum ValueColumn<'a> {
     I32(&'a Int32Array),
     I16(&'a arrow::array::Int16Array),
     I8(&'a Int8Array),
+    Date(&'a arrow::array::Date32Array),
+    Time(&'a arrow::array::Time32MillisecondArray),
+    Boolean(&'a BooleanArray),
     F64(&'a arrow::array::Float64Array),
     F32(&'a arrow::array::Float32Array),
     Decimal128(&'a Decimal128Array),
@@ -1048,6 +1091,9 @@ impl ValueColumn<'_> {
             ValueColumn::I32(a) => (!a.is_null(row)).then(|| Num::I32(a.value(row))),
             ValueColumn::I16(a) => (!a.is_null(row)).then(|| Num::I16(a.value(row))),
             ValueColumn::I8(a) => (!a.is_null(row)).then(|| Num::I8(a.value(row))),
+            ValueColumn::Date(a) => (!a.is_null(row)).then(|| Num::I32(a.value(row))),
+            ValueColumn::Time(a) => (!a.is_null(row)).then(|| Num::I32(a.value(row))),
+            ValueColumn::Boolean(a) => (!a.is_null(row)).then(|| Num::I32(i32::from(a.value(row)))),
             ValueColumn::F64(a) => (!a.is_null(row)).then(|| Num::F64(a.value(row))),
             ValueColumn::F32(a) => (!a.is_null(row)).then(|| Num::F32(a.value(row))),
             ValueColumn::Decimal128(a) => (!a.is_null(row)).then(|| Num::I128(a.value(row))),
@@ -1070,6 +1116,11 @@ pub(crate) enum RunningAgg {
     OverTimestampValue {
         value: Option<streamfusion_bridge::timestamp::TimestampValue>,
         kind: i64,
+    },
+    OverI32Value {
+        value: Option<i32>,
+        kind: i64,
+        data_type: DataType,
     },
     OverDecimalValue {
         value: Option<i128>,
@@ -1197,6 +1248,20 @@ impl RunningAgg {
                 precision: *precision,
                 scale: *scale,
                 kind,
+            };
+        }
+        if matches!(kind, 1 | 2 | 5 | 6)
+            && matches!(
+                value_type,
+                DataType::Date32
+                    | DataType::Time32(arrow::datatypes::TimeUnit::Millisecond)
+                    | DataType::Boolean
+            )
+        {
+            return Self::OverI32Value {
+                value: None,
+                kind,
+                data_type: value_type.clone(),
             };
         }
         Self::new(kind, value_type)
@@ -1378,6 +1443,17 @@ impl RunningAgg {
                     *value = Some(candidate);
                 }
             }
+            (OverI32Value { value, kind, .. }, Num::I32(candidate)) => {
+                if value.is_none_or(|current| match *kind {
+                    1 => candidate < current,
+                    2 => candidate > current,
+                    5 => false,
+                    6 => true,
+                    _ => unreachable!("typed 32-bit value aggregate kind"),
+                }) {
+                    *value = Some(candidate);
+                }
+            }
             (OverDecimalValue { value, kind, .. }, Num::I128(candidate)) => {
                 if value.is_none_or(|current| match *kind {
                     1 => candidate < current,
@@ -1506,6 +1582,9 @@ impl RunningAgg {
                     *value,
                 ])))
             }
+            OverI32Value {
+                value, data_type, ..
+            } => i32_scalar(data_type, *value),
             OverDecimalValue {
                 value,
                 precision,
@@ -1588,6 +1667,7 @@ impl RunningAgg {
         match self {
             OverStringValue { .. } => DataType::Utf8,
             OverTimestampValue { .. } => streamfusion_bridge::timestamp::timestamp_type(),
+            OverI32Value { data_type, .. } => data_type.clone(),
             OverDecimalValue {
                 precision, scale, ..
             } => DataType::Decimal128(*precision, *scale),
@@ -1634,6 +1714,14 @@ impl RunningAgg {
                         .value(0)
                         .expect("OVER timestamp state value")
                 });
+            }
+            (OverI32Value { value, .. }, saved) => {
+                *value = match saved {
+                    ScalarValue::Date32(v) | ScalarValue::Time32Millisecond(v) => *v,
+                    ScalarValue::Boolean(v) => v.map(i32::from),
+                    ScalarValue::Null => None,
+                    other => panic!("unexpected typed 32-bit OVER state {other:?}"),
+                };
             }
             (OverDecimalValue { value, .. }, ScalarValue::Decimal128(saved, _, _)) => {
                 *value = *saved
@@ -1727,6 +1815,17 @@ pub(crate) fn accumulate_decimal(sum: &mut i128, overflow: &mut bool, delta: i12
 }
 
 /// A single OVER value as a typed Arrow scalar of the value column's type (null = no value).
+fn i32_scalar(value_type: &DataType, value: Option<i32>) -> ScalarValue {
+    match value_type {
+        DataType::Date32 => ScalarValue::Date32(value),
+        DataType::Time32(arrow::datatypes::TimeUnit::Millisecond) => {
+            ScalarValue::Time32Millisecond(value)
+        }
+        DataType::Boolean => ScalarValue::Boolean(value.map(|v| v != 0)),
+        _ => ScalarValue::Int32(value),
+    }
+}
+
 pub(crate) fn num_to_scalar(value_type: &DataType, num: Option<Num>) -> ScalarValue {
     match (value_type, num) {
         (_, Some(Num::Timestamp(value))) => {
@@ -1735,7 +1834,7 @@ pub(crate) fn num_to_scalar(value_type: &DataType, num: Option<Num>) -> ScalarVa
             ])))
         }
         (_, Some(Num::I64(v))) => ScalarValue::Int64(Some(v)),
-        (_, Some(Num::I32(v))) => ScalarValue::Int32(Some(v)),
+        (ty, Some(Num::I32(v))) => i32_scalar(ty, Some(v)),
         (_, Some(Num::I16(v))) => ScalarValue::Int16(Some(v)),
         (_, Some(Num::I8(v))) => ScalarValue::Int8(Some(v)),
         (_, Some(Num::F64(v))) => ScalarValue::Float64(Some(v)),
@@ -1745,6 +1844,12 @@ pub(crate) fn num_to_scalar(value_type: &DataType, num: Option<Num>) -> ScalarVa
         }
         (DataType::Int64, None) => ScalarValue::Int64(None),
         (DataType::Int32, None) => ScalarValue::Int32(None),
+        (
+            ty @ (DataType::Date32
+            | DataType::Time32(arrow::datatypes::TimeUnit::Millisecond)
+            | DataType::Boolean),
+            None,
+        ) => i32_scalar(ty, None),
         (DataType::Int16, None) => ScalarValue::Int16(None),
         (DataType::Int8, None) => ScalarValue::Int8(None),
         (DataType::Float64, None) => ScalarValue::Float64(None),
@@ -1773,7 +1878,10 @@ pub(crate) fn num_from_scalar(scalar: &ScalarValue) -> Option<Num> {
             })
         }
         ScalarValue::Int64(v) => v.map(Num::I64),
-        ScalarValue::Int32(v) => v.map(Num::I32),
+        ScalarValue::Int32(v) | ScalarValue::Date32(v) | ScalarValue::Time32Millisecond(v) => {
+            v.map(Num::I32)
+        }
+        ScalarValue::Boolean(v) => v.map(|v| Num::I32(i32::from(v))),
         ScalarValue::Int16(v) => v.map(Num::I16),
         ScalarValue::Int8(v) => v.map(Num::I8),
         ScalarValue::Float64(v) => v.map(Num::F64),

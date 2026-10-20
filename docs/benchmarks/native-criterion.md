@@ -1,5 +1,18 @@
 # Native Criterion suites
 
+| Task | Start here |
+| --- | --- |
+| Discover suites and reproduce a comparison | [Running and comparing](#running-and-comparing) |
+| Check which production paths have fixtures | [Coverage inventory](#coverage-inventory) |
+| Inspect memory behavior | [Allocation and buffer diagnostics](#allocation-and-buffer-diagnostics) |
+| Interpret a complete-job result or an abandoned prototype | [Evidence index](evidence.md) |
+
+The inventories describe benchmark fixtures; the dated diagnostics below retain
+their original revisions and measurement boundaries. A passing fixture or a
+kernel speedup does not establish current operator admission or complete-job
+acceleration. See [operator coverage](../operators/index.md) for support and
+[complete-job methodology](../benchmarks.md) for performance admission.
+
 `scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
 as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
 formatting and output allocation; fixture and schema setup remain outside timing. Full-job
@@ -10,6 +23,17 @@ its explicit row count must produce the requested number of non-NULL UUID values
 all nine batch/null/Unicode fixture profiles without pretending UUID consumes those inputs.
 Direct Calc regressions separately cover zero-column pruning, repeated batches, empty and
 all-filtered batches, independent call sites and preserved changelog tags.
+
+The scalar registry also exercises the production CARDINALITY and TYPEOF selections
+(167/168). TYPEOF receives an evaluated nullable collection and Flink's resolved string;
+it returns that string without inspecting the collection's values. Collection benchmarks
+verify array/map cardinalities over sliced batches, NULL containers and empty maps.
+
+The registry includes computed UNNEST's scalar/timestamp ARRAY constructors and temporal
+conversion helpers (171–177). Fixtures combine sliced nullable arrays with literals, pre-epoch
+timestamps, positive/negative UTC offsets and independently NULL offsets. All nine batch/null/
+Unicode profiles exercise these registrations; the completeness assertion covers helper kernels
+as well as functions directly exposed in SQL.
 
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise
@@ -31,6 +55,44 @@ fixture does not measure Flink job throughput. UTF-16 DECODE fixtures cover all 
 variants with both JDK U+FFFE rules, sliced nullable arrays, narrow/wide text, and malformed
 trailing bytes at 16, 1024 and 16384 rows. Input construction is outside the measured kernel.
 
+The optional `streamfusion-iceberg` package's `iceberg_io` suite measures the production
+single-file parquet-rs Arrow encoder through finalization into memory-backed storage.
+Each write includes the production retained-memory estimate used for JNI accounting.
+Its 18 fixtures cover 16/1024/16384 rows, nullable strings at widths 8/264/4096,
+contiguous slices and sparse selections, field IDs, and stock parquet-rs readback.
+Input construction is outside timing; encoder construction, selection/gather, encoding,
+statistics, and finalization are inside. JNI and Java FileIO remain outside this isolated
+suite and must be included in the Iceberg end-to-end comparison. A further 27
+production routing fixtures cross the same sizes and widths with one/four/128
+destinations. Routing retains contiguous Arrow slices and gathers sparse selections;
+allocation diagnostics report buffer sharing. Destination selection in Java and
+network transport remain outside that isolated kernel. Another 36 fixtures exercise
+the production released Iceberg task reader at the same sizes/widths, full versus
+single-column projection, and batch sizes 16/1024. Parquet fixture encoding and
+memory-file setup happen before timing; reader construction, footer/decode,
+projection, Arrow output collection and teardown are measured. JNI/FileIO callbacks,
+delete indexes, Flink discovery and checkpoints remain end-to-end costs. Six further
+scalar fixtures cross the three row counts with encoding and read/adaptation;
+they include nullable float/double, NaN/infinity, precision-38 decimals, time unit
+conversion, and local/UTC microsecond timestamps using the common component
+representation. They call the same schema adaptation used at the JNI boundary.
+Three scalar-filter fixtures include signed-zero floating set membership. Another
+27 task-semantics fixtures cross the same row counts and widths with projected-away
+predicate keys, identity partition constants absent from the physical file, and legacy
+renamed columns without field IDs. Fixture encoding stays outside timing; task metadata
+binding, native decode/filter/adaptation and output collection stay inside. Nine split
+fixtures read half of a four-row-group file with bloom metadata; footer loading,
+physical-to-reader range translation and native decode stay inside timing.
+
+The `streamfusion-bridge` package's `handoffs` suite also covers array-only C Data
+export with a cached schema. A further 54 fanout fixtures cross the existing row
+counts/string widths with one/four/16 consumers and repeated versus shared imports.
+They call the production C Data bridge and verify identical sliced/null data plus
+buffer sharing. The measured boundary includes Rust C Data export/import and teardown;
+Java export, JNI calls, Parquet encoding and Flink scheduling stay in the end-to-end
+comparison. Repeated imports model the previous Iceberg file handoff; shared imports
+model retaining one batch while several file writers borrow it.
+
 The `operators` target includes `floating_group`: FLOAT/DOUBLE SUM/MIN/MAX, ordered
 FIRST/LAST, SINGLE_VALUE, DISTINCT SUM, and typed local partials at 256/4096 rows, one/64 keys,
 nullable/non-null inputs, NaNs and signed zeros. Retraction fixtures seed state outside the
@@ -48,9 +110,14 @@ measures complete two-phase Flink jobs, including both transposes and production
 
 ## Running and comparing
 
-The `non_time_row_number` target includes eight production-kernel fixtures
-cross 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
-and ascending/descending arrival, with nullable order columns. Fixture setup and a separate inversion-count cardinality oracle stay
+The `non_time_row_number` target includes 120 production-kernel fixtures across
+16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
+and ascending/descending arrival, with nullable BIGINT/INT/SMALLINT/TINYINT, DECIMAL,
+DATE, TIME, BOOLEAN, TIMESTAMP(9) and 8/256-byte string order columns. Timestamp values
+span the epoch and retain distinct sub-millisecond values. Allocation and Arrow-buffer reports
+accompany all 88 cases. SQL checks additionally cover TIMESTAMP_LTZ(9), both NULL placements
+and two memory/RocksDB restores. Fixture setup and a separate
+inversion-count cardinality oracle stay
 outside timing. Each measurement creates an empty ranker, processes the batch and materializes
 all row-identity rank updates; it does not measure a fixed-state lookup or exclude output work.
 This native boundary complements the complete Flink job benchmark `NonTimeRowNumberBenchmark`,
@@ -67,13 +134,60 @@ wrapper retains the shared native resource until the store closes. See
 [Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
 
 The `over_basic_values` target isolates the four production OVER frame shapes without
-initializing unrelated persistent operator fixtures. Its 2,236 release fixture checks cover
-validity-only counts; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
+initializing unrelated persistent operator fixtures. Its release fixture checks cover
+validity-only counts, including DATE, millisecond TIME and BOOLEAN; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
 FIRST/LAST; cached/binary strings, malformed-surrogate recovery collisions, timestamp-group
 retraction order, pending rows and counted-value tree-bin retirement. Fixtures cover small/full batches, one/64 keys, NULLs,
 wide strings, decimal precision 38 and full-range fractional timestamps. The tests validate
 results before timing; setup is outside the measured fold, eviction, output and state-codec
 boundary. Smoke checks establish fixture correctness, without producing timing estimates.
+The DATE/TIME/BOOLEAN COUNT additions contribute 84 fixtures across 64/4096 rows, one/64
+keys, four event-time frames and three processing-time frames. Each checks an independent
+validity-and-frame oracle before timing the production push/flush path.
+The primitive value suite also checks 84 COUNT(DISTINCT) cases over these types with
+an independent set/frame oracle, BIGINT results, duplicate pairs, expiry and repeated
+physical-chunk snapshot restores. Together with ordinary MIN/MAX/FIRST/LAST, its
+420 primitive fixtures retain allocation and Arrow-buffer reports.
+The typed-value group adds 84 DECIMAL COUNT(DISTINCT) fixtures for precisions/scales
+12/2, 38/0 and 38/38 across the same batch/key/frame shapes. An independent set oracle
+checks counts before timing; duplicate pairs, precision limits, NULL-only partitions,
+logical snapshot fields and repeated physical-chunk restores are retained. Allocation
+requests and output-buffer sharing are reported for these new cases.
+The same typed-count oracle also covers 28 STRING and 28 TIMESTAMP(9) cases, bringing this
+selection to 140 fixtures. It checks byte membership, empty/Unicode values and adjacent
+nanoseconds with NULLs, duplicate pairs, physical chunks and repeated snapshots.
+
+The explicit `over_distinct_store` target adds 16 small production RocksDB fixtures for
+running ROWS/RANGE STRING and TIMESTAMP(9) distinct counts, at 32/512 rows and four keys.
+Both continued updates and checkpoint/restore split the physical input in half, then check
+an independent set oracle. STRING values include empty, embedded-NUL, Unicode and wide
+payloads; timestamps include -1/0/1 nanoseconds. Store construction stays outside timing;
+updates, probes, output construction and, for restore cases, checkpoint/restore stay inside.
+Allocation requests and Arrow buffer sharing are reported separately from copied bytes.
+Run `python3 bin/bench-native.py --bench over_distinct_store --smoke` to validate this boundary
+without constructing every persistent operator fixture. This is a registered Criterion
+target; shared helpers remain nested modules to avoid accidental Cargo target discovery.
+
+
+The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
+DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).
+They retain membership and widened sum/count work while keeping batch construction outside
+the timed update. SQL comparisons cover the exact changelog and checkpoint contract.
+
+The window-count helper lives under `window_counts/mod.rs` so Cargo discovers only
+its owning `operators` Criterion target. Helpers are not standalone benchmark crates.
+
+Its `window_count_validity` group adds 36 scalar COUNT fixtures at 128/4096 rows and
+one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timestamps
+retain NULL-only groups and are checked against an independent per-key validity oracle.
+Batch construction stays outside the timed production window update/firing boundary.
+
+The standalone `window_complex_counts` target adds 36 ordinary COUNT fixtures for ARRAY,
+MAP and ROW parents at 128/4096 rows and one/64/1024 keys. Parent NULLs, empty containers,
+NULL children and all-NULL groups are checked against an independent per-key validity oracle.
+Whole-batch and 17-row chunked input must agree, including local partial drains and global
+merges. Fixture construction stays outside the measured production update/firing boundary;
+untimed probes report allocation requests and output Arrow buffers separately.
 
 `over_heap_snapshot` separately exercises the production JNI observer with a real released
 Flink heap backend for decimal timestamp maps and string value maps: no snapshot, completed
@@ -148,6 +262,13 @@ report input rows per second only with the stated output cardinality. Smoke mode
 `--test`, executes each fixture once, and produces no timing baseline. CI runs smoke checks and
 retains diagnostics without enforcing performance thresholds on shared runners.
 
+The typed-value suite adds 336 DATE/TIME/BOOLEAN MIN/MAX/FIRST/LAST fixtures across all
+four rowtime shapes and the three admitted proctime shapes, 64/4,096 rows and one/64 keys.
+An independent per-key logical frame oracle verifies every selected value, NULL-only groups
+and bounded-frame eviction. Physical splits and repeated snapshots must match the whole batch.
+Allocation requests and Arrow sharing are reported outside Criterion timing; construction and
+oracle work stay outside measurement.
+
 ## Allocation and buffer diagnostics
 
 New suites perform an untimed allocation probe outside Criterion's warmup and sampling. Stateful
@@ -197,8 +318,10 @@ Some historical suites use
 | Shared bridge transforms | `handoffs` | Timestamp unit conversion, float canonical ordering, partition splits |
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
-| Calc and column movement | `data_movement`, `keys_and_checkpoints` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST including nested ROW metadata, Arrow IPC encode/decode |
+| Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST with projected/repeated/ordinal outputs, nullable timestamp and one-field ROW expansion, UPDATE_BEFORE filtering with absent/retained/mixed/discarded row kinds at 16/1024/16384 rows and narrow/wide nullable payloads, Arrow IPC encode/decode; cached nested ROW payloads through production IPC encode/decode and changelog filtering, including generic/missing-cache rows, null parents, all root RowKinds, widths 8/264 and 16/1024/16384 rows |
+| Complex OVER COUNT | `over_complex_count` | 260 ARRAY/MAP/ROW/MULTISET parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
+| Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
 | Key materialization | `keys_and_checkpoints` | Arrow-row encode/decode, Flink BinaryRow hash; primitive and wide nullable string composite keys; nullable nested ROW kinds, variable binary payload lengths and timestamp precision descriptors, plus metadata-neutral ordering |
 | Memory checkpoints | `keys_and_checkpoints`, `data_movement` | Group aggregate and append Top-N snapshot/restore, temporal-join snapshot |
@@ -207,7 +330,7 @@ Some historical suites use
 | Persistent window join | `persistent_state` | INNER join with unique UTF-8 keys; right arrival, partial firing, checkpoint and aligned/rebuilt single-source recovery; independent multiset/schema oracle, pre-replay arrivals, post-replay late rejection and continued processing |
 | Persistent group aggregation | `persistent_state`, `persistent_group` | Mini-batch COUNT(*), nullable Int64 SUM and Int64 MIN/MAX with UTF-8 keys; ingestion/flush, checkpoint and aligned/rebuilt single-source restore; independent continued-changelog oracle and per-key row-kind order checks; half/all-row retractions with deletion and reinsertion oracles |
 | Matched memory window ranking | `persistent_state` | Ingestion, populated-state updates and firing over the same sliced, nullable, wide-payload shapes as the disk-backed ranker; independent row-index output oracle |
-| Collection expression kernels | `collection_expressions` | ARRAY_DISTINCT over Boolean, integer and string arrays; sliced/null input, short/large lists, unique/repeated values and wide UTF-8; expected outputs asserted |
+| Collection expression kernels | `collection_expressions` | ARRAY_DISTINCT over Boolean, integer and string arrays; CARDINALITY over arrays and maps; ARRAY_REVERSE/ARRAY_SLICE over structs carrying string caches and row kinds; immediate-UNNEST scalar ARRAY construction over numeric, Boolean, decimal, DATE/TIME and compact/expanded timestamp elements; bounded epoch conversion and UTC/JDK-offset-adjusted temporal casts (offset lookup excluded from native fixture timing and retained in complete jobs); sliced/null input, empty/short/large containers, unique/repeated values and wide UTF-8; expected outputs asserted |
 | Exact scalar JNI upcalls | `jvm_truncate` | Production Rust Calc/C Data export, Java reflection/generated row evaluation and Arrow result import; bounded DOUBLE TRUNCATE shortcut versus released Flink; nullable sliced input and fallback profiles |
 | Registered Flink scalar functions | `scalar_registry` | Every registered numeric opcode; completeness assertion requires a fixture for new registrations; ASCII/null/Unicode profiles |
 | Parameterized scalar kernels | `scalar_registry` | Decimal cast/round/truncate/arithmetic/float conversion, integer parse/format/divide, FROM_UNIXTIME, array item, literal/dynamic map lookup, random, clock, float comparison |
@@ -220,8 +343,11 @@ Some historical suites use
 | Parquet file operations | `parquet_io` | Production encode, selected-row encode, ordinary decode, paired INT96 decode, nullable wide strings and full-range timestamps |
 | ORC post-decode normalization | `normalization` | CHAR trimming, string pass-through, full-range timestamp conversion |
 | Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64/all-distinct keys |
-| Window string extrema | `window_string_extrema` | Production MIN/MAX update and watermark flush over 256/4096 rows, 1/64/batch-sized keys and nullable 16/256-byte UTF-8 values; independent extrema checked before timing |
+| Window string extrema | `window_string_extrema` | Production TUMBLE/HOP/CUMULATE MIN/MAX update and watermark flush over 256/4096 rows, 1/64/batch-sized keys and nullable 16/256-byte UTF-8 values; independent extrema checked before timing |
 | Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
+| Window scalar extrema | `window_scalar_extrema` | Accounted DATE/TIME/BOOLEAN MIN/MAX update/flush across TUMBLE/HOP/CUMULATE and SESSION merge, 128/4096 rows, one/64/1024 keys, NULL-only groups; independent extrema oracle and allocation diagnostics |
+| Typed DISTINCT first/last | `distinct_ordered_values` | Production immediate grouped update over all integer widths, FLOAT/DOUBLE, narrow/wide DECIMAL, DATE/TIME, BOOLEAN, nanosecond TIMESTAMP and 8/256-byte strings; 64/4,096 rows, one/64 keys, four/128 source values and append/delete batches. NULL-only groups, boxed floating membership and exact selected payloads are checked against an independent arrival-order oracle. Retract seeds and operator construction stay outside timing; allocation and Arrow buffer reports accompany all 256 fixtures. Thirty-two mixed COUNT DISTINCT/COUNT(*) cases verify every ordered pre/postimage, including primitive floating equality, NULL-only groups and final removals. |
+| Local/global SINGLE_VALUE partials | `local_single_values`, `typed_group_values` | Production local accumulation and global count-partial merge, each with update/flush over BIGINT, BOOLEAN, DECIMAL(20,3), nanosecond TIMESTAMP and 8/256-byte strings; 16/1,024/16,384 unique keys, nullable keys/values and 1/13/full physical batches. Independent source-column/count/INSERT checks, whole-batch buffer identity and untimed allocation/buffer reports; fixture/operator construction and operator/output teardown stay outside timing. The typed group suite adds ordinary immediate/mini-batch SINGLE_VALUE and typed DISTINCT controls. |
 | Window temporal extrema | `window_temporal_extrema` | Accounted TUMBLE/HOP/CUMULATE extrema/count update/flush and SESSION update/merge/flush over 256/4096 rows, 1/64/batch-sized keys and nullable full-range component timestamps at precision 3/9; independent extrema and counts checked before timing |
 
 `window_zero_sum` covers the production COUNT/SUM0 window update and final flush
@@ -2287,7 +2413,17 @@ reads and writes. Repeated-state values are independently checked at both firing
 request reporting. The measurement excludes fixture/database setup.
 
 Set `SF_NATIVE_PERSISTENT_WINDOW_ONLY=true` when invoking the `persistent_state` suite to
-register only its existing tumbling-window fixtures, including `read_modify_write`. This avoids
+register its tumbling-window fixtures and `engine/rocksdb/window_count`. The COUNT fixtures cover
+TUMBLE/HOP/CUMULATE with 16/1024/8192 rows, low/unique cardinality, string keys with
+8/256-byte padding after the key ID, and
+nullable keys/values. Four input batches, non-closing watermarks and final firing are timed
+together, including deferred state writes; database/input setup remains outside timing. Each
+fixture compares final output with the memory implementation and checks no second emission.
+The [bounded COUNT comparison](../optimizations/shared-window-state.md#bounded-persistent-count-updates)
+retains six timed profiles, allocation requests and the high-cardinality/wide-key cases that
+do not establish a gain. Its [artifact](results/attached-window-count-2026-10-18.json) includes
+raw Criterion samples and confidence intervals separately from release/mimalloc job timings.
+`read_modify_write` retains its previous SUM boundary. This avoids
 unrelated suites' untimed fixture validation while retaining the same production code, inputs,
 assertions, allocation reporting and measured boundary. Without the option, every existing
 suite remains registered. Criterion's normal name filter selects cases within this window suite.
@@ -2309,6 +2445,33 @@ after a production snapshot/restore with uninterrupted execution. All 16 release
 pass; ten-sample timing estimates are retained with the
 [complete-job measurements](results/listagg-2026-10-15.json). Run
 `python3 bin/bench-native.py --bench string_group_aggregates --smoke` for fixture validation.
+
+The `listagg_distinct` group adds 16 append/retract update fixtures with the same row,
+key and width matrix. An independent ordered membership model checks every output group;
+production snapshot/restore continuation is checked separately. Four additional checkpoint
+fixtures cover DISTINCT append/retract state at both checkpoint sizes. Input construction,
+state seeding and oracle evaluation stay outside the measured update boundary. Allocation
+probes include owned membership and output construction, while timing keeps the probe
+disabled. SQL parity additionally checks repeated restore on memory/native RocksDB and
+released Flink result ordering.
+
+The `listagg_local_global` group adds 16 combined local/global fixtures at 16/1,024 rows,
+one/64 keys, 8/128-byte values and default/literal separators. Timing covers local update
+and flush, typed Arrow partial handoff, global merge and final mini-batch materialization.
+Operator/input setup and destruction stay outside timing. Independent per-key prefix/count
+oracles verify final results after 17-row input chunks and repeated local drains; global
+checkpoint continuation is compared separately with uninterrupted state. All 92 string/JSON
+fixtures pass, with allocation and Arrow-sharing records for each. Whole-job qualification
+retains IPC, JNI and both transposes separately from this native boundary.
+
+The `listagg_retention` group adds four expiry profiles at 16 rows/one key/8-byte strings
+and 1,024 rows/64 keys/128-byte strings, with default/literal separators. Setup seeds at
+0 ms and refreshes with NULL rows at 999 ms under a 1,000 ms TTL. Timing covers reclaiming
+the expired prefix and processing a new batch at 1,999 ms. Independent prefix oracles require
+a fresh INSERT for each expired key; checkpoint continuation must match uninterrupted state.
+Setup and destruction remain outside timing. The combined integration passes all 96 string/JSON
+and 256 ordered DISTINCT fixtures; allocation and Arrow-sharing records for all 352 are retained
+in [the retention measurement artifact](results/listagg-retention-2026-10-19.json).
 
 The same suite now includes 32 JSON array/object cases over both batch sizes, key
 cardinalities and widths, with append and retract input. Each calls production update
@@ -2336,3 +2499,77 @@ The experimental binary-ELT planner admission reuses the existing production
 including variable-width results and scalar/array selection. Its Java eligibility and
 length-delimited boundary changes add no Rust operational path. Existing kernel timings
 are not a complete-job speed claim for the new opt-in transport.
+
+The `over_basic_values` target's `over_decimal_distinct_reductions` group covers production
+DISTINCT SUM/SUM0/AVG at DECIMAL(12,2), (38,0) and (38,37), 64/4096 rows, one/64 keys and seven
+admitted event/proctime frame shapes (252 fixtures). Independent ordered-set/frame oracles
+check NULL/duplicate membership, expiry, exact result scale and signed HALF_UP division on
+values that avoid overflow. Whole batches are compared with 17-row physical chunks and
+repeated checkpoint restores before timing. SQL parity separately checks precision-limit
+overflow, sticky accumulators and both memory/native RocksDB recovery. Setup is outside the
+measured production update/output boundary; all fixtures report allocation requests and
+Arrow buffer sharing. Run `--bench over_basic_values --filter over_decimal_distinct_reductions
+--smoke` for this focused selection.
+
+
+The explicit `window_floating_distinct` target covers production FLOAT/DOUBLE window COUNT
+DISTINCT with Flink boxed equality. Its 60 fixtures combine 64/4096 rows, one/64/unique keys,
+TUMBLE/HOP/CUMULATE and single/local-global execution. Inputs include distinct positive and
+negative NaN payloads, both zero signs, infinities, subnormals, extreme finite values, NULLs
+and NULL-only keys. An independent integer-bit set oracle checks every key/window count.
+Four physical updates and, for partial cases, four typed list exports/unions stay timed along
+with final output; operator/input construction stays outside timing. The budgeted production
+operator accounts retained membership. Allocation requests and Arrow buffer sharing are
+reported without treating them as copied bytes. Run `--bench window_floating_distinct --smoke`
+for this focused selection; the suite is explicitly registered in Cargo.
+
+The same target adds 12 `attached_cumulative_partials` fixtures that initialize the actual
+released-Flink WindowCalendar JVM callback. They merge already-complete short/long windows
+with stride=max-size, checking independent bounds against an event-list oracle at 64/512
+rows and one/64 UTF-8 keys. Four partial batches, heap checkpoint continuation, memory/RocksDB
+state, a partial replay after the short end closes, final drain and memory accounting are
+validated. Operator/JVM/input setup stays outside timing. No new checkpoint layout is used.
+The helper stays in a nested directory with an explicit module path; Cargo discovers the
+registered target alone. The final selection has 72 fixture successes/allocation reports.
+
+### Complex ordinary ROW_NUMBER fixtures
+
+`non_time_complex_rank` has 32 release fixtures: ARRAY, ROW, nested ARRAY and ROW-of-ARRAY;
+16/256 rows; one/64 partitions; and both parent NULL placements. Independent Rust value
+comparisons order nested NULLs first and emit every expected INSERT/UPDATE_BEFORE/UPDATE_AFTER
+by retained row identity. Whole batches agree with seven-row chunks that checkpoint and
+restore after the first chunk. Custom list child names exercise restored payload-schema
+alignment. Fixture construction and the derived parent flag are outside timing; production
+rank insertion, retained state and complete changelog construction are measured. Untimed
+allocation probes retain separate Arrow-buffer reports; complete Java jobs include the native
+flag projections and both perimeter transposes.
+
+
+### Complex OVER COUNT fixtures
+
+`over_complex_count` exercises the existing production framed OVER aggregator through nullable
+ARRAY/MAP/ROW COUNT and the IPC-safe nullable-key map-list carrier. Its 196 release fixtures
+combine 64/4,096 rows, one/64 keys, 4/64-entry containers and seven event/proctime contexts.
+An independent per-key time/frame oracle checks BIGINT counts, pending peer flushes and
+snapshot/restore continuation before timing. Input/operator construction remains outside the
+measured update/output path. All fixtures report allocation requests and Arrow buffer sharing;
+these metrics are not copied-byte estimates. Run `--bench over_complex_count --smoke`.
+
+
+The existing `window_complex_counts` and `over_complex_count` suites also cover standalone
+MULTISET parent validity with element-to-INT entries. Windows add twelve cases (48 total);
+event-time OVER adds 64 (260 total), including nullable-element IPC list carriers, narrow/wide
+bags, 64/4,096 rows, one/64 keys and framed snapshot continuation. Occurrence counts are
+positive and non-null; they never become the COUNT result. Run either existing suite with
+`--smoke`; no new target or native production implementation is required.
+
+
+The `non_time_row_number` suite's `non_time_floating_rank` group adds 32 FLOAT/DOUBLE cases
+at 16/256 rows and one/64 nullable partitions, both NULL placements and initial/later NaNs.
+The independent group-list oracle replaces a group's representative on every equal insert,
+matching the released generated `>/<` comparator, and checks every emitted row identity/kind/rank.
+Seven-row physical chunks and two raw restores preserve nonmonotonic group order and tagged
+lengths. Input/state setup stays outside production update/output timing; allocation requests
+and buffer sharing are recorded. The complete existing target now has 120 fixtures; no new
+Cargo target is introduced. Run `--bench non_time_row_number --filter non_time_floating_rank
+--smoke` for the focused selection.

@@ -338,9 +338,12 @@ final class NativeFailureParity {
     for (int i = causes.size() - 1; i >= 0; i--) {
       for (StackTraceElement frame : causes.get(i).getStackTrace()) {
         String method = frame.getMethodName();
-        if (method.equals("open") || method.equals("initializeState")) return Phase.INITIALIZATION;
+        if (method.equals("open")
+            || method.equals("initializeState")
+            || method.equals("createStreamOperator")) return Phase.INITIALIZATION;
         if (method.equals("processElement") || method.equals("processElement1")
             || method.equals("processElement2") || method.equals("endInput")
+            || method.equals("finishBundle")
             || method.equals("eval") || method.equals("accumulate")) return Phase.ROW_EVALUATION;
       }
     }

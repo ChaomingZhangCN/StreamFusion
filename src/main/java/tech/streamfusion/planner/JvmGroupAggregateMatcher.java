@@ -14,7 +14,8 @@ final class JvmGroupAggregateMatcher {
   private JvmGroupAggregateMatcher() {}
 
   static boolean enabledUserAggregate(StreamPhysicalGroupAggregate node) {
-    if (!Boolean.getBoolean("streamfusion.experimental.jvmGroupAggregates")) return false;
+    if (!Boolean.parseBoolean(
+        System.getProperty("streamfusion.experimental.jvmGroupAggregates", "true"))) return false;
     for (int i = 0; i < node.aggCalls().size(); i++) {
       var agg = node.aggCalls().apply(i).getAggregation();
       if (agg instanceof BridgingSqlAggFunction
@@ -66,7 +67,7 @@ final class JvmGroupAggregateMatcher {
 
   static String unsupportedReason(StreamPhysicalGroupAggregate node) {
     return "GROUP BY: JVM aggregates require verified columnar input, keyed state and performance"
-               + " admission";
+        + " admission";
   }
 
   static RelNode substitute(StreamPhysicalGroupAggregate node, PlanContext context) {

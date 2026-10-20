@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assumptions;
 
 /** Explicit N/A checks for syntax or host operations absent from the selected released line. */
 public final class FlinkTestCapabilities {
+  public static final boolean MINIBATCH_JOIN = true;
   public static final boolean NON_TIME_OVER = true;
 
   public static final boolean CHAR_EXTREMA = true;
@@ -71,6 +72,9 @@ public final class FlinkTestCapabilities {
   }
 
   public static void requireFirstLastType(String type) {
+    Assumptions.assumeTrue(
+        !type.startsWith("CHAR(") || CHAR_EXTREMA,
+        "Flink cannot plan FIRST_VALUE/LAST_VALUE over " + type);
     boolean temporal = type.equals("DATE") || type.startsWith("TIME");
     Assumptions.assumeTrue(
         !temporal || TEMPORAL_FIRST_LAST,

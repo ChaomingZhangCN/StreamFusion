@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Locale;
@@ -23,6 +25,8 @@ import tech.streamfusion.planner.NativePlanner;
 
 @EnabledIfEnvironmentVariable(named = "SF_BENCHMARK", matches = "true")
 class OverBasicValuesBenchmark {
+  private static final java.math.BigInteger WIDE_BASE = java.math.BigInteger.TEN.pow(37);
+  private static final String WIDE_TEXT = "x".repeat(256);
   @Test
   void completeJobsKeepRowSourceSinkAndBothTransposes() throws Exception {
     for (String type :
@@ -57,23 +61,32 @@ class OverBasicValuesBenchmark {
     }
     if (rows < 1 || keys < 1 || warmups < 1 || runs < 3)
       throw new IllegalArgumentException("Invalid fixture");
-    String reductions = "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
-    if (!(type.equals("timestamp") || type.equals("ltz"))
-        || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast()) {
+    int engines = Integer.getInteger("over.values.engines", 3);
+    if (engines < 2 || engines > 3) throw new IllegalArgumentException("Expected two or three engines");
+    boolean countOnly = Boolean.getBoolean("over.values.countOnly");
+    boolean distinctCount = Boolean.getBoolean("over.values.distinctCount");
+    boolean expectNative =
+        Boolean.parseBoolean(System.getProperty("over.values.expectNative", "true"));
+    String reductions = countOnly ? "COUNT(v) OVER w" : "COUNT(v) OVER w, MIN(v) OVER w, MAX(v) OVER w";
+    if (distinctCount) reductions = "COUNT(DISTINCT v) OVER w";
+    if (!distinctCount && !countOnly && (!(type.equals("timestamp") || type.equals("ltz") || type.equals("date") || type.equals("time"))
+        || tech.streamfusion.compat.RuntimeCompat.supportsTemporalOverFirstLast())) {
       reductions += ", FIRST_VALUE(v) OVER w, LAST_VALUE(v) OVER w";
     }
-    if (type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
+    if (!distinctCount && !countOnly && type.equals("decimal")) reductions += ", SUM(v) OVER w, AVG(v) OVER w";
+    if (Boolean.getBoolean("over.values.distinctReductions"))
+      reductions = "SUM(DISTINCT v) OVER w, AVG(DISTINCT v) OVER w, COUNT(DISTINCT v) OVER w";
     String query =
         "SELECT k, "
             + reductions
             + " FROM src WINDOW w AS (PARTITION BY k ORDER BY rt "
             + bounds
             + ")";
-    double[][] samples = new double[3][runs];
+    double[][] samples = new double[engines][runs];
     try (var metrics = new RecoveryExecutionMetrics()) {
       for (int trial = 0; trial < warmups + runs; trial++) {
-        for (int turn = 0; turn < 3; turn++) {
-          int engine = (trial + turn) % 3;
+        for (int turn = 0; turn < engines; turn++) {
+          int engine = (trial + turn) % engines;
           var table = environment(metrics, type, rows, keys);
           if (engine == 2) table.getConfig().set("streamfusion.operator.over.enabled", "false");
           var scan = engine > 0 ? NativePlanner.install(table) : null;
@@ -85,19 +98,20 @@ class OverBasicValuesBenchmark {
                   .build());
           String insert = "INSERT INTO sink " + query;
           String plan = table.explainSql(insert);
-          if (engine == 1)
+          if (engine == 1 && expectNative)
             assertTrue(
                 plan.contains("NativeOverAggregate")
                     && plan.contains("RowDataToArrow")
                     && plan.contains("ArrowToRowData"),
                 plan);
-          if (engine == 2) assertTrue(!plan.contains("NativeOverAggregate"), plan);
+          if (engine == 2 || engine == 1 && !expectNative)
+            assertTrue(!plan.contains("NativeOverAggregate"), plan);
           long start = System.nanoTime();
           var result = table.executeSql(insert);
           String jobId = result.getJobClient().orElseThrow().getJobID().toString();
           result.await();
           double seconds = (System.nanoTime() - start) / 1e9;
-          if (engine == 1) {
+          if (engine == 1 && expectNative) {
             assertTrue(scan.substitutions() > 0, scan.explainSummary());
             RecoveryExecutionMetrics.assertConsumed(
                 metrics.nativeOperators().stream()
@@ -131,11 +145,11 @@ class OverBasicValuesBenchmark {
         keys,
         median(samples[0]),
         median(samples[1]),
-        median(samples[2]),
+        engines == 3 ? median(samples[2]) : Double.NaN,
         median(samples[0]) / median(samples[1]),
         Arrays.toString(samples[0]),
         Arrays.toString(samples[1]),
-        Arrays.toString(samples[2]));
+        engines == 3 ? Arrays.toString(samples[2]) : "[]");
   }
 
   private static double median(double[] values) {
@@ -155,7 +169,12 @@ class OverBasicValuesBenchmark {
       case "decimal":
         valueType = DataTypes.DECIMAL(12, 2);
         break;
+      case "decimal_wide":
+      case "decimal_wide_balanced":
+        valueType = DataTypes.DECIMAL(38, 0);
+        break;
       case "string":
+      case "string_wide":
         valueType = DataTypes.STRING();
         break;
       case "timestamp":
@@ -163,6 +182,15 @@ class OverBasicValuesBenchmark {
         break;
       case "ltz":
         valueType = DataTypes.TIMESTAMP_LTZ(9);
+        break;
+      case "date":
+        valueType = DataTypes.DATE();
+        break;
+      case "time":
+        valueType = DataTypes.TIME(3);
+        break;
+      case "boolean":
+        valueType = DataTypes.BOOLEAN();
         break;
       default:
         throw new IllegalArgumentException("Unknown value type " + type);
@@ -182,10 +210,28 @@ class OverBasicValuesBenchmark {
                       case "decimal":
                         value = BigDecimal.valueOf(id % 1000 - 500, 2);
                         break;
+                      case "decimal_wide":
+                        value = new BigDecimal(WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257)));
+                        break;
+                      case "decimal_wide_balanced":
+                        var wide = WIDE_BASE.add(java.math.BigInteger.valueOf(id / keys % 257));
+                        value = new BigDecimal(id / keys % 2 == 0 ? wide : wide.negate());
+                        break;
                       case "string":
+                      case "string_wide":
                         value =
                             new String[] {"😀", "\ue000", "", "é", "abcdefghijk"}
                                 [(int) (id / keys % 5)];
+                        if (type.equals("string_wide")) value = value + WIDE_TEXT;
+                        break;
+                      case "date":
+                        value = LocalDate.of(2024, 1, 1).plusDays(id % 31);
+                        break;
+                      case "time":
+                        value = LocalTime.of(12, 34, 56, (int) (id % 1000) * 1000000);
+                        break;
+                      case "boolean":
+                        value = id / keys % 2 == 0;
                         break;
                       default:
                         var time =

@@ -9,6 +9,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public final class RuntimeCompat {
   private RuntimeCompat() {}
 
+  public static boolean supportsNonTimeOverRowNumber() {
+    return true;
+  }
+
+  public static boolean supportsCharOverValueSelection(String function, boolean retracting) {
+    return true;
+  }
+
   public static boolean supportsTemporalOverFirstLast() {
     return true;
   }

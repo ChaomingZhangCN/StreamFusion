@@ -10,11 +10,11 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-@EnabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "true")
+@DisabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "false")
 class FlinkNestedScalarRecoveryTest {
   @ParameterizedTest
   @CsvSource({

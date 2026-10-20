@@ -10,7 +10,8 @@ use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 use streamfusion_bridge::{
-    export_record_batch, import_record_batch, import_record_batch_with_schema,
+    export_record_batch, export_record_batch_array, import_record_batch,
+    import_record_batch_with_schema,
     ordering::canonical_ordering_column,
     partition::split_by_partition_columns,
     timestamp::{cast_timestamp, timestamps_from_millis},
@@ -22,7 +23,7 @@ static ALLOCATOR: CountingAllocator = CountingAllocator;
 fn roundtrip(batch: &RecordBatch, cached: bool) -> RecordBatch {
     let mut array = FFI_ArrowArray::empty();
     if cached {
-        array = FFI_ArrowArray::new(&StructArray::from(batch.clone()).to_data());
+        export_record_batch_array(batch.clone(), &mut array as *mut _ as i64);
         import_record_batch_with_schema(&mut array as *mut _ as i64, &batch.schema())
     } else {
         let mut schema = FFI_ArrowSchema::empty();
@@ -33,6 +34,17 @@ fn roundtrip(batch: &RecordBatch, cached: bool) -> RecordBatch {
         );
         import_record_batch(&mut array as *mut _ as i64, &mut schema as *mut _ as i64)
     }
+}
+
+fn fanout(batch: &RecordBatch, consumers: usize, shared: bool) -> RecordBatch {
+    let mut output = roundtrip(batch, true);
+    for _ in 1..consumers {
+        if !shared {
+            output = roundtrip(batch, true);
+        }
+        std::hint::black_box(&output);
+    }
+    output
 }
 
 fn handoffs(c: &mut Criterion) {
@@ -68,6 +80,24 @@ fn handoffs(c: &mut Criterion) {
                 group.bench_function(BenchmarkId::from_parameter(label), |b| {
                     b.iter(|| std::hint::black_box(roundtrip(std::hint::black_box(&batch), cached)))
                 });
+            }
+            for consumers in [1, 4, 16] {
+                for shared in [false, true] {
+                    let label = format!(
+                        "fanout/{rows}/bytes={width}/consumers={consumers}/shared={shared}"
+                    );
+                    let (output, allocations) = measure(|| fanout(&batch, consumers, shared));
+                    assert_eq!(output, batch);
+                    report(
+                        &format!("bridge/c_data/{label}"),
+                        batch.columns(),
+                        output.columns(),
+                        allocations,
+                    );
+                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                        b.iter(|| std::hint::black_box(fanout(&batch, consumers, shared)))
+                    });
+                }
             }
         }
     }

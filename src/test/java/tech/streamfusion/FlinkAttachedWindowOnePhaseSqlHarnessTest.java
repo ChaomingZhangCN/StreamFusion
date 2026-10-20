@@ -135,27 +135,64 @@ class FlinkAttachedWindowOnePhaseSqlHarnessTest {
   }
 
   @Test
-  void defaultAttachedWindowRouteKeepsStockExecution() throws Exception {
-    validateOtherPlans("DEFAULT");
+  void explicitlyDisabledAttachedWindowRouteKeepsStockExecution() throws Exception {
+    validateOtherPlans("DISABLED");
+  }
+
+  @Test
+  void mixedUpstreamStateRunsNativelyWithoutAnOverride() throws Exception {
+    validateOtherPlans("MIXED");
+  }
+
+  @Test
+  void regionalCalendarRunsNativelyWithoutAnOverride() throws Exception {
+    validateOtherPlans("REGIONAL");
+  }
+
+  @Test
+  void widerOverlapRunsNativelyWithoutAnOverride() throws Exception {
+    validateOtherPlans("WIDE");
   }
 
   private static void validateOtherPlans(String mode) throws Exception {
     boolean session = mode.equals("SESSION");
+    boolean regional = mode.equals("REGIONAL");
+    boolean mixed = mode.equals("MIXED");
+    boolean wide = mode.equals("WIDE");
     try (var metrics = new RecoveryExecutionMetrics()) {
       var env = metrics.environment(new Configuration(), 1, 0);
       var table = StreamTableEnvironment.create(env);
       table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-      if (!mode.equals("DEFAULT"))
-        table.getConfig().set("streamfusion.window.attached.single-phase.enabled", "true");
-      var type = ROW(FIELD("k", INT()), FIELD("v", BIGINT()), FIELD("rt", TIMESTAMP(3)));
+      if (regional) table.getConfig().setLocalTimeZone(ZoneId.of("America/Los_Angeles"));
+      if (!regional && !mixed && !wide)
+        table
+            .getConfig()
+            .set(
+                "streamfusion.window.attached.single-phase.enabled",
+                Boolean.toString(!mode.equals("DISABLED")));
+      var type =
+          ROW(
+              FIELD("k", INT()),
+              FIELD("v", BIGINT()),
+              FIELD("rt", regional ? TIMESTAMP_LTZ(3) : TIMESTAMP(3)));
       table.createTemporaryView(
           "src",
           table.fromDataStream(
               fromData(
                   env,
                   List.of(
-                      Row.of(1, 2L, LocalDateTime.of(2020, 1, 1, 0, 0)),
-                      Row.of(1, 3L, LocalDateTime.of(2020, 1, 1, 0, 0, 1))),
+                      Row.of(
+                          1,
+                          2L,
+                          regional
+                              ? Instant.parse("2020-01-01T00:00:00Z")
+                              : LocalDateTime.of(2020, 1, 1, 0, 0)),
+                      Row.of(
+                          1,
+                          3L,
+                          regional
+                              ? Instant.parse("2020-01-01T00:00:01Z")
+                              : LocalDateTime.of(2020, 1, 1, 0, 0, 1))),
                   ExternalTypeInfo.<Row>of(type)),
               Schema.newBuilder()
                   .fromRowDataType(type)
@@ -165,11 +202,16 @@ class FlinkAttachedWindowOnePhaseSqlHarnessTest {
       String tvf =
           session
               ? "SESSION(TABLE src PARTITION BY k, DESCRIPTOR(rt), INTERVAL '2' SECOND)"
-              : "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND)";
+              : wide
+                  ? "HOP(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '30' SECOND)"
+                  : "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '2' SECOND)";
       String sql =
           "SELECT MAX(n)"
+              + (mixed ? " + MAX(mx)" : "")
               + (mode.equals("FILTER") ? " FILTER (WHERE n > 1)" : "")
-              + ", window_start, window_end FROM (SELECT k, COUNT(*) n, window_start, window_end"
+              + ", window_start, window_end FROM (SELECT k, COUNT(*) n"
+              + (mixed ? ", MAX(v) mx" : "")
+              + ", window_start, window_end"
               + " FROM TABLE("
               + tvf
               + ") GROUP BY k, window_start, window_end) counts GROUP BY window_start, window_end";
@@ -189,6 +231,33 @@ class FlinkAttachedWindowOnePhaseSqlHarnessTest {
                 Row.of(
                     2L, LocalDateTime.of(2020, 1, 1, 0, 0), LocalDateTime.of(2020, 1, 1, 0, 0, 3))),
             actual);
+      } else if (regional || mixed || wide) {
+        assertTrue(
+            scan.substitutions() > 0 && scan.fallbackReasons().isEmpty(), scan.explainSummary());
+        assertTrue(plan.contains("NativeColumnarWindowAggregate"), plan);
+        if (wide) {
+          var expected = new java.util.HashSet<Row>();
+          for (int start = -28; start <= 0; start += 2)
+            expected.add(
+                Row.of(
+                    2L,
+                    LocalDateTime.of(2020, 1, 1, 0, 0).plusSeconds(start),
+                    LocalDateTime.of(2020, 1, 1, 0, 0).plusSeconds(start + 30)));
+          assertEquals(15, actual.size());
+          assertEquals(expected, new java.util.HashSet<>(actual));
+        } else {
+          var start =
+              regional ? LocalDateTime.of(2019, 12, 31, 16, 0) : LocalDateTime.of(2020, 1, 1, 0, 0);
+          assertEquals(List.of(Row.of(mixed ? 5L : 2L, start, start.plusSeconds(2))), actual);
+        }
+        String job = result.getJobClient().orElseThrow().getJobID().toString();
+        assertTrue(
+            metrics.nativeOperators().stream()
+                .anyMatch(
+                    row ->
+                        job.equals(row.get("jobId"))
+                            && row.get("operator").toString().contains("WindowAgg")
+                            && ((Number) row.get("recordsIn")).longValue() > 0));
       } else {
         assertEquals(0, scan.substitutions(), scan.explainSummary());
         assertTrue(

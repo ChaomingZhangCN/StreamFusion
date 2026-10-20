@@ -15,11 +15,11 @@ import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@EnabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "true")
+@DisabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "false")
 class FlinkNestedFixedBinarySqlHarnessTest {
   @Test
   void callbackBinaryLengthsRemainValuesRatherThanDeclaredStorageWidths() {

@@ -1,0 +1,4491 @@
+{
+  "date": "2026-10-18",
+  "source_base": "d85b241a970c7c246f3959166986b60411292cac",
+  "flink": "2.2.1",
+  "jdk": "OpenJDK17",
+  "cpu": "Intel Core i7-12650H",
+  "platform": "Linux/WSL2 x86-64",
+  "profile": "release+mimalloc, production Arrow IPC",
+  "rows": 1000000,
+  "keys": 64,
+  "parallelism": 2,
+  "heap": "2 GiB",
+  "warmups": 2,
+  "measurements": 3,
+  "state_backend": "memory",
+  "transpose_batch_rows": 1024,
+  "fixture_sha256": "4238444a317d67529795a1c33ff289c25b0a3805e0481171b0d05cdc90d25fbf",
+  "native_library_sha256": "5437aa7d6d4fb789026008ba0d45ad2d08a14833088850cc2b95034bc39deb2c",
+  "source": "Runtime row source; NULL every seventh row, five seconds of event time, deferred final watermark; STRING width8, TIMESTAMP9, DATE cast from timestamp, TIME3 and BOOLEAN",
+  "perimeter": "Complete job retains row source, row blackhole sink, production IPC, both row/Arrow transposes, casts, JNI and window state; each profile asserts native consumption and its native plan for every job",
+  "window_shapes": {
+    "TUMBLE": "10-second windows",
+    "HOP": "2-second slide,10-second size"
+  },
+  "runs": {
+    "candidate": {
+      "summaries": [
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.869391,
+          "streamfusion_mean_seconds": 0.673364,
+          "stock_samples_seconds": [
+            0.888151511,
+            0.872565251,
+            0.847457684
+          ],
+          "streamfusion_samples_seconds": [
+            0.686146126,
+            0.666670176,
+            0.667277127
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.860723,
+          "streamfusion_mean_seconds": 0.609107,
+          "stock_samples_seconds": [
+            0.848713284,
+            0.871196283,
+            0.862258134
+          ],
+          "streamfusion_samples_seconds": [
+            0.660110795,
+            0.588063015,
+            0.579148563
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.87716,
+          "streamfusion_mean_seconds": 0.542144,
+          "stock_samples_seconds": [
+            0.904948193,
+            0.908599716,
+            0.817930657
+          ],
+          "streamfusion_samples_seconds": [
+            0.544432551,
+            0.540050484,
+            0.541948775
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.882599,
+          "streamfusion_mean_seconds": 0.548919,
+          "stock_samples_seconds": [
+            0.875734983,
+            0.888370403,
+            0.883691385
+          ],
+          "streamfusion_samples_seconds": [
+            0.551357908,
+            0.551431242,
+            0.543966733
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.748317,
+          "streamfusion_mean_seconds": 0.595948,
+          "stock_samples_seconds": [
+            0.73346648,
+            0.75768749,
+            0.753798271
+          ],
+          "streamfusion_samples_seconds": [
+            0.597571541,
+            0.595419909,
+            0.594852211
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.742453,
+          "streamfusion_mean_seconds": 0.601748,
+          "stock_samples_seconds": [
+            0.739618102,
+            0.757592752,
+            0.730148542
+          ],
+          "streamfusion_samples_seconds": [
+            0.600705222,
+            0.598584005,
+            0.605955314
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.800433,
+          "streamfusion_mean_seconds": 0.550682,
+          "stock_samples_seconds": [
+            0.802847503,
+            0.796818871,
+            0.801633245
+          ],
+          "streamfusion_samples_seconds": [
+            0.550322982,
+            0.544100369,
+            0.557623887
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.800873,
+          "streamfusion_mean_seconds": 0.563302,
+          "stock_samples_seconds": [
+            0.797214774,
+            0.810233153,
+            0.795170805
+          ],
+          "streamfusion_samples_seconds": [
+            0.567144831,
+            0.556777668,
+            0.565983073
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.760702,
+          "streamfusion_mean_seconds": 0.584107,
+          "stock_samples_seconds": [
+            0.75273068,
+            0.7517596,
+            0.777616672
+          ],
+          "streamfusion_samples_seconds": [
+            0.582064118,
+            0.583286419,
+            0.586969686
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.746617,
+          "streamfusion_mean_seconds": 0.591577,
+          "stock_samples_seconds": [
+            0.749840095,
+            0.744909961,
+            0.745100712
+          ],
+          "streamfusion_samples_seconds": [
+            0.582789972,
+            0.598945691,
+            0.592994454
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.865827,
+          "streamfusion_mean_seconds": 0.550993,
+          "stock_samples_seconds": [
+            0.982056085,
+            0.817057229,
+            0.798367978
+          ],
+          "streamfusion_samples_seconds": [
+            0.548487298,
+            0.546080213,
+            0.558411209
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.805551,
+          "streamfusion_mean_seconds": 0.558708,
+          "stock_samples_seconds": [
+            0.807286924,
+            0.814440645,
+            0.794926426
+          ],
+          "streamfusion_samples_seconds": [
+            0.552728432,
+            0.56852383,
+            0.554872433
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.768842,
+          "streamfusion_mean_seconds": 0.583193,
+          "stock_samples_seconds": [
+            0.752970667,
+            0.755494122,
+            0.798061642
+          ],
+          "streamfusion_samples_seconds": [
+            0.582348678,
+            0.586614858,
+            0.580616483
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.729824,
+          "streamfusion_mean_seconds": 0.580932,
+          "stock_samples_seconds": [
+            0.724519965,
+            0.726068391,
+            0.738882507
+          ],
+          "streamfusion_samples_seconds": [
+            0.583224188,
+            0.570173669,
+            0.589396985
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.802607,
+          "streamfusion_mean_seconds": 0.552518,
+          "stock_samples_seconds": [
+            0.810630104,
+            0.805979837,
+            0.791209999
+          ],
+          "streamfusion_samples_seconds": [
+            0.55309426,
+            0.557225921,
+            0.54723521
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.805824,
+          "streamfusion_mean_seconds": 0.562197,
+          "stock_samples_seconds": [
+            0.797897281,
+            0.815848287,
+            0.803727173
+          ],
+          "streamfusion_samples_seconds": [
+            0.558293653,
+            0.568766276,
+            0.559530328
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.746787,
+          "streamfusion_mean_seconds": 0.614492,
+          "stock_samples_seconds": [
+            0.75237887,
+            0.737617447,
+            0.750363643
+          ],
+          "streamfusion_samples_seconds": [
+            0.60999985,
+            0.613578422,
+            0.619896703
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.747322,
+          "streamfusion_mean_seconds": 0.694767,
+          "stock_samples_seconds": [
+            0.754051339,
+            0.749571836,
+            0.738344324
+          ],
+          "streamfusion_samples_seconds": [
+            0.608578944,
+            0.618861718,
+            0.856861322
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.802537,
+          "streamfusion_mean_seconds": 0.574407,
+          "stock_samples_seconds": [
+            0.831535665,
+            0.786147413,
+            0.789926916
+          ],
+          "streamfusion_samples_seconds": [
+            0.572874764,
+            0.573065754,
+            0.577281243
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": true,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.80635,
+          "streamfusion_mean_seconds": 0.594443,
+          "stock_samples_seconds": [
+            0.822645763,
+            0.806447178,
+            0.789957729
+          ],
+          "streamfusion_samples_seconds": [
+            0.615873803,
+            0.589274844,
+            0.578179392
+          ]
+        }
+      ],
+      "trials": [
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.695323
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.116888
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.756733
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 1.068437
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.888152
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.686146
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.66667
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.872565
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.847458
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.667277
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.870495
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.58753
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.644327
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.850727
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.848713
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.660111
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.588063
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.871196
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.862258
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.579149
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.923789
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.654915
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.531718
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.912312
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.904948
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.544433
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.54005
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.9086
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.817931
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.541949
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.914297
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.608975
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.543239
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.930484
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.875735
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.551358
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.551431
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.88837
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.883691
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.543967
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.743159
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.612244
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.601176
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.727589
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.733466
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.597572
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.59542
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.757687
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.753798
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.594852
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.741012
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.590598
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.598045
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.736247
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.739618
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.600705
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.598584
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.757593
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.730149
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.605955
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.801204
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.554161
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.556012
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.876957
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.802848
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.550323
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.5441
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.796819
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.801633
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.557624
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.792034
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.557959
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.563456
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.802375
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.797215
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.567145
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.556778
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.810233
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.795171
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.565983
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.759427
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.636245
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.621676
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.735376
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.752731
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.582064
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.583286
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.75176
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.777617
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.58697
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.754148
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.587308
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.583878
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.740606
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.74984
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.58279
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.598946
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.74491
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.745101
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.592994
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.83352
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.557281
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.552239
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.807006
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.982056
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.548487
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.54608
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.817057
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.798368
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.558411
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.814496
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.563557
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.559786
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.80862
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.807287
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.552728
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.568524
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.814441
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.794926
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.554872
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.751937
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.59786
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.588604
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.750533
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.752971
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.582349
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.586615
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.755494
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.798062
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.580616
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.728668
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.594722
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.587487
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.745345
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.72452
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.583224
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.570174
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.726068
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.738883
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.589397
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.823976
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.544114
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.559565
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.812079
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.81063
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.553094
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.557226
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.80598
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.79121
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.547235
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.80497
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.567233
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.561858
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.817456
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.797897
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.558294
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.568766
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.815848
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.803727
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.55953
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.735932
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.685733
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.62527
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.738408
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.752379
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.61
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.613578
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.737617
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.750364
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.619897
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.752127
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.620461
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.617078
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.746657
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.754051
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.608579
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.618862
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.749572
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.738344
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.856861
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.854967
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.574111
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.575659
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.793531
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.831536
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.572875
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.573066
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.786147
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.789927
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.577281
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.820529
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.578096
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.582487
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.797894
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.822646
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.615874
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.589275
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.806447
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.789958
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.578179
+        }
+      ],
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=WindowBasicTypeBenchmark -Dwindow.cases=count_string,count_timestamp,count_boolean,count_time,count_date -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE,HOP -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.warmup=2 -Dwindow.runs=3 -Dsf.extraJvmArgs=-Xmx2g"
+    },
+    "origin": {
+      "summaries": [
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.85466,
+          "streamfusion_mean_seconds": 0.849825,
+          "stock_samples_seconds": [
+            0.873024742,
+            0.844241074,
+            0.846714203
+          ],
+          "streamfusion_samples_seconds": [
+            0.863312424,
+            0.845715651,
+            0.840446567
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.840683,
+          "streamfusion_mean_seconds": 0.79849,
+          "stock_samples_seconds": [
+            0.873079309,
+            0.822360594,
+            0.826609801
+          ],
+          "streamfusion_samples_seconds": [
+            0.830049301,
+            0.81711942,
+            0.748301945
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.89975,
+          "streamfusion_mean_seconds": 0.897436,
+          "stock_samples_seconds": [
+            0.89338292,
+            0.896434481,
+            0.90943296
+          ],
+          "streamfusion_samples_seconds": [
+            0.902999099,
+            0.897992857,
+            0.891315653
+          ]
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.878237,
+          "streamfusion_mean_seconds": 0.856293,
+          "stock_samples_seconds": [
+            0.893229546,
+            0.884653706,
+            0.856828768
+          ],
+          "streamfusion_samples_seconds": [
+            0.887404946,
+            0.810021115,
+            0.871452529
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.733627,
+          "streamfusion_mean_seconds": 0.739427,
+          "stock_samples_seconds": [
+            0.736357533,
+            0.717581633,
+            0.746940339
+          ],
+          "streamfusion_samples_seconds": [
+            0.74529301,
+            0.745323547,
+            0.727663207
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.754079,
+          "streamfusion_mean_seconds": 0.749904,
+          "stock_samples_seconds": [
+            0.748293542,
+            0.766037025,
+            0.747905521
+          ],
+          "streamfusion_samples_seconds": [
+            0.757839275,
+            0.736330699,
+            0.755542249
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.796804,
+          "streamfusion_mean_seconds": 0.796118,
+          "stock_samples_seconds": [
+            0.790921497,
+            0.79669914,
+            0.802790302
+          ],
+          "streamfusion_samples_seconds": [
+            0.802289002,
+            0.788798575,
+            0.797266876
+          ]
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.799983,
+          "streamfusion_mean_seconds": 0.799912,
+          "stock_samples_seconds": [
+            0.811062748,
+            0.797288761,
+            0.791597986
+          ],
+          "streamfusion_samples_seconds": [
+            0.796287472,
+            0.805333552,
+            0.798113817
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.757719,
+          "streamfusion_mean_seconds": 0.756317,
+          "stock_samples_seconds": [
+            0.760253776,
+            0.759444727,
+            0.753457327
+          ],
+          "streamfusion_samples_seconds": [
+            0.761078751,
+            0.750262007,
+            0.757608776
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.75492,
+          "streamfusion_mean_seconds": 0.751287,
+          "stock_samples_seconds": [
+            0.748344552,
+            0.764418783,
+            0.751996256
+          ],
+          "streamfusion_samples_seconds": [
+            0.75496998,
+            0.749204364,
+            0.749685639
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.803652,
+          "streamfusion_mean_seconds": 0.809163,
+          "stock_samples_seconds": [
+            0.80010774,
+            0.808659051,
+            0.80219038
+          ],
+          "streamfusion_samples_seconds": [
+            0.80161156,
+            0.800978914,
+            0.82489804
+          ]
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.811691,
+          "streamfusion_mean_seconds": 0.810091,
+          "stock_samples_seconds": [
+            0.822044934,
+            0.804354178,
+            0.808673728
+          ],
+          "streamfusion_samples_seconds": [
+            0.802472049,
+            0.806772816,
+            0.821028795
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.770855,
+          "streamfusion_mean_seconds": 0.760456,
+          "stock_samples_seconds": [
+            0.756864268,
+            0.780870977,
+            0.77483112
+          ],
+          "streamfusion_samples_seconds": [
+            0.766981765,
+            0.760268562,
+            0.754118855
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.743689,
+          "streamfusion_mean_seconds": 0.743693,
+          "stock_samples_seconds": [
+            0.748940188,
+            0.746861128,
+            0.735266482
+          ],
+          "streamfusion_samples_seconds": [
+            0.739219519,
+            0.742294846,
+            0.749565247
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.820716,
+          "streamfusion_mean_seconds": 0.810159,
+          "stock_samples_seconds": [
+            0.831562463,
+            0.81064949,
+            0.819936317
+          ],
+          "streamfusion_samples_seconds": [
+            0.81023561,
+            0.815479404,
+            0.804760614
+          ]
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.813278,
+          "streamfusion_mean_seconds": 0.819389,
+          "stock_samples_seconds": [
+            0.800979568,
+            0.816539856,
+            0.822315806
+          ],
+          "streamfusion_samples_seconds": [
+            0.803646148,
+            0.825366487,
+            0.829154375
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.753601,
+          "streamfusion_mean_seconds": 0.759608,
+          "stock_samples_seconds": [
+            0.755269867,
+            0.753631314,
+            0.751902715
+          ],
+          "streamfusion_samples_seconds": [
+            0.740124386,
+            0.779075995,
+            0.759622323
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.754393,
+          "streamfusion_mean_seconds": 0.749718,
+          "stock_samples_seconds": [
+            0.75405761,
+            0.75901419,
+            0.750108386
+          ],
+          "streamfusion_samples_seconds": [
+            0.755828011,
+            0.746902409,
+            0.746423759
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.819507,
+          "streamfusion_mean_seconds": 0.810491,
+          "stock_samples_seconds": [
+            0.844880801,
+            0.808665888,
+            0.80497301
+          ],
+          "streamfusion_samples_seconds": [
+            0.816609522,
+            0.811439545,
+            0.803425247
+          ]
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "backend": "memory",
+          "native_expected": false,
+          "rows": 1000000,
+          "keys": 64,
+          "stock_mean_seconds": 0.81117,
+          "streamfusion_mean_seconds": 0.808076,
+          "stock_samples_seconds": [
+            0.811766018,
+            0.809556419,
+            0.812186149
+          ],
+          "streamfusion_samples_seconds": [
+            0.804875715,
+            0.804535345,
+            0.814818105
+          ]
+        }
+      ],
+      "trials": [
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 1.660611
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.987688
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.922565
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.931605
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.873025
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.863312
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.845716
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.844241
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.846714
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.840447
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.874726
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.865853
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.835246
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.830454
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.873079
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.830049
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.817119
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.822361
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.82661
+        },
+        {
+          "type": "count_string",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.748302
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.962682
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.918473
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.905889
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.895135
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.893383
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.902999
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.897993
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.896434
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.909433
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.891316
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.925622
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.931705
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.888641
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.916824
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.89323
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.887405
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.810021
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.884654
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.856829
+        },
+        {
+          "type": "count_string",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.871453
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.730912
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.735025
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.742349
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.739959
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.736358
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.745293
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.745324
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.717582
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.74694
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.727663
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.743837
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.727297
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.746673
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.739332
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.748294
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.757839
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.736331
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.766037
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.747906
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.755542
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.797268
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.77052
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.788367
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.87487
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.790921
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.802289
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.788799
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.796699
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.80279
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.797267
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.827899
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.798685
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.796324
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.789404
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.811063
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.796287
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.805334
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.797289
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.791598
+        },
+        {
+          "type": "count_timestamp",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.798114
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.754618
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.768864
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.756198
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.76006
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.760254
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.761079
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.750262
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.759445
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.753457
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.757609
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.764508
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.764932
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.753924
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.750739
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.748345
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.75497
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.749204
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.764419
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.751996
+        },
+        {
+          "type": "count_boolean",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.749686
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.830868
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.817637
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.800838
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.800083
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.800108
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.801612
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.800979
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.808659
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.80219
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.824898
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.805856
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.814664
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.816361
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.805582
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.822045
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.802472
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.806773
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.804354
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.808674
+        },
+        {
+          "type": "count_boolean",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.821029
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.769173
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.763065
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.763638
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.752689
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.756864
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.766982
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.760269
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.780871
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.774831
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.754119
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.765253
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.833838
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.765726
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.735457
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.74894
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.73922
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.742295
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.746861
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.735266
+        },
+        {
+          "type": "count_time",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.749565
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.855427
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.820769
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.811983
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.821958
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.831562
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.810236
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.815479
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.810649
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.819936
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.804761
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.811224
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.824295
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.807632
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.836686
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.80098
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.803646
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.825366
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.81654
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.822316
+        },
+        {
+          "type": "count_time",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.829154
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.752515
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.73911
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.793645
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.7589
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.75527
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.740124
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.779076
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.753631
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.751903
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.759622
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.750225
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.755565
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.773525
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.752898
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.754058
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.755828
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.746902
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.759014
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.750108
+        },
+        {
+          "type": "count_date",
+          "phase": "ONE_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.746424
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.827811
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.810906
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.805876
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.804908
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.844881
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.81661
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.81144
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.808666
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.804973
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "TUMBLE",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.803425
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.824826
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.821788
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.814552
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.804456
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.811766
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "seconds": 0.804876
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.804535
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "seconds": 0.809556
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.812186
+        },
+        {
+          "type": "count_date",
+          "phase": "TWO_PHASE",
+          "shape": "HOP",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "seconds": 0.814818
+        }
+      ],
+      "command": "SF_BENCHMARK=true JAVA_HOME=<JDK17> mvn -pl streamfusion-runtime surefire:test -Pbench -Dsf.testForks=1 -Dtest=WindowBasicTypeBenchmark -Dwindow.cases=count_string,count_timestamp,count_boolean,count_time,count_date -Dwindow.phases=ONE_PHASE,TWO_PHASE -Dwindow.shapes=TUMBLE,HOP -Dwindow.rows=1000000 -Dwindow.keys=64 -Dwindow.warmup=2 -Dwindow.runs=3 -Dsf.extraJvmArgs=-Xmx2g -Dwindow.expectNative=false"
+    }
+  },
+  "notes": [
+    "Origin is frozen original production code plus identical benchmark fixture; native planning stays enabled with window fallback asserted.",
+    "Origin controls run in a separate JVM with their own paired stock controls; preserve drift.",
+    "Means retain every measured trial; startup remains included."
+  ],
+  "correctness": {
+    "flink2_2_checks": 65,
+    "flink1_18": "Original scalar SQL/recovery expansion passes; signed window TvFs are host-rejected on1.18, checked separately",
+    "criterion_validity_fixtures": 36
+  }
+}

@@ -44,6 +44,20 @@ process headroom for those costs and for the JVM.
 A reservation that would cross the TaskManager-wide cap is denied with
 `NativeMemoryLimitException`; its message identifies the consumer and
 `taskmanager.memory.task.off-heap.size`.
+Arrow and fixed-reservation failures include the capacity, aggregate reserved
+bytes, and available bytes sampled when the request was rejected. Native JNI
+reservation denials log the same snapshot together with the owner id and its
+registered category/task name; the native exception retains that owner id.
+Optional caches may recover from a denial, so a denial log alone does not imply
+that the task failed. Other tasks can release memory immediately afterwards;
+later metric samples need not match the rejection snapshot.
+
+With fine-grained resource scheduling, increase the affected task/vertex's
+off-heap resource request and let the scheduler derive the TaskManager capacity.
+Verify the actual runtime `taskmanager.memory.task.off-heap.size` against
+`nativeOffHeapCapacityBytes`; a job-level setting can be superseded by the
+scheduler's process specification. Increasing a JVM direct-buffer maximum or
+RocksDB's managed-memory budget alone does not enlarge this shared pool.
 
 The in-memory state backend cannot spill, so a denied growth request fails the task and Flink's
 configured restart policy applies. Under the RocksDB backend, native state is written through to

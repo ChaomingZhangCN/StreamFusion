@@ -1,0 +1,99 @@
+{
+  "method": "async-profiler 4.5 CPU sampling, 1 ms interval, DWARF native stacks",
+  "scope": "Entire forked JVM, including startup, planning, warmups, stock and native jobs. Inclusive frames overlap; profiled elapsed times excluded from speed claims.",
+  "profiles": [
+    {
+      "stage": "initial_append",
+      "operand": "append",
+      "rows": 3000000,
+      "width": 4,
+      "warmups": 1,
+      "measured_pairs": 1,
+      "total_samples": 14193,
+      "unnest_inclusive_samples": 622,
+      "selected_inclusive_frames": {
+        "NativeUdf.invokeUdf": 408,
+        "FlinkExpressionFunction.evalRow": 132,
+        "FlinkExpressionFunction.<init>": 129,
+        "ArrowWriter.write": 153,
+        "NativeCalcOperator.processElement": 2488,
+        "NativeColumnarUnnestOperator.processElement": 1426,
+        "ArrowToRowDataOperator.processElement": 436,
+        "RowDataToArrowOperator.processElement": 2120,
+        "take_list": 530,
+        "array_constructor::ArrayConstructor": 0
+      },
+      "profile_sha256": "1d7d6a1aef3a6dc42f3a30e1973929b06c527f607e4edd53b282cda650fbec27"
+    },
+    {
+      "stage": "projected_literal",
+      "operand": "literal",
+      "rows": 3000000,
+      "width": 2,
+      "warmups": 1,
+      "measured_pairs": 1,
+      "total_samples": 11965,
+      "unnest_inclusive_samples": 59,
+      "selected_inclusive_frames": {
+        "NativeUdf.invokeUdf": 398,
+        "FlinkExpressionFunction.evalRow": 101,
+        "FlinkExpressionFunction.<init>": 136,
+        "ArrowWriter.write": 193,
+        "NativeCalcOperator.processElement": 901,
+        "NativeColumnarUnnestOperator.processElement": 358,
+        "ArrowToRowDataOperator.processElement": 182,
+        "RowDataToArrowOperator.processElement": 1026,
+        "take_list": 0,
+        "array_constructor::ArrayConstructor": 0
+      },
+      "profile_sha256": "e3453d9b739cdac55ca37dc99c3638cfcf157fd1e90733daf10f5bc4ac1fb009"
+    },
+    {
+      "stage": "timestamp_before",
+      "operand": "timestamp",
+      "rows": 3000000,
+      "width": 2,
+      "warmups": 1,
+      "measured_pairs": 1,
+      "total_samples": 25289,
+      "unnest_inclusive_samples": 105,
+      "selected_inclusive_frames": {
+        "NativeUdf.invokeUdf": 1029,
+        "FlinkExpressionFunction.evalRow": 253,
+        "FlinkExpressionFunction.<init>": 370,
+        "ArrowWriter.write": 403,
+        "NativeCalcOperator.processElement": 2513,
+        "NativeColumnarUnnestOperator.processElement": 1103,
+        "ArrowToRowDataOperator.processElement": 652,
+        "RowDataToArrowOperator.processElement": 2738,
+        "take_list": 0,
+        "array_constructor::ArrayConstructor": 0
+      },
+      "profile_sha256": "ba7446e3b0bee1f26ca80688333a3588d161de58ce67c1d5f098cd922bba5ea1"
+    },
+    {
+      "stage": "timestamp_after",
+      "operand": "timestamp",
+      "rows": 3000000,
+      "width": 2,
+      "warmups": 1,
+      "measured_pairs": 1,
+      "total_samples": 23165,
+      "unnest_inclusive_samples": 114,
+      "selected_inclusive_frames": {
+        "NativeUdf.invokeUdf": 0,
+        "FlinkExpressionFunction.evalRow": 0,
+        "FlinkExpressionFunction.<init>": 0,
+        "ArrowWriter.write": 94,
+        "NativeCalcOperator.processElement": 1732,
+        "NativeColumnarUnnestOperator.processElement": 1084,
+        "ArrowToRowDataOperator.processElement": 575,
+        "RowDataToArrowOperator.processElement": 1961,
+        "take_list": 0,
+        "array_constructor::ArrayConstructor": 261
+      },
+      "profile_sha256": "436ccc1df17aaa4d27d2d28d4d4eda84518204a7e8b812f07a91b9133393aa5a"
+    }
+  ],
+  "sample_total_method": "Full flamegraph root count, including its initial compressed n() record and all JVM threads. Selected operator/kernel counts and unprofiled elapsed trials are unchanged."
+}

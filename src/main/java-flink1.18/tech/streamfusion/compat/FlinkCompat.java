@@ -10,8 +10,22 @@ import org.apache.flink.table.planner.plan.logical.WindowSpec;
 public final class FlinkCompat {
   private FlinkCompat() {}
 
+  public static long miniBatchSize(org.apache.flink.configuration.ReadableConfig config) {
+    org.apache.flink.table.planner.plan.utils.AggregateUtil.createMiniBatchTrigger(config);
+    return config.get(org.apache.flink.table.api.config.ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+  }
+
+  public static long joinMiniBatchSize(org.apache.flink.configuration.ReadableConfig config) {
+    // Released 1.18 joins do not construct a mini-batch trigger.
+    return config.get(org.apache.flink.table.api.config.ExecutionConfigOptions.TABLE_EXEC_MINIBATCH_SIZE);
+  }
+
   public static int applyParsedTimePrecision(int millis, int precision) {
     return millis;
+  }
+
+  public static int timestampToTimeTruncationFactor(int precision) {
+    return 1;
   }
 
   public static org.apache.flink.table.functions.ScalarFunction scalarFunction(

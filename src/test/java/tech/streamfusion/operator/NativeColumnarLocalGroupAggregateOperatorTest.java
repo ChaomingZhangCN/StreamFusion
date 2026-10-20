@@ -1,6 +1,7 @@
 package tech.streamfusion.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -68,6 +69,44 @@ class NativeColumnarLocalGroupAggregateOperatorTest {
       assertThat(runChunks(chunks.stream().mapToInt(Integer::intValue).toArray()))
           .as("physical chunks %s", chunks)
           .isEqualTo(expected);
+    }
+  }
+
+  @Test
+  void cleanupNeverFlushesPartiallyUpdatedStateAfterCardinalityFailure() throws Exception {
+    for (boolean onePhysicalBatch : new boolean[] {true, false}) {
+      var operator =
+          new NativeColumnarLocalGroupAggregateOperator(
+              new int[] {14, 21},
+              new int[] {0, 0},
+              new int[] {1, 1},
+              new int[] {-1, -1},
+              new int[] {0},
+              new int[0],
+              new int[] {-1},
+              5);
+      try (BufferAllocator allocator = new RootAllocator();
+          var harness = new OneInputStreamOperatorTestHarness<ArrowBatch, ArrowBatch>(operator)) {
+        harness.open();
+        if (onePhysicalBatch) {
+          assertThatThrownBy(
+                  () ->
+                      harness.processElement(
+                          new StreamRecord<>(batch(allocator, row(1, 7), row(1, 7)))))
+              .isInstanceOf(RuntimeException.class)
+              .hasMessage("SingleValueAggFunction received more than one element.");
+        } else {
+          harness.processElement(new StreamRecord<>(batch(allocator, row(1, 7))));
+          assertThatThrownBy(
+                  () -> harness.processElement(new StreamRecord<>(batch(allocator, row(1, 7)))))
+              .isInstanceOf(RuntimeException.class)
+              .hasMessage("SingleValueAggFunction received more than one element.");
+        }
+        operator.finish();
+        operator.prepareSnapshotPreBarrier(1);
+        harness.processWatermark(Watermark.MAX_WATERMARK);
+        assertThat(collect(harness)).isEmpty();
+      }
     }
   }
 

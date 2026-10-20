@@ -30,8 +30,9 @@ public interface ColumnarFileCodec extends Serializable {
           batch.getFieldVectors().isEmpty()
               ? NativeAllocator.SHARED
               : batch.getVector(0).getAllocator();
-      try (var array = ArrowArray.allocateNew(allocator)) {
-        Data.exportVectorSchemaRoot(allocator, batch, NativeAllocator.DICTIONARIES, array);
+      try (var logical = tech.streamfusion.arrow.ArrowFileBatch.of(batch);
+          var array = ArrowArray.allocateNew(allocator)) {
+        Data.exportVectorSchemaRoot(allocator, logical.root(), NativeAllocator.DICTIONARIES, array);
         try {
           write(array.memoryAddress(), selected, offset, count);
         } finally {

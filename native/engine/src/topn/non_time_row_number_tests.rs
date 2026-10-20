@@ -127,3 +127,132 @@ fn empty_input_and_memory_budget_use_the_existing_operator_contract() {
     let mut limited = ranker().with_memory_budget(64).unwrap();
     assert!(limited.push(&batch(vec![Some(1), Some(2)]), 0).is_err());
 }
+
+#[test]
+fn floating_groups_follow_linear_host_comparison_across_restores() {
+    use std::cmp::Ordering;
+    for single in [false, true] {
+        for nulls_first in [false, true] {
+            for reverse in [false, true] {
+                let mut values: Vec<Option<f64>> = vec![
+                    None,
+                    Some(3.0),
+                    Some(-0.0),
+                    Some(f64::from_bits(0xfff8000000001234)),
+                    Some(0.0),
+                    Some(-2.0),
+                    Some(f64::NAN),
+                    Some(f64::NEG_INFINITY),
+                    Some(1.0),
+                    Some(f64::INFINITY),
+                    None,
+                    Some(f64::from_bits(0x7ff8000000004321)),
+                ];
+                values.extend(values.clone());
+                if reverse {
+                    values.reverse();
+                }
+                let input = |begin: usize, end: usize| {
+                    let value: ArrayRef = if single {
+                        Arc::new(Float32Array::from_iter(
+                            values[begin..end].iter().map(|v| v.map(|v| v as f32)),
+                        ))
+                    } else {
+                        Arc::new(Float64Array::from(values[begin..end].to_vec()))
+                    };
+                    RecordBatch::try_from_iter(vec![
+                        ("v", value),
+                        (
+                            "id",
+                            Arc::new(Int64Array::from_iter_values((begin..end).map(|i| i as i64)))
+                                as ArrayRef,
+                        ),
+                    ])
+                    .unwrap()
+                };
+                let compare = |a: Option<f64>, b: Option<f64>| match (a, b) {
+                    (None, None) => Ordering::Equal,
+                    (None, Some(_)) => {
+                        if nulls_first {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        }
+                    }
+                    (Some(_), None) => {
+                        if nulls_first {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        }
+                    }
+                    (Some(a), Some(b)) => a.partial_cmp(&b).unwrap_or(Ordering::Equal),
+                };
+                let mut groups: Vec<(Option<f64>, Vec<i64>)> = vec![];
+                let mut expected = vec![];
+                for (id, &value) in values.iter().enumerate() {
+                    let group = groups
+                        .iter()
+                        .position(|(key, _)| compare(*key, value) != Ordering::Less)
+                        .unwrap_or(groups.len());
+                    let equal =
+                        group < groups.len() && compare(groups[group].0, value) == Ordering::Equal;
+                    let pos = groups
+                        .iter()
+                        .take(group)
+                        .map(|(_, ids)| ids.len())
+                        .sum::<usize>()
+                        + if equal { groups[group].1.len() } else { 0 };
+                    let before: Vec<_> = groups
+                        .iter()
+                        .flat_map(|(_, ids)| ids.iter().copied())
+                        .collect();
+                    expected.push((0, id as i64, pos as i64 + 1));
+                    for (index, &old) in before.iter().enumerate().skip(pos) {
+                        expected.push((1, old, index as i64 + 1));
+                        expected.push((2, old, index as i64 + 2));
+                    }
+                    if equal {
+                        groups[group].0 = value;
+                        groups[group].1.push(id as i64);
+                    } else {
+                        groups.insert(group, (value, vec![id as i64]));
+                    }
+                }
+                let sort = vec![SortColumn {
+                    index: 0,
+                    ascending: true,
+                    nulls_first,
+                }];
+                let mut state = TopNRanker::new(vec![], sort.clone(), i64::MAX, true, false);
+                state.enable_non_time_row_number();
+                let mut actual = vec![];
+                for (start, end) in [(0, 7), (7, 17), (17, values.len())] {
+                    let out = state.push(&input(start, end), 0).unwrap();
+                    let ids = out.column(1).as_any().downcast_ref::<Int64Array>().unwrap();
+                    let ranks = out.column(2).as_any().downcast_ref::<Int64Array>().unwrap();
+                    let kinds = row_kind_column(&out).unwrap();
+                    actual.extend(
+                        (0..out.num_rows()).map(|i| (kinds.value(i), ids.value(i), ranks.value(i))),
+                    );
+                    let snapshots: Vec<_> = state.snapshot_partitions(128).into_values().collect();
+                    state = TopNRanker::restore_partitions(
+                        vec![],
+                        vec![],
+                        sort.clone(),
+                        i64::MAX,
+                        true,
+                        false,
+                        &snapshots,
+                        0,
+                    );
+                    state.enable_non_time_row_number();
+                }
+                assert_eq!(
+                    actual, expected,
+                    "single={single} nulls_first={nulls_first} reverse={reverse}"
+                );
+            }
+        }
+    }
+}

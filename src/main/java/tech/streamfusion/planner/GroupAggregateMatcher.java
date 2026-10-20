@@ -23,6 +23,9 @@ final class GroupAggregateMatcher {
   static final int KIND_LISTAGG_APPEND = 24;
   static final int KIND_LISTAGG_RETRACT = 25;
 
+  static final int KIND_LISTAGG_DISTINCT_APPEND = 32;
+  static final int KIND_LISTAGG_DISTINCT_RETRACT = 33;
+
   private GroupAggregateMatcher() {}
 
   static boolean matches(StreamPhysicalGroupAggregate agg) {
@@ -66,8 +69,8 @@ final class GroupAggregateMatcher {
             + " aggregates";
       }
       if (kind == KIND_LISTAGG_APPEND || kind == KIND_LISTAGG_RETRACT) {
-        if (call.isDistinct() || !call.getCollation().getFieldCollations().isEmpty())
-          return "GROUP BY: LISTAGG DISTINCT and explicit ordering are not yet verified";
+        if (!call.getCollation().getFieldCollations().isEmpty())
+          return "GROUP BY: LISTAGG explicit ordering is not yet verified";
         if (call.getArgList().isEmpty()
             || call.getArgList().size() > 2
             || !isStringType(
@@ -83,16 +86,18 @@ final class GroupAggregateMatcher {
                     .getIdleStateRetention()
                     .toMillis()
                 : hint;
-        if (retention > 0) return "GROUP BY: LISTAGG with state TTL is not yet verified";
+        if (retention > 0 && (kind == KIND_LISTAGG_RETRACT || call.isDistinct()))
+          return "GROUP BY: DISTINCT or retracting LISTAGG with state TTL is not yet verified";
         continue;
       }
       if (kind >= 26 && kind <= 31) {
         int arity = kind <= 27 ? 1 : 2;
         if (call.isDistinct()
-            || !call.getCollation().getFieldCollations().isEmpty()
+            || (kind >= 28 && !call.getCollation().getFieldCollations().isEmpty())
             || call.filterArg >= 0
             || call.getArgList().size() != arity)
-          return "GROUP BY: JSON aggregates require unfiltered unordered non-DISTINCT arguments";
+          return "GROUP BY: JSON aggregates require unfiltered non-DISTINCT arguments;"
+              + " JSON_OBJECTAGG ordering is unsupported";
         for (int column : call.getArgList()) {
           if (!isStringType(inputType.getFieldList().get(column).getType().getSqlTypeName()))
             return "GROUP BY: JSON aggregates require serialized character arguments";
@@ -130,9 +135,6 @@ final class GroupAggregateMatcher {
         }
         SqlTypeName valueType =
             inputType.getFieldList().get(call.getArgList().get(0)).getType().getSqlTypeName();
-        if (call.isDistinct() && valueType != SqlTypeName.VARCHAR) {
-          return "GROUP BY: DISTINCT FIRST_VALUE/LAST_VALUE require a string value";
-        }
         if (!orderedValueType(valueType)) {
           return "GROUP BY: FIRST_VALUE/LAST_VALUE/SINGLE_VALUE over an unsupported value type";
         }
@@ -171,9 +173,6 @@ final class GroupAggregateMatcher {
           // and the result casts back to the input type; for DECIMAL(p, s), the sum is SUM's
           // DECIMAL(38, s) accumulator and the emit divides with Flink's exact decimal division,
           // reporting DECIMAL(38, max(6, s)) — findAvgAggType's derivation.
-          if (call.isDistinct() && !isIntegerType(valueType) && valueType != SqlTypeName.DECIMAL) {
-            return "GROUP BY: AVG(DISTINCT) requires an integer or DECIMAL value";
-          }
           if (!isAvgType(valueType) && valueType != SqlTypeName.DECIMAL) {
             return "GROUP BY: AVG over an unsupported value type";
           }
@@ -196,7 +195,7 @@ final class GroupAggregateMatcher {
     return null;
   }
 
-  private static boolean orderedValueType(SqlTypeName type) {
+  static boolean orderedValueType(SqlTypeName type) {
     switch (type) {
       case TINYINT:
       case SMALLINT:
@@ -278,7 +277,7 @@ final class GroupAggregateMatcher {
   private static final int KIND_MAX = WindowAggregateMatcher.KIND_MAX;
 
   /** Character string types MIN/MAX admit (compared byte-lexicographically). */
-  private static boolean isStringType(SqlTypeName type) {
+  static boolean isStringType(SqlTypeName type) {
     return type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR;
   }
 
@@ -299,6 +298,8 @@ final class GroupAggregateMatcher {
       } else if (call.isDistinct() && kind == WindowAggregateMatcher.KIND_AVG) {
         kind = KIND_AVG_DISTINCT;
       }
+      if (call.isDistinct() && kind == KIND_LISTAGG_APPEND) kind = KIND_LISTAGG_DISTINCT_APPEND;
+      if (call.isDistinct() && kind == KIND_LISTAGG_RETRACT) kind = KIND_LISTAGG_DISTINCT_RETRACT;
       if (call.isDistinct() && (kind == 12 || kind == 15)) kind = 19;
       if (call.isDistinct() && (kind == 13 || kind == 16)) kind = 20;
       // MIN/MAX(DISTINCT) stay their plain kinds: the extreme ignores multiplicity either way.
@@ -378,7 +379,7 @@ final class GroupAggregateMatcher {
     }
   }
 
-  private static boolean literalStringColumn(RelNode input, int column) {
+  static boolean literalStringColumn(RelNode input, int column) {
     if (input instanceof org.apache.calcite.rel.core.Exchange
         || input instanceof org.apache.calcite.rel.core.Filter
         || input instanceof StreamPhysicalNativeColumnarExchange

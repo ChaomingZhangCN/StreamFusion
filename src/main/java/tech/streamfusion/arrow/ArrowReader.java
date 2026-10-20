@@ -51,8 +51,12 @@ public final class ArrowReader {
       ColumnVector[] columnVectors,
       org.apache.arrow.vector.complex.ListVector[] caches,
       BorrowedStringValues[] borrowed) {
+    boolean represented =
+        java.util.Arrays.stream(columnVectors).anyMatch(NestedRepresentation::requiresView);
     this.cachedRow =
-        caches == null && borrowed == null ? null : new StringCacheRowData(caches, borrowed);
+        caches == null && borrowed == null && !represented
+            ? null
+            : new StringCacheRowData(caches, columnVectors, borrowed);
     this.columnVectors = Preconditions.checkNotNull(columnVectors);
     this.reuseRow = new ColumnarRowData();
     this.reuseRow.setVectorizedColumnBatch(new VectorizedColumnBatch(columnVectors));

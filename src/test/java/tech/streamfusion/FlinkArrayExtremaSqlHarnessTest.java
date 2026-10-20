@@ -13,15 +13,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FlinkArrayExtremaSqlHarnessTest {
   @ParameterizedTest
   @MethodSource("integerCases")
-  void integerExtremaKeepMeasuredHostFallback(String function, String type) throws Exception {
+  void integerExtremaUseReleasedGeneratedOrdering(String function, String type) throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
-    assertFallback(
+    BuiltinFunctionParity.assertParity(
         () -> FlinkArrayDistinctSqlHarnessTest.environment(type),
         "SELECT id, " + function + "(a), " + function + "(ARRAY_DISTINCT(a)) FROM src");
-    assertFallback(
+    BuiltinFunctionParity.assertParity(
         () -> FlinkArrayDistinctSqlHarnessTest.environment(type),
         "SELECT " + function + "(a) FROM src WHERE " + function + "(a) < 0");
-    assertFallback(
+    BuiltinFunctionParity.assertParity(
         () -> FlinkArrayDistinctSqlHarnessTest.environment(type),
         "SELECT " + function + "(a) FROM src WHERE id < 0");
   }
@@ -32,7 +32,7 @@ class FlinkArrayExtremaSqlHarnessTest {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
     Integer[] values = new Integer[65];
     for (int i = 0; i < values.length; i++) values[i] = 32 - i;
-    assertFallback(
+    BuiltinFunctionParity.assertParity(
         () ->
             BuiltinFunctionParity.environment(
                 ROW(FIELD("a", ARRAY(INT().notNull()))),
@@ -45,11 +45,11 @@ class FlinkArrayExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ARRAY_MIN", "ARRAY_MAX"})
-  void largeNullableArraysKeepHostFallback(String function) throws Exception {
+  void largeNullableArraysPreserveNulls(String function) throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
     Long[] values = new Long[65];
     for (int i = 0; i < values.length; i++) values[i] = i % 7 == 0 ? null : (long) (32 - i);
-    assertFallback(
+    BuiltinFunctionParity.assertParity(
         () ->
             BuiltinFunctionParity.environment(
                 ROW(FIELD("a", ARRAY(BIGINT()))),
@@ -59,24 +59,14 @@ class FlinkArrayExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ARRAY_MIN", "ARRAY_MAX"})
-  void unverifiedOrderingKeepsFallback(String function) throws Exception {
+  void floatingExtremaUseReleasedGeneratedOrdering(String function) throws Exception {
     tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
-    NativeParity.assertFallbackReasonContains(
+    BuiltinFunctionParity.assertParity(
         () ->
             BuiltinFunctionParity.environment(
                 ROW(FIELD("a", ARRAY(DOUBLE()))),
                 List.of(Row.of((Object) new Double[] {0.0, -0.0, Double.NaN, null}))),
-        "SELECT " + function + "(a) FROM src",
-        "unsupported function/operator: " + function);
-  }
-
-  private static void assertFallback(
-      java.util.function.Supplier<org.apache.flink.table.api.TableEnvironment> environment,
-      String sql)
-      throws Exception {
-    String function = sql.contains("ARRAY_MIN") ? "ARRAY_MIN" : "ARRAY_MAX";
-    NativeParity.assertFallbackReasonContains(
-        environment, sql, "unsupported function/operator: " + function);
+        "SELECT " + function + "(a) FROM src");
   }
 
   static Stream<Arguments> integerCases() {

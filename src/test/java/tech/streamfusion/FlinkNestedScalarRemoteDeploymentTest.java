@@ -25,13 +25,13 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import tech.streamfusion.compat.FlinkTestContexts;
 
-@EnabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "true")
+@DisabledIfSystemProperty(named = "streamfusion.experimental.nestedScalarUdfs", matches = "false")
 class FlinkNestedScalarRemoteDeploymentTest {
   @TempDir Path temporary;
 
@@ -52,7 +52,6 @@ class FlinkNestedScalarRemoteDeploymentTest {
             "-Darrow.enable_unsafe_memory_access=true",
             "-Darrow.enable_null_check_for_get=false",
             "-Dstreamfusion.exchange.zeroCopyLocal=false",
-            "-Dstreamfusion.experimental.nestedScalarUdfs=true",
             "-Dstreamfusion.experimental.binaryElt="
                 + Boolean.getBoolean("streamfusion.experimental.binaryElt"),
             "-Djava.library.path=" + System.getProperty("java.library.path"),
@@ -209,7 +208,7 @@ class FlinkNestedScalarRemoteDeploymentTest {
                 "pid",
                 ProcessHandle.current().pid(),
                 "nestedFlag",
-                Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"),
+                tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled(),
                 "binaryEltFlag",
                 Boolean.getBoolean("streamfusion.experimental.binaryElt"),
                 "operators",

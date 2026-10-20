@@ -73,6 +73,10 @@ public final class NativeUdf {
   /** A complete generated Calc returns one row after all of its call sites have run. */
   public interface RowResult {
     org.apache.flink.table.types.logical.RowType rowResultType();
+
+    default org.apache.arrow.vector.types.pojo.Schema arrowResultSchema() {
+      return tech.streamfusion.arrow.ArrowConversion.toArrowRowResultSchema(rowResultType());
+    }
   }
 
   public interface InternalArguments {
@@ -99,7 +103,7 @@ public final class NativeUdf {
   public static final int TYPE_INTERVAL_MILLIS = 13;
   public static final int TYPE_BINARY = 14;
   public static final int TYPE_ROW = 15;
-  // Internal nested views borrowed only while the imported argument batch remains open.
+  // Internal ARRAY/ROW views borrowed only while the imported argument batch remains open.
   public static final int TYPE_INTERNAL = 16;
 
   // DECIMAL(p, s) argument/result values, marshalled as BigDecimal. The precision and scale ride in
@@ -125,12 +129,17 @@ public final class NativeUdf {
     final int fixedArity;
     final Class<?> varArgComponent;
     final FlinkExpressionFunction generated;
+    final Schema rowSchema;
 
     Registered(ScalarFunction function, Method eval, int[] argTypes, int returnType) {
       this.function = function;
       this.eval = eval;
       this.argTypes = argTypes;
       this.returnType = returnType;
+      this.rowSchema =
+          returnType == TYPE_ROW && function instanceof RowResult
+              ? ((RowResult) function).arrowResultSchema()
+              : null;
       Class<?>[] params = eval.getParameterTypes();
       this.generated =
           function instanceof FlinkExpressionFunction
@@ -308,7 +317,8 @@ public final class NativeUdf {
 
     int rowCalcId() {
       return rowInputColumns != null && runtimeIds != null && runtimeIds.length == 1
-          ? runtimeIds[0] : -1;
+          ? runtimeIds[0]
+          : -1;
     }
 
     /**
@@ -565,7 +575,49 @@ public final class NativeUdf {
         && Arrays.stream(udf.argTypes).allMatch(type -> type == TYPE_TIMESTAMP_DATA);
   }
 
-  static VectorSchemaRoot evaluateTemporalRowCalc(int id, VectorSchemaRoot in, int[] columns) {
+  static boolean canEvaluatePrimitiveRowCalc(int id) {
+    Registered udf = REGISTRY.get(id);
+    if (udf == null
+        || udf.generated == null
+        || udf.returnType != TYPE_ROW
+        || udf.generated.rowResultType().getFieldCount() == 0) return false;
+    if (!udf.rowSchema
+        .getFields()
+        .get(0)
+        .getChildren()
+        .equals(
+            tech.streamfusion.arrow.ArrowConversion.toArrowSchema(udf.generated.rowResultType())
+                .getFields())) return false;
+    for (int type : udf.argTypes) {
+      if (type != TYPE_INT
+          && type != TYPE_LONG
+          && type != TYPE_BYTE
+          && type != TYPE_SHORT
+          && type != TYPE_FLOAT
+          && type != TYPE_DOUBLE
+          && type != TYPE_BOOLEAN) return false;
+    }
+    return udf.generated.rowResultType().getChildren().stream()
+        .allMatch(
+            type -> {
+              switch (type.getTypeRoot()) {
+                case TINYINT:
+                case SMALLINT:
+                case INTEGER:
+                case BIGINT:
+                case FLOAT:
+                case DOUBLE:
+                case BOOLEAN:
+                case CHAR:
+                case VARCHAR:
+                  return true;
+                default:
+                  return false;
+              }
+            });
+  }
+
+  static VectorSchemaRoot evaluateRowCalc(int id, VectorSchemaRoot in, int[] columns) {
     Registered udf = REGISTRY.get(id);
     List<FieldVector> inputs = new ArrayList<>(columns.length);
     for (int column : columns) inputs.add(in.getVector(column));
@@ -610,7 +662,7 @@ public final class NativeUdf {
     } catch (Throwable failure) {
       out.close();
       if (failure instanceof RuntimeException) throw (RuntimeException) failure;
-      if (failure instanceof Error) throw (Error) failure;
+      if (failure instanceof Error && !canEvaluatePrimitiveRowCalc(id)) throw (Error) failure;
       throw new RuntimeException("UDF invocation failed", failure);
     }
   }
@@ -677,11 +729,7 @@ public final class NativeUdf {
   private static VectorSchemaRoot resultRoot(Registered udf, int rows) {
     int returnType = udf.returnType;
     if (returnType == TYPE_ROW) {
-      var root =
-          VectorSchemaRoot.create(
-              tech.streamfusion.arrow.ArrowConversion.toArrowRowResultSchema(
-                  ((RowResult) udf.function).rowResultType()),
-              NativeAllocator.SHARED);
+      var root = VectorSchemaRoot.create(udf.rowSchema, NativeAllocator.SHARED);
       root.getVector(0).setInitialCapacity(rows);
       return root;
     }
@@ -747,6 +795,17 @@ public final class NativeUdf {
     switch (code) {
       case TYPE_STRING:
         {
+          if (tech.streamfusion.arrow.NestedRepresentation.isString(vector.getField())) {
+            var strings =
+                new tech.streamfusion.arrow.NestedStringColumnVector(
+                    (org.apache.arrow.vector.complex.StructVector) vector);
+            for (int r = 0; r < rows; r++)
+              if (!strings.isNullAt(r)) {
+                var value = strings.getString(r);
+                out[r] = asStringData ? value : value.toString();
+              }
+            return out;
+          }
           // A byte-capable eval gets the column's UTF-8 bytes wrapped as BinaryStringData — no
           // UTF-16 decode; only a String-typed eval pays the materialization.
           VarCharVector v = (VarCharVector) vector;

@@ -37,7 +37,7 @@ public class StreamPhysicalArrowToRowData extends StreamPhysicalNativeSingleRel
         ShortcutUtils.unwrapTableConfig(this),
         InputProperty.DEFAULT,
         FlinkTypeFactory$.MODULE$.toLogicalRowType(getRowType()),
-        getRelDetailedDescription());
+        getRelDetailedDescription(),
+        getInput() instanceof StreamPhysicalNativeGeneratedUnnest);
   }
 }
-

@@ -33,6 +33,7 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   private final int[] valueTypes;
   private final int[] valueColumns;
   private final int[] filterColumns;
+  private final int[] auxiliaryColumns;
   private final int[] keyColumns;
   private final int[] distinctViewSources;
   private final int[] keyTimestampPrecisions;
@@ -44,6 +45,7 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   private transient MiniBatchBoundary boundary;
   private transient MiniBatchMetrics miniBatchMetrics;
   private transient NativeMemoryBudget memoryBudget;
+  private transient boolean failed;
 
   public NativeColumnarLocalGroupAggregateOperator(
       int[] aggregateKinds,
@@ -54,10 +56,33 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
       int[] distinctViewSources,
       int[] keyTimestampPrecisions,
       long miniBatchSize) {
+    this(
+        aggregateKinds,
+        valueTypes,
+        valueColumns,
+        filterColumns,
+        keyColumns,
+        distinctViewSources,
+        keyTimestampPrecisions,
+        miniBatchSize,
+        new int[0]);
+  }
+
+  public NativeColumnarLocalGroupAggregateOperator(
+      int[] aggregateKinds,
+      int[] valueTypes,
+      int[] valueColumns,
+      int[] filterColumns,
+      int[] keyColumns,
+      int[] distinctViewSources,
+      int[] keyTimestampPrecisions,
+      long miniBatchSize,
+      int[] auxiliaryColumns) {
     this.aggregateKinds = aggregateKinds;
     this.valueTypes = valueTypes;
     this.valueColumns = valueColumns;
     this.filterColumns = filterColumns;
+    this.auxiliaryColumns = auxiliaryColumns;
     this.keyColumns = keyColumns;
     this.distinctViewSources = distinctViewSources;
     this.keyTimestampPrecisions = keyTimestampPrecisions;
@@ -67,6 +92,7 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   @Override
   public void open() throws Exception {
     super.open();
+    failed = false;
     allocator = NativeAllocator.SHARED;
     dictionaries = NativeAllocator.DICTIONARIES;
     memoryBudget = NativeMemoryBudget.registerFor(this);
@@ -81,6 +107,15 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
             distinctViewSources,
             keyTimestampPrecisions,
             memoryBudget.nativeHandle());
+    if (auxiliaryColumns.length > 0) {
+      try {
+        Native.configureLocalGroupAggregateArguments(handle, auxiliaryColumns);
+      } catch (RuntimeException | Error failure) {
+        Native.closeLocalGroupAggregator(handle);
+        handle = 0;
+        throw failure;
+      }
+    }
     boundary = new MiniBatchBoundary(miniBatchSize);
     miniBatchMetrics = new MiniBatchMetrics(getMetricGroup(), true);
   }
@@ -130,6 +165,9 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
         ArrowSchema inSchema = ArrowSchema.allocateNew(inAllocator)) {
       Data.exportVectorSchemaRoot(inAllocator, in, dictionaries, inArray, inSchema);
       Native.updateLocalGroupAggregator(handle, inArray.memoryAddress(), inSchema.memoryAddress());
+    } catch (RuntimeException | Error failure) {
+      failed = true;
+      throw failure;
     }
   }
 
@@ -160,8 +198,8 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
   }
 
   private void flushBundle(FlushReason reason) {
-    // Flink harness cleanup can call finish after state initialization or open failed.
-    if (handle == 0 || boundary == null || miniBatchMetrics == null) {
+    // Cleanup may call finish after failure; partially updated state must never be flushed.
+    if (failed || handle == 0 || boundary == null || miniBatchMetrics == null) {
       return;
     }
     long transientBytes = Native.localGroupAggregatorStateBytes(handle);
@@ -177,6 +215,9 @@ public class NativeColumnarLocalGroupAggregateOperator extends FlinkStreamOperat
       } else {
         partial.close();
       }
+    } catch (RuntimeException | Error failure) {
+      failed = true;
+      throw failure;
     }
     boundary.reset();
   }

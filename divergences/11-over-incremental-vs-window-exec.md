@@ -279,14 +279,90 @@ reuse StreamFusion's Arrow-row sorted rank state and key-group/checkpoint repres
 an explicit row-identity emission mode. No generic OVER time guard is removed. Native operators
 still consume and emit Arrow batches, and existing Top-N slot updates remain unchanged.
 
-Initial admission is one ascending INT/BIGINT key, one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
+Admission includes the verified ordinary scalar keys and exact TIMESTAMP/TIMESTAMP_LTZ
+precision, one ascending key, and one ROW_NUMBER over ROWS UNBOUNDED PRECEDING
 through CURRENT ROW, insert-only input and disabled TTL. NULL placement is explicit; ties remain
 stable across physical batches and recovery. Every row remains in state; there is no implicit
 Top-N truncation. Accounted off-heap limits fail normally rather than discarding retained ranks.
 Updating input, TTL, other order specifications and other non-time analytic functions retain
-fallback. Flink 1.18 rejects this query itself, before native admission.
+fallback. Flink 1.18 rejects this query at its released factory boundary; native admission
+preserves that failure for all ordinary sort types.
 
 The released heap operator failed an injected restore with a NULL prior accumulator in its
 update emission. Native checkpoint validation therefore compares its twice-restored output
 with an uninterrupted stock run, independently verifying restored offsets and source cleanup;
 it does not claim parity between two successfully restored host/native jobs.
+
+DATE, TIME and BOOLEAN OVER value state stores the selected physical 32-bit value plus
+its logical Arrow type, following the existing typed decimal/timestamp selection pattern.
+Frame rows and snapshots retain logical DATE/TIME/BOOLEAN scalar fields rather than exposing
+an integer carrier. Readers and restored frames fold into the same native state; no new JNI
+or checkpoint framing is introduced. Arroyo's watermark-finalized window exec cannot replace
+Flink's immediate running and bounded-frame selection, as described above.
+
+
+STRING and timestamp OVER distinct counts reuse the existing typed membership state rather
+than adding a second aggregate engine. Following the borrowed-key membership pattern already
+used by GROUP BY, running string counts probe borrowed bytes and own a key on first membership;
+timestamps probe their full nanosecond value directly, avoiding a temporary scalar/Arrow array.
+String count equality follows Flink binary string bytes, while mixed selections retain their
+own UTF-16 representation. Bounded frame storage still retains the existing string cache.
+
+As in Comet's owned native memory accounting, retained hash capacity and owned payload enter
+the native budget. Per-row growth is measured on the borrowed aggregate state rather than
+through extra key lookups. Restores and persistent probes derive the footprint from decoded
+membership; the derived byte counter is not serialized. Native RocksDB probes include text
+memberships, closing the numeric-only probe hole exposed by cross-batch running string counts.
+These changes keep the existing Arrow boundaries, JNI API and checkpoint wire format.
+
+
+Bounded decimal DISTINCT SUM/SUM0/AVG use the existing incremental arithmetic slots, with
+multiplicity transitions controlling fold/retract. Recomputing each unique frame would violate
+Flink's overflow history, so checkpoints retain arithmetic sum/count fields and membership is
+rebuilt from already-retained frame rows. Rebuilding membership never replays arithmetic. This
+extends the same incremental divergence from Arroyo's watermark-finalized window execution;
+there is no second native window engine or new Java/native ownership boundary.
+
+### Complex ordinary ranks keep parent and child NULL ordering separate
+
+Released Flink's generated ARRAY/ROW comparisons always order child NULLs first, independently
+of the top-level NULLS clause. Arrow's row codec propagates that clause to children. For
+ordinary ARRAY/ROW ROW_NUMBER with NULLS LAST, lower the query to a native projection of
+`value IS NULL`, then the existing retained ranker ordered by that flag and the original value
+with NULLS FIRST, then a native projection removing the flag. ARRAY/ROW with NULLS FIRST
+uses the original single key. This extends the retained-buffer design above; Arroyo's
+per-instant window execution cannot provide Flink's cumulative row-identity updates.
+
+Scalar children retain the existing verified order whitelist. Floating and MAP/MULTISET
+children stay outside it. The hidden flag is part of the same retained row and checkpoint
+schema, so heap and persistent restore use the existing sort/payload codec. Existing bounded
+Top-N and previously admitted scalar ranks keep their original sort-key layouts. Restored
+nested field names are reconciled with the declared payload schema by the existing recursive
+Arrow cast helper; renaming children retains offsets, validity and value buffers. Normal
+changelog gathering still owns its output allocations.
+
+
+### Mutable floating sort groups
+
+Released Flink's generated numeric comparator uses `left > right ? 1 : left < right ? -1 : 0`.
+Both signed zeros and every NaN/non-NULL pair compare equal. Its ordinary non-time ROWS
+operator linearly scans retained groups and replaces a matched group's key on every insertion.
+After NaN arrives, those groups can cease to be numerically sorted. Arroyo/DataFusion's total
+window sort and ordinary Arrow-row binary ordering cannot model this contract.
+
+Scalar FLOAT/DOUBLE ROW_NUMBER therefore keeps the existing ranker's rows in retained group
+order, uses each group's last row as its current key, and marks the first row with its length.
+The existing optional sort-count field encodes these headers as `-(length + 2)`; `-1` stays absent
+and ordinary nonnegative OFFSET counts keep their meaning. This introduces no JNI API or new
+operator. The raw byte codec preserves the new negative values, and restore normalizes signed
+zero keys while preserving tagged group order. Every row's original payload stays independent
+of its comparison key; raw NaN bits survive emission and checkpoints. Header counts live in the
+existing fixed-size row metadata and participate in the existing managed state serialization.
+
+An initial proxy-key candidate retained the first group representative. Its unit model made
+the same mistaken assumption; released SQL rejected eight NaN cases and all eight recovery
+profiles. The corrected oracle follows the host's latest-key replacement, including group-order
+mutations, and checks complete emitted identities across snapshots. Released raw-bit, memory/
+RocksDB recovery, mini-batch and shuffle tests qualify the final implementation. Flink 1.18
+receives an explicit compatibility gate: native substitution must not bypass its non-time
+OVER factory rejection. Performance evidence and remaining gates live on the OVER page.

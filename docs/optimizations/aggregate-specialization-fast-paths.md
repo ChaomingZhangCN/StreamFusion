@@ -1,7 +1,8 @@
 # Aggregate specialization fast paths
 
 **Applies to:** insert-only numeric, DATE, TIME and BOOLEAN MIN/MAX; deleted retracting MIN/MAX groups; grouped-value state and
-immediate changelog output; and mini-batch group-aggregate `DISTINCT` (q15/q16/q17-shaped queries)
+immediate changelog output; scalar SINGLE_VALUE partials; and mini-batch group-aggregate
+`DISTINCT` (q15/q16/q17-shaped queries)
 
 Two of the local aggregate's hot leaves were paying for generality their actual input doesn't need:
 an insert-only MIN/MAX carrying full retraction support, and a `DISTINCT` accumulator boxing every
@@ -72,6 +73,69 @@ configuration at two million rows. Single-phase DATE/TIME/BOOLEAN Flink/native m
 0.325–0.339, 0.325–0.340, 0.495–0.527, 0.482–0.489 and 0.466–0.476 s.
 Flink ranges are 0.470–0.608, 0.438–0.575, 0.432–0.500, 0.580–0.594,
 0.546–0.586 and 0.536–0.609 s. All six measured MIN/MAX cases beat their matched controls.
+
+## Window extrema fold typed row positions and exact panes
+
+DATE, millisecond TIME and BOOLEAN window MIN/MAX keep one nullable integer payload behind
+the existing DataFusion accumulator interface. Each input batch binds typed readers once;
+grouped accumulation reads its row positions directly. It avoids a separate Arrow `take` or
+slice array for every value column and group. Global partials and session merges combine the
+retained payload directly, while the one-field nullable partial remains compatible with the
+previous DataFusion accumulator in both directions. State owns the value and retains no source
+buffers; accumulator sizes remain included in the task off-heap reservation.
+
+For exact HOP/CUMULATE reductions, each slice folds once before its partial merges into the
+still-open final windows. This extends the existing timestamp/count pane strategy. Mixed
+aggregate lists retain their ordinary grouped path, where the typed extrema readers still
+avoid selected-value arrays. Window assignment, late-row checks, filters, checkpoint boundaries
+and Arrow operator boundaries keep their existing contracts.
+
+The initial type-only admission passed the smaller 64-key jobs but exposed a substantial
+single-phase regression at 4,096 keys. Native allocation diagnostics at 4,096 rows/1,024 keys
+show the selection cost removed by this specialization:
+
+| BOOLEAN shape | Allocation requests before / after | Requested bytes before / after |
+| --- | ---: | ---: |
+| TUMBLE | 17,573 / 7,322 | 1,933,154 / 1,408,350 |
+| HOP | 35,001 / 11,471 | 3,790,734 / 2,385,992 |
+| SESSION | 65,691 / 34,955 | 4,796,256 / 3,189,080 |
+
+These are allocation requests, not copied bytes. The 72-fixture `window_scalar_extrema` suite
+also checks independent extrema, all-NULL keys, both integer-backed types, and session merges
+that change retained extrema. A compatibility test transfers state in both directions between
+the specialized and previous DataFusion accumulators.
+
+The first identical-fixture full-job comparison used two million rows, 4,096 keys, a two-second
+slide/ten-second HOP, parallelism two, production IPC, both row/Arrow transposes, a row source
+and a rowwise blackhole sink. Release+mimalloc runs on Intel i7-12650H/Linux WSL2 use released
+Flink 2.2.1/JDK 17, a 2 GiB heap, two warmups and three alternating measurements. Means include
+startup and every measured trial. Paired stock controls and native prototype timings follow:
+
+| Value / phase | Stock before / after (s) | Native before / after (s) |
+| --- | ---: | ---: |
+| BOOLEAN / Single | 1.599150 / 1.544477 | 3.103654 / 1.183716 |
+| TIME / Single | 1.544768 / 1.417022 | 2.239453 / 1.085680 |
+| DATE / Single | 1.518711 / 1.429642 | 2.270363 / 1.159402 |
+| BOOLEAN / Local/global | 1.774519 / 1.760690 | 1.692210 / 1.298323 |
+| TIME / Local/global | 1.742770 / 1.683467 | 1.523706 / 1.224929 |
+| DATE / Local/global | 1.745377 / 1.729330 | 1.589911 / 1.319390 |
+
+These initial fixtures used a constant DATE and TIME values correlated with the key domain.
+The final comparison strengthens per-key variation: DATE spans 31 days and TIME spans 256
+millisecond values within each key. The failed initial profiles and their controls remain in
+the [result artifact](../benchmarks/results/window-scalar-extrema-2026-10-18.json).
+
+With the stronger fixture, all 27 final complete-job profiles beat stock Flink by 1.218–1.649x
+and previous StreamFusion fallback by 1.159–1.633x. The six two-million-row/4,096-key HOP
+profiles span 1.218–1.360x stock. The remaining 21 use one million rows/64 keys across
+TUMBLE/HOP/CUMULATE in both phases and single-phase SESSION. Both conversions and production
+IPC remain included. The [operator page](../operators/window-aggregate.md#date-time-and-boolean-extrema)
+reports final means; the artifact retains every initial and final trial, including slower
+prototypes and the paired controls from separate baseline JVMs.
+
+Validation passes 23 SQL/admission checks on Flink 2.2.1 and 20 applicable checks with three
+SESSION table-function skips on 1.18.1, including independent filters and repeated recovery
+on memory/RocksDB. Native window/session regressions and all 72 Criterion fixtures pass.
 
 ## Immediate changelog output shares the tuple allocation with its cache
 
@@ -177,12 +241,48 @@ append typed keys and counts directly into Arrow builders, avoiding intermediate
 The transpose timestamp writer also caches its validated child vectors across rows and resets,
 following Comet's per-field writer pattern. These changes preserve the existing Arrow view schema.
 
+DATE/TIME membership uses typed 32-bit maps and column readers while snapshots and journals
+retain their logical DATE/TIME scalar fields. Local membership output appends their values
+directly into the shared typed Arrow builders.
+
 All representations share multiplicity updates, last-occurrence deletion and journal handling.
 Snapshots and persistent element journals still serialize typed scalar values with the same
 encoding. Restore does not journal an already persisted entry; blob import does. An unexpected
 value type promotes the map to the generic scalar representation, preserving live counts and
 pending journal entries. FLOAT/DOUBLE and complex types retain generic scalar keys and their
-existing equality rules. Admission gates are unchanged.
+existing equality rules. Numeric DISTINCT admission follows the operator's type gates.
+
+DISTINCT FIRST_VALUE/LAST_VALUE reuse these multiplicity maps alongside their ordered queue
+of unique live values. The map avoids hashing a full scalar enum for typed keys; only a new
+live value owns a queue entry, and only its last removal searches that queue. Timestamp keys
+use the queue's exact inline nanosecond carrier. Floating membership canonicalizes NaNs while
+the queue preserves the first inserted payload and the distinction between signed zeros.
+Snapshots continue using the existing ordered value/count fields. Accounting includes map
+and queue capacity plus both copies of any dynamic string payload.
+
+Immediate zero-TTL groups containing DISTINCT first/last, optionally mixed with COUNT DISTINCT
+and COUNT(*), reuse their cached result tuple. Each accumulator reports whether its output
+may have changed; only those cells are reconstructed and compared. The tuple allocation and
+unchanged string payloads survive the update. Changed cells replace the cache even when
+primitive result equality suppresses an update, preserving the selected signed-zero payload.
+NaN outputs retain Flink's non-reflexive result comparison and emit the usual pre/postimages.
+Record counts, deletion, state accounting and restored preimages still update normally.
+
+These groups append borrowed cached cells directly into typed Arrow result builders. Dense
+COUNT(*) updates therefore avoid storing and cloning one scalar per output cell before
+constructing Arrow columns. The builders are shared with local DISTINCT membership output;
+other aggregate families retain their scalar result path. Finished arrays own their buffers
+through the existing RecordBatch/C Data release path. Mini-batch and positive-TTL groups
+retain their existing emission path and checkpoint fields remain unchanged.
+
+For the final scalar first/last increment, paired two-million-row whole jobs improve
+1.218–1.462x over stock for the five representative pure types and 1.062–1.435x for six
+mixed DATE/DOUBLE/STRING COUNT contexts. Three retracting profiles improve 2.107–2.251x.
+The corresponding retained preceding-StreamFusion controls improve 1.059–2.065x. The
+[operator coverage page](../operators/group-by.md#typed-distinct-firstlast) records resources,
+smaller/released-1.18 checks and workload limits; the [raw artifact](../benchmarks/results/typed-distinct-ordered-values-2026-10-19.json)
+keeps every trial, earlier regressions, CPU evidence, source/DSO hashes and allocation requests.
+Both row/Arrow transposes, the runtime row source and rowwise sink remain measured.
 
 The combined two-phase COUNT DISTINCT BOOLEAN/TIMESTAMP_LTZ(9) plus SUM DISTINCT
 DECIMAL(19,2) query now beats the matched Flink control at both measured sizes. These runs
@@ -487,7 +587,7 @@ one-element tuple vector and a duplicate cached result per live group. A later t
 reconstructs the preceding tuple from the accumulator before applying the row. NULL counting,
 cardinality errors, deletes, TTL and snapshot encoding are unchanged. Mixed aggregates and
 filtered SINGLE_VALUE keep the existing cache; filtered groups can receive many rows that
-do not contribute to their result. Mini-batch handling is unchanged.
+do not contribute to their result. Split output uses the partial-buffer optimization below.
 
 The high-cardinality CPU profile identified state creation/destruction and allocator work.
 On the measured 64-bit build, removing the cached scalar avoids 64 bytes per live group
@@ -790,3 +890,104 @@ See the [complete benchmark evidence](../benchmarks/native-criterion.md#deleted-
 for all measured trials, raw samples, configuration and limits. These results
 cover the tested immediate-emission COUNT/MIN/MAX shape; other aggregate types,
 TTL, rescaling and mini-batch performance are not established by this workload.
+
+## SINGLE_VALUE partials retain Arrow rows through split aggregation
+
+A successful SINGLE_VALUE group contains exactly one element, including NULL. The local
+half can retain its owned Arrow key/value columns and dense per-key counts and row
+positions instead of allocating a general accumulator tuple per key. A second element
+still fails during accumulation. Flush shares an unchanged physical batch's columns or
+gathers the retained rows. The reservation includes the complete imported input batch's
+buffer estimate because selected columns may share a producer release callback with
+unused columns. Container capacity stays accounted after flush.
+
+For a global merge containing one unfiltered SINGLE_VALUE, fresh-key partials whose INT
+counts are all one retain their Arrow batches until flush. The ordinary keyed state is
+still updated, preserving its exact checkpoint format. Output forwards or concatenates
+the key/value columns and emits INSERTs. Existing keys, row kinds and other partial shapes
+promote pending rows into the ordinary first-preimage tracker before using the general
+merge. This avoids change-map entries, cached results and temporary scalar tuples for
+fresh singleton groups while retaining NULL cardinality, zero/negative-count semantics,
+TTL expiry and recovery. Mixed aggregates continue through the general accumulator.
+
+Ordered timestamp cells also use an inline nanosecond carrier internally, with typed
+column readers bound once per input batch. Arrow output and snapshots keep the declared
+timestamp struct. These representation changes preserve released Flink behavior; the
+[architectural note](https://github.com/datafusion-contrib/StreamFusion/blob/main/divergences/42-ordered-group-values.md) explains their ownership
+and state contracts.
+
+The local-only prototype still lost on four of six complete-job cases. Its CPU diagnostic
+found 1,361 samples under global update and 731 under global flush, versus 116/43 under
+local update/flush, within 2,487 Rust group-operator samples. These are inclusive counts
+from a whole-JVM profile containing both engines and startup, not wall-time shares. The
+fresh-key global buffer addresses those state-tracking and output costs.
+
+Release+mimalloc measurements use Flink 2.2.1, JDK 17, Linux/WSL on i7-12650H, parallelism
+one, a 2 GiB heap, America/New_York, 1,024-row bundles, unique INT keys and one-eighth NULL
+values. Runtime row sources, both Arrow transposes, production IPC, JNI, keyed state and
+the rowwise blackhole sink remain measured. Plans and execution metrics require both
+native aggregate stages. Two warmups precede three alternating measured pairs. Each
+StreamFusion revision has its own paired stock control. The table gives medians in seconds;
+all trial arrays and ranges are retained in the linked artifacts.
+
+| Two million rows/keys | Native | Stock Flink | Preceding StreamFusion |
+|---|---:|---:|---:|
+| BIGINT | 1.391 | 1.844 | 1.932 |
+| DATE | 1.274 | 1.799 | 1.716 |
+| TIME(3) | 1.337 | 1.739 | 1.888 |
+| BOOLEAN | 1.296 | 1.764 | 1.771 |
+| DECIMAL(20,3), 20-digit values | 1.510 | 2.316 | 2.226 |
+| TIMESTAMP(9) | 1.487 | 2.094 | 2.005 |
+
+These six cases improve 1.30–1.53x over stock and 1.35–1.47x over the preceding native
+behavior/fallback. Six 500k-row mixed SINGLE_VALUE/AVG/COUNT DISTINCT cases improve
+1.30–1.87x over stock and 1.24–1.80x over the preceding revision. Additional 500k-row cases
+cover narrow integers, FLOAT/DOUBLE controls, CHAR, TIMESTAMP_LTZ and STRING. The initial
+INT case lost to stock (0.458 versus 0.421 s) with broad overlapping ranges. Its retained
+repeat uses three warmups/seven measurements: 0.349 s native versus 0.507 s stock and
+0.476 s preceding. At two million rows, two warmups/five measurements give 1.365 s versus
+1.932/1.922 s. Both repeats have separated native/stock trial ranges. These results resolve
+the short-run slowdown without discarding it or implying a universal throughput guarantee.
+
+On Flink 1.18.1, direct runtime TIME(3) input measures 0.362/1.350 s at 500k/2M rows versus
+stock 0.531/1.843 s and preceding 0.573/1.880 s. Direct-source parity covers pure and mixed
+groups with subsecond values, NULLs and 1/7/128-row physical batches on both released lines.
+Cast-based TIME tests retain that release's documented planning skips.
+
+The actual preceding commit `61e5bb80` is the formatting-only successor to `a29e097e`.
+Rebuilding it produces the exact same native library bytes as the original baseline;
+Java production code is unchanged. The candidate's rebuilt library likewise matches the
+frozen measured candidate. The [full results](../benchmarks/results/global-single-partials-prototype-2026-10-18.json)
+retain 888 complete benchmark jobs, including original type-only, compact-timestamp and
+prebound-column losses, the 540-job matrix, 40 released-1.18 jobs and 68 INT confirmations.
+The separate [local-only results](../benchmarks/results/local-single-partials-prototype-2026-10-18.json)
+retain another 120 jobs and the CPU diagnostic. Native correctness covers 104 group tests;
+Criterion validates 108 local/global partial fixtures and 110 typed-state fixtures, with
+allocation and buffer-sharing reports for the partial paths. Allocation requests are not
+copied-byte measurements.
+
+## Primitive OVER value state preserves logical types
+
+DATE, TIME and BOOLEAN MIN/MAX/FIRST/LAST use the same selected-value pattern as typed
+decimal/timestamp OVER state, with an inline optional 32-bit value and logical Arrow type.
+Bound column readers avoid scalar reconstruction during folding. Frame serialization,
+output and restore retain logical types, so integer carriers never leak through the JNI
+or checkpoint boundary. NULL validity remains separate from boolean false.
+
+The [OVER measurement](../operators/over.md#date-time-and-boolean-value-selection) records
+all four rowtime shapes across three types: 2.508–6.669x over paired stock for one-million-row
+jobs. Actual preceding-revision bounded-ROWS controls improve 5.058–5.452x. The raw artifact
+retains all variability, disabled-OVER controls and released-1.18 checks, with both transposes
+and rowwise edges measured. This does not change the existing input/order/DISTINCT gates.
+
+
+### Borrowed OVER distinct membership
+
+Running STRING COUNT(DISTINCT) probes the existing typed membership map with borrowed bytes,
+allocating an owned key only on first membership. Timestamp distinct counts insert their
+nanosecond carrier directly instead of constructing a scalar and temporary Arrow representation.
+Mixed string selections keep their independent cached UTF-16 representation; bounded frame
+rows still retain that cache. Hash capacity and owned string bytes enter native memory
+accounting. Measuring growth on the already-borrowed aggregate state avoids extra key probes.
+See [OVER](../operators/over.md#string-and-timestamp-distinct-counts) for complete-job comparisons,
+including an unchanged decimal distinct-count control for the memory-accounting change.

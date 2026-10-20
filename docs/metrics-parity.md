@@ -47,6 +47,11 @@ StreamFusion-specific mini-batch counters (`miniBatchInputRows`, bundle and flus
 cancelled changes, physical splits, and transient bytes) remain additive. They do not replace or
 rename Flink's `bundleSize` and `bundleRatio` gauges.
 
+The additive Calc counter `directPrimitiveCalcRows` counts input rows evaluated by the complete
+generated program directly over Java Arrow vectors. It is zero for batches that use the ordinary
+native bridge, including changelog-tagged batches. It measures the JVM evaluation route inside a
+columnar Calc; it is not a count of Rust expression rows and does not replace standard record I/O.
+
 ## Connectors
 
 | Native connector path | Flink reference | Current state | Remaining work |

@@ -141,9 +141,7 @@ class FlinkFloatingGroupAggregateSqlHarnessTest {
   @ValueSource(
       strings = {
         "SUM(DISTINCT f)",
-        "AVG(DISTINCT f)",
-        "FIRST_VALUE(DISTINCT f)",
-        "LAST_VALUE(DISTINCT d)"
+        "AVG(DISTINCT f)"
       })
   void unverifiedDistinctPartialLayoutsKeepFallback(String aggregate) throws Exception {
     NativeParity.assertFallback(

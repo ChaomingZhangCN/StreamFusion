@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, BinaryArray, Date32Array, Decimal128Array, Float64Array, Int64Array, Int64Builder,
-    ListBuilder, MapBuilder, StringArray,
+    Array, BinaryArray, Date32Array, Decimal128Array, Float64Array, Int32Array, Int64Array,
+    Int64Builder, ListBuilder, MapBuilder, StringArray,
 };
 use arrow::datatypes::{DataType, Field};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
@@ -57,6 +57,12 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         )),
         rows,
     );
+    let offsets = array(
+        Int32Array::from_iter(
+            (0..rows + 1).map(|i| valid(i + 1).then_some(if i % 2 == 0 { 3600 } else { -3600 })),
+        ),
+        rows,
+    );
     let mut list = ListBuilder::new(Int64Builder::new());
     for row in 0..rows + 1 {
         for value in [
@@ -69,6 +75,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         }
         list.append(valid(row));
     }
+    let lists = array(list.finish(), rows);
     let mut cases = vec![
         (
             65,
@@ -162,14 +169,25 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         ),
         (155, vec![times.clone()]),
         (156, vec![times.clone(), long(1000)]),
-        (157, vec![times, int(1)]),
+        (157, vec![times.clone(), int(1)]),
         (158, vec![integers.clone(), long(0)]),
         (159, vec![string("true")]),
         (160, vec![string("invalid")]),
         (161, vec![string(&text), literal("alpha"), int(1), int(1)]),
         (162, vec![string(&text)]),
-        (165, vec![array(list.finish(), rows)]),
+        (165, vec![lists.clone()]),
         (166, vec![]),
+        (167, vec![lists.clone()]),
+        (169, vec![lists.clone()]),
+        (170, vec![lists.clone(), int(-2), int(-1)]),
+        (168, vec![lists, literal("ARRAY<BIGINT>")]),
+        (171, vec![integers.clone(), long(42)]),
+        (172, vec![times.clone(), times.clone()]),
+        (173, vec![integers]),
+        (174, vec![times.clone()]),
+        (175, vec![times.clone(), int(1000)]),
+        (176, vec![times.clone(), offsets.clone()]),
+        (177, vec![times, offsets, int(1000)]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

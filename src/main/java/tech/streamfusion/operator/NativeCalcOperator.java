@@ -42,8 +42,10 @@ public class NativeCalcOperator extends FlinkStreamOperator<ArrowBatch>
   private transient long[] boundLongs;
   private transient long watermark;
   private transient int directRowCalc;
+  private transient int directPrimitiveCalc;
   private transient int[] directColumns;
   private transient org.apache.flink.metrics.Counter directRows;
+  private transient org.apache.flink.metrics.Counter directPrimitiveRows;
   private transient org.apache.flink.metrics.Counter aliasedValues;
 
   public NativeCalcOperator(
@@ -83,9 +85,15 @@ public class NativeCalcOperator extends FlinkStreamOperator<ArrowBatch>
             longs, new FunctionContext(getRuntimeContext()), getProcessingTimeService());
     compiledSchemas = new HashMap<>();
     directRowCalc = -1;
+    directPrimitiveCalc = -1;
     directRows = getMetricGroup().counter("directTemporalRows");
+    directPrimitiveRows = getMetricGroup().counter("directPrimitiveCalcRows");
     aliasedValues = getMetricGroup().counter("directTemporalAliasedValues");
     directColumns = udfBinding.rowInputColumns();
+    if (directColumns != null) {
+      int id = udfBinding.rowCalcId();
+      if (NativeUdf.canEvaluatePrimitiveRowCalc(id)) directPrimitiveCalc = id;
+    }
     if (Boolean.getBoolean("streamfusion.experimental.directTemporalCalc")
         && directColumns != null) {
       int id = udfBinding.rowCalcId();
@@ -118,11 +126,15 @@ public class NativeCalcOperator extends FlinkStreamOperator<ArrowBatch>
     // retain the key group used by the downstream keyed operator's Flink state-key context.
     int keyGroup = element.getValue().keyGroup();
     VectorSchemaRoot in = element.getValue().root();
-    if (directRowCalc >= 0 && in.getVector(RowDataArrowConverter.ROW_KIND_COLUMN) == null) {
+    // A complete JVM Calc has no Rust expressions left to execute. Read its borrowed input and
+    // write flat Arrow results here, avoiding the C Data round trip and nullable struct envelope.
+    int directCalc = directPrimitiveCalc >= 0 ? directPrimitiveCalc : directRowCalc;
+    if (directCalc >= 0 && in.getVector(RowDataArrowConverter.ROW_KIND_COLUMN) == null) {
       VectorSchemaRoot result;
       try {
-        result = NativeUdf.evaluateTemporalRowCalc(directRowCalc, in, directColumns);
-        directRows.inc(in.getRowCount());
+        result = NativeUdf.evaluateRowCalc(directCalc, in, directColumns);
+        if (directPrimitiveCalc >= 0) directPrimitiveRows.inc(in.getRowCount());
+        else directRows.inc(in.getRowCount());
         for (int column = 0;
             column < Math.min(result.getFieldVectors().size(), directColumns.length);
             column++) {
