@@ -45,7 +45,7 @@ final class CollectionValueIdentity {
   private static boolean verifiedConsumer(RexCall call) {
     return call.getOperator().getName().equals("CARDINALITY")
         || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
-            && call.getOperator().getName().equals("MAP_KEYS")
+            && java.util.Set.of("MAP_KEYS","MAP_VALUES").contains(call.getOperator().getName())
             && call.getOperands().size()==1
             && RexExpression.nativeBasicMap(call.getOperands().get(0).getType());
   }

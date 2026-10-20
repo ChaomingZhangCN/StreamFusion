@@ -238,7 +238,8 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
             .clone(),
         190 => element::function(),
         191 => map_arrays::function(),
-        192 => map_projection::function(),
+        192 => map_projection::function(0),
+        193 => map_projection::function(1),
         _ => return None,
     })
 }

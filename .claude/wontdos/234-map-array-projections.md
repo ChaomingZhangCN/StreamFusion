@@ -18,7 +18,7 @@ and retained results across 5,003 rows. The full collection suite passed 74 case
 on Flink 2.2.1 and 72 with two existing capability skips on Flink 1.18.1. The native
 suite passed 578 tests with one ignored. These describe the rejected prototype;
 production retains that default policy. The optional collection extension now admits
-verified basic MAP_KEYS signatures; #392 retains the standalone boundary cost.
+verified basic MAP_KEYS/MAP_VALUES signatures; #392 retains the standalone boundary cost.
 
 ## Whole-job measurements
 

@@ -13,6 +13,11 @@ class FlinkMapProjectionSqlHarnessTest {
   void keysPreserveNullDuplicatesAndOriginalEntryOrder(String type) throws Exception {
     verify(type,"MAP_KEYS");
   }
+  @ParameterizedTest
+  @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
+  void valuesPreserveNullElementsAndEntryOrder(String type) throws Exception {
+    verify(type,"MAP_VALUES");
+  }
   static org.apache.flink.table.api.TableEnvironment maps(String type) {
     org.apache.flink.table.types.DataType element;
     Object one,two;

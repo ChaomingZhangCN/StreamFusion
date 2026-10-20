@@ -2086,7 +2086,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
 | MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
 | MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
-| MAP_VALUES | Flink generated program through the existing batch JVM bridge |
+| MAP_VALUES | Rust shared-value view under the same verified basic-map admission |
 | MAP_ENTRIES | Flink generated program through the existing batch JVM bridge |
 | MAP_UNION | Flink generated program through the existing batch JVM bridge |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
@@ -2698,3 +2698,5 @@ NULL keys, duplicates and entry order survive as a shared Arrow list view. Other
 signatures retain generated Flink evaluation, including representation-sensitive
 nested/string values and fallible arguments. This does not change default
 collection admission or the standalone conversion limitations tracked by #392.
+
+MAP_VALUES uses the same verified basic-map admission and shared-buffer view, selecting the value child without changing NULLs or entry order.

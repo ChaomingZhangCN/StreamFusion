@@ -32,43 +32,52 @@ pub(super) fn parts(
     exec_err!("MAP requires key/value entries")
 }
 
-pub(super) fn function() -> ScalarUDF {
-    ScalarUDF::new_from_impl(MapKeys {
+pub(super) fn function(index: usize) -> ScalarUDF {
+    ScalarUDF::new_from_impl(MapProjection {
+        index,
         signature: Signature::any(1, Volatility::Immutable),
     })
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct MapKeys {
+struct MapProjection {
+    index: usize,
     signature: Signature,
 }
-impl ScalarUDFImpl for MapKeys {
+impl ScalarUDFImpl for MapProjection {
     fn name(&self) -> &str {
-        "flink_map_keys"
+        if self.index == 0 {
+            "flink_map_keys"
+        } else {
+            "flink_map_values"
+        }
     }
     fn signature(&self) -> &Signature {
         &self.signature
     }
     fn return_type(&self, types: &[DataType]) -> Result<DataType> {
         Ok(DataType::new_list(
-            fields(&types[0])?[0].data_type().clone(),
+            fields(&types[0])?[self.index].data_type().clone(),
             true,
         ))
     }
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        datafusion::functions::utils::make_scalar_function(keys, vec![])(&args.args)
+        let index = self.index;
+        datafusion::functions::utils::make_scalar_function(move |args| project(args, index), vec![])(
+            &args.args,
+        )
     }
 }
-fn keys(args: &[ArrayRef]) -> Result<ArrayRef> {
+fn project(args: &[ArrayRef], index: usize) -> Result<ArrayRef> {
     let (entries, offsets, nulls) = parts(&args[0])?;
     Ok(Arc::new(ListArray::try_new(
         Arc::new(Field::new(
             "item",
-            entries.column(0).data_type().clone(),
+            entries.column(index).data_type().clone(),
             true,
         )),
         offsets.clone(),
-        entries.column(0).clone(),
+        entries.column(index).clone(),
         nulls.cloned(),
     )?))
 }
@@ -87,10 +96,12 @@ mod tests {
             Some(NullBuffer::from(vec![true, true, false, true])),
         )
         .unwrap();
-        let out = super::keys(&[map.slice(1, 3)]).unwrap();
+        let out = super::project(&[map.slice(1, 3)], 0).unwrap();
         let out = out.as_any().downcast_ref::<ListArray>().unwrap();
         assert_eq!(out.value_offsets(), &[1, 4, 4, 4]);
         assert!(out.is_null(1));
+        let values = super::project(&[map.slice(1, 3)], 1).unwrap();
+        assert_eq!(out as &dyn Array, values.as_ref());
         assert_eq!(
             out.values().to_data().buffers()[0].as_ptr(),
             keys.to_data().buffers()[0].as_ptr()

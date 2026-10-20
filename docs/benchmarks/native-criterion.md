@@ -2744,3 +2744,5 @@ sharing, differing offsets, empty arrays, NULL suppression and typed errors; SQL
 fixtures retain both conversion boundaries.
 
 The scalar registry includes MAP_KEYS with sliced nullable map inputs and shared child buffers.
+
+MAP_VALUES uses the same verified basic-map admission and shared-buffer view, selecting the value child without changing NULLs or entry order.

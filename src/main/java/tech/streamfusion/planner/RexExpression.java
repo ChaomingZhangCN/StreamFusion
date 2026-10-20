@@ -2022,12 +2022,12 @@ final class RexExpression {
           : "ARRAY_UNION".equals(functionName) ? 186
           : "ARRAY_EXCEPT".equals(functionName) ? 187 : 188);
     }
-    if (NativeConfig.collectionExpressionsEnabled() && "MAP_KEYS".equals(functionName)) {
+    if (NativeConfig.collectionExpressionsEnabled() && ("MAP_KEYS".equals(functionName) || "MAP_VALUES".equals(functionName))) {
       var args=call.getOperands();
       if (args.size()!=1 || !nativeBasicMap(args.get(0).getType())
           || requiresRowShortCircuit(args.get(0)))
         return reject(functionName + " uses Flink evaluation outside total nullable basic maps");
-      return emitBuiltinCall(call,192);
+      return emitBuiltinCall(call,"MAP_KEYS".equals(functionName) ? 192 : 193);
     }
     if (NativeConfig.collectionExpressionsEnabled() && "MAP_FROM_ARRAYS".equals(functionName)) {
       var args=call.getOperands();
