@@ -1828,10 +1828,18 @@ class RocksDBNativeStateBackendAllOperatorsTest {
               .filter(row -> generateUpdateBefore || row.get(0) != RowKind.UPDATE_BEFORE)
               .collect(ListCollectors.toList()),
           collectDedupless(harness));
-      // Emission changed row 10 to +U. Its retraction misses but removes its sort-key count.
+      // Heap state retains emitted kinds; serialized state retains copies of later sort groups.
       harness.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(
           List.of(rowOfKind(RowKind.DELETE, 9, 10)), TOPN_ROW, allocator, true))));
-      assertEquals(List.of(), collectDedupless(harness));
+      assertEquals(
+          transition == StateTransition.MEMORY_TO_ROCKSDB ? List.of()
+              : List.of(List.of(RowKind.UPDATE_BEFORE, 9L, 10L),
+                  List.of(RowKind.UPDATE_AFTER, 9L, 20L),
+                  List.of(RowKind.UPDATE_BEFORE, 9L, 20L),
+                  List.of(RowKind.UPDATE_AFTER, 9L, 30L)).stream()
+                  .filter(row -> generateUpdateBefore || row.get(0) != RowKind.UPDATE_BEFORE)
+                  .collect(ListCollectors.toList()),
+          collectDedupless(harness));
       snapshot = transition.snapshot(harness);
     }
     try (BufferAllocator allocator = new RootAllocator();
@@ -1850,13 +1858,20 @@ class RocksDBNativeStateBackendAllOperatorsTest {
               .filter(row -> generateUpdateBefore || row.get(0) != RowKind.UPDATE_BEFORE)
               .collect(ListCollectors.toList()),
           collectDedupless(harness));
-      // Row 20 must still retain +U after recovery and the following cascade.
+      // Only serialized source and restore both preserve row 20 as INSERT through the cascades.
       harness.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(
           List.of(rowOfKind(RowKind.UPDATE_BEFORE, 9, 20)), TOPN_ROW, allocator, true))));
-      assertEquals(List.of(), collectDedupless(harness));
+      assertEquals(
+          transition != StateTransition.ROCKSDB_CHECKPOINT ? List.of()
+              : List.of(List.of(RowKind.UPDATE_BEFORE, 9L, 20L),
+                  List.of(RowKind.UPDATE_AFTER, 9L, 30L)).stream()
+                  .filter(row -> generateUpdateBefore || row.get(0) != RowKind.UPDATE_BEFORE)
+                  .collect(ListCollectors.toList()),
+          collectDedupless(harness));
       harness.processElement(new StreamRecord<>(new ArrowBatch(RowDataArrowConverter.write(
           List.of(rowOfKind(RowKind.DELETE, 9, 30)), TOPN_ROW, allocator, true))));
-      assertEquals(generateUpdateBefore ? List.of() : List.of(List.of(RowKind.DELETE, 9L, 30L)),
+      assertEquals(generateUpdateBefore && transition != StateTransition.ROCKSDB_CHECKPOINT
+              ? List.of() : List.of(List.of(RowKind.DELETE, 9L, 30L)),
           collectDedupless(harness));
     }
   }

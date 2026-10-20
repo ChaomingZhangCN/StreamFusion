@@ -2612,3 +2612,8 @@ still have the independent [correctness restriction](top-n.md#retained-mapmultis
 Explicit `nestedScalarUdfs=false` restores MAP-signature fallback. Correct UDF execution is an
 accepted performance exception; [job costs](../benchmarks/scalar-functions.md#map-scalar-callback-costs)
 include both perimeter transposes and make no standalone acceleration claim.
+
+`TYPEOF` inspects the declared operand type without evaluating its value. A ROW-valued
+operand under `TYPEOF` alone does not request whole-Calc ROW materialization or widen another
+expression's admission. Composed exact DOUBLE `TRUNCATE` calls register their actual function
+definition with Flink's bridging SQL function, preserving runtime implementation discovery.

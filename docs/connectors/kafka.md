@@ -13,6 +13,12 @@ The `streamfusion-kafka` connector extension and the matching `streamfusion-*` f
 must both be installed. A missing extension is a planner fallback, never a linkage failure. See
 [Deployment](../deployment.md).
 
+Nested ROW transport metadata is excluded from format input. The annotation plan removes only
+marked RowKind and binary-row sidecars, recursively through containers, while retaining the
+logical field names, parent nulls and existing Arrow data buffers. A user field with a similar
+name remains a SQL field. The same logical view feeds JSON, CSV, Avro and Protobuf encoders;
+it does not change broker ownership or the format-specific admission limits.
+
 ## Flink release lines
 
 Each build line pins the released Kafka connector and the client used with it:

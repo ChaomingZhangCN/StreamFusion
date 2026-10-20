@@ -2677,3 +2677,13 @@ directory setup are outside timing. The measured push includes payload encoding,
 record-prefix writes and output construction; operator/directory teardown is outside timing.
 These scalar state fixtures measure neither fanout nor updating MAP admission and make no
 stock-Flink speedup claim.
+
+## Nested ROW format boundary fixtures
+
+`format_encode` includes eight additional JSON/CSV fixtures: 16 and 1,024 rows, 8 and
+264-byte strings, nullable parent ROWs and child strings, and marked internal RowKind children.
+Each fixture checks encoded bytes against the same logical ROW without the transport field.
+Fixture construction stays outside timing; the measured call is the production Rust encoder
+on Arrow input. Allocation diagnostics describe requests, not copied bytes. Separate native
+unit checks cover sliced nested containers, binary-row sidecars, reserved-name user fields,
+metadata-only ROWs and zero-column batch cardinality.

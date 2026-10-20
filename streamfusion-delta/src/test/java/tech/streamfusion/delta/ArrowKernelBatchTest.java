@@ -5,14 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.delta.kernel.types.StructType;
 import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.StructType;
 import io.delta.kernel.types.TimestampNTZType;
 import io.delta.kernel.types.TimestampType;
 import java.util.List;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.junit.jupiter.api.Test;
@@ -20,6 +20,47 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ArrowKernelBatchTest {
+
+  @Test
+  void logicalRootRetainsNestedValuesAndOmitsTransportMetadata() {
+    var logical =
+        org.apache.flink.table.types.logical.RowType.of(
+            org.apache.flink.table.types.logical.RowType.of(
+                new org.apache.flink.table.types.logical.BigIntType()));
+    var delta =
+        new StructType().add("outer", new StructType().add("physical_value", LongType.LONG));
+    try (var allocator = new RootAllocator()) {
+      VectorSchemaRoot retained;
+      long address;
+      var source =
+          tech.streamfusion.operator.RowDataArrowConverter.write(
+              List.of(
+                  org.apache.flink.table.data.GenericRowData.of(
+                      org.apache.flink.table.data.GenericRowData.of(42L)),
+                  org.apache.flink.table.data.GenericRowData.of((Object) null)),
+              logical,
+              allocator);
+      try (var batch = new ArrowKernelBatch(source, delta)) {
+        address =
+            ((org.apache.arrow.vector.complex.StructVector) source.getVector(0))
+                .getVectorById(0)
+                .getDataBuffer()
+                .memoryAddress();
+        retained = batch.logicalRoot();
+        try (var selected = batch.retainedRoot()) {
+          assertEquals(1, selected.getSchema().getFields().get(0).getChildren().size());
+        }
+      }
+      try (var output = retained) {
+        var row = (org.apache.arrow.vector.complex.StructVector) output.getVector(0);
+        assertEquals("physical_value", row.getVectorById(0).getName());
+        assertEquals(address, row.getVectorById(0).getDataBuffer().memoryAddress());
+        assertEquals(42L, row.getVectorById(0).getObject(0));
+        assertTrue(row.isNull(1));
+      }
+      assertEquals(0, allocator.getAllocatedMemory());
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(longs = {Long.MIN_VALUE, -1, 0, Long.MAX_VALUE})

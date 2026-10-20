@@ -13,6 +13,50 @@ env:
   RUST_BACKTRACE: "1"
 
 jobs:
+  native-build:
+    name: Shared debug native libraries
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: python3 bin/ci-free-disk.py
+
+      - uses: dtolnay/rust-toolchain@1.94.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          shared-key: debug-jvm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build all debug native libraries once
+        working-directory: native
+        run: cargo build --workspace --lib --locked --timings
+
+      - name: Verify native JNI exports
+        run: python3 bin/check-native-workspace.py --libraries native/target/debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-native-${{ github.sha }}
+          path: native/target/debug/libstreamfusion*.so
+          compression-level: 1
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Retain native compilation timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-native-timings-${{ github.sha }}
+          path: native/target/cargo-timings
+          if-no-files-found: ignore
+          retention-days: 7
+
   native-tests:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -35,6 +79,16 @@ jobs:
       - name: Run native test suite
         working-directory: native
         run: cargo test --workspace
+
+      - name: Check every standalone native package
+        env:
+          NATIVE_PACKAGES: streamfusion-kafka streamfusion-json streamfusion-csv streamfusion-raw streamfusion-avro streamfusion-protobuf streamfusion-orc streamfusion-parquet
+        run: |
+          status=0
+          for package in $NATIVE_PACKAGES; do
+            (cd native && cargo check -p "$package" --all-targets) || status=1
+          done
+          exit "$status"
 
       - name: Check native package boundaries
         run: python3 bin/check-native-workspace.py
@@ -70,9 +124,7 @@ jobs:
           if-no-files-found: ignore
 
   java-tests:
-    env:
-      CARGO_PROFILE_DEV_DEBUG: line-tables-only
-      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    needs: native-build
     name: Java tests (debug native build)${{ matrix.suffix }}${{ matrix.jdk == '11' && ' (JDK 11)' || '' }}
     strategy:
       fail-fast: false
@@ -129,22 +181,17 @@ jobs:
           mvn -B -ntp -f dev/flink-suite/agent/pom.xml -Dstreamfusion.flink-suite.flink-line=1.18 test
           mvn -B -ntp -f dev/flink-suite/agent/pom.xml -Dstreamfusion.flink-suite.flink-line=1.18 -Dstreamfusion.flink-suite.native-rocksdb=true test
 
-      - uses: dtolnay/rust-toolchain@1.94.0
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v5
         with:
-          workspaces: native
-          shared-key: debug-jvm
-          save-if: false
+          name: debug-native-${{ github.sha }}
+          path: native/target/debug
 
-      # Builds the debug native library through the Maven exec hook, then runs the
-      # full JUnit suite. The Kafka decode harnesses use Testcontainers, which the
-      # hosted runners' preinstalled Docker daemon serves directly.
+      # The Kafka decode harnesses use the hosted runner's Docker daemon.
       - name: Resolve Java dependencies before tests
         run: python3 bin/ci-maven-dependencies.py --profile "${{ matrix.line == '1.18' && 'flink-1.18' || '' }}"
 
       - name: Run Java test suite
-        run: mvn -B -ntp ${{ matrix.profile }} test
+        run: mvn -B -ntp ${{ matrix.profile }} test -Dnative.build.skip=true
 
       - name: Verify JVM boundary defaults and optional cache on the freshly built native library
         if: matrix.jdk == '17'
@@ -186,13 +233,8 @@ jobs:
           path: streamfusion-runtime/target/sql-audit/*.json
           if-no-files-found: error
 
-      - name: Verify native JNI exports
-        run: python3 bin/check-native-workspace.py --libraries native/target/debug
-
   lake-module-tests:
-    env:
-      CARGO_PROFILE_DEV_DEBUG: line-tables-only
-      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    needs: native-build
     name: ${{ matrix.name }} tests (debug native build)${{ matrix.jdk == '11' && ' (JDK 11)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
@@ -264,13 +306,10 @@ jobs:
           java-version: ${{ matrix.jdk }}
           cache: maven
 
-      - uses: dtolnay/rust-toolchain@1.94.0
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v5
         with:
-          workspaces: native
-          shared-key: debug-jvm
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.profile == 'paimon' && matrix.format == 'orc' }}
+          name: debug-native-${{ github.sha }}
+          path: native/target/debug
 
       - name: Resolve lake module dependencies before tests
         run: python3 bin/ci-maven-dependencies.py --profile "${{ matrix.profile }}" --projects "${{ matrix.module }}" --also-make
@@ -280,7 +319,7 @@ jobs:
           SF_PAIMON_FILE_FORMAT: ${{ matrix.format || 'parquet' }}
         run: >
           mvn -B -ntp -P${{ matrix.profile }}
-          -pl ${{ matrix.module }} -am test -Dsf.runtime.tests.skip=true
+          -pl ${{ matrix.module }} -am test -Dsf.runtime.tests.skip=true -Dnative.build.skip=true
 
   image-integration:
     name: Flink image integration (optimized native build)${{ matrix.suffix }}
@@ -396,10 +435,8 @@ jobs:
           if-no-files-found: error
 
   module-tests:
+    needs: native-build
     name: ${{ matrix.name }} module tests (debug native build)${{ matrix.suffix }}
-    env:
-      CARGO_PROFILE_DEV_DEBUG: line-tables-only
-      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:
@@ -416,15 +453,12 @@ jobs:
             suffix: ' (Flink 1.18)'
           - group: kafka
             name: Kafka
-            packages: streamfusion-kafka
             tags: streamfusion-kafka
           - group: formats
             name: Row formats
-            packages: streamfusion-json streamfusion-csv streamfusion-raw streamfusion-avro streamfusion-protobuf
             tags: streamfusion-json | streamfusion-csv | streamfusion-raw | streamfusion-avro | streamfusion-avro-confluent | streamfusion-protobuf
           - group: files
             name: Columnar formats
-            packages: streamfusion-orc streamfusion-parquet
             tags: streamfusion-orc | streamfusion-parquet
     steps:
       - uses: actions/checkout@v6
@@ -438,22 +472,10 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - uses: dtolnay/rust-toolchain@1.94.0
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v5
         with:
-          workspaces: native
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      - name: Check every standalone native package
-        env:
-          NATIVE_PACKAGES: ${{ matrix.packages }}
-        run: |
-          status=0
-          for package in $NATIVE_PACKAGES; do
-            (cd native && cargo check -p "$package" --all-targets) || status=1
-          done
-          exit "$status"
+          name: debug-native-${{ github.sha }}
+          path: native/target/debug
 
       - name: Resolve tagged module dependencies before tests
         run: python3 bin/ci-maven-dependencies.py --profile "${{ matrix.line == '1.18' && 'flink-1.18' || '' }}" --projects streamfusion-runtime
@@ -463,12 +485,12 @@ jobs:
           TEST_GROUPS: ${{ matrix.tags }}
         run: >
           mvn -B -ntp ${{ matrix.profile }} -pl streamfusion-runtime test
-          -Dgroups="$TEST_GROUPS"
+          -Dgroups="$TEST_GROUPS" -Dnative.build.skip=true
 
   all-tests:
     name: All CI tests
     if: ${{ always() }}
-    needs: [native-tests, native-benchmarks, java-tests, lake-module-tests, image-integration, module-tests]
+    needs: [native-build, native-tests, native-benchmarks, java-tests, lake-module-tests, image-integration, module-tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

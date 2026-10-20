@@ -84,15 +84,14 @@ class FlinkWindowScalarExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void attachedWindowsKeepTheirPhaseRestriction(String phase) {
+  void attachedWindowsPreserveScalarExtremaAcrossPhases(String phase) {
     String sql = "SELECT window_start, window_end, MIN(d), MAX(t), MIN(b), COUNT(*) FROM ("
         + "SELECT k, window_start, window_end, MIN(day_value) AS d, MAX(time_value) AS t, MIN(flag) AS b "
         + "FROM TABLE(TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '3' SECOND)) "
         + "GROUP BY k, window_start, window_end) GROUP BY window_start, window_end";
     var result = NativeFailureParity.run(() -> configure(
         FlinkOverBasicCountsSqlHarnessTest.environment(5003), phase), sql);
-    result.assertSuccess(phase.equals("ONE_PHASE")
-        ? NativeFailureParity.Route.FALLBACK : NativeFailureParity.Route.NATIVE);
+    result.assertSuccess(NativeFailureParity.Route.NATIVE);
     assertEquals(result.host().resultTypes(), result.nativeRun().resultTypes());
   }
 

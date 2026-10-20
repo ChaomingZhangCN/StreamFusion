@@ -1185,3 +1185,8 @@ its base fixture starts Hive and REST services even for Hadoop parameters, so th
 fixture dependency footprint must be provisioned before admitting its cases. The
 coverage inventory will expand alongside the capabilities in
 [issue #373](https://github.com/datafusion-contrib/StreamFusion/issues/373).
+
+The per-invocation execution contract for `CalcITCase.testInlineScalarFunction` requires
+`NativeCalcOperator`, matching the default-enabled, correctness-verified scalar UDF path.
+The exact heap/RocksDB runtime scope records its mixed native/host route on both release lines.
+An obsolete `AS` fallback expectation must not mask that native execution.

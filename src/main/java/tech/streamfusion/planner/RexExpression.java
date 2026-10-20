@@ -846,6 +846,8 @@ final class RexExpression {
         new org.apache.calcite.rex.RexVisitorImpl<Boolean>(true) {
           @Override
           public Boolean visitCall(RexCall call) {
+            if (isBuiltinDefinition(call, org.apache.flink.table.functions.BuiltInFunctionDefinitions.TYPE_OF))
+              return false;
             if (containsRowType(call.getType())
                 || call.getOperands().stream().anyMatch(arg -> containsRowType(arg.getType())))
               return true;
@@ -3651,9 +3653,7 @@ final class RexExpression {
         var call = (RexCall) super.visitCall(original);
         if (!isExactDoubleTruncate(call)) return call;
         if (helper == null) {
-          var definition =
-              new org.apache.flink.table.functions.ScalarFunctionDefinition(
-                  "streamfusion_exact_double_truncate", new ExactDoubleTruncateFunction());
+          var definition = new ExactDoubleTruncateFunction();
           helper =
               org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction.of(
                   calc.getCluster(),

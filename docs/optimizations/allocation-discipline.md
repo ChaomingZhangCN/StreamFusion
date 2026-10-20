@@ -353,3 +353,14 @@ All warmups and observations, including the earlier EOF-buffering diagnostic, ar
 in the [raw artifact](../benchmarks/results/over-basic-values-2026-10-13.json). Eight one-million-row/4096-key comparisons also beat both controls. The final string-state ordering/copy/restore implementation was remeasured in all six affected
 profiles: 2.176–3.913× stock, also beating the previous fallback. Intermediate samples remain
 in the artifact.
+
+## Logical connector ROW views
+
+Kafka format annotation, Delta export and Fluss schema conversion keep logical ROW children
+separate from internal representation fields. Rust rebuilds container wrappers around shared
+child arrays; Java loads retained Arrow buffers into logical-schema vectors. This follows
+Comet's borrowed child-vector views and Arrow reference-count ownership. Parent validity,
+list/map offsets, user fields and source lifetimes are checked explicitly. Flat Kafka batches
+without transport metadata keep their identity-plan fast path. The encoder Criterion fixtures
+exercise the production boundary; no end-to-end speedup or zero-copy transport claim follows
+from shared data-buffer addresses.

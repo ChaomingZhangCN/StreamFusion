@@ -76,13 +76,10 @@ class FlinkBufferedWindowCountSqlHarnessTest {
                 return table;
               },
               query("src", shape, seconds));
-      boolean admitted =
-          optIn || !phase.equals("ONE_PHASE") || shape.equals("TUMBLE") || seconds <= 10;
-      runs.assertSuccess(
-          admitted ? NativeFailureParity.Route.NATIVE : NativeFailureParity.Route.FALLBACK);
+      runs.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
       assertFalse(runs.host().rows().isEmpty());
-      if (admitted) assertWindowsConsumed(metrics.nativeOperators());
+      assertWindowsConsumed(metrics.nativeOperators());
     }
   }
 

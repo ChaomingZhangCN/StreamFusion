@@ -9882,14 +9882,6 @@ mod rocksdb_group_multisets {
     fn group_temporal_boolean_extrema_rocks_checkpoint_preserves_values() {
         for (code, low, high) in temporal_boolean_values() {
             let types = vec![low.data_type(); 2];
-            if code == 9 {
-                assert!(!crate::state::rocks_store::rocks_group_supported(
-                    &[1, 2],
-                    &types,
-                    &types
-                ));
-                continue;
-            }
             let make =
                 || GroupAggregator::new(vec![1, 2], vec![code; 2], vec![1; 2], vec![0], true);
             let codec = || GroupStateCodec::new(vec![1, 2], types.clone(), vec![1; 2], vec![-1; 2]);
@@ -9927,14 +9919,6 @@ mod rocksdb_group_multisets {
     fn temporal_boolean_running_extrema_rocks_checkpoint_preserves_types() {
         for (code, low, high) in temporal_boolean_values() {
             let types = vec![low.data_type(); 2];
-            if code == 9 {
-                assert!(!crate::state::rocks_store::rocks_group_supported(
-                    &[10, 11],
-                    &types,
-                    &types
-                ));
-                continue;
-            }
             let make =
                 || GroupAggregator::new(vec![10, 11], vec![code; 2], vec![1; 2], vec![0], true);
             let codec =

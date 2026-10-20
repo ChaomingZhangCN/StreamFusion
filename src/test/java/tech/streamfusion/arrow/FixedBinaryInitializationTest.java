@@ -18,7 +18,7 @@ class FixedBinaryInitializationTest {
   void writesOwnBytesAndNullsAcrossGrowthWhilePriorBuffersRemainRetained(int width) {
     RowType type = RowType.of(new BinaryType(width));
     try (var allocator = new RootAllocator();
-         var root = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(type), allocator)) {
+        var root = VectorSchemaRoot.create(FixedBinaryFixtures.schema(type), allocator)) {
       var writer = ArrowConversion.createRowDataArrowWriter(root, type, 2);
       var vector = (FixedSizeBinaryVector) root.getVector(0);
       vector.getDataBuffer().setByte(0, 0x55);

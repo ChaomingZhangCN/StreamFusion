@@ -5,6 +5,44 @@ Ordinary CI runs Rust tests, release Criterion fixture checks, Java tests on Fli
 The upstream Flink workflow runs separately; both aggregate gates must pass before merging.
 Confirm the actual post-merge workflows as well as the PR checks when verifying a repair.
 
+## Shared debug native libraries
+
+Ordinary CI builds all workspace debug native libraries once in a dedicated Ubuntu 24.04
+job. That job verifies the package dependencies and JNI export boundaries, then uploads only
+the shared libraries as a commit-specific artifact. The four Java, eleven lake-module, and six
+tagged-module test jobs download those libraries into `native/target/debug` and pass
+`-Dnative.build.skip=true` to Maven. Both JDKs and Flink lines exercise the same native build;
+each consumer still compiles its selected Java reactor and runs its existing tests. A failed
+producer blocks the consumers and fails the aggregate CI gate. Consumers have no fallback to
+an older cache or a local native rebuild.
+
+The producer is the only writer of the `debug-jvm` dependency cache. Consumers transfer final
+libraries rather than restoring Cargo intermediates or installing a Rust toolchain. The Rust
+test job separately compiles its test harnesses and checks every tagged native package in
+isolation once, preserving the checks for dependencies accidentally supplied by the workspace.
+The native build retains Cargo's `--timings` report as a separate diagnostic artifact.
+
+Optimized image builds, release Criterion executables, and the separately prepared upstream
+Flink suite keep their own build configurations. The debug artifact is scoped to its current
+workflow run and commit; it is not a release payload or a cache of test outcomes. This replaces
+twenty-one independent debug library builds with one without changing test selection or test concurrency.
+Actual elapsed-time savings must be measured in GitHub Actions after this change runs.
+
+## Consolidated feature validation
+
+Keep related coverage and default-enable changes on one PR while repairing their combined CI.
+A newer PR head cancels obsolete runs, including JVM aggregate release diagnostics; correctness
+checks and diagnostic fixtures still run on the current head. Superseded PRs should be closed
+and their active runs canceled rather than leaving multiple copies queued.
+
+Default-enabled paths need positive native-route assertions. Fixed-size-binary compatibility
+tests construct that legacy physical schema explicitly rather than changing global feature
+flags. Component-timestamp extrema exercise checkpoint/retraction values on RocksDB, including
+cases that previously asserted fallback. Hidden-offset recovery expectations distinguish heap
+row mutation from serialized state copies; the released-Flink SQL controls remain authoritative.
+Nested connector schemas must exclude internal ROW transport fields while retaining user fields,
+nulls, logical ordering and independently owned Arrow buffer references.
+
 ## Maven dependencies
 
 Java CI jobs resolve their selected reactor's dependencies before building or testing:
