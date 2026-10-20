@@ -2757,3 +2757,10 @@ left keys are deduplicated, while all left NULL-key entries survive when the
 right map has no NULL key. An empty right map leaves the left duplicates intact.
 Typed hash membership and Arrow gathering avoid per-entry JVM objects. Variadic,
 sliced, empty and duplicate/NULL-key cases have production-kernel fixtures.
+
+Runtime MAP constructors use released Arrow array construction plus the nullable
+map carrier for total nullable basic keys/values. Keys must be distinct literal
+or input-reference expressions. Runtime equal keys remain separate entries;
+repeated/generated key expressions retain Flink evaluation because its constructor
+deduplicates generated expressions rather than runtime key values. Fallible
+operands also remain generated, including discarded value-expression cases.

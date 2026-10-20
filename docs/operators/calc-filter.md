@@ -2090,7 +2090,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | MAP_ENTRIES | Rust shared entry-row list for verified basic maps; representation-sensitive row consumers remain generated |
 | MAP_UNION | Rust stable typed membership/gather for total matching nullable basic maps, preserving right ordering/duplicates and Flink NULL-key behavior |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
-| Runtime MAP[...] | Flink generated program through the existing batch JVM bridge |
+| Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated |
 | Runtime ROW(...) | Flink generated program through the existing batch JVM bridge |
 | OBJECT_OF | Flink generated program through the existing batch JVM bridge |
 | OBJECT_UPDATE | Flink generated program through the existing batch JVM bridge |
@@ -2711,3 +2711,10 @@ left keys are deduplicated, while all left NULL-key entries survive when the
 right map has no NULL key. An empty right map leaves the left duplicates intact.
 Typed hash membership and Arrow gathering avoid per-entry JVM objects. Variadic,
 sliced, empty and duplicate/NULL-key cases have production-kernel fixtures.
+
+Runtime MAP constructors use released Arrow array construction plus the nullable
+map carrier for total nullable basic keys/values. Keys must be distinct literal
+or input-reference expressions. Runtime equal keys remain separate entries;
+repeated/generated key expressions retain Flink evaluation because its constructor
+deduplicates generated expressions rather than runtime key values. Fallible
+operands also remain generated, including discarded value-expression cases.

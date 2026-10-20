@@ -1567,6 +1567,19 @@ final class RexExpression {
     if (tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null) {
       return emitUdf(call);
     }
+    if (NativeConfig.collectionExpressionsEnabled() && call.getKind()==SqlKind.MAP_VALUE_CONSTRUCTOR) {
+      var args=call.getOperands();
+      java.util.Set<RexNode> keys=new java.util.HashSet<>();
+      if (!nativeBasicMap(call.getType()) || args.isEmpty() || args.size()%2!=0
+          || args.stream().anyMatch(this::requiresRowShortCircuit))
+        return reject("MAP uses Flink evaluation outside total nullable basic pairs");
+      for(int i=0;i<args.size();i+=2) {
+        RexNode key=args.get(i);
+        if (!(key instanceof RexLiteral || key instanceof RexInputRef) || !keys.add(key))
+          return reject("MAP retains Flink's generated-expression key deduplication");
+      }
+      return emitBuiltinCall(call,196);
+    }
     boolean ordinaryArray = call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR
         && call.getType().getComponentType().isNullable()
         && java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,

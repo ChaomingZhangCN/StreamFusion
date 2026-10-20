@@ -364,3 +364,18 @@ Query: `MAP_UNION(MAP_FROM_ARRAYS(arr,arr),MAP_FROM_ARRAYS(arr,arr))`, 2,000,000
 Elapsed time changes by -31.19% versus the prior evaluator and -26.60% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-map-union-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-union-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-union-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests each cover three variadic/order forms and explicit MAP_KEYS/MAP_VALUES consumers; native fixtures retain duplicates, NULL keys and empty-right behavior.
+
+## MAP complete-job evidence
+
+Query: `MAP[idx,idx+1]`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.469222 | 0.466385-0.473432 |
+| baseline streamfusion | 0.699248 | 0.682948-0.711830 |
+| candidate stock | 0.477376 | 0.468256-0.485551 |
+| candidate streamfusion | 0.593470 | 0.582599-0.596819 |
+
+Elapsed time changes by -15.13% versus the prior evaluator and +24.32% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-map-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-allocations-2026-10-20.csv) retain the evidence. Nine released SQL tests cover basic type widths and repeated-key expression fallback, including discarded fallible values.

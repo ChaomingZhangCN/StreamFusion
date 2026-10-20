@@ -61,6 +61,7 @@ mod json_serialize;
 mod json_value;
 mod locate;
 mod map_arrays;
+mod map_constructor;
 pub(crate) mod map_lookup;
 mod map_projection;
 mod map_union;
@@ -243,6 +244,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         193 => map_projection::function(1),
         194 => map_projection::function(2),
         195 => map_union::function(arity),
+        196 => map_constructor::function(arity),
         _ => return None,
     })
 }
