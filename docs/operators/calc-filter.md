@@ -332,7 +332,7 @@ external Java types are `String`, boxed/primitive numeric and boolean values, `B
 `DECIMAL(p,s)`, and `byte[]` for `VARBINARY`/`BYTES`. Overload resolution must be unambiguous.
 Fixed-size `BINARY`, DATE/TIME UDF signatures, collections, and alternate Java conversion classes
 outside these mappings retain their existing fallback. TIMESTAMP/TIMESTAMP_LTZ signatures have
-the opt-in path described below.
+the default-enabled generated path described below.
 
 Non-folded zero-argument scalar UDF calls retain Flink because the generic JVM bridge signature
 does not admit them. Flink can constant-fold deterministic calls before native planning. The
@@ -478,7 +478,7 @@ DST-adjacent values, all four precisions, NULL/empty/fully filtered input, selec
 shared call-site order, lifecycle and grouping consumers. Native Calc input/output counters are
 asserted. Direct C Data tests cover sliced nullable timestamp vectors and output ownership after
 input release. See the [measured limits](#temporal-scalar-conversion)
-and the open [admission work](https://github.com/datafusion-contrib/StreamFusion/issues/389).
+and the remaining [performance work](https://github.com/datafusion-contrib/StreamFusion/issues/389).
 
 #### Temporal scalar conversion
 
