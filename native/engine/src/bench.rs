@@ -2381,9 +2381,10 @@ impl HiddenOffsetRank {
             )
             .expect("OFFSET store")
         });
-        let ranker = RetractableTopNRanker::new(vec![0], sort, 1, 4, false)
-            .with_converters(converters)
-            .with_payload_schema(schema);
+        let ranker =
+            RetractableTopNRanker::new(vec![0], sort, 1, 4, false).with_converters(converters);
+        #[cfg(feature = "rocksdb-state")]
+        let ranker = ranker.with_payload_schema(schema);
         #[cfg(feature = "rocksdb-state")]
         if let Some(store) = store {
             return Self {
