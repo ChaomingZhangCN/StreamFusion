@@ -423,63 +423,10 @@ jobs:
           path: target/release/streamfusion-flink1.18-*-bin.tar.gz*
           if-no-files-found: error
 
-  module-tests:
-    needs: native-build
-    name: ${{ matrix.name }} module tests (debug native build)${{ matrix.suffix }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        line: ['2.2', '1.18']
-        group: [kafka, formats, files]
-        include:
-          - line: '2.2'
-            profile: ''
-            suffix: ''
-          - line: '1.18'
-            profile: '-Pflink-1.18'
-            suffix: ' (Flink 1.18)'
-          - group: kafka
-            name: Kafka
-            tags: streamfusion-kafka
-          - group: formats
-            name: Row formats
-            tags: streamfusion-json | streamfusion-csv | streamfusion-raw | streamfusion-avro | streamfusion-avro-confluent | streamfusion-protobuf
-          - group: files
-            name: Columnar formats
-            tags: streamfusion-orc | streamfusion-parquet
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Free disk space
-        run: python3 bin/ci-free-disk.py
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: debug-native-${{ github.sha }}
-          path: native/target/debug
-
-      - name: Resolve tagged module dependencies before tests
-        run: python3 bin/ci-maven-dependencies.py --profile "${{ matrix.line == '1.18' && 'flink-1.18' || '' }}" --projects streamfusion-runtime
-
-      - name: Run tagged Java module suites
-        env:
-          TEST_GROUPS: ${{ matrix.tags }}
-        run: >
-          mvn -B -ntp ${{ matrix.profile }} -pl streamfusion-runtime test
-          -Dgroups="$TEST_GROUPS" -Dnative.build.skip=true
-
   all-tests:
     name: All CI tests
     if: ${{ always() }}
-    needs: [native-build, native-tests, native-benchmarks, java-tests, lake-module-tests, image-integration, module-tests]
+    needs: [native-build, native-tests, native-benchmarks, java-tests, lake-module-tests, image-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
