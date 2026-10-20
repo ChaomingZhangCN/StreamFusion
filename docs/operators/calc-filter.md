@@ -61,7 +61,8 @@ arguments and results, using Flink's complete generated Calc evaluator through t
 bridge. It defaults to true under the accepted UDF performance exception; explicit false
 retains the preceding transport and whole-query fallback. Computed ROW-valued programs and filters use whole-Calc generation,
 including SQL ROW constructors and comparisons, so physical metadata never becomes a logical SQL
-field. Pure input-reference projections keep the existing native path. Recursive
+field. Input-reference columns carried beside unrelated scalar work keep the existing native path;
+whole-Calc generation is required when an expression produces or consumes a ROW value. Recursive
 ROW/ARRAY values use the existing verified primitive bridge types; string-to-string MAP fields
 are supported. Nested fixed BINARY uses the experimental transport described below. Custom type inference, specialization and internal Java
 conversion classes retain whole-query fallback. Only external `Row` signatures enter the new gate.

@@ -843,14 +843,16 @@ final class RexExpression {
         new org.apache.calcite.rex.RexVisitorImpl<Boolean>(true) {
           @Override
           public Boolean visitCall(RexCall call) {
-            if (containsRowType(call.getType())) return true;
+            if (containsRowType(call.getType())
+                || call.getOperands().stream().anyMatch(arg -> containsRowType(arg.getType())))
+              return true;
             return call.getOperands().stream()
                 .anyMatch(arg -> Boolean.TRUE.equals(arg.accept(this)));
           }
 
           @Override
           public Boolean visitInputRef(RexInputRef ref) {
-            return containsRowType(ref.getType());
+            return false;
           }
 
           @Override
