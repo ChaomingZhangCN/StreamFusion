@@ -2074,7 +2074,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_REVERSE, ARRAY_SLICE | Rust kernels for nullable primitive elements; generated Flink program for STRING/ROW/MAP-bearing or NOT NULL-element arrays and consumers requiring Java value semantics |
 | CARDINALITY on ARRAY/MAP | Rust outer-offset count, returning INT; NULL container produces NULL |
 | ARRAY_CONTAINS, ARRAY_POSITION | Rust scans for matching BOOLEAN, integer and DECIMAL element/needle types with nullable elements; other signatures, representation-sensitive consumers and fallible arguments use the generated Flink program. Non-NULL literal or nonnullable CONTAINS needles retain Flink evaluation; DECIMAL arrays with such needles require whole-Calc fallback |
-| ARRAY_APPEND, ARRAY_PREPEND, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN, ARRAY_MIN, ARRAY_MAX | Flink's released generated program through the existing batch JVM bridge |
+| ARRAY_MIN, ARRAY_MAX | Released DataFusion Rust kernels for nullable integer and DECIMAL elements; other types, NOT NULL elements, representation-sensitive consumers and fallible arguments retain Flink's generated program |
+| ARRAY_APPEND, ARRAY_PREPEND, ARRAY_REMOVE, ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
 | Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 
@@ -2099,6 +2100,18 @@ from the binary array's unchecked getter, so the complete Calc falls back to sto
 compare both successful results and released-version exceptions, including all-filtered inputs.
 The [optimization evidence](../optimizations/native-array-search.md) compares these paths with
 stock Flink and the prior generated evaluator, including the remaining standalone regressions.
+
+ARRAY_MIN and ARRAY_MAX directly reuse DataFusion 54's released typed kernels for TINYINT,
+SMALLINT, INT, BIGINT and DECIMAL arrays with nullable elements. They ignore NULL elements;
+NULL arrays, empty arrays and arrays containing only NULL return a nullable result of the
+declared element type, preserving DECIMAL precision and scale. The released implementation
+dispatches once per batch, scans short lists directly and uses Arrow's integer/decimal reduction
+for lists of at least 32 elements. Both paths preserve exact integer and unscaled DECIMAL ordering.
+Strings, floating values, temporal elements, nested values, NOT NULL-element arrays and fallible
+operands retain their existing Flink evaluation. BOOLEAN extrema remain a Flink validation error.
+The existing collection switch and whole-Calc representation/error-order safeguards still apply.
+Availability still follows the released Flink catalog: Flink 1.18 has ARRAY_MAX but no ARRAY_MIN;
+native registration does not introduce a SQL function missing from the host release.
 
 An ARRAY materialized solely for [UNNEST](unnest-correlate.md) can use released DataFusion's scalar
 array constructor because the container's generic/binary identity does not escape that consumer.
@@ -2162,8 +2175,13 @@ before either engine evaluates the function. The checks compare the resulting ar
 Earlier direct extrema and map-projection experiments were slower than Flink and remain
 recorded in the [extrema investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)
 and [map investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-map-array-projections.md).
-Those direct native prototypes remain unused. The generated route is enabled under the accepted
-performance tradeoff and does not establish standalone acceleration.
+The earlier extrema prototype's broad standalone admission remains rejected: its historical
+Linux short-array regression is not invalidated by newer macOS measurements. Matching nullable
+integer/DECIMAL extrema now use released DataFusion inside the already-admitted experimental
+extension, with [current before/after evidence](../optimizations/native-array-search.md#integer-and-decimal-array-extrema)
+and the remaining standalone limits retained. The map-projection prototype remains unused.
+Generated routes remain enabled under the accepted performance tradeoff and do not establish
+standalone acceleration.
 [Issue #234](https://github.com/datafusion-contrib/StreamFusion/issues/234) also tracks remaining
 collection aggregate and cast work outside this extension.
 

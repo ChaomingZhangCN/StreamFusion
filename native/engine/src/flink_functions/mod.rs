@@ -33,6 +33,8 @@ pub(crate) mod to_date;
 
 mod array_constructor;
 mod array_distinct;
+#[cfg(test)]
+mod array_extrema_tests;
 pub(crate) mod array_item;
 mod array_search;
 mod array_slice;
@@ -209,6 +211,12 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         177 => unnest_temporal::function(unnest_temporal::Operation::ZonedTime),
         178 => array_search::function(true),
         179 => array_search::function(false),
+        180 => datafusion::functions_nested::min_max::array_min_udf()
+            .as_ref()
+            .clone(),
+        181 => datafusion::functions_nested::min_max::array_max_udf()
+            .as_ref()
+            .clone(),
         _ => return None,
     })
 }

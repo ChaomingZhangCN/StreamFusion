@@ -135,6 +135,10 @@ name = "array_search"
 harness = false
 
 [[bench]]
+name = "array_extrema"
+harness = false
+
+[[bench]]
 name = "jvm_truncate"
 harness = false
 

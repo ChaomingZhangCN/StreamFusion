@@ -1956,6 +1956,23 @@ final class RexExpression {
       }
       return emitBuiltinCall(call, "ARRAY_CONTAINS".equals(functionName) ? 178 : 179);
     }
+    if (NativeConfig.collectionExpressionsEnabled()
+        && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {
+      var args = call.getOperands();
+      if (args.size() != 1 || args.get(0).getType().getSqlTypeName() != SqlTypeName.ARRAY
+          || !java.util.Set.of(SqlTypeName.TINYINT, SqlTypeName.SMALLINT,
+                  SqlTypeName.INTEGER, SqlTypeName.BIGINT, SqlTypeName.DECIMAL)
+              .contains(args.get(0).getType().getComponentType().getSqlTypeName())) {
+        return reject(functionName + " uses Flink evaluation outside integer and DECIMAL arrays");
+      }
+      if (!args.get(0).getType().getComponentType().isNullable()) {
+        return reject(functionName + " uses Flink evaluation for NOT NULL array elements");
+      }
+      if (requiresRowShortCircuit(args.get(0))) {
+        return reject(functionName + " uses Flink evaluation for fallible arguments");
+      }
+      return emitBuiltinCall(call, "ARRAY_MIN".equals(functionName) ? 180 : 181);
+    }
     if ("ARRAY_DISTINCT".equals(functionName)) {
       if (call.getOperands().size() != 1
           || call.getOperands().get(0).getType().getSqlTypeName() != SqlTypeName.ARRAY

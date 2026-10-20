@@ -28,6 +28,14 @@ covers their registrations (178/179), including constant-needle adaptation. Whol
 use `DynamicCollectionBenchmark` with both transposes and `collection.rustFunction` to verify
 the function engine instead of inferring Rust execution from NativeCalc alone.
 
+The `array_extrema` suite calls the production ARRAY_MIN/MAX registrations (180/181), which
+delegate to released DataFusion integer/DECIMAL kernels. Its 360 compiled-Calc fixtures cover
+0/16/1,024-row batches, widths 0/8/31/32/33/64, all four integer types and DECIMAL(38,9), with
+and without NULL parents/elements. The 31/32/33 cases cross the released scalar/Arrow reduction
+threshold. Expected results, sliced inputs and fixture construction stay outside timing;
+warm execution includes result allocation and reports allocation requests and buffer sharing.
+Scalar-registry fixtures cover both new registrations, including scalar adaptation.
+
 `scalar_functions` includes `scalar/uuid`, invoking the same volatile production UUID registration
 as native Calc for empty, 16, 1,024 and 16,384-row evaluations. It measures batch random generation,
 formatting and output allocation; fixture and schema setup remain outside timing. Full-job
@@ -361,6 +369,7 @@ Some historical suites use
 | Exact scalar JNI upcalls | `jvm_truncate` | Production Rust Calc/C Data export, Java reflection/generated row evaluation and Arrow result import; bounded DOUBLE TRUNCATE shortcut versus released Flink; nullable sliced input and fallback profiles |
 | Registered Flink scalar functions | `scalar_registry` | Every registered numeric opcode; completeness assertion requires a fixture for new registrations; ASCII/null/Unicode profiles |
 | Basic ARRAY searches | `array_search` | Compiled production CONTAINS/POSITION, 0/16/1024 rows, widths 0/8/64, INTEGER/BIGINT/BOOLEAN/DECIMAL, NULL parents/elements/needles, duplicates, misses and sliced buffers; warm expression execution with allocation and buffer probes |
+| Integer/DECIMAL ARRAY extrema | `array_extrema` | 360 compiled production MIN/MAX fixtures, 0/16/1024 rows, widths 0/8/31/32/33/64, four integer types and DECIMAL(38,9), sliced arrays and NULL parents/elements; released DataFusion scalar/Arrow paths, result allocation and buffer probes |
 | Parameterized scalar kernels | `scalar_registry` | Decimal cast/round/truncate/arithmetic/float conversion, integer parse/format/divide, FROM_UNIXTIME, array item, literal/dynamic map lookup, random, clock, float comparison |
 | JSON decode | `json_decode`, `json_codecs` | Direct production decode, projection, wide messages, historical nested Nexmark corpus |
 | Raw decode | `raw_decode` | All admitted primitive/string/binary types, endianness, null bodies, slices |

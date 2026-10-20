@@ -89,3 +89,11 @@ CONTAINS also retains generated evaluation for non-NULL literals or nonnullable 
 constructs its array element getter from that needle type. For DECIMAL, a stock binary array's
 unchecked read of a NULL cell can throw where the Arrow-backed JVM view returns NULL; that
 combination retains the complete stock Calc rather than normalizing the error away.
+
+ARRAY_MIN and ARRAY_MAX instead reuse released DataFusion 54 directly for nullable integer and
+DECIMAL arrays. Flink's NULL skipping, nullable empty result, exact ordering and declared result
+type agree with those released kernels, including their short-list scan and long-list Arrow
+reduction. No duplicated reduction implementation or private dependency is needed. The planner
+retains generated evaluation for floating/string/temporal/nested elements, NOT NULL elements,
+fallible operands and representation-sensitive consumers; neither Spark floating ordering nor
+DataFusion's broader type support establishes parity for these excluded signatures.

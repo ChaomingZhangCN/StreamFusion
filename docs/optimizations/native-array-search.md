@@ -134,3 +134,83 @@ values, precision 38, scale changes, overflow and vector growth. All 144 Criteri
 fixtures and 18 scalar-registry cases for the two new opcodes pass smoke checks.
 These are the selected collection/decimal regressions, not the full JVM or
 stateful recovery suite.
+
+## Integer and decimal array extrema
+
+ARRAY_MIN and ARRAY_MAX also avoid the generated JVM evaluator for nullable
+TINYINT, SMALLINT, INT, BIGINT and DECIMAL elements. They reuse released DataFusion
+54 directly: one typed dispatch per batch, a flat-values scan for lists shorter
+than 32, and Arrow's exact integer/decimal reduction for longer lists. This follows
+Comet's delegation for matching primitive semantics without copying another kernel
+into StreamFusion. NULL elements are skipped; NULL, empty and all-NULL arrays
+return a nullable result of the declared element type, including DECIMAL precision
+and scale. Floating, string, temporal, nested and NOT NULL-element signatures and
+fallible arguments keep the verified generated route. No configuration is added.
+The [earlier Linux investigation](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/234-array-extrema.md)
+rejected broader standalone admission after a sustained short-array regression.
+The measurements here optimize the subsequently admitted collection extension on
+macOS; they do not invalidate that earlier result or establish platform-wide gains.
+
+The following whole-job comparison uses the same machine, resources, release
+allocator, row boundaries and alternating-trial protocol as the search measurements
+above. The baseline is `180d55e7`, the existing PR implementation before these
+extrema registrations. All six baseline cohorts run before the implementation;
+candidate cohorts assert the Rust function engine and both transposes. Each cohort
+uses a fresh JVM, two warmups per engine and five measured trials per engine.
+No task build or other test overlaps timing; background desktop activity remains
+uncontrolled. These measurements include planning/startup rather than isolating
+sustained reduction throughput.
+
+Arrays are NULL every eighth row and elements every seventh slot. Values use
+`(31 * elementIndex + row) % width - width / 2`, at widths 8 and 64. DECIMAL uses
+DECIMAL(38,18); the wide-value MAX case adds 9007199254740993 before conversion,
+ensuring actual unscaled values exceed signed 64 bits. The entry-writer optimization
+described above is present in both implementations. Medians are seconds:
+
+| Case | Rows | Prior stock | Prior SF | Final stock | Final SF | Versus prior SF | Versus paired stock |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| MIN BIGINT, width 8 | 10M | 1.678578 | 2.145354 | 1.487713 | 1.342250 | -37.43% | -9.78% |
+| MAX BIGINT, width 64 | 2M | 1.043066 | 1.583317 | 1.046647 | 1.053030 | -33.49% | +0.61% |
+| MIN INT, width 64 | 2M | 1.045487 | 1.396983 | 1.034057 | 0.704146 | -49.60% | -31.90% |
+| MAX INT, width 8 | 10M | 1.616078 | 2.019303 | 1.470535 | 1.204189 | -40.37% | -18.11% |
+| MIN DECIMAL, width 8 | 2M | 0.910065 | 1.422525 | 0.988346 | 0.980244 | -31.09% | -0.82% |
+| MAX wide-value DECIMAL, width 8 | 2M | 1.091502 | 2.165275 | 1.362615 | 1.634822 | -24.50% | +19.98% |
+
+The two INT cases and short BIGINT case have nonoverlapping paired stock/native
+ranges. Long BIGINT and small-value DECIMAL ranges overlap: they do not establish
+an advantage over stock Flink. Wide-value DECIMAL still loses to paired stock,
+despite improving the previous evaluator. Its stock control also shifts materially
+between cohorts, so the before/after columns must remain visible. The existing
+experimental extension and its previously accepted standalone limits are unchanged;
+[issue #392](https://github.com/datafusion-contrib/StreamFusion/issues/392) remains
+open. These trials do not isolate the remaining bottleneck. The earlier decimal
+profile identifies entry costs, and truly wide values still use the BigDecimal
+setter, but no new causal profile or universal acceleration claim is made here.
+
+[All 120 measured trials](../benchmarks/array-extrema-trials-2026-10-20.csv),
+[medians and ranges](../benchmarks/array-extrema-summary-2026-10-20.csv) and the
+[method/library checksums](../benchmarks/array-extrema-method-2026-10-20.json)
+retain all six matched comparisons. Reproduce with the command above, using
+`collection.expression=ARRAY_MIN(arr)` or `ARRAY_MAX(arr)` and the corresponding
+`collection.rustFunction`; fixture type, width and row count are recorded per case.
+The wide-value MAX case also sets `collection.decimalOffset=9007199254740993`.
+
+The [360 allocation probes](../benchmarks/array-extrema-allocations-2026-10-20.csv)
+come from the compiled production Calc suite, covering all four integer types and
+DECIMAL(38,9), 0/16/1,024 rows, widths 0/8/31/32/33/64, sliced lists and NULLs.
+Expected results and fixture construction stay outside timed execution; requested
+allocation and shared buffers are not copied-byte measurements. Four Rust checks
+add signed limits, hidden children, separately sliced parent/child buffers, typed
+empty batches, scalar adaptation, exact precision-38 decimals and scales 0/9/18/38.
+SQL checks compare stock/native results and schemas, filter outcomes, all-filtered
+batches and failing operands, and verify Rust/generated assignment explicitly.
+
+The [current validation inventory](../benchmarks/array-extrema-validation-2026-10-20.json)
+records 677 passing Rust core tests, 224 selected Java checks on Flink 2.2/JDK 17,
+and 185 passing checks with 39 released-catalog skips on Flink 1.18/JDK 11. The 26
+extrema checks pass on Flink 2.2; 13 ARRAY_MAX checks pass and 13 ARRAY_MIN checks
+skip on Flink 1.18. Extrema cases check each
+function independently: ARRAY_MIN is absent from Flink 1.18, while ARRAY_MAX still
+receives the complete DECIMAL scale and error-path coverage. All 360 Criterion
+extrema fixtures and 18 new scalar-registry cases pass smoke checks. These are
+selected regressions, not the full JVM or stateful recovery suite.
