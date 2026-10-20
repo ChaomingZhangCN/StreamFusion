@@ -66,28 +66,50 @@ class FlinkExactFloatingMathSqlHarnessTest {
     var env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     var table = StreamTableEnvironment.create(env);
-    var info =
-        switch (type) {
-          case "TINYINT" -> Types.BYTE;
-          case "SMALLINT" -> Types.SHORT;
-          case "INT" -> Types.INT;
-          case "BIGINT" -> Types.LONG;
-          case "FLOAT" -> Types.FLOAT;
-          default -> Types.BIG_DEC;
-        };
+    org.apache.flink.api.common.typeinfo.TypeInformation<?> info;
+    switch (type) {
+      case "TINYINT":
+        info = Types.BYTE;
+        break;
+      case "SMALLINT":
+        info = Types.SHORT;
+        break;
+      case "INT":
+        info = Types.INT;
+        break;
+      case "BIGINT":
+        info = Types.LONG;
+        break;
+      case "FLOAT":
+        info = Types.FLOAT;
+        break;
+      default:
+        info = Types.BIG_DEC;
+    }
     Row[] rows = new Row[4];
     int[] values = {-1, 0, 42};
     for (int i = 0; i < 3; i++) {
       int n = values[i];
-      Object value =
-          switch (type) {
-            case "TINYINT" -> (byte) n;
-            case "SMALLINT" -> (short) n;
-            case "INT" -> n;
-            case "BIGINT" -> (long) n;
-            case "FLOAT" -> (float) n;
-            default -> java.math.BigDecimal.valueOf(n);
-          };
+      Object value;
+      switch (type) {
+        case "TINYINT":
+          value = (byte) n;
+          break;
+        case "SMALLINT":
+          value = (short) n;
+          break;
+        case "INT":
+          value = n;
+          break;
+        case "BIGINT":
+          value = (long) n;
+          break;
+        case "FLOAT":
+          value = (float) n;
+          break;
+        default:
+          value = java.math.BigDecimal.valueOf(n);
+      }
       rows[i] = Row.of(value);
     }
     rows[3] = Row.of((Object) null);

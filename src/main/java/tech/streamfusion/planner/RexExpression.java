@@ -3810,31 +3810,6 @@ final class RexExpression {
     return reference;
   }
 
-  private boolean emitExactDoubleTruncate(RexCall call) {
-    Method eval;
-    try {
-      eval = ExactDoubleTruncateFunction.class.getMethod("eval", Double.class, Integer.class);
-    } catch (ReflectiveOperationException failure) {
-      return reject("exact DOUBLE TRUNCATE unavailable: " + failure.getMessage());
-    }
-    int result = tech.streamfusion.operator.NativeUdf.TYPE_DOUBLE;
-    int index =
-        addUdf(
-            tech.streamfusion.operator.NativeUdf.Descriptor.forFunction(
-                new ExactDoubleTruncateFunction(),
-                eval,
-                new int[] {result, tech.streamfusion.operator.NativeUdf.TYPE_INT},
-                result));
-    add(KIND_UDF, longs.size(), 2);
-    longs.add((long) index);
-    longs.add((long) result);
-    if (!emit(call.getOperands().get(0))) return false;
-    if (call.getOperands().size() == 2) return emit(call.getOperands().get(1));
-    add(KIND_LIT_INT, longs.size(), 0);
-    longs.add(0L);
-    return true;
-  }
-
   /** Emits a host-exact cast as a JVM-upcall node running Flink's own {@code CastExecutor}. */
   private boolean emitHostCast(RexCall call, RelDataType sourceType, RelDataType resultType) {
     if (legacyCastBehaviour == null) {
