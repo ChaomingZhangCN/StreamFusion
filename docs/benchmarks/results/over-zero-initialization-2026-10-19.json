@@ -1,0 +1,100 @@
+{
+  "purpose": "OVER SUM0 correctness and typed planner aliases; not a whole-job performance claim",
+  "base": "9b8737b7006d77f08f765cc9b753e3fce37a852f",
+  "released_flink": [
+    "1.18.1",
+    "2.2.1"
+  ],
+  "jdk": 17,
+  "reproductions": [
+    {
+      "variant": "Original planner",
+      "cases": 4,
+      "result": "Table API AS labels forced fallback",
+      "log": "/tmp/streamfusion-over-zero-before22.log"
+    },
+    {
+      "variant": "Typed AS passthrough with old SUM0-to-SUM rewrite",
+      "cases": 4,
+      "result": "Admitted native jobs emit NULL for NULL-only SUM0; NOT NULL sink failure",
+      "log": "/tmp/streamfusion-over-zero-alias-only22.log"
+    },
+    {
+      "variant": "Keep SUM0 kind but still refold bounded frames",
+      "cases": 18,
+      "passed": 14,
+      "failed": 4,
+      "result": "FLOAT and DOUBLE bounded ROWS/RANGE cancellation differs from Flink",
+      "log": "/tmp/streamfusion-over-zero-bounded-audit22.log"
+    }
+  ],
+  "cancellation": {
+    "frame": "2 preceding rows or 200ms preceding range",
+    "values": [
+      "high",
+      1,
+      "-high",
+      null
+    ],
+    "float": {
+      "high": 16777216,
+      "flink_fourth": -16777216,
+      "refold_fourth": -16777215
+    },
+    "double": {
+      "high": 9007199254740992,
+      "flink_fourth": -9007199254740992,
+      "refold_fourth": -9007199254740991
+    }
+  },
+  "candidate": {
+    "release": true,
+    "allocator": "mimalloc",
+    "sha256": "fb34bc900666e2b6239dd5b72f3d2539cedebf96590a112bad1c2889a0f427a8",
+    "path": "/tmp/streamfusion-over-zero-history-v1/libstreamfusion.so"
+  },
+  "migration": {
+    "canonical": "Map fold fields by aggregate slot; reconstruct missing primitive state from retained rows",
+    "rocksdb": "Version-prefixed new layouts, legacy unmarked decode, mixed frame reads and canonical export",
+    "limit": "Previously discarded rounding history cannot be recovered. Retained-frame bootstrap cannot repair earlier errors."
+  },
+  "validation": {
+    "status": "passed",
+    "flink22": {
+      "selected": 108,
+      "passed": 108,
+      "native_sum0_matrix": 84,
+      "two_restore_sum0_cases": 16,
+      "existing_decimal_recovery_controls": 8,
+      "log": "/tmp/streamfusion-over-zero-validated22-v3.log"
+    },
+    "flink118": {
+      "selected": 100,
+      "passed": 100,
+      "native_distinct_sum0_matrix": 42,
+      "upstream_nullability_rejections_checked_with_both_planners": 42,
+      "two_restore_distinct_sum0_cases": 8,
+      "existing_decimal_recovery_controls": 8,
+      "log": "/tmp/streamfusion-over-zero-validated118-v3.log"
+    },
+    "native": {
+      "passed": 803,
+      "ignored": 2,
+      "failed": 0,
+      "profile": "release+mimalloc",
+      "log": "/tmp/streamfusion-over-zero-all-native-final.log"
+    },
+    "criterion": {
+      "group": "over_primitive_zero_sum",
+      "fixtures": 336,
+      "passed": 336,
+      "mode": "release+mimalloc smoke, not timing estimates",
+      "log": "/tmp/streamfusion-over-zero-criterion/streamfusion-over_basic_values.log"
+    },
+    "docs": {
+      "strict_build": "passed",
+      "log": "/tmp/streamfusion-over-zero-docs-final.log"
+    },
+    "compatibility": "84 legacy NULL/negative-zero restore subcases; new bounded cancellation checkpoints; mixed decimal/string fold remapping; direct RocksDB legacy/new coexistence and canonical export are native regression checks."
+  }
+}

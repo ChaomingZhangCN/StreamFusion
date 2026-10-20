@@ -369,12 +369,8 @@ final class OverAggregateMatcher {
   static int[] kinds(StreamPhysicalOverAggregate over) {
     List<Window.RexWinAggCall> aggCalls = over.logicWindow().groups.get(0).aggCalls;
     int[] kinds = new int[aggCalls.size()];
-    int[] valueTypes = valueTypeCodes(over);
     for (int i = 0; i < aggCalls.size(); i++) {
       int kind = kindCode(aggCalls.get(i).getOperator().getKind());
-      if (aggCalls.get(i).getKind() == SqlKind.SUM0 && valueTypes[i] < 2000) {
-        kind = WindowAggregateMatcher.KIND_SUM;
-      }
       kinds[i] = aggCalls.get(i).distinct ? kind + 100 : kind;
     }
     return kinds;

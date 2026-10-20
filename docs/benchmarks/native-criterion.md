@@ -2575,3 +2575,11 @@ integer-range sums; focused native tests additionally pin cancellation, signed z
 NaN, retraction and snapshot behavior. The separate
 [admission evidence](results/floating-sum-zero-2026-10-19.json) compares the production accumulator
 with Flink's generated Java handler on equal logical input in each runtime's own format.
+
+The `over_basic_values` target also includes `over_primitive_zero_sum`: 336 production OVER
+fixtures for six primitive numeric types, ordinary/DISTINCT SUM0, 64/4096 rows, one/64 keys
+and seven event/processing-time frame shapes. NULL-only partitions, exact-width quarter
+values and repeated 17-row checkpoint continuation are verified outside timing. Timed work
+includes push/flush, frame eviction, accumulator updates and output construction; fixture
+and operator setup are outside timing. Floating cancellation and legacy checkpoint
+compatibility have separate native and released-Flink parity tests.

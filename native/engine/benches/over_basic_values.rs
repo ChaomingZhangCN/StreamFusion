@@ -13,12 +13,14 @@ mod over_counts;
 mod over_range_order;
 mod over_reductions;
 mod over_values;
+mod over_zero_sum;
 
 criterion_group!(
     benches,
     over_counts::bench,
     over_reductions::bench,
     over_range_order::bench,
-    over_values::bench
+    over_values::bench,
+    over_zero_sum::bench
 );
 criterion_main!(benches);

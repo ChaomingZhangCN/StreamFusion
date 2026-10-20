@@ -1,4 +1,5 @@
 use super::*;
+use arrow::array::Float64Array;
 use streamfusion_bridge::timestamp::{timestamp_array, TimestampValue};
 
 fn batch(times: &[i64], valid: &[bool]) -> RecordBatch {
@@ -1349,6 +1350,356 @@ fn decimal_distinct_arithmetic_rebuilds_multiplicities_without_replaying_the_sum
                     0,
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn zero_sum_restores_legacy_primitive_null_and_negative_zero_snapshots() {
+    let input = |code, timestamp, value: Option<f64>| {
+        let value = match code {
+            0 => ScalarValue::Int64(value.map(|v| v as i64)),
+            2 => ScalarValue::Int32(value.map(|v| v as i32)),
+            4 => ScalarValue::Int16(value.map(|v| v as i16)),
+            5 => ScalarValue::Int8(value.map(|v| v as i8)),
+            6 => ScalarValue::Float32(value.map(|v| v as f32)),
+            1 => ScalarValue::Float64(value),
+            _ => unreachable!(),
+        };
+        RecordBatch::try_from_iter(vec![
+            ("k", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+            (
+                "rt",
+                Arc::new(Int64Array::from(vec![timestamp])) as ArrayRef,
+            ),
+            ("v", value.to_array().unwrap()),
+        ])
+        .unwrap()
+    };
+    for code in [0, 2, 4, 5, 6, 1] {
+        for frame in 0..4 {
+            for proctime in [false, true] {
+                if proctime && frame == 2 {
+                    continue;
+                }
+                for first in [None, Some(-0.0)] {
+                    let offset = if frame == 1 { 2 } else { 10000 };
+                    let mut before = OverWindowAggregator::new(
+                        vec![code],
+                        vec![0],
+                        1,
+                        vec![2],
+                        vec![0],
+                        frame,
+                        offset,
+                        proctime,
+                    );
+                    let first = input(code, 100, first);
+                    if proctime {
+                        before.push_proctime(first, 0).unwrap();
+                    } else {
+                        before.push(first, 0).unwrap();
+                        before.flush(100, 0).unwrap();
+                    }
+                    let snapshots = before
+                        .snapshot_partitions(8, &[-1])
+                        .into_values()
+                        .collect::<Vec<_>>();
+                    let mut restored = OverWindowAggregator::restore_partitions(
+                        vec![code],
+                        vec![22],
+                        1,
+                        vec![2],
+                        vec![0],
+                        frame,
+                        offset,
+                        proctime,
+                        &snapshots,
+                        0,
+                        0,
+                    );
+                    let second = input(code, 200, None);
+                    let output = if proctime {
+                        restored.push_proctime(second, 0).unwrap()
+                    } else {
+                        restored.push(second, 0).unwrap();
+                        restored.flush(200, 0).unwrap()
+                    };
+                    assert_eq!(output.num_rows(), 1);
+                    let actual = ScalarValue::try_from_array(output.column(3), 0).unwrap();
+                    assert!(
+                        !actual.is_null(),
+                        "code={code} frame={frame} proctime={proctime}"
+                    );
+                    match actual {
+                        ScalarValue::Float32(Some(value)) => assert_eq!(value.to_bits(), 0),
+                        ScalarValue::Float64(Some(value)) => assert_eq!(value.to_bits(), 0),
+                        ScalarValue::Int8(Some(value)) => assert_eq!(value, 0),
+                        ScalarValue::Int16(Some(value)) => assert_eq!(value, 0),
+                        ScalarValue::Int32(Some(value)) => assert_eq!(value, 0),
+                        ScalarValue::Int64(Some(value)) => assert_eq!(value, 0),
+                        other => panic!("unexpected SUM0 result {other:?}"),
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn floating_zero_input(code: i64, start: i64, values: &[Option<f64>]) -> RecordBatch {
+    let values: ArrayRef = if code == 6 {
+        Arc::new(Float32Array::from(
+            values
+                .iter()
+                .map(|v| v.map(|v| v as f32))
+                .collect::<Vec<_>>(),
+        ))
+    } else {
+        Arc::new(Float64Array::from(values.to_vec()))
+    };
+    RecordBatch::try_from_iter(vec![
+        (
+            "k",
+            Arc::new(Int64Array::from(vec![1; values.len()])) as ArrayRef,
+        ),
+        (
+            "rt",
+            Arc::new(Int64Array::from_iter_values(
+                (0..values.len()).map(|i| 1000 + start + i as i64),
+            )) as ArrayRef,
+        ),
+        ("v", values),
+    ])
+    .unwrap()
+}
+
+fn execute_zero(
+    operator: &mut OverWindowAggregator,
+    batch: RecordBatch,
+    proctime: bool,
+) -> RecordBatch {
+    if proctime {
+        operator.push_proctime(batch, 0).unwrap()
+    } else {
+        let watermark = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .values()
+            .last()
+            .copied()
+            .unwrap();
+        operator.push(batch, 0).unwrap();
+        operator.flush(watermark, 0).unwrap()
+    }
+}
+
+#[test]
+fn bounded_floating_zero_sum_keeps_retraction_history_across_batches_and_checkpoints() {
+    for code in [6, 1] {
+        let high = if code == 6 {
+            16_777_216.0
+        } else {
+            9_007_199_254_740_992.0
+        };
+        for frame in [1, 2] {
+            for proctime in [false, true] {
+                if frame == 2 && proctime {
+                    continue;
+                }
+                for kind in [22, 122] {
+                    let mut operator = OverWindowAggregator::new(
+                        vec![code],
+                        vec![kind],
+                        1,
+                        vec![2],
+                        vec![0],
+                        frame,
+                        2,
+                        proctime,
+                    );
+                    for (row, value) in [Some(high), Some(1.0), Some(-high), None]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let out = execute_zero(
+                            &mut operator,
+                            floating_zero_input(code, row as i64, &[value]),
+                            proctime,
+                        );
+                        if row == 3 {
+                            let actual = ScalarValue::try_from_array(out.column(3), 0).unwrap();
+                            let expected = if code == 6 {
+                                ScalarValue::Float32(Some(-high as f32))
+                            } else {
+                                ScalarValue::Float64(Some(-high))
+                            };
+                            assert_eq!(actual, expected, "code={code} frame={frame} kind={kind}");
+                        }
+                        let snapshots = operator
+                            .snapshot_partitions(8, &[-1])
+                            .into_values()
+                            .collect::<Vec<_>>();
+                        operator = OverWindowAggregator::restore_partitions(
+                            vec![code],
+                            vec![kind],
+                            1,
+                            vec![2],
+                            vec![0],
+                            frame,
+                            2,
+                            proctime,
+                            &snapshots,
+                            0,
+                            0,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "rocksdb-state")]
+#[test]
+fn bounded_zero_sum_rocks_frames_read_legacy_and_versioned_rows() {
+    use crate::state::{RocksOverAggStore, RocksStoreConfig};
+    let directory = tempfile::tempdir().unwrap();
+    let config = |name: &str| RocksStoreConfig {
+        table_dir: directory.path().join(name).to_str().unwrap().into(),
+        max_parallelism: 8,
+        options_json: include_str!("../../benches/fixtures/rocks-options.json").into(),
+        ttl_ms: 0,
+        shared_resources: 0,
+    };
+    let schema = floating_zero_input(6, 0, &[None]).schema();
+    let create = |kind, name: &str| {
+        RocksOverAggStore::create(
+            config(name),
+            &[],
+            &rocks_over_frame_value_types(&[6], &[kind], 1),
+            &[],
+            schema.clone(),
+            0..=7,
+        )
+        .unwrap()
+    };
+    let operator = |kind, store| {
+        OverWindowAggregator::new(vec![6], vec![kind], 1, vec![2], vec![0], 1, 2, false)
+            .with_key_timestamp_precisions(vec![-1])
+            .with_store(store, vec![DataType::Int64])
+    };
+    let mut old = operator(0, create(0, "old"));
+    execute_zero(&mut old, floating_zero_input(6, 0, &[None]), false);
+    let checkpoint = directory.path().join("checkpoint");
+    let manifest = old.checkpoint_store(checkpoint.to_str().unwrap()).unwrap();
+    drop(old);
+    let store = RocksOverAggStore::open_merged(
+        config("new"),
+        &[],
+        &rocks_over_frame_value_types(&[6], &[22], 1),
+        &[],
+        schema,
+        0..=7,
+        &[(checkpoint.to_str().unwrap().into(), manifest.snapshot_id)],
+        true,
+    )
+    .unwrap();
+    let mut current = operator(22, store);
+    let output = execute_zero(&mut current, floating_zero_input(6, 1, &[Some(2.0)]), false);
+    assert_eq!(
+        ScalarValue::try_from_array(output.column(3), 0).unwrap(),
+        ScalarValue::Float32(Some(2.0))
+    );
+    // Untouched legacy rows coexist with newly written rows in both read paths.
+    let frames = current.store.as_ref().unwrap().scan_frames().unwrap();
+    assert_eq!(frames[0].1.len(), 2);
+    let snapshots = current
+        .canonical_partitions(8, &[-1])
+        .unwrap()
+        .into_values()
+        .collect::<Vec<_>>();
+    let mut memory = OverWindowAggregator::restore_partitions(
+        vec![6],
+        vec![22],
+        1,
+        vec![2],
+        vec![0],
+        1,
+        2,
+        false,
+        &snapshots,
+        0,
+        0,
+    );
+    let next = floating_zero_input(6, 2, &[Some(3.0)]);
+    assert_eq!(
+        execute_zero(&mut current, next.clone(), false),
+        execute_zero(&mut memory, next, false)
+    );
+}
+
+#[test]
+fn zero_sum_legacy_frame_migration_preserves_decimal_folds_and_string_views() {
+    for frame in [1, 2] {
+        for proctime in [false, true] {
+            if frame == 2 && proctime {
+                continue;
+            }
+            let input = |start, values: &[Option<f64>]| {
+                let base = floating_zero_input(6, start, values);
+                let mut columns = base.columns().to_vec();
+                columns.push(Arc::new(StringArray::from(vec!["kept"; values.len()])));
+                columns.push(Arc::new(
+                    Decimal128Array::from(vec![Some(3); values.len()])
+                        .with_precision_and_scale(12, 2)
+                        .unwrap(),
+                ));
+                let mut fields = base.schema().fields().to_vec();
+                fields.push(Arc::new(Field::new("s", DataType::Utf8, true)));
+                fields.push(Arc::new(Field::new("d", DataType::Decimal128(12, 2), true)));
+                RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap()
+            };
+            let operator = |first| {
+                OverWindowAggregator::new(
+                    vec![6, 3, 3202],
+                    vec![first, 5, 22],
+                    1,
+                    vec![2, 3, 4],
+                    vec![0],
+                    frame,
+                    2,
+                    proctime,
+                )
+            };
+            let prefix = input(0, &[None, Some(2.0)]);
+            let mut old = operator(0);
+            let mut current = operator(22);
+            execute_zero(&mut old, prefix.clone(), proctime);
+            execute_zero(&mut current, prefix, proctime);
+            let snapshots = old
+                .snapshot_partitions(8, &[-1])
+                .into_values()
+                .collect::<Vec<_>>();
+            let mut migrated = OverWindowAggregator::restore_partitions(
+                vec![6, 3, 3202],
+                vec![22, 5, 22],
+                1,
+                vec![2, 3, 4],
+                vec![0],
+                frame,
+                2,
+                proctime,
+                &snapshots,
+                0,
+                0,
+            );
+            let suffix = input(2, &[None, Some(1.0)]);
+            assert_eq!(
+                execute_zero(&mut migrated, suffix.clone(), proctime),
+                execute_zero(&mut current, suffix, proctime)
+            );
         }
     }
 }

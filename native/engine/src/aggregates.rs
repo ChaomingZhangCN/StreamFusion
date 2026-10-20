@@ -1740,12 +1740,16 @@ impl RunningAgg {
             (OverDecimalValue { value, .. }, ScalarValue::Decimal128(saved, _, _)) => {
                 *value = *saved
             }
-            (ZeroSumF32(sum), ScalarValue::Float32(Some(v))) => *sum = *v,
-            (ZeroSumF64(sum), ScalarValue::Float64(Some(v))) => *sum = *v,
-            (ZeroSumInt { sum, .. }, ScalarValue::Int8(Some(v))) => *sum = *v as i64,
-            (ZeroSumInt { sum, .. }, ScalarValue::Int16(Some(v))) => *sum = *v as i64,
-            (ZeroSumInt { sum, .. }, ScalarValue::Int32(Some(v))) => *sum = *v as i64,
-            (ZeroSumInt { sum, .. }, ScalarValue::Int64(Some(v))) => *sum = *v,
+            (ZeroSumF32(sum), ScalarValue::Float32(v)) => {
+                *sum = v.filter(|value| *value != 0.0).unwrap_or(0.0);
+            }
+            (ZeroSumF64(sum), ScalarValue::Float64(v)) => {
+                *sum = v.filter(|value| *value != 0.0).unwrap_or(0.0);
+            }
+            (ZeroSumInt { sum, .. }, ScalarValue::Int8(v)) => *sum = v.unwrap_or(0) as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int16(v)) => *sum = v.unwrap_or(0) as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int32(v)) => *sum = v.unwrap_or(0) as i64,
+            (ZeroSumInt { sum, .. }, ScalarValue::Int64(v)) => *sum = v.unwrap_or(0),
             (AvgPartialSumDecimal { sum, overflow, .. }, ScalarValue::Decimal128(v, _, _)) => {
                 *sum = v.unwrap_or(0);
                 *overflow = v.is_none();

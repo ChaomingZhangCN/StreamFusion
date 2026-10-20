@@ -2323,3 +2323,8 @@ is claimed. Explicit false overrides, unsupported signatures and semantic safegu
 The default-admission change passes 79 affected checks on each released Flink line (2.2.1 and
 1.18.1), covering shared order, balanced lifecycle, failure parity and exact temporal types.
 Both explicit false overrides retain stock execution.
+
+Type-preserving planner `AS` labels are compile-time names. The native expression encoder
+evaluates their value operand directly when the result type exactly matches it. This also
+keeps Table API window-result aliases inside a native island. Labels that change the declared
+type do not use this passthrough.

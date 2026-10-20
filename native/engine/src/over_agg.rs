@@ -1029,10 +1029,9 @@ impl BufferedRow {
 /// running value cannot be maintained incrementally for MIN/MAX (they would need a retractable
 /// multiset). This keeps a per-key sorted buffer of the rows still reachable by some future
 /// frame and **recomputes** each emitted row's aggregate over its frame slice with a fresh
-/// {@link RunningAgg}. The result is byte-identical to Flink's `*BoundedPrecedingFunction` (both
-/// aggregate over the same frame) and sidesteps MIN/MAX retraction entirely. Decimal arithmetic
-/// retains its raw fold beside the last frame row so retractions preserve overflow history;
-/// other aggregates continue to recompute. See divergences/11 for the RANGE backend-order gap.
+/// {@link RunningAgg}, sidestepping MIN/MAX retraction. Decimal arithmetic
+/// and floating SUM0 retain their raw fold beside the last frame row so retractions preserve
+/// overflow and rounding history; other aggregates continue to recompute. See divergences/11 for the RANGE backend-order gap.
 pub(crate) struct BoundedOverAggregator {
     kinds: Vec<i64>,
     /// One value type per aggregate (aggregates may read different value columns of different types).
@@ -1062,24 +1061,7 @@ impl BoundedOverAggregator {
             .iter()
             .map(|&code| value_data_type(code))
             .collect::<Vec<_>>();
-        let decimal_arithmetic = kinds.iter().zip(&value_types).any(|(&kind, ty)| {
-            matches!(kind % 100, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _))
-        });
-        let arithmetic_slots = kinds
-            .iter()
-            .zip(&value_types)
-            .enumerate()
-            .filter_map(|(slot, (&kind, ty))| {
-                (decimal_arithmetic
-                    && (matches!(kind, 100 | 104 | 122)
-                        && matches!(ty, DataType::Decimal128(_, _))
-                        || kind == 3
-                        || kind == 4
-                        || kind == 22
-                        || (kind == 0 && matches!(ty, DataType::Decimal128(_, _)))))
-                .then_some(slot)
-            })
-            .collect::<Vec<_>>();
+        let arithmetic_slots = Self::arithmetic_slots(&kinds, &value_types, false);
         let mut fold_types: Vec<DataType> = arithmetic_slots
             .iter()
             .flat_map(|&slot| OverAggState::new(kinds[slot], &value_types[slot]).state_types())
@@ -1112,6 +1094,61 @@ impl BoundedOverAggregator {
             track: false,
             bytes: 0,
         }
+    }
+
+    fn arithmetic_slots(kinds: &[i64], types: &[DataType], legacy: bool) -> Vec<usize> {
+        let kind = |kind: i64, ty: &DataType| {
+            if legacy && kind % 100 == 22 && !matches!(ty, DataType::Decimal128(_, _)) {
+                kind - 22
+            } else {
+                kind
+            }
+        };
+        let history = kinds.iter().zip(types).any(|(&k, ty)| {
+            let k = kind(k, ty);
+            (matches!(k % 100, 0 | 4 | 22) && matches!(ty, DataType::Decimal128(_, _)))
+                || (!legacy && k % 100 == 22 && matches!(ty, DataType::Float32 | DataType::Float64))
+        });
+        kinds
+            .iter()
+            .zip(types)
+            .enumerate()
+            .filter_map(|(slot, (&k, ty))| {
+                let k = kind(k, ty);
+                (history
+                    && (matches!(k, 100 | 104 | 122) && matches!(ty, DataType::Decimal128(_, _))
+                        || matches!(k, 3 | 4 | 22)
+                        || (k == 122 && matches!(ty, DataType::Float32 | DataType::Float64))
+                        || (k == 0 && matches!(ty, DataType::Decimal128(_, _)))))
+                .then_some(slot)
+            })
+            .collect()
+    }
+
+    /// Old primitive SUM0 plans used SUM and did not persist a floating-point fold.
+    /// Map those fields by aggregate slot, keeping any trailing string views aligned.
+    fn legacy_fold_layout(&self) -> (Vec<DataType>, Vec<Option<usize>>) {
+        let slots = Self::arithmetic_slots(&self.kinds, &self.value_types, true);
+        let mut legacy_types = Vec::new();
+        let mut offsets = HashMap::default();
+        for slot in slots {
+            offsets.insert(slot, legacy_types.len());
+            legacy_types
+                .extend(OverAggState::new(self.kinds[slot], &self.value_types[slot]).state_types());
+        }
+        let string_offset = legacy_types.len();
+        let mut mapping = Vec::new();
+        for &slot in &self.arithmetic_slots {
+            let width = OverAggState::new(self.kinds[slot], &self.value_types[slot])
+                .state_types()
+                .len();
+            mapping
+                .extend((0..width).map(|column| offsets.get(&slot).map(|offset| offset + column)));
+        }
+        legacy_types.extend(self.string_view_slots.iter().map(|_| DataType::Binary));
+        mapping
+            .extend((0..self.string_view_slots.len()).map(|column| Some(string_offset + column)));
+        (legacy_types, mapping)
     }
 
     fn register_time(&mut self, key: &[u8], time: i64) {
@@ -1366,9 +1403,23 @@ impl BoundedOverAggregator {
                                 self.arithmetic_slots.iter().zip(states.iter_mut())
                             {
                                 let width = state.state_types().len();
-                                state.restore_state(&saved[column..column + width]);
+                                let stored = &saved[column..column + width];
+                                let missing = stored.iter().all(ScalarValue::is_null)
+                                    && !matches!(
+                                        self.value_types[slot],
+                                        DataType::Decimal128(_, _)
+                                    );
+                                if missing {
+                                    for previous in &buffer[..i] {
+                                        if let Some(value) = previous.values[slot] {
+                                            state.fold(value);
+                                        }
+                                    }
+                                } else {
+                                    state.restore_state(stored);
+                                }
                                 column += width;
-                                if state.distinct.is_some() {
+                                if !missing && state.distinct.is_some() {
                                     // Fold state preserves arithmetic history; retained rows rebuild
                                     // multiplicities without applying that arithmetic a second time.
                                     for previous in &buffer[..i] {
@@ -1630,12 +1681,31 @@ impl BoundedOverAggregator {
         let num_agg = aggregator.kinds.len();
         for batch in read_ipc(bytes) {
             let retention = retention_stamps(&batch);
+            let fold_count = batch
+                .schema()
+                .fields()
+                .iter()
+                .filter(|field| {
+                    field
+                        .name()
+                        .strip_prefix("fold")
+                        .is_some_and(|suffix| suffix.parse::<usize>().is_ok())
+                })
+                .count();
+            let mapping = if fold_count == aggregator.fold_types.len() {
+                (0..fold_count).map(Some).collect::<Vec<_>>()
+            } else {
+                let (legacy_types, mapping) = aggregator.legacy_fold_layout();
+                assert_eq!(
+                    fold_count,
+                    legacy_types.len(),
+                    "bounded OVER checkpoint fold layout"
+                );
+                mapping
+            };
             // Trailing rt + one value column per agg (+ the optional retention stamp).
-            let arity = batch.num_columns()
-                - 1
-                - num_agg
-                - aggregator.fold_types.len()
-                - retention.is_some() as usize;
+            let arity =
+                batch.num_columns() - 1 - num_agg - fold_count - retention.is_some() as usize;
             let key_arrays: Vec<&ArrayRef> = (0..arity).map(|j| batch.column(j)).collect();
             aggregator.key_types = key_types(&key_arrays);
             let keys_encoded =
@@ -1663,13 +1733,20 @@ impl BoundedOverAggregator {
                     previous.set_string_views(None);
                 }
                 let fold = (!aggregator.fold_types.is_empty()).then(|| {
-                    (0..aggregator.fold_types.len())
-                        .map(|column| {
-                            ScalarValue::try_from_array(
-                                batch.column(arity + 1 + num_agg + column),
-                                row,
+                    mapping
+                        .iter()
+                        .zip(&aggregator.fold_types)
+                        .map(|(column, ty)| {
+                            column.map_or_else(
+                                || null_scalar(ty),
+                                |column| {
+                                    ScalarValue::try_from_array(
+                                        batch.column(arity + 1 + num_agg + column),
+                                        row,
+                                    )
+                                    .expect("bounded arithmetic state")
+                                },
                             )
-                            .expect("bounded arithmetic state")
                         })
                         .collect()
                 });
@@ -2724,7 +2801,7 @@ impl OverWindowAggregator {
     #[cfg(feature = "rocksdb-state")]
     pub(crate) fn with_store(
         mut self,
-        store: crate::state::RocksOverAggStore,
+        mut store: crate::state::RocksOverAggStore,
         key_types: Vec<DataType>,
     ) -> Self {
         self.watermark = store.watermark();
@@ -2732,6 +2809,17 @@ impl OverWindowAggregator {
         self.key_converter = Some(key_row_converter_from_types(&key_types));
         self.inner.seed_key_codec(&key_types);
         if let OverInner::Bounded(inner) = &mut self.inner {
+            let (fold_types, fold_mapping) = inner.legacy_fold_layout();
+            let count = inner.kinds.len();
+            let mut legacy_types = inner.value_types.clone();
+            legacy_types.extend(fold_types);
+            let mut mapping: Vec<_> = (0..count).map(Some).collect();
+            mapping.extend(
+                fold_mapping
+                    .into_iter()
+                    .map(|column| column.map(|column| column + count)),
+            );
+            store = store.with_frame_compatibility(legacy_types, mapping);
             inner.range_order = None;
         }
         self.store_state_types = self.inner.store_state_types();

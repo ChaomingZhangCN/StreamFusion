@@ -20,8 +20,9 @@ use std::sync::Arc;
 /// shapes' per-key row buffers — key as `[key_group i32 BE][2][key arrow-row][rt i64 BE,
 /// sign-flipped][seq u64 BE]`, valued `[per-aggregate values arrow-row bytes]`: byte order equals
 /// the memory buffer's (rowtime ascending, arrival order for ties), so a key's prefix scan IS its
-/// sorted buffer. Decimal arithmetic adds raw sum/count fields to that codec; the final retained
-/// row carries the current fold, while earlier rows can have NULL placeholders. Stamps — the
+/// sorted buffer. History-sensitive arithmetic adds raw sum/count fields to that codec; the final
+/// retained row carries the current fold, while earlier rows can have NULL placeholders. Extended
+/// frame layouts use a version prefix and accept the preceding unmarked layout on reads. Stamps — the
 /// bounded shapes' per-key cleanup deadlines (they have no separate fold row to
 /// carry one) — key as `[key_group i32 BE][3][key arrow-row]`, valued `[deadline i64 LE]`.
 /// Distinct seen-sets — one table per DISTINCT aggregate of the unbounded fold — key as
@@ -38,6 +39,8 @@ const PENDING_KEY_LEN: usize = 13;
 const STAMP_LEN: usize = 8;
 const FRAME_SUFFIX_LEN: usize = 16;
 const RT_SIGN_FLIP: u64 = 1 << 63;
+// Arrow row encodings start with a field validity marker, never this ASCII prefix.
+const FRAME_FOLD_VERSION: &[u8] = b"SFOV\x01";
 
 /// The late-data watermark and the pending arrival-sequence high-water mark, persisted at
 /// checkpoint under reserved keys whose leading bytes can never be a subtask's key group.
@@ -81,6 +84,7 @@ pub(crate) struct RocksOverAggStore {
     /// `Some` for the bounded shapes: the frame rows' per-aggregate value columns.
     frames_converter: Option<RowConverter>,
     frame_value_types: Vec<DataType>,
+    legacy_frames: Option<(RowConverter, Vec<Option<usize>>)>,
     /// One element codec per DISTINCT aggregate slot, in gate order.
     distinct_converters: Vec<RowConverter>,
     distinct_element_types: Vec<DataType>,
@@ -245,6 +249,7 @@ impl RocksOverAggStore {
                 .then(|| converter(frame_value_types))
                 .transpose()?,
             frame_value_types: frame_value_types.to_vec(),
+            legacy_frames: None,
             distinct_converters: distinct_element_types
                 .iter()
                 .map(|element| converter(std::slice::from_ref(element)))
@@ -257,6 +262,57 @@ impl RocksOverAggStore {
             generation: 0,
             write_batch_size: opened.write_batch_size,
         })
+    }
+
+    pub(crate) fn with_frame_compatibility(
+        mut self,
+        legacy_types: Vec<DataType>,
+        mapping: Vec<Option<usize>>,
+    ) -> Self {
+        if legacy_types != self.frame_value_types {
+            let converter =
+                RowConverter::new(legacy_types.into_iter().map(SortField::new).collect())
+                    .expect("legacy OVER frame codec");
+            self.legacy_frames = Some((converter, mapping));
+        }
+        self
+    }
+
+    fn decode_frames(&self, values: &[&[u8]]) -> Result<Vec<Vec<ScalarValue>>, DataFusionError> {
+        let current = self.frames_converter.as_ref().expect("over frame codec");
+        let Some((legacy, mapping)) = &self.legacy_frames else {
+            return Self::decode_rows(current, values);
+        };
+        let mut out = vec![Vec::new(); values.len()];
+        for old in [false, true] {
+            let selected: Vec<_> = values
+                .iter()
+                .enumerate()
+                .filter_map(
+                    |(index, value)| match value.strip_prefix(FRAME_FOLD_VERSION) {
+                        Some(value) if !old => Some((index, value)),
+                        None if old => Some((index, *value)),
+                        _ => None,
+                    },
+                )
+                .collect();
+            let bytes: Vec<_> = selected.iter().map(|(_, value)| *value).collect();
+            let decoded = Self::decode_rows(if old { legacy } else { current }, &bytes)?;
+            for ((index, _), row) in selected.into_iter().zip(decoded) {
+                out[index] = if old {
+                    mapping
+                        .iter()
+                        .zip(&self.frame_value_types)
+                        .map(|(source, ty)| {
+                            source.map_or_else(|| null_scalar(ty), |source| row[source].clone())
+                        })
+                        .collect()
+                } else {
+                    row
+                };
+            }
+        }
+        Ok(out)
     }
 
     /// The late-data watermark persisted by the checkpoint this store restored from.
@@ -414,10 +470,7 @@ impl RocksOverAggStore {
             }
         }
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_ref()).collect();
-        let decoded = Self::decode_rows(
-            self.frames_converter.as_ref().expect("over frame codec"),
-            &value_refs,
-        )?;
+        let decoded = self.decode_frames(&value_refs)?;
         let mut out: Vec<Vec<StoredFrameRow>> = (0..prefixes.len()).map(|_| Vec::new()).collect();
         for ((owner, (rt, seq)), values) in owners.into_iter().zip(positions).zip(decoded) {
             out[owner].push(StoredFrameRow { rt, seq, values });
@@ -472,8 +525,17 @@ impl RocksOverAggStore {
             .convert_columns(value_columns)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
         let mut writes = FlinkWriteBatch::new(&self.db, self.write_batch_size);
+        let mut encoded = Vec::new();
         for ((prefix, rt, seq), row) in entries.iter().zip(rows.iter()) {
-            writes.put(Self::frame_db_key(prefix, *rt, *seq), row.data())?;
+            let value = if self.legacy_frames.is_some() {
+                encoded.clear();
+                encoded.extend_from_slice(FRAME_FOLD_VERSION);
+                encoded.extend_from_slice(row.data());
+                encoded.as_slice()
+            } else {
+                row.data()
+            };
+            writes.put(Self::frame_db_key(prefix, *rt, *seq), value)?;
         }
         writes.finish()
     }
@@ -513,10 +575,7 @@ impl RocksOverAggStore {
             values.push(value.into());
         }
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_ref()).collect();
-        let decoded = Self::decode_rows(
-            self.frames_converter.as_ref().expect("over frame codec"),
-            &value_refs,
-        )?;
+        let decoded = self.decode_frames(&value_refs)?;
         let mut out: Vec<(Box<[u8]>, Vec<StoredFrameRow>)> = Vec::new();
         for ((key, (rt, seq)), values) in keys.into_iter().zip(positions).zip(decoded) {
             match out.last_mut() {

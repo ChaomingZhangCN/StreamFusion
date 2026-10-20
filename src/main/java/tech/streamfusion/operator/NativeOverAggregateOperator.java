@@ -211,10 +211,11 @@ public class NativeOverAggregateOperator extends AbstractNativeStatefulOperator<
     if ((frameKind == 1 || frameKind == 2) && !directRocksDBState()) {
       boolean incrementalRange = false;
       for (int i = 0; i < aggregateKinds.length; i++) {
+        int kind = aggregateKinds[i] % 100;
         if ((!proctime
                 && frameKind == 2
-                && valueTypes[i] >= 2000
-                && (aggregateKinds[i] == 0 || aggregateKinds[i] == 4 || aggregateKinds[i] == 22))
+                && ((valueTypes[i] >= 2000 && (kind == 0 || kind == 4 || kind == 22))
+                    || ((valueTypes[i] == 1 || valueTypes[i] == 6) && kind == 22)))
             || (valueTypes[i] == 3
                 && (aggregateKinds[i] == 1
                     || aggregateKinds[i] == 2

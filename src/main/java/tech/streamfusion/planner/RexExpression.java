@@ -1179,6 +1179,12 @@ final class RexExpression {
     }
     if (node instanceof RexCall) {
       RexCall call = (RexCall) node;
+      if (call.getKind() == SqlKind.AS
+          && call.getOperands().size() == 2
+          && call.getOperands().get(1) instanceof RexLiteral
+          && call.getType().equals(call.getOperands().get(0).getType())) {
+        return emit(call.getOperands().get(0));
+      }
       int root = kinds.size();
       if (!emitCall(call)) {
         return false;

@@ -233,8 +233,9 @@ Select these profiles with `NonTimeRowNumberBenchmark` under `-Pbench` and
 ## Frame shapes
 
 Running checkpoints retain raw widened sums and non-null counts for AVG and decimal SUM.
-The evaluated average is never restored as a sum. Bounded decimal SUM/SUM0/AVG retract expired
-values before adding arrivals and preserve overflow history, including precision 38. Typed
+The evaluated average is never restored as a sum. Bounded decimal SUM/SUM0/AVG and floating
+SUM0 retract expired values before adding arrivals and retain their arithmetic history. This
+preserves decimal overflow and FLOAT/DOUBLE rounding rather than refolding the retained slice. Typed
 extrema/selections retain the input decimal scale or both timestamp components. Precision 0/3
 values normalize to the released serializer's millisecond representation before aggregation;
 precision 6/9 values retain their fractional nanoseconds.
@@ -302,8 +303,8 @@ DECIMAL also admits DISTINCT SUM/SUM0/AVG; other DISTINCT aggregates retain the 
 
 ### Bounded `ROWS BETWEEN n PRECEDING AND CURRENT ROW`
 
-Retains the preceding row slice plus the current row. Decimal SUM/SUM0/AVG and string
-reductions retract expired membership; other reductions fold the retained slice.
+Retains the preceding row slice plus the current row. Decimal SUM/SUM0/AVG, floating SUM0
+and string reductions retract expired membership; other reductions fold the retained slice.
 
 ### Bounded `RANGE BETWEEN INTERVAL n PRECEDING AND CURRENT ROW`
 
@@ -945,3 +946,40 @@ Reproduce with `SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench` and
 and `-Dsf.extraJvmArgs="-Xmx2g -Duser.timezone=UTC"`. The all-NaN control uses
 `-Drank.float.types=DOUBLE -Drank.float.arrivals=ascending -Drank.float.corpus=all_nan`
 and `-Drank.float.nullEvery=0`; the scalar control uses BIGINT and `finite`.
+
+## Primitive zero-initialized OVER sums
+
+The planner preserves SUM0 as its own aggregate for TINYINT, SMALLINT, INT, BIGINT, FLOAT
+and DOUBLE, including DISTINCT. Its accumulator starts at positive zero and returns zero
+for NULL-only frames. Replacing it with ordinary SUM would emit NULL for a NULL-only prefix
+and lose the declared non-null result. Table API `.sum0().over(...)`, including result aliases,
+uses this path on Flink 2.2. Flink 1.18 rejects ordinary Table API SUM0 OVER when a SQL
+view round trip exposes its inconsistent nullable/NOT NULL result metadata; that stock
+planning assertion is preserved and tested. DISTINCT SUM0 runs on both released lines.
+FLOAT additions and retractions round at FLOAT width; DOUBLE retains DOUBLE
+width. Bounded floating SUM0 stores its running sum beside the final retained frame row, so
+cancellation followed by eviction follows Flink's subtraction history across batches and
+checkpoints. Heap RANGE arithmetic uses the existing keyed-state copy observer to retain
+Flink's timestamp-group retraction order through asynchronous snapshots, including DISTINCT.
+
+Legacy primitive SUM checkpoints restore NULL and negative zero as SUM0's positive zero.
+For old bounded frames without saved arithmetic fields, restoration reconstructs the newly
+required accumulator from retained rows. Arithmetic history already discarded by an old
+writer cannot be recovered; upgrading cannot repair its earlier rounding errors. Existing
+decimal overflow fields and string views keep their own positions during this migration.
+Native RocksDB uses a version prefix only for extended frame layouts and decodes older
+unmarked rows with their original codec; both layouts can coexist until eviction.
+
+The release Criterion `over_primitive_zero_sum` group exercises all six numeric types, ordinary
+and DISTINCT sums, 64/4096 rows, one/64 partitions, four event-time and three processing-time
+frame shapes. Fixtures check non-null results and checkpoint continuation before timing.
+The small accumulator admission measurements remain documented with
+[floating SUM0](group-by.md#floating-sum0-admission); they are not whole-OVER job speed measurements.
+
+[Correctness and compatibility evidence](../benchmarks/results/over-zero-initialization-2026-10-19.json)
+retains the failing intermediate reproductions as well as final validation results.
+
+Final validation passes 108 selected checks on Flink 2.2 and 100 on Flink 1.18. These include
+16/8 new heap/RocksDB two-restore cases, eight existing decimal recovery controls on each
+line, and 42 checks of Flink 1.18's upstream planning rejection. Native release validation
+passes 803 tests with two existing ignores; all 336 new SUM0 Criterion fixtures pass.

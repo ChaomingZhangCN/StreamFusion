@@ -243,3 +243,11 @@ feature stays opt-in: a 2M-event, native-RocksDB generated-row/blackhole
 comparison showed a modest +3.93% best-of-three geometric-mean throughput gain,
 with a +0.80% median query gain and several regressions. See
 [method, limits and all trials](../optimizations/rocksdb-io-uring.md).
+
+Bounded OVER floating SUM0 frame values retain the running accumulator needed for Flink's
+add/retract rounding. Extended layouts carry a version prefix before Arrow row encoding.
+The reader accepts old unmarked frame values using the previous layout and maps new fields
+to typed NULL until the operator reconstructs them from retained rows. The same dual decoder
+serves normal reads and canonical savepoint export. Existing frame keys and unrelated state
+layouts remain unchanged. See [OVER checkpoint semantics](../operators/over.md#primitive-zero-initialized-over-sums)
+for the limit on reconstructing arithmetic history discarded by old writers.
