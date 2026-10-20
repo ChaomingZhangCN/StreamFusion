@@ -372,16 +372,10 @@ final class WindowAggregateMatcher {
       WindowingStrategy windowing,
       scala.collection.Seq<AggregateCall> calls,
       RelDataType inputType) {
-    boolean measuredShape =
-        windowing instanceof TimeAttributeWindowingStrategy
-            && !windowing.isProctime()
-            && (windowing.getWindow() instanceof TumblingWindowSpec
-                || windowing.getWindow() instanceof HoppingWindowSpec
-                || windowing.getWindow() instanceof CumulativeWindowSpec);
     if (node instanceof StreamPhysicalLocalWindowAggregate
         || ShortcutUtils.unwrapTableConfig(node)
             .getOptional(SINGLE_PHASE_STRING_EXTREMA)
-            .orElse(measuredShape)) {
+            .orElse(true)) {
       return null;
     }
     for (int i = 0; i < calls.size(); i++) {
@@ -393,7 +387,7 @@ final class WindowAggregateMatcher {
         if (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR) {
           return "single-phase string MIN/MAX requires "
               + SINGLE_PHASE_STRING_EXTREMA.key()
-              + "=true outside the default event-time TUMBLE/HOP/CUMULATE whitelist";
+              + "=true (explicitly disabled)";
         }
       }
     }

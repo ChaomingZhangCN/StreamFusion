@@ -106,13 +106,13 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 - `nativeArrowAllocatorBytes` — the process-wide Arrow FFI allocator's current footprint.
 - `nativeStateBytes` — tracked state drawing on that budget, sampled per batch.
 
-## Experimental Window Coverage
+## Window coverage
 
-Single-phase event-time TVF TUMBLE/HOP/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
-The optional `streamfusion.window.string-extrema.single-phase.enabled` overrides admission:
-`false` forces stock execution, while `true` also admits otherwise supported
-processing-time, session and legacy string windows. The Rust-side string selection optimization removes
-the former high-cardinality HOP restriction.
+CHAR/VARCHAR MIN/MAX now run natively by default in every otherwise supported window shape,
+including fixed processing-time windows, sessions and legacy group windows. The optional
+`streamfusion.window.string-extrema.single-phase.enabled=false` forces stock execution;
+`true` matches the default. The Rust-side string selection optimization removes the former
+high-cardinality HOP restriction; the separate session kernel also passes the Rust-side gate.
 Two-phase local/global string extrema do not require this option.
 See [Window aggregate](operators/window-aggregate.md#string-minmax).
 
