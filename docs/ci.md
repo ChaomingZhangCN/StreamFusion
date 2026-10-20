@@ -97,6 +97,29 @@ row mutation from serialized state copies; the released-Flink SQL controls remai
 Nested connector schemas must exclude internal ROW transport fields while retaining user fields,
 nulls, logical ordering and independently owned Arrow buffer references.
 
+## Fluss SQL fixture lifetime
+
+Each Fluss SQL test invocation keeps one stock and one native table environment for its
+DDL, reads and inserts. `@AfterEach` attempts to close both catalogs and clears the cache,
+including when the test fails. Parameterized invocations receive fresh environments.
+Job completion, result iterator closure, discovery-job cancellation and native-memory checks
+retain their existing boundaries. This uses the existing Java and image jobs and fork counts.
+
+Previously every SQL helper created and closed a catalog. Phase timings and thread dumps
+identified the Fluss client's two-second Netty shutdown quiet period on each close, including
+catalog and source-enumerator cleanup. In a paired local JDK 17 comparison using the same
+release libraries, the unchanged plain bucket/statistics case fell from 44.149 s to 21.642 s
+(51% less time); ten read/insert catalog closes alone accounted for 20.104 s before reuse.
+This measures test setup and cleanup overhead, not connector throughput. Production Fluss
+connection lifetimes and the Nexmark measurement harness are unchanged.
+
+The complete 29-case suite passes without skips on Flink 2.2 and 1.18, including schema
+evolution, expected stock failures, live partition discovery and native-memory cleanup.
+Local JDK 17 checks using release libraries took 311.374 s and 298.023 s respectively;
+the two compatibility checks ran concurrently in isolated worktrees, so these are validation
+timings rather than a paired full-suite speedup measurement. The existing CI matrix measures
+the effect on both JDKs and the optimized image job.
+
 ## Maven dependencies
 
 The upstream execution-evidence agent is a separate JDK 17 development tool. Its standalone
