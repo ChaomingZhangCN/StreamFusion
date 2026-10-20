@@ -2742,3 +2742,5 @@ MAP_FROM_ARRAYS (191) has scalar-registry fixtures with sliced nullable and
 duplicate-key arrays at three batch sizes. Rust regressions verify aligned-buffer
 sharing, differing offsets, empty arrays, NULL suppression and typed errors; SQL
 fixtures retain both conversion boundaries.
+
+The scalar registry includes MAP_KEYS with sliced nullable map inputs and shared child buffers.

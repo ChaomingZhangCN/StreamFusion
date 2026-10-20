@@ -1524,6 +1524,14 @@ final class RexExpression {
             .contains(type.getComponentType().getSqlTypeName());
   }
 
+  static boolean nativeBasicMap(RelDataType type) {
+    return type.getSqlTypeName() == SqlTypeName.MAP
+        && java.util.stream.Stream.of(type.getKeyType(),type.getValueType()).allMatch(t ->
+            t.isNullable() && java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,
+                SqlTypeName.SMALLINT,SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL)
+                .contains(t.getSqlTypeName()));
+  }
+
   private static boolean verifiedSortInput(RexNode node) {
     if (!(node instanceof RexCall)) return false;
     var call = (RexCall) node;
@@ -2013,6 +2021,13 @@ final class RexExpression {
       return emitBuiltinCall(call,"ARRAY_CONCAT".equals(functionName) ? 185
           : "ARRAY_UNION".equals(functionName) ? 186
           : "ARRAY_EXCEPT".equals(functionName) ? 187 : 188);
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && "MAP_KEYS".equals(functionName)) {
+      var args=call.getOperands();
+      if (args.size()!=1 || !nativeBasicMap(args.get(0).getType())
+          || requiresRowShortCircuit(args.get(0)))
+        return reject(functionName + " uses Flink evaluation outside total nullable basic maps");
+      return emitBuiltinCall(call,192);
     }
     if (NativeConfig.collectionExpressionsEnabled() && "MAP_FROM_ARRAYS".equals(functionName)) {
       var args=call.getOperands();

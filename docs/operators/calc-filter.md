@@ -2085,9 +2085,15 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
 | MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
-| MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_UNION | Same generated program |
+| MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
+| MAP_VALUES | Flink generated program through the existing batch JVM bridge |
+| MAP_ENTRIES | Flink generated program through the existing batch JVM bridge |
+| MAP_UNION | Flink generated program through the existing batch JVM bridge |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
-| Runtime MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
+| Runtime MAP[...] | Flink generated program through the existing batch JVM bridge |
+| Runtime ROW(...) | Flink generated program through the existing batch JVM bridge |
+| OBJECT_OF | Flink generated program through the existing batch JVM bridge |
+| OBJECT_UPDATE | Flink generated program through the existing batch JVM bridge |
 
 The generated route evaluates the complete filter and projection together, preserving failure
 order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
@@ -2683,3 +2689,12 @@ include both perimeter transposes and make no standalone acceleration claim.
 operand under `TYPEOF` alone does not request whole-Calc ROW materialization or widen another
 expression's admission. Composed exact DOUBLE `TRUNCATE` calls register their actual function
 definition with Flink's bridging SQL function, preserving runtime implementation discovery.
+
+### Verified native map keys
+
+Within the collection extension, MAP_KEYS evaluates in Rust for total MAP operands
+whose keys and values are nullable BOOLEAN, integer or DECIMAL. Parent NULLs,
+NULL keys, duplicates and entry order survive as a shared Arrow list view. Other
+signatures retain generated Flink evaluation, including representation-sensitive
+nested/string values and fallible arguments. This does not change default
+collection admission or the standalone conversion limitations tracked by #392.

@@ -42,10 +42,18 @@ final class CollectionValueIdentity {
         .anyMatch(CollectionValueIdentity::consumerNeedsGeneration);
   }
 
+  private static boolean verifiedConsumer(RexCall call) {
+    return call.getOperator().getName().equals("CARDINALITY")
+        || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
+            && call.getOperator().getName().equals("MAP_KEYS")
+            && call.getOperands().size()==1
+            && RexExpression.nativeBasicMap(call.getOperands().get(0).getType());
+  }
+
   private static boolean consumerNeedsGeneration(RexNode node) {
     if (!(node instanceof RexCall)) return false;
     var call = (RexCall) node;
-    return !call.getOperator().getName().equals("CARDINALITY")
+    return !verifiedConsumer(call)
             && call.getOperands().stream().anyMatch(arg -> sensitive(arg.getType()))
         || call.getOperands().stream().anyMatch(CollectionValueIdentity::consumerNeedsGeneration);
   }
@@ -66,7 +74,7 @@ final class CollectionValueIdentity {
       return readsSensitiveInput(((RexFieldAccess) node).getReferenceExpr());
     if (!(node instanceof RexCall)) return false;
     var call = (RexCall) node;
-    return !call.getOperator().getName().equals("CARDINALITY")
+    return !verifiedConsumer(call)
         && call.getOperands().stream().anyMatch(CollectionValueIdentity::readsSensitiveInput);
   }
 

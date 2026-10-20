@@ -146,6 +146,13 @@ Arrow construction or a new ownership protocol. Its marker lives on the child
 field so expression type inference preserves it. Only basic nullable key/value
 types are admitted; representation-sensitive inputs retain generated evaluation.
 
+## Shared map key views
+
+MAP_KEYS reuses Arrow entry-key buffers, offsets and parent validity for ordinary
+maps and verified map-list carriers. It follows the released DataFusion/Comet
+projection pattern while accepting Flink's nullable-key representation. No
+per-entry gathering or JVM container reconstruction is necessary.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -295,3 +302,18 @@ Query: `MAP_FROM_ARRAYS(arr,arr)`, 2,000,000 rows, BIGINT, width 8. Method and r
 Elapsed time changes by -36.88% versus the prior evaluator and -9.58% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-map-from-arrays-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-from-arrays-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-from-arrays-allocations-2026-10-20.csv) retain the evidence. Seven released SQL tests cover NULL/duplicate keys, entry order, length errors and all-filtered batches; native tests verify sharing and sliced offsets.
+
+## MAP_KEYS complete-job evidence
+
+Query: `MAP_KEYS(MAP_FROM_ARRAYS(arr,arr))`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.373882 | 0.370583-0.389018 |
+| baseline streamfusion | 0.677727 | 0.652690-0.703831 |
+| candidate stock | 0.396228 | 0.389792-0.419411 |
+| candidate streamfusion | 0.425222 | 0.422905-0.434925 |
+
+Elapsed time changes by -37.26% versus the prior evaluator and +7.32% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-map-keys-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-keys-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-keys-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover direct and composed Boolean, integer-width and exact DECIMAL maps; NULL keys, entry order and filtered batches are preserved.

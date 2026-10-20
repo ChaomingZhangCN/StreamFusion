@@ -62,6 +62,7 @@ mod json_value;
 mod locate;
 mod map_arrays;
 pub(crate) mod map_lookup;
+mod map_projection;
 pub(crate) mod numeric;
 pub(crate) mod numeric_cast;
 mod scalar;
@@ -237,6 +238,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
             .clone(),
         190 => element::function(),
         191 => map_arrays::function(),
+        192 => map_projection::function(),
         _ => return None,
     })
 }

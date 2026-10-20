@@ -90,6 +90,15 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         ),
         rows,
     );
+    let mut map = MapBuilder::new(None, Int64Builder::new(), Int64Builder::new());
+    for row in 0..rows + 1 {
+        for i in 0..4 {
+            map.keys().append_value(i);
+            map.values().append_option((i % 2 == 0).then_some(i));
+        }
+        map.append(valid(row)).unwrap();
+    }
+    let maps = array(map.finish(), rows);
     let mut cases = vec![
         (
             65,
@@ -219,6 +228,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         ),
         (190, vec![singletons]),
         (191, vec![lists.clone(), lists]),
+        (192, vec![maps]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

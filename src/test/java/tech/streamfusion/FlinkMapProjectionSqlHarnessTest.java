@@ -1,0 +1,42 @@
+package tech.streamfusion;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.apache.flink.table.api.DataTypes.*;
+import java.util.*;
+import org.apache.flink.types.Row;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+class FlinkMapProjectionSqlHarnessTest {
+  @ParameterizedTest
+  @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
+  void keysPreserveNullDuplicatesAndOriginalEntryOrder(String type) throws Exception {
+    verify(type,"MAP_KEYS");
+  }
+  static org.apache.flink.table.api.TableEnvironment maps(String type) {
+    org.apache.flink.table.types.DataType element;
+    Object one,two;
+    switch(type) {
+      case "BOOLEAN": element=BOOLEAN();one=true;two=false;break;
+      case "TINYINT":element=TINYINT();one=(byte)1;two=(byte)-2;break;
+      case "SMALLINT":element=SMALLINT();one=(short)1;two=(short)-2;break;
+      case "INT":element=INT();one=1;two=-2;break;
+      case "BIGINT":element=BIGINT();one=1L;two=-2L;break;
+      default:element=DECIMAL(38,9);one=new java.math.BigDecimal("9007199254740993.000000001");two=new java.math.BigDecimal("-9007199254740993.000000001");
+    }
+    var map=new LinkedHashMap<Object,Object>();map.put(null,two);map.put(two,null);map.put(one,two);
+    List<Row> rows=new ArrayList<>();
+    for(int i=0;i<2053;i++)rows.add(Row.of(i,i%7==0?null:i%5==0?Map.of():map));
+    return BuiltinFunctionParity.environment(ROW(FIELD("id",INT()),FIELD("m",MAP(element,element))),rows);
+  }
+  static void verify(String type,String function) throws Exception {
+    FlinkArrayEditSqlHarnessTest.verify(type,function+"(MAP_FROM_ARRAYS(a,a))",function);
+    var table=maps(type);
+    var scan=tech.streamfusion.planner.NativePlanner.install(table);
+    String sql="SELECT id,"+function+"(m) FROM src";
+    table.explainSql(sql);
+    assertTrue(scan.functionExecutions().stream().anyMatch(x->x.contains(function)&&x.contains("jvm=[]")),scan.functionExecutions().toString());
+    BuiltinFunctionParity.assertParity(()->maps(type),sql);
+    BuiltinFunctionParity.assertParity(()->maps(type),sql+" WHERE id < 0");
+  }
+}
