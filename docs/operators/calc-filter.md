@@ -2730,7 +2730,9 @@ the existing narrow-integer compilation restrictions still apply.
 ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
 released named-struct builder, sharing field arrays. Fields retain their SQL
 names and nullable values; the constructed row itself is present with INSERT
-row kind. Other fields and representation-dependent row consumers remain generated.
+row kind. These fresh basic rows and their scalar field projections bypass the
+whole-Calc ROW metadata callback. Other fields and representation-dependent row
+consumers remain generated; nested ROW arguments still trigger metadata handling.
 
 OBJECT_OF with validated class/field metadata and total basic fields reuses the
 released named-struct builder. Runtime values and field order match Flink's fresh

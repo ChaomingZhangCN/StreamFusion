@@ -918,10 +918,21 @@ final class RexExpression {
 
   private static boolean createsFreshBasicRows(RexCall call) {
     return NativeConfig.collectionExpressionsEnabled()
-        && isBuiltinDefinition(
-            call, org.apache.flink.table.functions.BuiltInFunctionDefinitions.MAP_ENTRIES)
-        && call.getOperands().size() == 1
-        && nativeBasicMap(call.getOperands().get(0).getType());
+        && (nativeBasicRow(call)
+            || isBuiltinDefinition(
+                    call, org.apache.flink.table.functions.BuiltInFunctionDefinitions.MAP_ENTRIES)
+                && call.getOperands().size() == 1
+                && nativeBasicMap(call.getOperands().get(0).getType()));
+  }
+
+  private static boolean nativeBasicRow(RexCall call) {
+    return call.getKind() == SqlKind.ROW
+        && tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
+        && !call.getOperands().isEmpty()
+        && call.getOperands().stream().allMatch(arg ->
+            java.util.Set.of(SqlTypeName.BOOLEAN, SqlTypeName.TINYINT, SqlTypeName.SMALLINT,
+                    SqlTypeName.INTEGER, SqlTypeName.BIGINT, SqlTypeName.DECIMAL)
+                .contains(arg.getType().getSqlTypeName()));
   }
 
   private static boolean containsCollectionStringFunction(RexProgram program) {
@@ -1657,10 +1668,8 @@ final class RexExpression {
     if (NativeConfig.collectionExpressionsEnabled() && call.getKind()==SqlKind.ROW) {
       if (call.getOperands().stream().anyMatch(arg -> !hostSupportsConstructorField(arg.getType())))
         return reject("ROW retains Flink 1.18's narrow-constructor code-generation failure");
-      if (call.getOperands().isEmpty() || call.getOperands().stream().anyMatch(arg ->
-          !java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,
-              SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL).contains(arg.getType().getSqlTypeName())
-              || requiresRowShortCircuit(arg)))
+      if (!nativeBasicRow(call)
+          || call.getOperands().stream().anyMatch(this::requiresRowShortCircuit))
         return reject("ROW uses Flink evaluation outside total basic fields");
       add(KIND_CALL,197,call.getOperands().size()*2);
       for(int i=0;i<call.getOperands().size();i++) {
