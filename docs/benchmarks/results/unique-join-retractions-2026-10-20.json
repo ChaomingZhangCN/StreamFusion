@@ -1,0 +1,157 @@
+{
+  "date": "2026-10-20",
+  "base_commit": "19225a0b",
+  "kind": "Correctness repair within existing admission; no new type admission or stock speedup claim",
+  "released_flink": [
+    "2.2.1",
+    "1.18.1"
+  ],
+  "java": 17,
+  "native_profile": "release+mimalloc",
+  "candidate_library_sha256": "5feb9e05b1e01c2dd827889626ac3ab96a8aee7dcfcc7e8e2047c277d9e45b30",
+  "baseline_library_sha256": "05889f15ede3c9a58e38c255cf91f302286b9f7fdad13aefc89007cc10eccb04",
+  "contract": "JoinKeyContainsUniqueKey uses ValueState.clear for retractions in released JoinRecordStateViews and OuterJoinRecordStateViews. Non-unique sides use full-row equality/counts.",
+  "counterexample": "Seed one side with INSERT(key=1,payload=100), retract same key with UPDATE_BEFORE or DELETE(payload=999), then insert the opposite side. Unique-key stock state is empty; prior native state retained payload100 and emitted spurious later matches. Controlled operator inputs compare all emitted fields and RowKinds.",
+  "fixtures": "Six join kinds x two input sides x unique/nonunique x UPDATE_BEFORE/DELETE. Before:48heapcases/line;24fail,24pass,0errors. After:96cases/lineincludingheap/Rocksallpass.",
+  "fixture_corrections": "Stock null filters require BinaryRowData keys; initial Long/GenericRowData key fixture errors were corrected before final baselines. Released1.18 JoinInputSideSpec is in state,2.2 in utils; test-only version adapters use each released class.",
+  "implementation": "Unique retractions remove the key and account all resident entries. Rocks INNER record path replaces/deletes the whole key prefix on retractions as on inserts. Earlier points in a bundle are cleared. Existing key/checkpoint layout unchanged.",
+  "checks": [
+    {
+      "log": "before22-v4",
+      "classes": [
+        {
+          "class": "tech.streamfusion.operator.FlinkNativeUniqueJoinKeyContractTest",
+          "tests": 48,
+          "failures": 24,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "log": "before118-v2",
+      "classes": [
+        {
+          "class": "tech.streamfusion.operator.FlinkNativeUniqueJoinKeyContractTest",
+          "tests": 48,
+          "failures": 24,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "log": "fixed22",
+      "classes": [
+        {
+          "class": "tech.streamfusion.operator.NativeColumnarUpdatingJoinOperatorTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.operator.FlinkNativeUniqueJoinKeyContractTest",
+          "tests": 96,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkNullSafeSemiAntiJoinSqlHarnessTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkRegularJoinSqlHarnessTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "log": "fixed118",
+      "classes": [
+        {
+          "class": "tech.streamfusion.operator.NativeColumnarUpdatingJoinOperatorTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.operator.FlinkNativeUniqueJoinKeyContractTest",
+          "tests": 96,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkNullSafeSemiAntiJoinSqlHarnessTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkRegularJoinSqlHarnessTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        }
+      ]
+    }
+  ],
+  "native_tests": {
+    "passed": 106,
+    "failed": 0,
+    "ignored": 2,
+    "new": "Heap unique/nonunique state accounting and snapshot roundtrip across six kinds; Rocks record state contrasting different-payload retractions."
+  },
+  "criterion": {
+    "mode": "--test correctness smoke, not measured throughput",
+    "passed_fixtures": [
+      "unique_join_retractions/heap/rows16_keys1_nullfalse_leftfalse",
+      "unique_join_retractions/rocks/rows16_keys1_nullfalse_leftfalse",
+      "unique_join_retractions/heap/rows16_keys1_nullfalse_lefttrue",
+      "unique_join_retractions/rocks/rows16_keys1_nullfalse_lefttrue",
+      "unique_join_retractions/heap/rows16_keys1_nulltrue_leftfalse",
+      "unique_join_retractions/rocks/rows16_keys1_nulltrue_leftfalse",
+      "unique_join_retractions/heap/rows16_keys1_nulltrue_lefttrue",
+      "unique_join_retractions/rocks/rows16_keys1_nulltrue_lefttrue",
+      "unique_join_retractions/heap/rows16_keys16_nullfalse_leftfalse",
+      "unique_join_retractions/rocks/rows16_keys16_nullfalse_leftfalse",
+      "unique_join_retractions/heap/rows16_keys16_nullfalse_lefttrue",
+      "unique_join_retractions/rocks/rows16_keys16_nullfalse_lefttrue",
+      "unique_join_retractions/heap/rows16_keys16_nulltrue_leftfalse",
+      "unique_join_retractions/rocks/rows16_keys16_nulltrue_leftfalse",
+      "unique_join_retractions/heap/rows16_keys16_nulltrue_lefttrue",
+      "unique_join_retractions/rocks/rows16_keys16_nulltrue_lefttrue",
+      "unique_join_retractions/heap/rows1024_keys1_nullfalse_leftfalse",
+      "unique_join_retractions/rocks/rows1024_keys1_nullfalse_leftfalse",
+      "unique_join_retractions/heap/rows1024_keys1_nullfalse_lefttrue",
+      "unique_join_retractions/rocks/rows1024_keys1_nullfalse_lefttrue",
+      "unique_join_retractions/heap/rows1024_keys1_nulltrue_leftfalse",
+      "unique_join_retractions/rocks/rows1024_keys1_nulltrue_leftfalse",
+      "unique_join_retractions/heap/rows1024_keys1_nulltrue_lefttrue",
+      "unique_join_retractions/rocks/rows1024_keys1_nulltrue_lefttrue",
+      "unique_join_retractions/heap/rows1024_keys16_nullfalse_leftfalse",
+      "unique_join_retractions/rocks/rows1024_keys16_nullfalse_leftfalse",
+      "unique_join_retractions/heap/rows1024_keys16_nullfalse_lefttrue",
+      "unique_join_retractions/rocks/rows1024_keys16_nullfalse_lefttrue",
+      "unique_join_retractions/heap/rows1024_keys16_nulltrue_leftfalse",
+      "unique_join_retractions/rocks/rows1024_keys16_nulltrue_leftfalse",
+      "unique_join_retractions/heap/rows1024_keys16_nulltrue_lefttrue",
+      "unique_join_retractions/rocks/rows1024_keys16_nulltrue_lefttrue"
+    ],
+    "boundary": "Production immediate push, prepared Arrow input and seeded operator state. Setup, operator/directory teardown excluded. Includes payload encoding, state removal, Rocks record writes and empty output construction; no fanout. Default bench adapter budgets, independent budgeted correctness tests verify released memory.",
+    "configuration": "16/1024rows,1/16keys,nullablevalues,bothsides,heap/directRocks"
+  },
+  "optional_backend": "release cargo check --no-default-features --bench unique_join_retractions passed",
+  "remaining": "Updating MAP-bearing retained inputs still guarded under issue437. This repair is prerequisite work and does not establish complete MAP equality/retraction or aggregate/type/function parity."
+}

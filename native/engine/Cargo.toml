@@ -218,3 +218,7 @@ harness = false
 [[bench]]
 name = "over_complex_count"
 harness = false
+
+[[bench]]
+name = "unique_join_retractions"
+harness = false

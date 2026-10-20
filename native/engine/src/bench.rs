@@ -660,6 +660,11 @@ pub struct PersistentUpdatingJoin(UpdatingJoiner<crate::updating_join::RocksJoin
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentUpdatingJoin {
+    pub fn with_unique_join_keys(mut self, left: bool, right: bool) -> Self {
+        self.0 = self.0.with_unique_join_keys(left, right);
+        self
+    }
+
     fn operator(
         schema: SchemaRef,
         mini_batch: bool,

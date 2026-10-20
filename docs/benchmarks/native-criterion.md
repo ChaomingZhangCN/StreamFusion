@@ -320,6 +320,7 @@ Some historical suites use
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST with projected/repeated/ordinal outputs, nullable timestamp and one-field ROW expansion, UPDATE_BEFORE filtering with absent/retained/mixed/discarded row kinds at 16/1024/16384 rows and narrow/wide nullable payloads, Arrow IPC encode/decode; cached nested ROW payloads through production IPC encode/decode and changelog filtering, including generic/missing-cache rows, null parents, all root RowKinds, widths 8/264 and 16/1024/16384 rows |
 | Complex OVER COUNT | `over_complex_count` | 308 ARRAY/MAP/ROW/MULTISET parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
+| Unique-key join retractions | `unique_join_retractions` | 32 heap/direct-Rocks fixtures: 16/1024 rows, one/16 keys, nullable payloads, both sides; changed-payload retractions clear state before an independent opposite-side probe |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
@@ -2653,3 +2654,15 @@ fixtures measure transport, not JVM callback or complete-job execution. Allocati
 report calls, requested bytes, shared output buffer bytes and new output buffer bytes separately;
 small sliced-validity allocations prevent a blanket zero-copy claim. See the
 [MAP scalar evidence](results/map-scalar-udfs-2026-10-20.json).
+
+
+### Unique join retraction fixtures
+
+The `unique_join_retractions` suite calls immediate production joins on
+heap and direct RocksDB. Its 32 fixtures cover 16/1024-row batches, one/16 keys, nullable values
+and both input sides. Retraction payloads deliberately differ from the seeded row; a later
+opposite-side probe verifies that no unique-key row survives. Inputs, seeded state and RocksDB
+directory setup are outside timing. The measured push includes payload encoding, state removal,
+record-prefix writes and output construction; operator/directory teardown is outside timing.
+These scalar state fixtures measure neither fanout nor updating MAP admission and make no
+stock-Flink speedup claim.

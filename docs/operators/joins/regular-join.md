@@ -28,6 +28,27 @@ append-only joins such as Nexmark q23; repeated keys remain independent rows acr
 bundle boundaries. Non-unique mini-batch inputs reject non-INSERT sidecars as a violated
 admission contract. Updating non-unique inputs continue to execute immediately.
 
+## Retraction identity
+
+When the planner proves that a side's join key contains a unique key, retained state has Flink's
+ValueState identity: UPDATE_BEFORE or DELETE clears the current row at that join key, without
+comparing the incoming payload. A retraction with a changed non-key value must not leave an old
+row available for a later match. The rule applies to INNER, LEFT/RIGHT/FULL, SEMI and ANTI joins
+on both sides. Non-unique sides retain full-row equality and duplicate occurrence counts.
+
+Heap state releases the complete unique-key entry and its memory reservation. Direct RocksDB
+INNER state deletes that key's record prefix, including earlier points in the current batch;
+whole-bucket outer/SEMI/ANTI state uses the same unique-key clearing rule. The existing key and
+checkpoint encodings are unchanged. This fixes retained state behavior within existing admission;
+updating MAP payloads retain the independent restriction above until their complete contracts
+are qualified in [#437](https://github.com/datafusion-contrib/StreamFusion/issues/437).
+
+The [released-operator evidence](../../benchmarks/results/unique-join-retractions-2026-10-20.json)
+records 24 unique-key failures in each preceding 48-case heap baseline. All 96 heap/Rocks
+comparisons now pass on both released lines. Existing Java/SQL regressions total 141 passes on
+2.2 and 140 with one host-capability skip on 1.18; 106 native join tests pass with two existing
+ignores. The 32 native state fixtures are correctness smokes, not throughput comparisons.
+
 ## Keyless INNER joins
 
 `CROSS JOIN` and INNER joins whose entire condition is a supported non-equi predicate run
