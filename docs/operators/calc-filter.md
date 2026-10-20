@@ -2703,7 +2703,10 @@ MAP_VALUES uses the same verified basic-map admission and shared-buffer view, se
 
 MAP_ENTRIES uses the same verified basic-map admission and reuses entry children
 as a list of nullable key/value rows, preserving order and parent NULLs. Consumers
-that inspect row representation or RowKind retain generated evaluation.
+that inspect row representation or RowKind retain generated evaluation. A direct
+projection creates fresh INSERT-kind entry rows, so it does not require the
+whole-Calc ROW metadata callback. This exception applies only to the verified
+basic-map signature; nested ROW maps and ROW-valued consumers keep that callback.
 
 MAP_UNION folds verified total basic maps left to right, propagating any NULL
 parent. Each nonempty right map emits all its entries first; unmatched non-NULL

@@ -3,11 +3,50 @@ package tech.streamfusion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.apache.flink.table.api.DataTypes.*;
 import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import org.apache.flink.table.annotation.DataTypeHint;
+import org.apache.flink.table.annotation.FunctionHint;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.types.Row;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class FlinkMapProjectionSqlHarnessTest {
+  @Test
+  void entryRowKindConsumersRetainWholeCalcEvaluation() throws Exception {
+    Supplier<TableEnvironment> environment =
+        () -> {
+          var table = maps("BIGINT");
+          table.createTemporarySystemFunction("entry_kinds", new EntryKinds());
+          return table;
+        };
+    String sql = "SELECT id,entry_kinds(MAP_ENTRIES(m)) FROM src";
+    var table = environment.get();
+    var scan = tech.streamfusion.planner.NativePlanner.install(table);
+    table.explainSql(sql);
+    assertTrue(
+        scan.functionExecutions().stream()
+            .anyMatch(execution -> execution.contains("MAP_ENTRIES")
+                && execution.contains("reason=ROW metadata requires Flink's whole-Calc evaluation")),
+        scan.functionExecutions().toString());
+    BuiltinFunctionParity.assertParity(environment, sql);
+  }
+
+  @FunctionHint(
+      input = @DataTypeHint("ARRAY<ROW<`key` BIGINT, `value` BIGINT>>"),
+      output = @DataTypeHint("STRING"))
+  public static class EntryKinds extends ScalarFunction {
+    public String eval(Row[] entries) {
+      if (entries == null) return null;
+      return Arrays.stream(entries)
+          .map(entry -> entry.getKind().name())
+          .collect(Collectors.joining(","));
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
   void keysPreserveNullDuplicatesAndOriginalEntryOrder(String type) throws Exception {

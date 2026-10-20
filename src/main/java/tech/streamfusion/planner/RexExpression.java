@@ -891,8 +891,9 @@ final class RexExpression {
           public Boolean visitCall(RexCall call) {
             if (isBuiltinDefinition(call, org.apache.flink.table.functions.BuiltInFunctionDefinitions.TYPE_OF))
               return false;
-            if (containsRowType(call.getType())
-                || call.getOperands().stream().anyMatch(arg -> containsRowType(arg.getType())))
+            if (!createsFreshBasicRows(call)
+                && (containsRowType(call.getType())
+                    || call.getOperands().stream().anyMatch(arg -> containsRowType(arg.getType()))))
               return true;
             return call.getOperands().stream()
                 .anyMatch(arg -> Boolean.TRUE.equals(arg.accept(this)));
@@ -913,6 +914,14 @@ final class RexExpression {
       return true;
     return program.getProjectList().stream()
         .anyMatch(project -> Boolean.TRUE.equals(program.expandLocalRef(project).accept(visitor)));
+  }
+
+  private static boolean createsFreshBasicRows(RexCall call) {
+    return NativeConfig.collectionExpressionsEnabled()
+        && isBuiltinDefinition(
+            call, org.apache.flink.table.functions.BuiltInFunctionDefinitions.MAP_ENTRIES)
+        && call.getOperands().size() == 1
+        && nativeBasicMap(call.getOperands().get(0).getType());
   }
 
   private static boolean containsCollectionStringFunction(RexProgram program) {
