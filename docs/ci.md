@@ -97,6 +97,47 @@ row mutation from serialized state copies; the released-Flink SQL controls remai
 Nested connector schemas must exclude internal ROW transport fields while retaining user fields,
 nulls, logical ordering and independently owned Arrow buffer references.
 
+## MiniCluster reuse within a test JVM
+
+A JUnit launcher-session listener owns the automatic StreamFusion test MiniCluster.
+Every test class in the same Surefire fork reuses that cluster, including when Surefire
+launches a separate JUnit root for each class. Each test still gets a fresh
+execution-environment binding, which is cleared afterwards; Flink 1.18 also binds and clears
+its batch test context. The launcher closes the cluster and its temporary directories when
+its session finishes, including after test failures. Surefire forks retain their independent clusters;
+JUnit tests remain serial within each fork, and the existing fork counts do not change.
+
+After each test, the extension still checks live JNI handles, Arrow allocator bytes and
+TaskManager pool reservations. At each class boundary it cancels unfinished jobs and waits
+for terminal results before another class uses the cluster. Tests that need a private cluster
+for memory budgets, metrics, checkpoint recovery or remote deployment keep their existing
+private fixtures. Each class restores the shared default memory budget before running, so
+a private budget test cannot change later operator-harness defaults. Existing test selections
+and production execution behavior remain the same.
+
+A lifecycle regression executes a failing class that leaves a host job running, then proves
+that a second class sees the same cluster, the abandoned job is canceled and a new bounded
+job returns the expected rows. It also verifies that closing the launcher session stops
+the cluster.
+The regression uses separate JUnit roots in one launcher session, matching reused Surefire
+forks; root ownership alone would restart the cluster between those classes. The fixture
+continues to use Flink's released MiniCluster resource and test-environment APIs
+on both supported lines.
+
+A local paired check of 66 tests in 19 lightweight operator classes reduced the Surefire
+phase from 5.514 s to 4.344 s with one fork and identical release libraries. A two-fork
+check confirms that ordinary classes start only one cluster per fork, rather than one per
+class; the lifecycle regression deliberately opens one additional independent launcher
+session. This removes repeated fixture startup, but full-workflow savings still need CI
+measurement.
+
+Two-fork compatibility checks pass 304 cases on each Flink line, retaining the existing
+rescaling skips (two on each line) and ten scalar-key capability skips on Flink 1.18.
+These cover typed SQL keys, checkpoint/rescale recovery, native initialization failures,
+custom memory budgets, metrics and separate task-JVM deployment. The launcher-session
+regression also restores the default memory budget after a failing class changes it,
+preserving later operator-harness defaults.
+
 ## Fluss SQL fixture lifetime
 
 Each Fluss SQL test invocation keeps one stock and one native table environment for its
