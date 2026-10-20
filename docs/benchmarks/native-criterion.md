@@ -182,8 +182,9 @@ one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timesta
 retain NULL-only groups and are checked against an independent per-key validity oracle.
 Batch construction stays outside the timed production window update/firing boundary.
 
-The standalone `window_complex_counts` target adds 36 ordinary COUNT fixtures for ARRAY,
-MAP and ROW parents at 128/4096 rows and one/64/1024 keys. Parent NULLs, empty containers,
+The standalone `window_complex_counts` target has 84 ordinary COUNT fixtures for ARRAY,
+MAP, ROW and MULTISET parents, VARBINARY and both interval carriers at 128/4096 rows and
+one/64/1024 keys (36 binary/interval fixtures added). Parent NULLs, empty containers,
 NULL children and all-NULL groups are checked against an independent per-key validity oracle.
 Whole-batch and 17-row chunked input must agree, including local partial drains and global
 merges. Fixture construction stays outside the measured production update/firing boundary;

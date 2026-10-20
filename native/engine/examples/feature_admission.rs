@@ -8,29 +8,37 @@ use std::{fs::File, hint::black_box, sync::Arc, time::Instant};
 use streamfusion::bench::Tumbling;
 
 fn operation(shape: &str) -> Tumbling {
+    let count = shape.starts_with("count-");
+    let shape = shape.strip_prefix("count-").unwrap_or(shape);
     Tumbling::with_window_budget(
         10000,
         if shape == "tumble" { 10000 } else { 2000 },
         shape == "cumulate",
-        3,
-        vec![1, 2, 3],
+        if count { 0 } else { 3 },
+        if count { vec![3, 3, 3] } else { vec![1, 2, 3] },
         1024 * 1024 * 1024,
     )
 }
 
-fn canonical_input(batch: RecordBatch) -> RecordBatch {
-    let ts = streamfusion_bridge::timestamp::TimestampColumn::try_new(batch.column(2).as_ref())
-        .expect("timestamp input");
+fn canonical_input(batch: RecordBatch, count: bool) -> RecordBatch {
+    let ts = streamfusion_bridge::timestamp::TimestampColumn::try_new(
+        batch.column(if count { 4 } else { 2 }).as_ref(),
+    )
+    .expect("timestamp input");
     let millis: ArrayRef = Arc::new(Int64Array::from_iter_values(
         (0..batch.num_rows()).map(|i| ts.value(i).unwrap().millis()),
     ));
     RecordBatch::try_from_iter(vec![
         ("ts", millis),
         ("value0", batch.column(1).clone()),
-        ("value1", batch.column(1).clone()),
+        ("value1", batch.column(if count { 2 } else { 1 }).clone()),
         (
             "value2",
-            Arc::new(Int64Array::from_value(1, batch.num_rows())) as ArrayRef,
+            if count {
+                batch.column(3).clone()
+            } else {
+                Arc::new(Int64Array::from_value(1, batch.num_rows())) as ArrayRef
+            },
         ),
         ("key0", batch.column(0).clone()),
     ])
@@ -38,6 +46,47 @@ fn canonical_input(batch: RecordBatch) -> RecordBatch {
 }
 
 fn consume(batch: &RecordBatch) -> (usize, i64) {
+    if batch.column_by_name("result0").unwrap().data_type() == &DataType::Int64 {
+        let columns: Vec<_> = [
+            "key0",
+            "result0",
+            "result1",
+            "result2",
+            "window_start",
+            "window_end",
+        ]
+        .into_iter()
+        .map(|name| {
+            batch
+                .column_by_name(name)
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+        })
+        .collect();
+        let mut hash = 0_i64;
+        for row in 0..batch.num_rows() {
+            let row_hash = columns
+                .iter()
+                .enumerate()
+                .fold(0_i64, |h, (index, column)| {
+                    let value = if column.is_null(row) {
+                        0
+                    } else {
+                        column.value(row)
+                    };
+                    h.wrapping_mul(31).wrapping_add(if index >= 4 {
+                        value.wrapping_mul(31)
+                    } else {
+                        value
+                    })
+                });
+            hash = hash.wrapping_add(row_hash);
+        }
+        return black_box((batch.num_rows(), hash));
+    }
+
     let key = batch
         .column_by_name("key0")
         .unwrap()
@@ -199,10 +248,19 @@ fn drop_trials(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|drop [warmups=5] [runs=7] [output.arrow]");
+    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|drop|count-tumble|count-hop|count-cumulate [warmups=5] [runs=7] [output.arrow]");
     let path = &args[1];
     let shape = &args[2];
-    assert!(["tumble", "hop", "cumulate", "drop"].contains(&shape.as_str()));
+    assert!([
+        "tumble",
+        "hop",
+        "cumulate",
+        "drop",
+        "count-tumble",
+        "count-hop",
+        "count-cumulate"
+    ]
+    .contains(&shape.as_str()));
     let warmups: usize = args.get(3).map(|s| s.parse().unwrap()).unwrap_or(5);
     let runs: usize = args.get(4).map(|s| s.parse().unwrap()).unwrap_or(7);
     let lengths: Vec<usize> =
@@ -212,7 +270,7 @@ fn main() {
     let input = if shape == "drop" {
         raw
     } else {
-        canonical_input(raw)
+        canonical_input(raw, shape.starts_with("count-"))
     };
     assert!(reader.next().is_none());
     let mut offset = 0;

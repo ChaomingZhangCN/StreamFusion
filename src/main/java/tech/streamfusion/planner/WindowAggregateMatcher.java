@@ -11,6 +11,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -356,6 +357,9 @@ final class WindowAggregateMatcher {
     return supportedValueType(type)
         || (kind == KIND_COUNT
             && (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR
+                || type == SqlTypeName.VARBINARY
+                || type.getFamily() == SqlTypeFamily.INTERVAL_DAY_TIME
+                || type.getFamily() == SqlTypeFamily.INTERVAL_YEAR_MONTH
                 || type == SqlTypeName.DATE || type == SqlTypeName.TIME
                 || type == SqlTypeName.BOOLEAN || GroupAggregateMatcher.isTimestampType(type)
                 || type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW

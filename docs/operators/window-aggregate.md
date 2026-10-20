@@ -184,7 +184,7 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 ## COUNT over values
 
 Ordinary `COUNT(value)` accepts character, DATE, TIME, BOOLEAN, TIMESTAMP and TIMESTAMP_LTZ
-values alongside the existing numeric types, and ordinary COUNT also accepts ARRAY, MAP, ROW and
+values alongside the existing numeric types, and ordinary COUNT also accepts VARBINARY, both interval families, ARRAY, MAP, ROW and
 MULTISET parents. Empty containers and non-NULL parents with NULL children count once. It reads Arrow validity without decoding the
 payload. All-NULL groups report zero. Filtered counts retain group liveness even without a
 companion `COUNT(*)`; groups whose rows have all retracted produce no window result.
@@ -757,7 +757,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - A value type/aggregate mismatch.
   DATE/TIME/BOOLEAN and TIMESTAMP/TIMESTAMP_LTZ values are admitted for insert-only MIN/MAX
   and COUNT(DISTINCT).
-  Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
+  Ordinary COUNT(value) also admits character, VARBINARY, both interval families, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
   it counts validity without interpreting the payload.
 - Single-phase string MIN/MAX outside event-time TVF TUMBLE/HOP/CUMULATE unless
   `streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces
@@ -1597,3 +1597,27 @@ representative complete jobs, not universal or sustained-throughput claims. The
 trial, prior stock control, source/library hash and all 308 native allocation/buffer reports.
 Reproduce with `WindowComplexCountBenchmark -Dwindow.cases=multiset`
 and the row/key/width/phase/frame properties shown above.
+
+## Binary and interval COUNT
+
+Ordinary COUNT accepts VARBINARY and both interval families in otherwise supported window shapes.
+It reads only the top-level validity bitmap; empty binary values and zero/negative intervals are
+non-NULL values. No new operator, native accumulator or performance flag is introduced. DISTINCT,
+fixed BINARY and aggregates that interpret these payloads retain their separate admission gates.
+
+Twelve SQL comparisons cover TUMBLE/HOP/CUMULATE, one/two phases and FILTER. The expanded
+processing-time harness has 42 cases across memory/native RocksDB checkpoint continuation,
+including 18 binary/interval cases. All 54 pass on each released Flink line. The release Criterion
+suite has 84 fixtures (36 added), including NULL-only groups, empty values, chunking and local/global
+partial merges checked against an independent validity oracle.
+
+The [Rust-side admission evidence](../benchmarks/results/window-count-binary-interval-2026-10-19.json)
+compares Java on prebuilt BinaryRowData against Rust on prebuilt Arrow, with five warmups and nine
+trials. COUNT of binary and both interval columns together measures 2.08 ms Rust versus
+32.15–36.43 ms stock for TUMBLE (131,072 rows, 64 keys, width 64), and 33.16 ms versus
+146.48–160.07 ms for HOP (262,144 rows, 4,096 keys, width 256). Full output values and RowKinds
+match. Prior admission was stock fallback. These are final-watermark operation measurements;
+checkpoint I/O, periodic-watermark processing and full-job boundaries are not timed here.
+
+The matching high-cardinality Flink 1.18 HOP cohort measures 30.91 ms Rust versus 152.73 ms
+stock, with complete output/RowKind parity. Every warmup and stock cohort is retained in the artifact.
