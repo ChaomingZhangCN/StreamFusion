@@ -45,9 +45,9 @@ final class CollectionValueIdentity {
   private static boolean verifiedConsumer(RexCall call) {
     return call.getOperator().getName().equals("CARDINALITY")
         || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
-            && java.util.Set.of("MAP_KEYS","MAP_VALUES","MAP_ENTRIES").contains(call.getOperator().getName())
-            && call.getOperands().size()==1
-            && RexExpression.nativeBasicMap(call.getOperands().get(0).getType());
+            && java.util.Set.of("MAP_KEYS","MAP_VALUES","MAP_ENTRIES","MAP_UNION").contains(call.getOperator().getName())
+            && !call.getOperands().isEmpty()
+            && call.getOperands().stream().allMatch(arg -> RexExpression.nativeBasicMap(arg.getType()));
   }
 
   private static boolean consumerNeedsGeneration(RexNode node) {

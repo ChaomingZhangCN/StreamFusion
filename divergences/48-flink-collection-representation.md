@@ -105,3 +105,9 @@ reduction. No duplicated reduction implementation or private dependency is neede
 retains generated evaluation for floating/string/temporal/nested elements, NOT NULL elements,
 fallible operands and representation-sensitive consumers; neither Spark floating ordering nor
 DataFusion's broader type support establishes parity for these excluded signatures.
+
+MAP projections reuse DataFusion/Comet's shared Arrow view pattern, with the
+verified map-list carrier retained for NULL keys. MAP_UNION cannot use ordinary
+hash-map overwrite semantics: Flink preserves right duplicates, special-cases
+empty right maps and treats left NULL keys differently from other duplicates.
+A typed stable gather preserves those released behaviors.

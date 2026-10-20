@@ -349,3 +349,18 @@ Query: `MAP_ENTRIES(MAP_FROM_ARRAYS(arr,arr))`, 2,000,000 rows, BIGINT, width 8.
 Elapsed time changes by -65.09% versus the prior evaluator and -3.35% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-map-entries-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-entries-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-entries-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover direct and composed basic maps, nullable fields and entry order.
+
+## MAP_UNION complete-job evidence
+
+Query: `MAP_UNION(MAP_FROM_ARRAYS(arr,arr),MAP_FROM_ARRAYS(arr,arr))`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 1.114927 | 1.089909-1.146467 |
+| baseline streamfusion | 1.189789 | 1.184148-1.200119 |
+| candidate stock | 1.115454 | 1.107556-1.178076 |
+| candidate streamfusion | 0.818729 | 0.814623-0.826174 |
+
+Elapsed time changes by -31.19% versus the prior evaluator and -26.60% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-map-union-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-union-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-union-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests each cover three variadic/order forms and explicit MAP_KEYS/MAP_VALUES consumers; native fixtures retain duplicates, NULL keys and empty-right behavior.

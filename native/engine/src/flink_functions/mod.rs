@@ -63,6 +63,7 @@ mod locate;
 mod map_arrays;
 pub(crate) mod map_lookup;
 mod map_projection;
+mod map_union;
 pub(crate) mod numeric;
 pub(crate) mod numeric_cast;
 mod scalar;
@@ -241,6 +242,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         192 => map_projection::function(0),
         193 => map_projection::function(1),
         194 => map_projection::function(2),
+        195 => map_union::function(arity),
         _ => return None,
     })
 }

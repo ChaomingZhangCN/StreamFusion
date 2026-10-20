@@ -2750,3 +2750,10 @@ MAP_VALUES uses the same verified basic-map admission and shared-buffer view, se
 MAP_ENTRIES uses the same verified basic-map admission and reuses entry children
 as a list of nullable key/value rows, preserving order and parent NULLs. Consumers
 that inspect row representation or RowKind retain generated evaluation.
+
+MAP_UNION folds verified total basic maps left to right, propagating any NULL
+parent. Each nonempty right map emits all its entries first; unmatched non-NULL
+left keys are deduplicated, while all left NULL-key entries survive when the
+right map has no NULL key. An empty right map leaves the left duplicates intact.
+Typed hash membership and Arrow gathering avoid per-entry JVM objects. Variadic,
+sliced, empty and duplicate/NULL-key cases have production-kernel fixtures.

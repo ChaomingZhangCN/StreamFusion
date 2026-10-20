@@ -2029,6 +2029,14 @@ final class RexExpression {
         return reject(functionName + " uses Flink evaluation outside total nullable basic maps");
       return emitBuiltinCall(call,"MAP_KEYS".equals(functionName) ? 192 : "MAP_VALUES".equals(functionName) ? 193 : 194);
     }
+    if (NativeConfig.collectionExpressionsEnabled() && "MAP_UNION".equals(functionName)) {
+      var args=call.getOperands();
+      if (args.isEmpty() || args.stream().anyMatch(arg -> !nativeBasicMap(arg.getType())
+          || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(args.get(0).getType(),arg.getType())
+          || requiresRowShortCircuit(arg)))
+        return reject("MAP_UNION uses Flink evaluation outside matching total nullable basic maps");
+      return emitBuiltinCall(call,195);
+    }
     if (NativeConfig.collectionExpressionsEnabled() && "MAP_FROM_ARRAYS".equals(functionName)) {
       var args=call.getOperands();
       if (args.size()!=2 || args.stream().anyMatch(arg->!nativeBasicArray(arg.getType())

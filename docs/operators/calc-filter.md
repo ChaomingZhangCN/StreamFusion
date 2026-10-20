@@ -2088,7 +2088,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
 | MAP_VALUES | Rust shared-value view under the same verified basic-map admission |
 | MAP_ENTRIES | Rust shared entry-row list for verified basic maps; representation-sensitive row consumers remain generated |
-| MAP_UNION | Flink generated program through the existing batch JVM bridge |
+| MAP_UNION | Rust stable typed membership/gather for total matching nullable basic maps, preserving right ordering/duplicates and Flink NULL-key behavior |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
 | Runtime MAP[...] | Flink generated program through the existing batch JVM bridge |
 | Runtime ROW(...) | Flink generated program through the existing batch JVM bridge |
@@ -2704,3 +2704,10 @@ MAP_VALUES uses the same verified basic-map admission and shared-buffer view, se
 MAP_ENTRIES uses the same verified basic-map admission and reuses entry children
 as a list of nullable key/value rows, preserving order and parent NULLs. Consumers
 that inspect row representation or RowKind retain generated evaluation.
+
+MAP_UNION folds verified total basic maps left to right, propagating any NULL
+parent. Each nonempty right map emits all its entries first; unmatched non-NULL
+left keys are deduplicated, while all left NULL-key entries survive when the
+right map has no NULL key. An empty right map leaves the left duplicates intact.
+Typed hash membership and Arrow gathering avoid per-entry JVM objects. Variadic,
+sliced, empty and duplicate/NULL-key cases have production-kernel fixtures.
