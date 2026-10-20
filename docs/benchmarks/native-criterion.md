@@ -2794,3 +2794,5 @@ generated. DataFusion's explicit NULL replacement skips elements, so it is not a
 direct substitute for this Flink kernel.
 
 The scalar registry also exercises ELEMENT's Flink 1.18 exception variant (opcode 201); its successful extraction kernel is shared with the 2.2 variant.
+
+The scalar registry's `op=195/unary` profiles cover ordinary sliced nullable maps normalized to the MAP_UNION return carrier.

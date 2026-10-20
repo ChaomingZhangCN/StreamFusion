@@ -2778,3 +2778,7 @@ Parquet MAP encoding; a native sink must not consume it as an ordinary Arrow MAP
 Native ROW-bearing collection results retain the existing row-sink requirement as
 well. Arrow field sharing inside Calc does not widen connector admission for Java
 row representation, RowKind, or nested copy semantics.
+
+Unary MAP_UNION accepts an ordinary map or the nullable-key map-list carrier and
+returns the verified carrier by sharing entry children, offsets and validity.
+This preserves the declared native type as well as Flink's unchanged contents.

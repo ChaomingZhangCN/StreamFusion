@@ -364,7 +364,11 @@ fn parameterized(
     add("from_unixtime", DataType::Int64, vec![ints.clone()]);
     add("array_item", list.data_type(), vec![list, long(2)]);
     add("map_lookup_literal", map.data_type(), vec![map.clone()]);
-    add("map_lookup_dynamic", map.data_type(), vec![map, long(1)]);
+    add(
+        "map_lookup_dynamic",
+        map.data_type(),
+        vec![map.clone(), long(1)],
+    );
     add(
         "float_comparison",
         DataType::Float64,
@@ -387,6 +391,11 @@ fn parameterized(
     ] {
         add(name, DataType::Int64, vec![]);
     }
+    cases.push((
+        "op=195/unary".into(),
+        flink_scalar_function(195, 1),
+        vec![map],
+    ));
     cases
 }
 

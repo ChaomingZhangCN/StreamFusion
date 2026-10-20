@@ -453,3 +453,24 @@ ELEMENT. Those two result types stay on stock fallback in 1.18; BOOLEAN, INT, BI
 DECIMAL use the native variant. Flink 2.2 admits the verified narrow types.
 
 [Nine release allocation fixtures](../benchmarks/collection-element-legacy-allocations-2026-10-20.csv) also cover the 1.18 ELEMENT variant.
+
+## Unary map union
+
+A one-argument MAP_UNION preserves all entries. Its Arrow map input must still be
+normalized to the return carrier declared by the kernel; reusing the original
+MapArray object would return a different type from a declared List result. The
+normalization shares both entry children, offsets and validity and copies no
+entry values. Six released SQL checks cover ordinary nullable maps across basic
+types, and sliced duplicate-entry native fixtures assert schema and buffer sharing.
+The registry includes [six nullable/sliced unary allocation profiles](../benchmarks/collection-map-union-unary-allocations-2026-10-20.csv).
+Each requests 17 allocations totaling 1,295 bytes for invocation metadata while
+sharing all output buffers; these requests do not measure copied entry bytes.
+Existing whole-job MAP_UNION measurements describe the two-argument query, not
+this unary form.
+
+The [final validation inventory](../benchmarks/collection-validation-2026-10-20.json)
+records the expanded suite and focused rechecks: 429 successful JDK 17/Flink 2.2
+checks, 330 successful JDK 11/Flink 1.18 checks with 99 released-capability skips,
+690 release Rust core tests, and 630 array-edit, 480 sort and 240 collection-registry
+Criterion smoke fixtures. The full JVM, external connector integration and
+stateful recovery suites were not run locally.

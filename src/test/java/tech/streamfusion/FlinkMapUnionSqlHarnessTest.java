@@ -7,6 +7,17 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FlinkMapUnionSqlHarnessTest {
   @ParameterizedTest
   @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
+  void unaryOrdinaryMapInputsKeepTypeNullKeysAndEntryOrder(String type)throws Exception {
+    tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction("MAP_UNION");
+    var table=FlinkMapProjectionSqlHarnessTest.maps(type);
+    var scan=tech.streamfusion.planner.NativePlanner.install(table);
+    String sql="SELECT id,MAP_UNION(m) FROM src";table.explainSql(sql);
+    assertTrue(scan.functionExecutions().stream().anyMatch(x->x.contains("MAP_UNION")&&x.contains("jvm=[]")),scan.functionExecutions().toString());
+    BuiltinFunctionParity.assertParity(()->FlinkMapProjectionSqlHarnessTest.maps(type),sql);
+    BuiltinFunctionParity.assertParity(()->FlinkMapProjectionSqlHarnessTest.maps(type),sql+" WHERE id<0");
+  }
+  @ParameterizedTest
+  @ValueSource(strings={"BOOLEAN","TINYINT","SMALLINT","INT","BIGINT","DECIMAL"})
   void rightEntriesWinAndKeepOrderWithDuplicateAndNullKeys(String type) throws Exception {
     String left="MAP_FROM_ARRAYS(a,a)",right="MAP_FROM_ARRAYS(b,b)";
     // Equal operands make each constructor total; different arrays still exercise map union.

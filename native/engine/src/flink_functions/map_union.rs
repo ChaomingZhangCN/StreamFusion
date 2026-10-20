@@ -45,6 +45,15 @@ impl ScalarUDFImpl for MapUnion {
     }
 }
 fn union(args: &[ArrayRef]) -> Result<ArrayRef> {
+    if args.len() == 1 {
+        let (entries, offsets, nulls) = super::map_projection::parts(&args[0])?;
+        return super::map_arrays::build(
+            entries.column(0).clone(),
+            entries.column(1).clone(),
+            offsets.clone(),
+            nulls.cloned(),
+        );
+    }
     let mut result = args[0].clone();
     for right in &args[1..] {
         result = pair(&result, right)?;
@@ -155,6 +164,35 @@ mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn unary_ordinary_maps_keep_the_declared_carrier_and_share_buffers() {
+        use arrow::array::{Int64Builder, MapBuilder};
+        let mut input = MapBuilder::new(None, Int64Builder::new(), Int64Builder::new());
+        for valid in [true, false, true] {
+            input.keys().append_value(1);
+            input.values().append_null();
+            input.keys().append_value(1);
+            input.values().append_value(2);
+            input.append(valid).unwrap();
+        }
+        let input: ArrayRef = Arc::new(input.finish().slice(1, 2));
+        let output = super::union(&[input.clone()]).unwrap();
+        let (a, ao, an) = super::super::map_projection::parts(&input).unwrap();
+        let (b, bo, bn) = super::super::map_projection::parts(&output).unwrap();
+        assert_eq!(
+            output.data_type(),
+            &super::super::map_arrays::map_type(DataType::Int64, DataType::Int64)
+        );
+        assert_eq!(ao, bo);
+        assert_eq!(an, bn);
+        for i in 0..2 {
+            assert_eq!(
+                a.column(i).to_data().buffers()[0].as_ptr(),
+                b.column(i).to_data().buffers()[0].as_ptr()
+            );
+        }
+    }
+
     #[test]
     fn right_order_duplicates_and_left_null_exception_match_flink() {
         let l = map(
