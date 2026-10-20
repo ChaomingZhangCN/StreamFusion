@@ -140,7 +140,7 @@ public class FlinkMapPayloadSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"p", "p['head']", "p[CASE WHEN MOD(id,2)=0 THEN 'head' ELSE 'tail' END]"})
-  void unverifiedMapUdfSignaturesKeepReleasedFallback(String expression) {
+  void mapUdfAndConsumersComposeAfterRank(String expression) {
     try (var metrics = new RecoveryExecutionMetrics()) {
       var runs =
           NativeFailureParity.run(
@@ -154,11 +154,10 @@ public class FlinkMapPayloadSqlHarnessTest {
                   + " FROM (SELECT id,k,score,p,rn FROM (SELECT id,k,score,rank_map(p) AS"
                   + " p,ROW_NUMBER() OVER (PARTITION BY k ORDER BY score DESC,id ASC) AS rn FROM"
                   + " src) WHERE rn<=3)");
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertTrue(
-          runs.nativeRun().fallbackReasons().stream()
-              .anyMatch(reason -> reason.contains("UDF return type not native: MAP")),
-          runs::toString);
+      boolean enabled = tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled();
+      runs.assertSuccess(
+          enabled ? NativeFailureParity.Route.NATIVE : NativeFailureParity.Route.FALLBACK);
+      if (enabled) RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeCalc");
     }
   }
 

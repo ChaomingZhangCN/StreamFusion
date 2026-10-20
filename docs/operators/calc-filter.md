@@ -437,9 +437,10 @@ Java `ScalarFunction` calls use the existing columnar JVM bridge: Arrow argument
 the function once per batch and an Arrow result column returns to the native island. Supported
 external Java types are `String`, boxed/primitive numeric and boolean values, `BigDecimal` for
 `DECIMAL(p,s)`, and `byte[]` for `VARBINARY`/`BYTES`. Overload resolution must be unambiguous.
-Fixed-size `BINARY`, DATE/TIME UDF signatures, collections, and alternate Java conversion classes
-outside these mappings retain their existing fallback. TIMESTAMP/TIMESTAMP_LTZ signatures have
-the default-enabled generated path described below.
+External Java `Row` and `Map` signatures use the default-enabled generated paths described
+below. Fixed-size `BINARY`, root ARRAY/MULTISET, DATE/TIME UDF signatures, and alternate Java
+conversion classes outside the verified mappings retain fallback. TIMESTAMP/TIMESTAMP_LTZ
+signatures have the default-enabled generated path described below.
 
 Non-folded zero-argument scalar UDF calls retain Flink because the generic JVM bridge signature
 does not admit them. Flink can constant-fold deterministic calls before native planning. The
@@ -2532,5 +2533,32 @@ misinterpreted as one-based array positions. Existing compact timestamp-key and 
 compatibility guards remain in effect. ARRAY subscript behavior is unchanged.
 
 Retained MAP/MULTISET output reaching an unverified native Arrow sink uses the existing row-sink
-route. Direct MAP-returning Java scalar UDF signatures still retain their documented fallback;
-carrier support does not expand that unverified callback conversion.
+route. Direct external Java MAP scalar callbacks use the verified generated path below;
+retained-row carriage alone does not expand callback conversion coverage.
+
+
+### Java MAP scalar signatures
+
+The default-enabled `streamfusion.experimental.nestedScalarUdfs` option also admits synchronous
+external `java.util.Map` scalar arguments and results. The whole Calc runs as a Flink-generated
+program through the existing batch callback, preserving predicate/projection order, shared
+function instances, lifecycle, Java failures and declared public conversions. Results are copied
+before another invocation can mutate a reused Map; retained external arguments remain owned after
+the Arrow batch lease ends. No Rust implementation of the user's Java function is implied.
+
+Verified shapes include nullable string/integer maps, recursively nested ARRAY/ROW/MAP values,
+BOOLEAN/DECIMAL, FLOAT/DOUBLE, DATE/TIME, DECIMAL/TIMESTAMP, interval and ROW-key maps. NULL
+containers, keys and values, empty maps, signed zero, NaN/infinity, precision-38 decimals,
+pre-epoch nanoseconds and nested RowKinds are covered. These are resolved Flink signatures:
+nested TIME resolves to TIME(0), and the interval fixture uses INTERVAL MONTH/SECOND(3).
+Runtime millisecond TIME values are preserved. This does not admit root DATE/TIME UDF signatures,
+fixed BINARY map leaves, arbitrary Java conversion classes or custom type inference.
+
+Scalar results from MAP arguments can feed native aggregation. MAP results can compose with
+lookup, CARDINALITY, CASE, predicates and a final row sink, including callbacks lifted above
+Top-N. A richer computed MAP cannot enter an unverified state/exchange boundary; this guard
+also applies when builtin collection expressions are disabled. Updating retained MAP payloads
+still have the independent [correctness restriction](top-n.md#retained-mapmultiset-payload-qualification).
+Explicit `nestedScalarUdfs=false` restores MAP-signature fallback. Correct UDF execution is an
+accepted performance exception; [job costs](../benchmarks/scalar-functions.md#map-scalar-callback-costs)
+include both perimeter transposes and make no standalone acceleration claim.

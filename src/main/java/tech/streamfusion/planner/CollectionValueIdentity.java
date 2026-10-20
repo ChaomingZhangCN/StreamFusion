@@ -142,7 +142,6 @@ final class CollectionValueIdentity {
   }
 
   static boolean crossesBoundary(RelNode root, boolean finalOutput) {
-    if (!NativeConfig.collectionExpressionsEnabled()) return false;
     return crossesBoundary(root, null, finalOutput);
   }
 
@@ -157,7 +156,8 @@ final class CollectionValueIdentity {
                 (org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate)
                     parent))) {
       var program = ((Calc) node).getProgram();
-      if (RexExpression.usesCollectionFunctions(program)
+      if ((RexExpression.usesCollectionFunctions(program)
+              || RexExpression.usesMapScalarUdf(program))
           && program.getProjectList().stream().anyMatch(ref -> sensitive(ref.getType())))
         return true;
     }

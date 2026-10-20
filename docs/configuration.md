@@ -21,7 +21,9 @@ serialized operator configuration rather than process-global state before a stab
   for the preceding host fallback. Cache and borrowed-exit performance experiments retain their
   existing defaults. See [GROUP BY](operators/group-by.md#jvm-aggregate-investigation).
 - **`streamfusion.experimental.nestedScalarUdfs`** (system property, default true) — enable
-  verified external Java Row callbacks and the matching nested RowKind/raw BINARY transport.
+  verified external Java Row and Map callbacks and the matching nested RowKind/raw BINARY
+  transport. MAP callbacks use Flink-generated whole-Calc evaluation; computed collection outputs
+  retain representation guards before unverified state/exchange boundaries.
   Configure the same value in planner and task JVMs; false restores the preceding transport and
   nested-signature fallback. See [Calc/filter](operators/calc-filter.md).
 - **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone

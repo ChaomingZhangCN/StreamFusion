@@ -438,8 +438,11 @@ final class RexExpression {
         && (calc.getProgram().getCondition() != null
             || calc.getProgram().getProjectList().stream()
                 .anyMatch(ref -> !(calc.getProgram().expandLocalRef(ref) instanceof RexInputRef)))
-        && containsRowExpression(calc.getProgram())) {
-      encoder.jvmExecutionReason = "ROW metadata requires Flink's whole-Calc evaluation";
+        && (containsRowExpression(calc.getProgram()) || usesMapScalarUdf(calc.getProgram()))) {
+      encoder.jvmExecutionReason =
+          usesMapScalarUdf(calc.getProgram())
+              ? "MAP UDF signatures require Flink's whole-Calc evaluation"
+              : "ROW metadata requires Flink's whole-Calc evaluation";
       return new CalcEncoding(encoder, encoder.emitRowCalc(calc));
     }
     boolean supported = encoder.emitCalc(calc);
@@ -922,6 +925,26 @@ final class RexExpression {
     return usesCollectionFunctions(program);
   }
 
+  static boolean usesMapScalarUdf(RexProgram program) {
+    if (!tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled()) return false;
+    return program.getCondition() != null
+            && containsMapScalarUdf(program.expandLocalRef(program.getCondition()))
+        || program.getProjectList().stream()
+            .anyMatch(ref -> containsMapScalarUdf(program.expandLocalRef(ref)));
+  }
+
+  private static boolean containsMapScalarUdf(RexNode node) {
+    if (node instanceof RexFieldAccess)
+      return containsMapScalarUdf(((RexFieldAccess) node).getReferenceExpr());
+    if (!(node instanceof RexCall)) return false;
+    var call = (RexCall) node;
+    return tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null
+            && (call.getType().getSqlTypeName() == SqlTypeName.MAP
+                || call.getOperands().stream()
+                    .anyMatch(arg -> arg.getType().getSqlTypeName() == SqlTypeName.MAP))
+        || call.getOperands().stream().anyMatch(RexExpression::containsMapScalarUdf);
+  }
+
   static boolean usesCollectionFunctions(RexProgram program) {
     if (!NativeConfig.collectionExpressionsEnabled()) return false;
     return program.getCondition() != null
@@ -956,7 +979,7 @@ final class RexExpression {
     rowFusion = true;
     RexProgram program = calc.getProgram();
     preserveCollections =
-        usesCollectionFunctions(program)
+        (usesCollectionFunctions(program) || usesMapScalarUdf(program))
             && program.getExprList().stream()
                 .anyMatch(expression -> CollectionValueIdentity.sensitive(expression.getType()));
     List<RexNode> arguments = new ArrayList<>();
@@ -4160,11 +4183,15 @@ final class RexExpression {
       return rejectUdfMethod("multiple binary UDF calls may share mutable result buffers");
     }
     boolean nested = rowFusion && tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled();
-    boolean rowBoundary =
+    boolean nestedBoundary =
         resultType == SqlTypeName.ROW
+            || resultType == SqlTypeName.MAP
             || call.getOperands().stream()
-                .anyMatch(arg -> arg.getType().getSqlTypeName() == SqlTypeName.ROW);
-    if (nested && rowBoundary) {
+                .anyMatch(
+                    arg ->
+                        arg.getType().getSqlTypeName() == SqlTypeName.ROW
+                            || arg.getType().getSqlTypeName() == SqlTypeName.MAP);
+    if (nested && nestedBoundary) {
       try {
         if (scalar
                 .getClass()
@@ -4178,8 +4205,8 @@ final class RexExpression {
       }
     }
     int returnCode =
-        nested && resultType == SqlTypeName.ROW
-            ? rowCalcTypeCode(call.getType())
+        nested && (resultType == SqlTypeName.ROW || resultType == SqlTypeName.MAP)
+            ? rowCalcTypeCode(call.getType(), preserveCollections)
             : udfTypeCode(call.getType());
     if (returnCode < 0 && !(rowFusion && isTimestampType(call.getType()))) {
       return rejectUdfMethod("UDF return type not native: " + call.getType().getSqlTypeName());
@@ -4187,8 +4214,10 @@ final class RexExpression {
     List<RexNode> args = call.getOperands();
     for (RexNode argument : args) {
       int argumentCode =
-          nested && argument.getType().getSqlTypeName() == SqlTypeName.ROW
-              ? rowCalcTypeCode(argument.getType())
+          nested
+                  && (argument.getType().getSqlTypeName() == SqlTypeName.ROW
+                      || argument.getType().getSqlTypeName() == SqlTypeName.MAP)
+              ? rowCalcTypeCode(argument.getType(), preserveCollections)
               : udfTypeCode(argument.getType());
       if (argumentCode < 0 && !(rowFusion && isTimestampType(argument.getType()))) {
         return rejectUdfMethod(
@@ -4210,9 +4239,14 @@ final class RexExpression {
         if (args.get(i).getType().getSqlTypeName() == SqlTypeName.ROW
             && parameter != org.apache.flink.types.Row.class)
           return rejectUdfMethod("nested UDF arguments require the external Java Row conversion");
+        if (args.get(i).getType().getSqlTypeName() == SqlTypeName.MAP
+            && parameter != java.util.Map.class)
+          return rejectUdfMethod("MAP UDF arguments require the external Java Map conversion");
       }
     }
-    if ((resultType == SqlTypeName.DECIMAL && eval.getReturnType() != BigDecimal.class)
+    if ((resultType == SqlTypeName.MAP
+            && !java.util.Map.class.isAssignableFrom(eval.getReturnType()))
+        || (resultType == SqlTypeName.DECIMAL && eval.getReturnType() != BigDecimal.class)
         || (resultType == SqlTypeName.VARBINARY && eval.getReturnType() != byte[].class)
         || (resultType == SqlTypeName.ROW
             && eval.getReturnType() != org.apache.flink.types.Row.class)
@@ -4557,6 +4591,9 @@ final class RexExpression {
         break;
       case ROW:
         argument = org.apache.flink.types.Row.class;
+        break;
+      case MAP:
+        argument = java.util.Map.class;
         break;
       case TIMESTAMP:
         return parameter == java.time.LocalDateTime.class ? 2 : -1;

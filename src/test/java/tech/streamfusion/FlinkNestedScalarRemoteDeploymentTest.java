@@ -40,6 +40,17 @@ class FlinkNestedScalarRemoteDeploymentTest {
   @SuppressWarnings("unchecked")
   void callbacksAndNestedKindsExecuteInAnotherJvm(int parallelism, boolean binary)
       throws Exception {
+    runCallbacks(parallelism, binary, null);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"1,map", "3,map", "1,map_map", "3,map_map"})
+  void mapCallbacksExecuteInAnotherJvm(int parallelism, String mapType) throws Exception {
+    runCallbacks(parallelism, false, mapType);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void runCallbacks(int parallelism, boolean binary, String mapType) throws Exception {
     var command = new ArrayList<String>();
     command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
     for (String argument : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
@@ -72,8 +83,10 @@ class FlinkNestedScalarRemoteDeploymentTest {
       FlinkTestContexts.clearForRemoteSubmission();
       var runs =
           NativeFailureParity.run(
-              () -> environment(port, parallelism, binary),
-              "SELECT id, nested_identity(r), nested_reuse(r) FROM src");
+              () -> environment(port, parallelism, binary, mapType),
+              mapType == null
+                  ? "SELECT id, nested_identity(r), nested_reuse(r) FROM src"
+                  : "SELECT id,map_udf(p),map_udf(p) FROM src");
       runs.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertEquals(5003, runs.host().rows().size());
       assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
@@ -115,7 +128,8 @@ class FlinkNestedScalarRemoteDeploymentTest {
     }
   }
 
-  private static TableEnvironment environment(int port, int parallelism, boolean binary) {
+  private static TableEnvironment environment(
+      int port, int parallelism, boolean binary, String mapType) {
     var config = new Configuration();
     config.setString("restart-strategy.type", "none");
     var env = StreamExecutionEnvironment.createRemoteEnvironment("127.0.0.1", port, config);
@@ -123,6 +137,22 @@ class FlinkNestedScalarRemoteDeploymentTest {
     env.getConfig().enableObjectReuse();
     var table = StreamTableEnvironment.create(env);
     table.getConfig().set("streamfusion.transpose.batchRows", "7");
+    if (mapType != null) {
+      var type = FlinkMapScalarUdfSqlHarnessTest.rowType(mapType);
+      table.createTemporaryView(
+          "src",
+          env.fromSequence(0, 5002)
+              .map(
+                  i ->
+                      Row.of(
+                          i,
+                          (int) (i % 4),
+                          i,
+                          FlinkMapScalarUdfSqlHarnessTest.value(mapType, i.intValue())))
+              .returns(org.apache.flink.table.runtime.typeutils.ExternalTypeInfo.<Row>of(type)),
+          org.apache.flink.table.api.Schema.newBuilder().fromRowDataType(type).build());
+      return FlinkMapScalarUdfSqlHarnessTest.register(table, mapType);
+    }
     if (binary) {
       var type =
           org.apache.flink.table.api.DataTypes.ROW(

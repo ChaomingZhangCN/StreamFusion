@@ -378,11 +378,12 @@ ARRAY-of-MAP, ROW-containing-MAP, and MAP values containing ARRAY/ROW/MAP. NULL 
 NULL keys and nullable values pass ordinary Top-N, sorted/arrival LIMIT, hidden OFFSET, first-N
 and non-time ROW_NUMBER, plus inner/outer/semi/anti joins. Two checkpoint failures cover memory
 and direct RocksDB. Updating joins and ranking cases pin correct fallback, including colliding
-map keys reordered on retraction. Three root MAP UDF
-checks retain their existing correct fallback. Flink 1.18 skips eight ordinary non-time
+map keys reordered on retraction. Three MAP UDF/consumer compositions now run natively: Flink
+lifts those callbacks above rank, and their external Map signatures use the default-enabled
+[generated callback](calc-filter.md#java-map-scalar-signatures). Flink 1.18 skips eight ordinary non-time
 ROW_NUMBER cases because the released host lacks that operator.
 
-The final combined matrix passes 238 checks on Flink 2.2.1 and 230 with eight capability skips
+The retained-payload revision, before the MAP callback extension, passed 238 checks on Flink 2.2.1 and 230 with eight capability skips
 on 1.18.1, including 57 explicit correctness-fallback cases per line. Another 21 existing
 stateful map-carrier and nested SQL/JSON controls pass on each line; append-only payload
 checks now require native execution while the map-key check retains fallback.

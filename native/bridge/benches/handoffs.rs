@@ -20,6 +20,9 @@ use streamfusion_bridge::{
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
 
+#[path = "handoffs/map_udf.rs"]
+mod map_udf;
+
 fn roundtrip(batch: &RecordBatch, cached: bool) -> RecordBatch {
     let mut array = FFI_ArrowArray::empty();
     if cached {
@@ -326,6 +329,7 @@ criterion_group!(
     handoffs,
     transformations,
     nested_row_kinds,
-    nested_binary
+    nested_binary,
+    map_udf::bench
 );
 criterion_main!(benches);

@@ -1606,3 +1606,34 @@ reproduce with `JsonMapCompositionBenchmark` under `-Pbench` and `SF_BENCHMARK=t
 The maintainer accepted shipping the verified MAP/MULTISET boundary extension on
 October 16 with the measured regressions above retained and performance work deferred.
 The historical measurements are not a claim of improvement against current main.
+
+
+## MAP scalar callback costs
+
+Measured on October 20, 2026 with released Flink 2.2.1, JDK 17, release native code, parallelism 1,
+2 GiB task heap and batches of 1,024 rows. `MapScalarUdfBenchmark` uses a Java identity callback
+on nullable `MAP<STRING,INT>` values and a row blackhole sink. Source maps are constructed during
+the job. Timings include execution planning/deployment, both perimeter transposes, JNI/C Data,
+callbacks and the sink; initial environment/explain setup is excluded. These are complete-job
+cost diagnostics under the accepted UDF exception, not small-functionality admission timings.
+
+Two warmups and five measured trials alternate stock/native-enabled order. Candidate and previous-
+fallback processes run serially, each with paired stock controls. Native plans require both
+transposes and actual NativeCalc input counts; previous fallback requires zero native operators.
+
+| Rows / entries | Candidate's stock control (s) | Native callback (s) | Previous fallback (s) | Previous stock control (s) |
+| --- | ---: | ---: | ---: | ---: |
+| 16,384 / 4 | 0.076014 | 0.163299 | 0.080867 | 0.080237 |
+| 65,536 / 64 | 0.617199 | 1.221389 | 0.614807 | 0.607610 |
+
+The callback path is about twice as slow on these fixtures. Correct external MAP coverage now
+defaults on without a new opt-in; this makes no standalone acceleration claim. The blackhole
+timings do not validate result values: independent SQL/Table API, mutable/retained Java values,
+error/lifecycle, separate-JVM and two-restore checks do that on both released Flink lines.
+The [raw evidence](results/map-scalar-udfs-2026-10-20.json) retains all trials and ranges,
+paired controls, library identity, test counts, 48 transport fixtures and allocation probes.
+
+Reproduce with `SF_BENCHMARK=true`, `-Pbench`, `-Dtest=MapScalarUdfBenchmark`,
+`-Dmapbench.rows=16384 -Dmapbench.width=4` or `65536/64`, and
+`-Dsf.extraJvmArgs="-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false"`. The old revision uses
+the same benchmark source with `-Dmapbench.expectNative=false`.

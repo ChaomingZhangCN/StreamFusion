@@ -2640,3 +2640,16 @@ enable the production 1 GiB budget. Allocation probes likewise exclude setup. Us
 The retained-map JSON allocation records name `shared_output_buffer_bytes` and
 `new_output_buffer_bytes` explicitly. These are physical output-buffer byte ranges, as in the
 runner CSV header, not buffer counts or bytes copied by an operation.
+
+
+### MAP callback transport fixtures
+
+`handoffs` includes 48 `bridge/map_udf_payloads` fixtures: 16/1024 rows, map widths 4/64,
+integer, DECIMAL/TIMESTAMP and ROW/STRING entries, physical Map/tagged List layouts, and full
+versus cached-schema C Data export. NULL parents/keys/values, empty parents, nonzero slices,
+precision-38 decimals, nanoseconds and nested RowKinds are checked against the complete input.
+The production C Data round trip is timed; fixture construction is outside timing. These
+fixtures measure transport, not JVM callback or complete-job execution. Allocation diagnostics
+report calls, requested bytes, shared output buffer bytes and new output buffer bytes separately;
+small sliced-validity allocations prevent a blanket zero-copy claim. See the
+[MAP scalar evidence](results/map-scalar-udfs-2026-10-20.json).
