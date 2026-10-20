@@ -73,10 +73,23 @@ class FlinkArrayEditSqlHarnessTest {
         for (int i = 0; i < values.length; i++)
           if (i % 5 != 0) values[i] = value(type, (row+i)%9-4);
       }
-      rows.add(Row.of(row, values, row%3 == 0 ? null : value(type, row%9-4)));
+      Object[] other = null;
+      if (row%5 != 0) {
+        other = (Object[]) java.lang.reflect.Array.newInstance(value(type,0).getClass(),row%4);
+        for (int i=0;i<other.length;i++) if (i%2 != 0) other[i]=value(type,(row+i)%9-4);
+      }
+      rows.add(Row.of(row, values, row%3 == 0 ? null : value(type, row%9-4),other));
     }
     return BuiltinFunctionParity.environment(
-        ROW(FIELD("id", INT()), FIELD("a", ARRAY(element)), FIELD("n", element)), rows);
+        ROW(FIELD("id", INT()), FIELD("a", ARRAY(element)), FIELD("n", element),
+            FIELD("b",ARRAY(element))), rows);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
+  void concatIsNullStrictAndPreservesVariadicArgumentOrder(String type) throws Exception {
+    verify(type,"ARRAY_CONCAT(a,b)","ARRAY_CONCAT");
+    verify(type,"ARRAY_CONCAT(a,b,a)","ARRAY_CONCAT");
   }
 
   private static Object value(String type, int value) {

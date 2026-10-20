@@ -2077,7 +2077,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_MIN, ARRAY_MAX | Released DataFusion Rust kernels for nullable integer and DECIMAL elements; other types, NOT NULL elements, representation-sensitive consumers and fallible arguments retain Flink's generated program |
 | ARRAY_APPEND, ARRAY_PREPEND | Rust offset-based copying for nullable BOOLEAN/integer/DECIMAL arrays and a matching element, including a NULL element; sensitive representations and fallible arguments retain Flink evaluation |
 | ARRAY_REMOVE | Rust stable selection for matching nullable BOOLEAN/integer/DECIMAL arrays; removes every matching element, including NULL when the needle is NULL; other signatures retain Flink evaluation |
-| ARRAY_SORT, ARRAY_UNION, ARRAY_CONCAT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
+| ARRAY_CONCAT | Rust concatenation for matching nullable BOOLEAN/integer/DECIMAL arrays; any NULL operand returns NULL; other signatures retain Flink evaluation |
+| ARRAY_SORT, ARRAY_UNION, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
 | Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 

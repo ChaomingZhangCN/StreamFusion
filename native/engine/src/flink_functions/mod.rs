@@ -31,6 +31,7 @@ pub(crate) mod split_index;
 pub(crate) mod substring;
 pub(crate) mod to_date;
 
+mod array_concat;
 mod array_constructor;
 mod array_distinct;
 mod array_edit;
@@ -222,6 +223,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         182 => array_edit::function(false),
         183 => array_edit::function(true),
         184 => array_remove::function(),
+        185 => array_concat::function(arity),
         _ => return None,
     })
 }

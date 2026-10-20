@@ -65,6 +65,14 @@ in original order. Unlike DataFusion/Spark removal, a NULL needle removes all NU
 elements rather than producing NULL. NULL containers stay NULL. Repeated matches,
 sliced buffers, exact wide DECIMAL and all-filtered batches have parity fixtures.
 
+## Concatenating arrays
+
+ARRAY_CONCAT copies visible child ranges in argument order and intersects parent
+validity. Every argument must be present, matching Flink rather than DataFusion's
+NULL-skipping concatenation. The builder works on Arrow storage for matching
+basic nullable element types; it does not reconstruct individual JVM containers.
+Variadic and independently NULL operands are covered by runtime SQL tests.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -94,3 +102,18 @@ Query: `ARRAY_REMOVE(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64
 Elapsed time changes by -40.48% versus the prior evaluator and -2.27% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
 
 [All 20 trials](../benchmarks/collection-array-remove-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-remove-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-remove-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.
+
+## ARRAY_CONCAT complete-job evidence
+
+Query: `ARRAY_CONCAT(arr,arr)`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.570231 | 0.567433-0.580449 |
+| baseline streamfusion | 0.838364 | 0.834675-0.845219 |
+| candidate stock | 0.558484 | 0.546826-0.568327 |
+| candidate streamfusion | 0.469299 | 0.467287-0.473333 |
+
+Elapsed time changes by -44.02% versus the prior evaluator and -15.97% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
+
+[All 20 trials](../benchmarks/collection-array-concat-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-concat-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-concat-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.

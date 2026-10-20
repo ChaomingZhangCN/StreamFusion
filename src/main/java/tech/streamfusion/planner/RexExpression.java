@@ -1977,6 +1977,15 @@ final class RexExpression {
       return emitBuiltinCall(call, "ARRAY_APPEND".equals(functionName) ? 182
           : "ARRAY_PREPEND".equals(functionName) ? 183 : 184);
     }
+    if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_CONCAT".equals(functionName)) {
+      var args = call.getOperands();
+      if (args.size() < 2 || args.stream().anyMatch(arg -> !nativeBasicArray(arg.getType())
+              || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
+                  args.get(0).getType(),arg.getType()) || requiresRowShortCircuit(arg))) {
+        return reject(functionName + " uses Flink evaluation outside total matching basic arrays");
+      }
+      return emitBuiltinCall(call,185);
+    }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {
       var args = call.getOperands();
