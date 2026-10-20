@@ -37,6 +37,7 @@ mod array_edit;
 #[cfg(test)]
 mod array_extrema_tests;
 pub(crate) mod array_item;
+mod array_remove;
 mod array_search;
 mod array_slice;
 mod ascii;
@@ -220,6 +221,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
             .clone(),
         182 => array_edit::function(false),
         183 => array_edit::function(true),
+        184 => array_remove::function(),
         _ => return None,
     })
 }

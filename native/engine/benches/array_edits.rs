@@ -38,6 +38,9 @@ fn fixture(
                     183 => {
                         a.insert(0, *needle);
                     }
+                    184 => {
+                        a.retain(|v| v != needle);
+                    }
                     _ => unreachable!(),
                 }
                 a
@@ -67,7 +70,7 @@ fn run(c: &mut Criterion) {
                     DataType::Int64,
                     DataType::Decimal128(38, 9),
                 ] {
-                    for op in [182, 183] {
+                    for op in [182, 183, 184] {
                         let (batch, expected) = fixture(&kind, rows, width, nulls, op);
                         let mut calc = CalcProgram::new(
                             vec![6, 0, 0],
@@ -80,6 +83,7 @@ fn run(c: &mut Criterion) {
                         let name = match op {
                             182 => "append",
                             183 => "prepend",
+                            184 => "remove",
                             _ => unreachable!(),
                         };
                         let label = format!("{name}/{kind}/{rows}/width={width}/nulls={nulls}");

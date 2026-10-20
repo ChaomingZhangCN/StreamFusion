@@ -46,6 +46,13 @@ class FlinkArrayEditSqlHarnessTest {
     return type.equals("DECIMAL") ? "DECIMAL(38,9)" : type;
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
+  void removeDropsAllMatchesAndCanRemoveNullElements(String type) throws Exception {
+    verify(type,"ARRAY_REMOVE(a,n)","ARRAY_REMOVE");
+    verify(type,"ARRAY_REMOVE(a,CAST(NULL AS " + sqlType(type) + "))","ARRAY_REMOVE");
+  }
+
   static TableEnvironment environment(String type) {
     DataType element;
     switch (type) {
