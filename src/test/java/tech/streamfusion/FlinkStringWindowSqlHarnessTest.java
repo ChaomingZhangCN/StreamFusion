@@ -240,21 +240,18 @@ class FlinkStringWindowSqlHarnessTest {
     return table;
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"HOP"})
-  void unverifiedSinglePhaseStringExtremaStayOnFlinkByDefault(String shape) throws Exception {
+  @Test
+  void unverifiedLegacyStringExtremaStayOnFlinkByDefault() throws Exception {
     NativeParity.assertFallbackReasonContains(
         () -> environment("ONE_PHASE", false),
-        "SELECT k, window_start, window_end, MIN(text_value), MAX(text_value), COUNT(*) "
-            + "FROM TABLE("
-            + window(shape)
-            + ") GROUP BY k, window_start, window_end",
+        "SELECT k, TUMBLE_START(rt, INTERVAL '10' SECOND), MIN(text_value), MAX(text_value),"
+            + " COUNT(*) FROM src GROUP BY k, TUMBLE(rt, INTERVAL '10' SECOND)",
         "single-phase string MIN/MAX requires"
             + " streamfusion.window.string-extrema.single-phase.enabled=true");
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"TUMBLE", "CUMULATE"})
+  @ValueSource(strings = {"TUMBLE", "HOP", "CUMULATE"})
   void measuredSinglePhaseShapesRunNativelyWithoutAnOptIn(String shape) throws Exception {
     NativeParity.assertKindedParity(
         () -> environment("ONE_PHASE", false),

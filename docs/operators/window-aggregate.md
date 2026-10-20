@@ -66,7 +66,7 @@ Local/global partials and checkpoint state use one nullable component timestamp 
 original logical precision. Ordinary COUNT also admits timestamp values through their validity bitmap.
 Both timestamp kinds can share a window with numeric aggregates, string extrema and COUNT(DISTINCT).
 Mixed string/temporal SQL comparisons cover TUMBLE/HOP/CUMULATE at precision 0/3/6/9
-in both phases. They verify default event-time TUMBLE/CUMULATE admission, HOP fallback and explicit overrides;
+in both phases. They verify default event-time TUMBLE/HOP/CUMULATE admission and explicit overrides;
 adding temporal extrema does not bypass the [string admission gate](#string-minmax).
 
 Temporal extrema are enabled for single-phase and local/global TUMBLE/HOP/CUMULATE,
@@ -295,12 +295,14 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 ## String MIN/MAX
 
 Append-only windows admit `MIN` and `MAX` over CHAR and VARCHAR (including SQL STRING).
-Event-time local/global and single-phase TVF TUMBLE/CUMULATE execution are admitted by default.
-Other single-phase shapes (HOP, processing-time, session and legacy windows) require
+Event-time local/global and single-phase TVF TUMBLE/HOP/CUMULATE execution are admitted by default.
+Other single-phase shapes (processing-time, session and legacy windows) require
 `streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces all
 single-phase string extrema to stock. A mixed query follows the same admission as its string
 extrema. The [operator-format audit](../benchmarks/feature-admission-2026-10-19.md) supersedes the
 previous complete-job admission gate, while retaining those complete-job regressions below.
+The later Rust-side profile and string selection change also admit HOP; see the
+[Rust admission report](../benchmarks/rust-feature-admission-2026-10-19.md).
 Released Flink 1.18 cannot plan CHAR extrema; STRING/VARCHAR are covered on both 1.18 and 2.2.
 They compare UTF-8 bytes lexicographically, without locale collation or Unicode normalization,
 matching Flink's materialized string ordering. Empty strings are values, NULL inputs are ignored,
@@ -367,7 +369,7 @@ native fold shows per-group Arrow gathers and generic string accumulator updates
 of that high-cardinality path remained necessary. Contiguous groups
 now use retained Arrow slices as described in the later measurements; those TUMBLE results do
 not establish every HOP/CUMULATE shape. The later operator-format audit changes admission
-for TUMBLE/CUMULATE; HOP retains its opt-in.
+for TUMBLE/CUMULATE; the subsequent Rust-side selection optimization also admits HOP.
 
 Additional SQL comparisons cover embedded NULs, long values, supplementary characters and
 runtime lone-surrogate strings at parallelism one and two, including Flink source serialization
@@ -757,7 +759,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
   and COUNT(DISTINCT).
   Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
   it counts validity without interpreting the payload.
-- Single-phase string MIN/MAX outside event-time TVF TUMBLE/CUMULATE unless
+- Single-phase string MIN/MAX outside event-time TVF TUMBLE/HOP/CUMULATE unless
   `streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces
   all single-phase string extrema to stock. Local/global admission is unchanged.
 - Attached bounds outside append-only event-time TUMBLE/HOP/CUMULATE, or with FILTER.

@@ -44,7 +44,10 @@ import tech.streamfusion.compat.FlinkOutput;
 import tech.streamfusion.operator.*;
 import tech.streamfusion.planner.NativePlanner;
 
-/** Production operators with prebuilt RowData/Arrow input; perimeter transposes are excluded. */
+/**
+ * Flink's Java/RowData half of small-functionality admission; exports matching Arrow input for the
+ * Rust driver. Optional native/both modes measure Java wrappers and are separate diagnostics.
+ */
 @EnabledIfEnvironmentVariable(named = "SF_BENCHMARK", matches = "true")
 class FeatureAdmissionBenchmark {
   private static volatile long consumed;
@@ -106,13 +109,50 @@ class FeatureAdmissionBenchmark {
       input = binary;
     } else if (!stockLayout.equals("generic")) throw new IllegalArgumentException(stockLayout);
     Map<String, Long> expected = null;
+    Long verifiedHash = null;
+    Long verifiedCount = null;
     double[][] seconds = new double[2][runs];
     try (var template =
         RowDataArrowConverter.write(
             input, plans[1].input, NativeAllocator.SHARED, name.equals("drop"))) {
+      String export = System.getProperty("admission.exportArrow");
+      if (export != null) {
+        assertTrue(
+            name.startsWith("string-") || name.equals("drop"),
+            "Rust fixture requires a string window or changelog case");
+        try (var channel =
+                java.nio.channels.FileChannel.open(
+                    java.nio.file.Path.of(export),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE);
+            var writer = new org.apache.arrow.vector.ipc.ArrowFileWriter(template, null, channel)) {
+          writer.start();
+          writer.writeBatch();
+          writer.end();
+        }
+        var lengths = new ArrayList<Integer>();
+        for (int start = 0; start < count; ) {
+          int end = Math.min(start + batchRows, count);
+          int group = keyGroup(stock, input.get(start));
+          for (int index = start + 1; index < end; index++) {
+            if (keyGroup(stock, input.get(index)) != group) {
+              end = index;
+              break;
+            }
+          }
+          lengths.add(end - start);
+          start = end;
+        }
+        java.nio.file.Files.writeString(
+            java.nio.file.Path.of(export + ".batches.json"), lengths.toString());
+      }
       for (int trial = 0; trial < warmups + runs; trial++) {
         for (int turn = 0; turn < 2; turn++) {
           int engine = (trial + turn) & 1;
+          String engines = System.getProperty("admission.engines", "stock");
+          if (engines.equals("stock") && engine != 0 || engines.equals("native") && engine != 1)
+            continue;
           Plan plan = plans[engine];
           Digest digest = new Digest(plan.output, trial == 0);
           try (OneInputStreamOperatorTestHarness<Object, Object> harness = harness(plan, digest)) {
@@ -171,9 +211,35 @@ class FeatureAdmissionBenchmark {
               harness.processWatermark(Watermark.MAX_WATERMARK);
             double elapsed = (System.nanoTime() - start) / 1e9;
             consumed ^= digest.hash + digest.count;
+            if (verifiedHash == null) {
+              verifiedHash = digest.hash;
+              verifiedCount = digest.count;
+            } else {
+              assertEquals(
+                  verifiedHash.longValue(), digest.hash, "checksum versus full-value warmup");
+              assertEquals(
+                  verifiedCount.longValue(), digest.count, "row count versus full-value warmup");
+            }
             if (trial == 0) {
               if (engine == 0) expected = digest.values;
-              else assertEquals(expected, digest.values, name);
+              else if (expected != null) assertEquals(expected, digest.values, name);
+              String oracle = System.getProperty("admission.rustOutput");
+              if (engine == 0 && oracle != null) {
+                Digest nativeDigest = new Digest(plan.output, true);
+                try (var channel =
+                        java.nio.channels.FileChannel.open(java.nio.file.Path.of(oracle));
+                    var reader =
+                        new org.apache.arrow.vector.ipc.ArrowFileReader(
+                            channel, NativeAllocator.SHARED)) {
+                  while (reader.loadNextBatch()) {
+                    var root = reader.getVectorSchemaRoot();
+                    var rows = RowDataArrowConverter.read(root, plan.output);
+                    for (int i = 0; i < rows.size(); i++) nativeDigest.add(rows.get(i), root, i);
+                  }
+                }
+                assertEquals(
+                    digest.values, nativeDigest.values, "Rust/Arrow output versus Java/RowData");
+              }
             }
             if (trial >= warmups) seconds[engine][trial - warmups] = elapsed;
             System.out.printf(
@@ -204,10 +270,18 @@ class FeatureAdmissionBenchmark {
         batchRows,
         keys,
         width,
-        median(seconds[0]),
-        median(seconds[1]),
-        Arrays.toString(seconds[0]),
-        Arrays.toString(seconds[1]));
+        System.getProperty("admission.engines", "stock").equals("native")
+            ? Double.NaN
+            : median(seconds[0]),
+        System.getProperty("admission.engines", "stock").equals("stock")
+            ? Double.NaN
+            : median(seconds[1]),
+        System.getProperty("admission.engines", "stock").equals("native")
+            ? "[]"
+            : Arrays.toString(seconds[0]),
+        System.getProperty("admission.engines", "stock").equals("stock")
+            ? "[]"
+            : Arrays.toString(seconds[1]));
   }
 
   private static final class Plan {
@@ -494,17 +568,57 @@ class FeatureAdmissionBenchmark {
   private static final class Digest {
     final RowType type;
     final Map<String, Long> values;
+    final int fixedSchema;
     long count;
     long hash;
 
     Digest(RowType type, boolean capture) {
       this.type = type;
       values = capture ? new TreeMap<>() : null;
+      var roots =
+          type.getChildren().stream()
+              .map(org.apache.flink.table.types.logical.LogicalType::getTypeRoot)
+              .collect(java.util.stream.Collectors.toList());
+      var bigint = org.apache.flink.table.types.logical.LogicalTypeRoot.BIGINT;
+      var varchar = org.apache.flink.table.types.logical.LogicalTypeRoot.VARCHAR;
+      var timestamp =
+          org.apache.flink.table.types.logical.LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE;
+      fixedSchema =
+          roots.equals(List.of(bigint, varchar))
+              ? 1
+              : roots.equals(List.of(bigint, varchar, varchar, bigint, timestamp, timestamp))
+                      && org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision(
+                              type.getTypeAt(4))
+                          == 3
+                      && org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision(
+                              type.getTypeAt(5))
+                          == 3
+                  ? 2
+                  : 0;
+    }
+
+    private static long stringBytes(RowData row, VectorSchemaRoot root, int index, int field) {
+      if (row.isNullAt(field)) return 0;
+      return root == null
+          ? ((BinaryStringData) row.getString(field)).getSizeInBytes()
+          : ((VarCharVector) root.getVector(field)).getValueLength(index);
     }
 
     void add(RowData row, VectorSchemaRoot root, int index) {
       count++;
       long h = row.getRowKind().toByteValue();
+      if (values == null && fixedSchema != 0) {
+        h = h * 31 + (row.isNullAt(0) ? 0 : row.getLong(0));
+        h = h * 31 + stringBytes(row, root, index, 1);
+        if (fixedSchema == 2) {
+          h = h * 31 + stringBytes(row, root, index, 2);
+          h = h * 31 + row.getLong(3);
+          h = h * 31 + row.getTimestamp(4, 3).getMillisecond() * 31;
+          h = h * 31 + row.getTimestamp(5, 3).getMillisecond() * 31;
+        }
+        hash += h;
+        return;
+      }
       StringBuilder text =
           values == null ? null : new StringBuilder(row.getRowKind().shortString());
       for (int field = 0; field < type.getFieldCount(); field++) {

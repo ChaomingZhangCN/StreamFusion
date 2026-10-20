@@ -99,9 +99,9 @@ public final class NativeConfig {
     return booleanValue("streamfusion.experimental.metadataExpressions", true);
   }
 
-  /** Mixed-kind standalone Arrow filtering remains slower than the stock row filter. */
+  /** Standalone filtering is admitted by Rust-side Arrow benchmarks; false retains stock. */
   public static boolean standaloneDropUpdateBeforeEnabled() {
-    return booleanValue("streamfusion.dropUpdateBefore.standalone.enabled", false);
+    return booleanValue("streamfusion.dropUpdateBefore.standalone.enabled", true);
   }
 
   /** Diagnostic escape hatch for comparing the legacy synchronous memory-checkpoint path. */

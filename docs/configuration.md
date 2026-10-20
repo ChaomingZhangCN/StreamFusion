@@ -16,8 +16,9 @@ serialized operator configuration rather than process-global state before a stab
   controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
-- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default false) — opt into a lone
-  row-source changelog filter that loses to stock Flink because of the two Arrow conversions.
+- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone
+  changelog filter after verified Rust-side Arrow admission. Explicit `false` retains stock
+  for the standalone shape. Complete row-source jobs can still lose because of perimeter costs.
   Filters inside an admitted native pipeline retain ordinary admission. See
   [drop update-before](operators/drop-update-before.md).
 - **`streamfusion.calc.sharedStatefulUdf.enabled`** (default true) — complete-row native
@@ -107,10 +108,11 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 
 ## Experimental Window Coverage
 
-Single-phase event-time TVF TUMBLE/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
+Single-phase event-time TVF TUMBLE/HOP/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
 The optional `streamfusion.window.string-extrema.single-phase.enabled` overrides admission:
-`false` forces stock execution, while `true` also admits otherwise supported HOP,
-processing-time, session and legacy string windows. HOP still loses at high cardinality.
+`false` forces stock execution, while `true` also admits otherwise supported
+processing-time, session and legacy string windows. The Rust-side string selection optimization removes
+the former high-cardinality HOP restriction.
 Two-phase local/global string extrema do not require this option.
 See [Window aggregate](operators/window-aggregate.md#string-minmax).
 

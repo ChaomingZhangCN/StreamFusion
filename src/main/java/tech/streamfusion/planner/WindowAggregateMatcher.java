@@ -376,6 +376,7 @@ final class WindowAggregateMatcher {
         windowing instanceof TimeAttributeWindowingStrategy
             && !windowing.isProctime()
             && (windowing.getWindow() instanceof TumblingWindowSpec
+                || windowing.getWindow() instanceof HoppingWindowSpec
                 || windowing.getWindow() instanceof CumulativeWindowSpec);
     if (node instanceof StreamPhysicalLocalWindowAggregate
         || ShortcutUtils.unwrapTableConfig(node)
@@ -392,7 +393,7 @@ final class WindowAggregateMatcher {
         if (type == SqlTypeName.CHAR || type == SqlTypeName.VARCHAR) {
           return "single-phase string MIN/MAX requires "
               + SINGLE_PHASE_STRING_EXTREMA.key()
-              + "=true outside the default event-time TUMBLE/CUMULATE whitelist";
+              + "=true outside the default event-time TUMBLE/HOP/CUMULATE whitelist";
         }
       }
     }
