@@ -1,0 +1,9 @@
+name: Set up the pinned Rust toolchain
+description: Install the project toolchain without hashing the runner's unused stable toolchain into Cargo caches.
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@1.94.0
+    - name: Remove the unused hosted stable toolchain
+      shell: bash
+      run: rustup toolchain uninstall stable

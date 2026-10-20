@@ -125,7 +125,7 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: ./.github/actions/setup-rust
 
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
@@ -160,7 +160,7 @@ jobs:
           architecture: aarch64
           cache: maven
 
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: ./.github/actions/setup-rust
 
       - uses: Swatinem/rust-cache@v2
         with:

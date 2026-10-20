@@ -67,7 +67,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: ./.github/actions/setup-rust
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native

@@ -28,6 +28,14 @@ workflow run and commit; it is not a release payload or a cache of test outcomes
 the independent debug library builds with one without changing test selection or test concurrency.
 Actual elapsed-time savings must be measured in GitHub Actions after this change runs.
 
+All Rust workflows use the local `setup-rust` action to install Rust 1.94.0 and remove the
+runner image's unused `stable` toolchain before restoring caches. The Rust cache action hashes
+every installed compiler, not just the selected compiler. Previous logs showed the unused
+hosted toolchain changing from 1.99.0 to 1.99.1 while the project stayed on 1.94.0, splitting
+the same debug dependency cache into two approximately 2.43 GiB entries. Removing the unused
+toolchain prevents those image updates from invalidating the pinned build's cache; dependency,
+compiler-option, target and actual project-toolchain changes still affect the cache keys.
+
 ## Connector and format test coverage
 
 The full Java suite includes every connector and format tag on both Flink lines and both
