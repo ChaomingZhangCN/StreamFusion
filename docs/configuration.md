@@ -15,6 +15,14 @@ serialized operator configuration rather than process-global state before a stab
   two-phase global half, `windowRank` also covers window deduplication. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
+- **`streamfusion.experimental.jvmGroupAggregates`** (system property, default true) — enable
+  verified synchronous single-phase JVM UDAFs with VARCHAR/INT/BIGINT inputs/results. Set false
+  for the preceding host fallback. Cache and borrowed-exit performance experiments retain their
+  existing defaults. See [GROUP BY](operators/group-by.md#jvm-aggregate-investigation).
+- **`streamfusion.experimental.nestedScalarUdfs`** (system property, default true) — enable
+  verified external Java Row callbacks and the matching nested RowKind/raw BINARY transport.
+  Configure the same value in planner and task JVMs; false restores the preceding transport and
+  nested-signature fallback. See [Calc/filter](operators/calc-filter.md).
 - **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
   native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
   Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release

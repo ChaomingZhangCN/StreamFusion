@@ -516,8 +516,9 @@ below explained only native before timing and remain historical diagnostics. The
 [method and first complete-job trials](../benchmarks/jvm-aggregates.md#symmetric-preflight-correction)
 retain the distinct-key regression and require further comparisons.
 
-JVM aggregate functions still fall back by default under [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
-The diagnostic system property `streamfusion.experimental.jvmGroupAggregates=true` admits
+JVM aggregate functions now default enabled under the accepted UDF performance exception;
+remaining coverage is tracked by [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237).
+The system property `streamfusion.experimental.jvmGroupAggregates` defaults to true and admits
 released Flink bridging aggregate functions in the synchronous single-phase plan when every
 input and output field is VARCHAR, INT or BIGINT. It retains Flink's generated function,
 accumulate/retract logic, managed accumulator/DataView state and lifecycle inside an
@@ -681,7 +682,9 @@ map lookup. The first unprofiled repeat observed 34.53 external CPU seconds, so 
 1.515/1.432 s native/stock medians are diagnostic only; remaining cases were deferred.
 [Complete stacks and diagnostic trials](../benchmarks/results/jvm-aggregate-borrowed-string-probe-2026-10-16.json)
 retain that limitation. This allocation reduction does not establish whole-job admission.
-The feature and cache remain default off; #237 stays open for the remaining contracts.
+The feature defaults on under the accepted UDF exception; the cache remains default off.
+Explicit `streamfusion.experimental.jvmGroupAggregates=false` restores host execution.
+#237 stays open for the remaining contracts.
 The maintainer accepted shipping this implementation on October 16 with the measured
 performance limitations retained and further optimization deferred.
 
@@ -709,7 +712,7 @@ mandatory output copies. Matched profiles reduce inclusive aggregate allocation 
 validation passes 73 combined cases on each Flink line; the small-capacity JSON/JVM selection
 passes 108 on 2.2 and 106 with two compatibility skips on 1.18. All trials, profiles and test
 logs are [retained](../benchmarks/results/jvm-aggregate-borrowed-string-exit-2026-10-16.json).
-The aggregate implementation and cache remain default off.
+The aggregate implementation defaults on; the cache remains default off.
 
 The subsequent [owned-key projection investigation](../optimizations/borrowed-key-probes.md#borrow-before-projecting-an-owned-jvm-key)
 avoids a temporary STRING copy on misses and after bypass, while callback inputs remain owned.
@@ -750,7 +753,8 @@ query back via the [all-or-nothing island](index.md#the-all-or-nothing-island) r
 **Single-phase / either two-phase half in common:**
 
 - LISTAGG and JSON aggregates with DISTINCT, explicit ordering or positive state TTL.
-- A UDAF under normal settings; the default-off investigation below is not admitted acceleration.
+- A UDAF outside the verified synchronous single-phase JVM boundary described below.
+  Verified UDAFs run by default under the accepted performance exception.
 - `AVG`/`SUM`/`MIN`/`MAX` over a value type outside [Type support](#type-support)'s ✓ set.
 - `AVG(DISTINCT)` over FLOAT/DOUBLE, DISTINCT SINGLE_VALUE, and DISTINCT FIRST_VALUE/LAST_VALUE
   over types other than STRING/VARCHAR.

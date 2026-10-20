@@ -47,9 +47,9 @@ import tech.streamfusion.operator.RowDataArrowConverter;
 class FlinkBinaryRowHashParityTest {
 
   @Test
-  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+  @org.junit.jupiter.api.condition.DisabledIfSystemProperty(
       named = "streamfusion.experimental.nestedScalarUdfs",
-      matches = "true")
+      matches = "false")
   void nestedFixedBinaryUsesExactRuntimeBytesAndHashes() {
     RowType child = RowType.of(new BinaryType(4));
     RowType type = RowType.of(child, new ArrayType(new BinaryType(4)));
@@ -98,9 +98,9 @@ class FlinkBinaryRowHashParityTest {
   }
 
   @Test
-  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+  @org.junit.jupiter.api.condition.DisabledIfSystemProperty(
       named = "streamfusion.experimental.nestedScalarUdfs",
-      matches = "true")
+      matches = "false")
   void nestedRowKindsMatchReleasedBinaryBytesAndHashes() {
     RowType child = RowType.of(new BigIntType(), new TimestampType(9));
     RowType type = RowType.of(child, new ArrayType(child));

@@ -13,9 +13,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FlinkFixedBinarySqlHarnessTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void nestedFixedBinaryResultsRequireTheExperimentalBoundary(boolean legacy) throws Exception {
+  void nestedFixedBinaryResultsFollowTheConfiguredBoundary(boolean legacy) throws Exception {
     String sql = "SELECT ARRAY[TRY_CAST(s AS BINARY(4))], JSON_OBJECT('id' VALUE id) FROM src";
-    if (Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
+    if (tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled())
       BuiltinFunctionParity.assertParity(() -> strings(legacy), sql);
     else
       NativeParity.assertFallbackReasonContains(() -> strings(legacy), sql,

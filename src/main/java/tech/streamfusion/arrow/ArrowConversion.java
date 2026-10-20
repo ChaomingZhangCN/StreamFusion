@@ -182,8 +182,7 @@ public final class ArrowConversion {
       for (RowType.RowField field : rowType.getFields()) {
         children.add(toArrowField(field.getName(), field.getType()));
       }
-      if (rowKind && Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
-        children.add(NestedRowKinds.field(children));
+      if (rowKind && nestedScalarUdfsEnabled()) children.add(NestedRowKinds.field(children));
     } else if (logicalType instanceof MapType || logicalType instanceof MultisetType) {
       // A MAP, or a MULTISET carried as MAP<element, count> (mapKeyValue resolves which).
       LogicalType[] kv = mapKeyValue(logicalType);
@@ -199,6 +198,11 @@ public final class ArrowConversion {
                       toArrowField("key", kv[0].copy(false)), toArrowField("value", kv[1]))));
     }
     return new Field(fieldName, fieldType, children);
+  }
+
+  public static boolean nestedScalarUdfsEnabled() {
+    return Boolean.parseBoolean(
+        System.getProperty("streamfusion.experimental.nestedScalarUdfs", "true"));
   }
 
   /**
@@ -225,7 +229,7 @@ public final class ArrowConversion {
     }
     boolean convertibleOnRead =
         actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time
-            || Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs")
+            || nestedScalarUdfsEnabled()
                 && actualType instanceof ArrowType.FixedSizeBinary
                 && expectedType instanceof ArrowType.Binary;
     if (!convertibleOnRead && !actualType.equals(expectedType)) {
@@ -256,7 +260,8 @@ public final class ArrowConversion {
     return createArrowReader(root, rowType, true);
   }
 
-  private static ArrowReader createArrowReader(VectorSchemaRoot root, RowType rowType, boolean borrowStrings) {
+  private static ArrowReader createArrowReader(
+      VectorSchemaRoot root, RowType rowType, boolean borrowStrings) {
     List<ColumnVector> columnVectors = new ArrayList<>();
     List<FieldVector> fieldVectors = root.getFieldVectors();
     // Iterate the row type's columns, not the root's: a batch may carry trailing system columns
@@ -265,7 +270,8 @@ public final class ArrowConversion {
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       columnVectors.add(createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i)));
     }
-    org.apache.arrow.vector.complex.ListVector[] caches = StringCacheColumns.readers(root, rowType.getFieldCount());
+    org.apache.arrow.vector.complex.ListVector[] caches =
+        StringCacheColumns.readers(root, rowType.getFieldCount());
     BorrowedStringValues[] borrowed = null;
     if (borrowStrings) {
       for (int i = 0; i < rowType.getFieldCount(); i++) {
@@ -585,8 +591,7 @@ public final class ArrowConversion {
     @Override
     public ArrowType visit(BinaryType binaryType) {
       // Released Flink callbacks can retain bytes whose length differs from BINARY(n).
-      if (Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
-        return ArrowType.Binary.INSTANCE;
+      if (nestedScalarUdfsEnabled()) return ArrowType.Binary.INSTANCE;
       return new ArrowType.FixedSizeBinary(binaryType.getLength());
     }
 

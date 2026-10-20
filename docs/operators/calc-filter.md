@@ -41,9 +41,10 @@ fallback.
 
 ## Experimental nested Java scalar results
 
-`streamfusion.experimental.nestedScalarUdfs=true` investigates synchronous external Java `Row`
+`streamfusion.experimental.nestedScalarUdfs` enables synchronous external Java `Row`
 arguments and results, using Flink's complete generated Calc evaluator through the existing batch
-bridge. It defaults to false. Computed ROW-valued programs and filters use whole-Calc generation,
+bridge. It defaults to true under the accepted UDF performance exception; explicit false
+retains the preceding transport and whole-query fallback. Computed ROW-valued programs and filters use whole-Calc generation,
 including SQL ROW constructors and comparisons, so physical metadata never becomes a logical SQL
 field. Pure input-reference projections keep the existing native path. Recursive
 ROW/ARRAY values use the existing verified primitive bridge types; string-to-string MAP fields
@@ -63,7 +64,7 @@ while retaining actual kinds in output payloads. The generated Calc's outer proj
 has no extra kind child. Configure the flag consistently in planner and task JVMs; this changes
 the physical struct schema. See the [transport decision](https://github.com/datafusion-contrib/StreamFusion/blob/fix/237-nested-scalar-results/divergences/nested-row-kind-transport.md).
 
-Under the same default-off flag, BINARY values use length-delimited Arrow binary storage.
+Under the same default-enabled flag, BINARY values use length-delimited Arrow binary storage.
 Released Flink callbacks can return bytes shorter or longer than their declared `BINARY(n)`;
 the transport preserves those actual bytes and the resolved SQL type without padding or
 truncation. This applies at the input, nested ROW/ARRAY fields and extracted scalar results.
@@ -81,13 +82,14 @@ Default selections pass 23 cases with two skips on 2.2 and 18 with seven skips o
 Thirty selected native Criterion smokes exercise sliced nullable nested binary handoffs and
 key hashing. These are correctness checks. Nested BINARY recovery and representative stock/
 actual-previous-runtime speed comparisons remain pending. The maintainer accepted shipping
-this correctness-tested, default-off extension on October 16 with performance work deferred;
+this correctness-tested extension on October 16 with performance work deferred; default admission
+was subsequently authorized under the UDF performance exception.
 these pending contracts are not claimed as verified.
 
 The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
 identify conversion work; their timings include observed external activity and are excluded from
-performance claims. Unprofiled stock/previous-runtime comparisons remain required before enabling
-this gate by default. The correctness and cross-JVM checks below do not establish acceleration.
+performance claims. Default admission follows the accepted UDF performance exception. These diagnostics and the
+correctness/cross-JVM checks below do not establish acceleration.
 #237 stays open.
 
 [Release validation evidence](../benchmarks/results/nested-scalar-coverage-2026-10-16.json)
@@ -112,7 +114,7 @@ match stock, including nested kinds and mutable callback outputs across batches.
 explicitly enable the flag. Child shutdown verifies native-handle, Arrow-allocation and task
 reservation cleanup. This checks callback registration and metadata across JVMs on one host;
 it does not combine remote process termination with checkpoint recovery or validate differing
-planner/task flags. The maintainer accepted shipping this default-off implementation on
+planner/task flags. The maintainer initially accepted shipping this implementation with a false default on
 October 16 despite its measured whole-job regressions, with optimization deferred.
 
 Reproduce the complete-job benchmark from a clean released build (add `-Pflink-1.18` for that

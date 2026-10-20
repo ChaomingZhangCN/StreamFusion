@@ -388,7 +388,7 @@ final class RexExpression {
 
   private static CalcEncoding tryEncodeCalc(Calc calc) {
     RexExpression encoder = forCalc(calc);
-    if (Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs")
+    if (tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled()
         && (calc.getProgram().getCondition() != null
             || calc.getProgram().getProjectList().stream()
                 .anyMatch(ref -> !(calc.getProgram().expandLocalRef(ref) instanceof RexInputRef)))
@@ -703,7 +703,7 @@ final class RexExpression {
       case MAP:
         nested =
             SqlTypeFamily.CHARACTER.contains(type.getKeyType())
-                && SqlTypeFamily.CHARACTER.contains(type.getValueType())
+                    && SqlTypeFamily.CHARACTER.contains(type.getValueType())
                 || !type.getKeyType().isNullable()
                     && type.getKeyType().getSqlTypeName() != SqlTypeName.BINARY
                     && type.getValueType().getSqlTypeName() != SqlTypeName.BINARY
@@ -711,9 +711,10 @@ final class RexExpression {
                     && rowCalcTypeCode(type.getValueType()) >= 0;
         break;
       case MULTISET:
-        nested = !type.getComponentType().isNullable()
-            && type.getComponentType().getSqlTypeName() != SqlTypeName.BINARY
-            && rowCalcTypeCode(type.getComponentType()) >= 0;
+        nested =
+            !type.getComponentType().isNullable()
+                && type.getComponentType().getSqlTypeName() != SqlTypeName.BINARY
+                && rowCalcTypeCode(type.getComponentType()) >= 0;
         break;
       case ROW:
         nested =
@@ -728,7 +729,7 @@ final class RexExpression {
 
   private static boolean nestedFieldSupported(RelDataType type) {
     return (type.getSqlTypeName() != SqlTypeName.BINARY
-            || Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs"))
+            || tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled())
         && rowCalcTypeCode(type) >= 0;
   }
 
@@ -3828,7 +3829,7 @@ final class RexExpression {
     if (!rowFusion && resultType == SqlTypeName.VARBINARY && ++binaryUdfCalls > 1) {
       return rejectUdfMethod("multiple binary UDF calls may share mutable result buffers");
     }
-    boolean nested = rowFusion && Boolean.getBoolean("streamfusion.experimental.nestedScalarUdfs");
+    boolean nested = rowFusion && tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled();
     boolean rowBoundary =
         resultType == SqlTypeName.ROW
             || call.getOperands().stream()

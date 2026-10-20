@@ -17,9 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-@org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+@org.junit.jupiter.api.condition.DisabledIfSystemProperty(
     named = "streamfusion.experimental.jvmGroupAggregates",
-    matches = "true")
+    matches = "false")
 class FlinkJvmAggregateSqlHarnessTest {
   @Test
   void appendAndCdcRetainReleasedFunctionChangelogAndLifecycle() {
