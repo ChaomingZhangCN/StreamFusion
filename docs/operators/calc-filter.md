@@ -2439,8 +2439,9 @@ NULL guards and operand evaluation. Whole-row consumers bind verified DOUBLE TRU
 to the same helper through Flink's released scalar-function bridge; other overloads and
 original expression types remain intact. The released generated Criterion control explicitly
 disables this substitution. CASE and COALESCE retain generated row evaluation when this callback can throw.
-AND/OR consumers retain the existing planner fallback for fallible operands; they preserve
-released Flink's short-circuit behavior. Programs with multiple failing evaluations retain the
+AND/OR consumers containing verified exact floating calls retain generated row evaluation
+inside native Calc. Selected nonfinite operands fail like released Flink; unselected operands
+retain its short-circuit behavior. Programs with multiple failing evaluations retain the
 existing row-order gate. Nullable COALESCE and nested TRUNCATE samples beat stock and previous production behavior.
 Later scale-dependent bounds also improve the measured large-domain consumers. See the [consumer results](../optimizations/host-exact-builtins-upcall.md#generated-consumer-evaluation)
 for retained trials and validation limits, and the [scale-dependent bound results](../optimizations/scalar-function-kernels.md#scale-dependent-double-truncate-domain-prototype)
