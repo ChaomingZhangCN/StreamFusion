@@ -66,6 +66,27 @@ RocksDB's own memtables and block cache hold the rest, governed by Flink's
 `state.backend.rocksdb.memory.*` options rather than the task off-heap pool (see the
 [RocksDB backend](backends/rocksdb.md) memory section).
 
+RocksDB Top-N reconciles its reservation with the current read-through working set, not the
+cumulative size of persisted partition keys. Append-only (including Top-1), retracting and
+update-fast rankers check the live working set before committing a bundle and return its charge
+after decoding the output and releasing that working set. An active mini-batch still charges
+hydrated rows and retained preimage payloads; payloads shared with the working set are counted
+conservatively in that estimate. The separately reserved winner cache is not included a second
+time in the completed operator-state charge. The memory backend retains its incremental charge
+for every resident partition. Checkpoint/state formats and key-group assignment are unchanged.
+
+`RocksTopNMemoryAccountingTest` reproduces the shared-pool lifecycle through the production JNI
+entry points: 100 disjoint-key batches of 16 rows complete under a 128 KiB cap in both immediate
+and mini-batch modes. Run it with the repository's configured Flink/JDK build:
+
+```sh
+mvn -pl streamfusion-runtime -am -Dtest=RocksTopNMemoryAccountingTest \
+  -Dmaven.javadoc.skip=true -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Native `topn::rocks_memory_tests` additionally covers all three strategies, existing-key
+hydration, wide preimages, real budget denials, cache ownership and checkpoint/TTL recovery.
+
 Constant append Top-1 additionally retains clean decoded winners under a 64 MiB
 FIFO limit. That cache uses a separate reservation against the same task off-heap
 pool as the operator. Cache bytes include retained row buffers, payload ownership,

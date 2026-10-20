@@ -7,6 +7,8 @@ mod first_bound_tests;
 #[cfg(test)]
 mod non_time_row_number_tests;
 mod retract_offset;
+#[cfg(all(test, feature = "rocksdb-state"))]
+mod rocks_memory_tests;
 
 fn sort_array(array: &ArrayRef) -> ArrayRef {
     use arrow::array::AsArray;
@@ -369,6 +371,38 @@ fn topn_staged_entry_bytes(key: &ByteKey, old: &Vec<Arc<OwnedRow>>) -> usize {
         + old.capacity() * std::mem::size_of::<Arc<OwnedRow>>()
 }
 
+fn topn_staged_resident_bytes(key: &ByteKey, old: &Vec<Arc<OwnedRow>>) -> usize {
+    // A replaced winner can survive only through its preimage. Shared payloads are conservatively
+    // counted here too, rather than losing their reservation when a read-through store releases them.
+    topn_staged_entry_bytes(key, old)
+        + old
+            .iter()
+            .map(|row| {
+                row.row().data().len()
+                    + std::mem::size_of::<OwnedRow>()
+                    + 2 * std::mem::size_of::<usize>()
+            })
+            .sum::<usize>()
+}
+
+fn account_topn_state<V>(
+    memory: &mut OperatorMemory,
+    store: &mut impl KeyedStateStore<V>,
+    delta: isize,
+    staged_bytes: impl FnOnce() -> usize,
+) -> Result<(), DataFusionError> {
+    let store_delta = store.footprint_delta();
+    if memory.tracking() {
+        if let Some(resident) = store.resident_bytes() {
+            memory.set(resident + staged_bytes());
+        } else {
+            memory.record(delta + store_delta);
+        }
+        memory.account()?;
+    }
+    Ok(())
+}
+
 pub(crate) struct TopNRanker<S: KeyedStateStore<TopNPartition> = MemoryTopNStore> {
     partition_columns: Vec<usize>,
     key_timestamp_precisions: Vec<i32>,
@@ -717,6 +751,17 @@ impl TopNRanker {
 }
 
 impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
+    fn account(&mut self, delta: isize) -> Result<(), DataFusionError> {
+        account_topn_state(&mut self.memory, &mut self.groups, delta, || {
+            self.staged_old_tops
+                .iter()
+                .map(|(key, old)| {
+                    topn_staged_resident_bytes(key, old.as_ref().unwrap_or(&Vec::new()))
+                })
+                .sum()
+        })
+    }
+
     pub(crate) fn with_top1_fast(mut self, enabled: bool) -> Self {
         self.top1_fast = enabled;
         self
@@ -1103,10 +1148,11 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 out_kinds.push(0); // +I the new row
             }
         }
+        self.account(delta)?;
+        let output = self.emit(out_rows, out_kinds, out_ranks);
         self.groups.end_bundle()?;
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
-        Ok(self.emit(out_rows, out_kinds, out_ranks))
+        self.account(0)?;
+        Ok(output)
     }
 
     pub(crate) fn staged_partitions(&self) -> usize {
@@ -1243,8 +1289,7 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 }
             }
         }
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
+        self.account(delta)?;
 
         Ok(self.emit(Vec::new(), Vec::new(), Vec::new()))
     }
@@ -1339,11 +1384,12 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
                 }
             }
         }
+        let output = self.emit(out_rows, out_kinds, out_ranks);
+        drop(old_tops);
         self.groups.end_bundle().expect("end top-n bundle");
-        self.memory.record(self.groups.footprint_delta());
-        self.memory.forget(staged_bytes);
-        self.memory.account_shrink();
-        self.emit(out_rows, out_kinds, out_ranks)
+        self.account(-(staged_bytes as isize))
+            .expect("released top-n bundle cannot grow its reservation");
+        output
     }
 
     fn emit(
@@ -1996,6 +2042,15 @@ impl RetractableTopNRanker {
 }
 
 impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
+    fn account(&mut self, delta: isize) -> Result<(), DataFusionError> {
+        account_topn_state(&mut self.memory, &mut self.groups, delta, || {
+            self.staged_old_tops
+                .iter()
+                .map(|(key, old)| topn_staged_resident_bytes(key, old))
+                .sum()
+        })
+    }
+
     /// Variable bounds are partition-invariant unless first-bound state is enabled.
     pub(crate) fn with_rank_end_column(mut self, column: i32) -> Self {
         self.rank_end_column = (column >= 0).then_some(column as usize);
@@ -2336,17 +2391,18 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
                 &mut out_ranks,
             );
         }
-        self.groups.end_bundle()?;
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
-        Ok(emit_changelog(
+        self.account(delta)?;
+        let output = emit_changelog(
             self.schema.as_ref(),
             self.converters.as_ref(),
             self.output_rank_number,
             out_rows,
             out_kinds,
             out_ranks,
-        ))
+        );
+        self.groups.end_bundle()?;
+        self.account(0)?;
+        Ok(output)
     }
 
     pub(crate) fn staged_partitions(&self) -> usize {
@@ -2490,8 +2546,7 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
                 }
             }
         }
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
+        self.account(delta)?;
         Ok(emit_changelog(
             self.schema.as_ref(),
             self.converters.as_ref(),
@@ -2556,20 +2611,21 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
                 &mut out_ranks,
             );
         }
-        self.groups
-            .end_bundle()
-            .expect("end retracting top-n bundle");
-        self.memory.record(self.groups.footprint_delta());
-        self.memory.forget(staged_bytes);
-        self.memory.account_shrink();
-        emit_changelog(
+        let output = emit_changelog(
             self.schema.as_ref(),
             self.converters.as_ref(),
             self.output_rank_number,
             out_rows,
             out_kinds,
             out_ranks,
-        )
+        );
+        drop(old_tops);
+        self.groups
+            .end_bundle()
+            .expect("end retracting top-n bundle");
+        self.account(-(staged_bytes as isize))
+            .expect("released retracting top-n bundle cannot grow its reservation");
+        output
     }
 }
 
@@ -2903,6 +2959,20 @@ impl UpdatableTopNStateCodec {
 #[cfg(feature = "rocksdb-state")]
 impl crate::state::RocksStateCodec for UpdatableTopNStateCodec {
     type Value = UpdatableTopNPartition;
+    fn resident_bytes(&self, value: &UpdatableTopNPartition) -> usize {
+        std::mem::size_of::<UpdatableTopNPartition>()
+            + value.capacity() * std::mem::size_of::<UpdatableRow>()
+            + value
+                .iter()
+                .map(|entry| {
+                    entry.sort.row().data().len()
+                        + entry.payload.row().data().len()
+                        + entry.row_key.len()
+                        + std::mem::size_of::<OwnedRow>()
+                        + 2 * std::mem::size_of::<usize>()
+                })
+                .sum::<usize>()
+    }
     fn supported(&self) -> bool {
         true
     }
@@ -3505,17 +3575,18 @@ impl<S: KeyedStateStore<UpdatableTopNPartition>> UpdatableTopNRanker<S> {
                 }
             }
         }
-        self.groups.end_bundle()?;
-        self.memory.record(delta + self.groups.footprint_delta());
-        self.memory.account()?;
-        Ok(emit_changelog(
+        account_topn_state(&mut self.memory, &mut self.groups, delta, || 0)?;
+        let output = emit_changelog(
             self.schema.as_ref(),
             self.converters.as_ref(),
             self.output_rank_number,
             out_rows,
             out_kinds,
             out_ranks,
-        ))
+        );
+        self.groups.end_bundle()?;
+        account_topn_state(&mut self.memory, &mut self.groups, 0, || 0)?;
+        Ok(output)
     }
 }
 

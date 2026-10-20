@@ -1313,6 +1313,22 @@ impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
     fn footprint_delta(&mut self) -> isize {
         std::mem::take(&mut self.footprint)
     }
+    fn resident_bytes(&self) -> Option<usize> {
+        Some(
+            self.working
+                .iter()
+                .map(|(key, slot)| {
+                    let value = match slot {
+                        Slot::Present { state, .. } => {
+                            self.codec.resident_bytes(state) - std::mem::size_of::<C::Value>()
+                        }
+                        Slot::Absent { .. } => 0,
+                    };
+                    byte_key_bytes(&key.0) + Self::SLOT_OVERHEAD + value
+                })
+                .sum(),
+        )
+    }
 }
 
 fn re(error: rocksdb::Error) -> DataFusionError {
