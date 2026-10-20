@@ -41,14 +41,23 @@ final class TableFunctionMatcher {
       case INTEGER:
       case BIGINT:
         return true;
+      case BOOLEAN:
+      case TINYINT:
+      case SMALLINT:
+      case DECIMAL:
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+        return true;
       default:
         return false;
     }
   }
 
   static String unsupportedReason(StreamPhysicalCorrelate node) {
-    return "correlate: only non-specialized JVM table functions with INNER/LEFT and"
-        + " VARCHAR/INT/BIGINT input, output and argument types are verified";
+    return "correlate: only non-specialized JVM table functions with INNER/LEFT and VARCHAR, exact"
+        + " numeric, boolean or temporal input, output and argument types are verified";
   }
 
   static RelNode substitute(StreamPhysicalCorrelate node, PlanContext context) {
