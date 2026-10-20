@@ -91,9 +91,9 @@ jobs:
       - name: Install the released mixed Java and Rust profiler
         run: |
           curl --fail --location --retry 3 \
-            https://github.com/async-profiler/async-profiler/releases/download/v4.0/async-profiler-4.0-linux-x64.tar.gz \
+            https://github.com/async-profiler/async-profiler/releases/download/v4.6/async-profiler-4.6-linux-x64.tar.gz \
             --output "$RUNNER_TEMP/async-profiler.tar.gz"
-          echo "ba32bd69cc2906f6251cd5aa8ae72c3abc12267ba858d38733f7751cc4d3e05b  $RUNNER_TEMP/async-profiler.tar.gz" | sha256sum --check
+          echo "1e79ed54d8952889a2e74f993d22ee925e3322460d4f37a2ed95bfb88585da36  $RUNNER_TEMP/async-profiler.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/async-profiler.tar.gz" -C "$RUNNER_TEMP"
           sudo sysctl kernel.perf_event_paranoid=1
       - name: Build the actual previous runtime then measure and profile both
@@ -102,7 +102,7 @@ jobs:
           --previous-worktree "$RUNNER_TEMP/streamfusion-previous-nested"
           --native-directory "$GITHUB_WORKSPACE/native/target/release"
           --output native/target/nested-scalar-diagnostics
-          --profiler-agent "$RUNNER_TEMP/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so"
+          --profiler-agent "$RUNNER_TEMP/async-profiler-4.6-linux-x64/lib/libasyncProfiler.so"
       - name: Retain all trials, GC logs, mixed profiles and correctness reports
         if: always()
         uses: actions/upload-artifact@v4

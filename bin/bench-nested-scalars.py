@@ -242,6 +242,7 @@ def main():
         label = f"{runtime}-{shape}-{width}" + ("-profile" if profiled else "")
         flags = [
             f"-Djava.library.path={native}",
+            f"-XX:ErrorFile={args.output / (label + '-hs_err_pid%p.log')}",
             "-Dstreamfusion.experimental.nestedScalarUdfs=true",
             f"-Xlog:gc*,safepoint:file={args.output / (label + '-gc.log')}:time,uptime,level,tags",
         ]

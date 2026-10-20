@@ -67,6 +67,7 @@ def command(args, label, key_type, keys, profile=False):
     out = args.output
     flags = [
         f"-Djava.library.path={native}",
+        f"-XX:ErrorFile={out / (label + '-hs_err_pid%p.log')}",
         "-Dstreamfusion.experimental.jvmGroupAggregates=true",
         f"-Dstreamfusion.experimental.jvmAccumulatorCacheEntries={args.capacity}",
         f"-Xlog:gc*,safepoint:file={out / (label + '-gc.log')}:time,uptime,level,tags",

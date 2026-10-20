@@ -63,13 +63,23 @@ visible and does not become accelerated merely because the workflow passed.
 
 ## Profiling
 
-The workflow installs released async-profiler 4.0 from its canonical release with a pinned
+The workflow installs released async-profiler 4.6 from its canonical release with a pinned
 SHA-256 checksum. After the unprofiled runs, separate INT and STRING medium/distinct-key jobs
 record mixed Java/symbolized Rust CPU stacks with `cpu-clock`, 2 ms sampling and DWARF native
 unwinding, plus Java allocation samples at 1 MB intervals. These use 1M rows, two warmup pairs
 and three measured pairs, and include a builtin-SUM Rust control alongside the JVM UDAF.
 All profile timings are excluded from speed claims. Java allocation samples are estimates,
 not peak memory, copied bytes or Rust heap totals.
+
+The pin includes the upstream [glibc TLS race repair](https://github.com/async-profiler/async-profiler/pull/1771)
+and the release's dictionary lifetime fixes. A Flink 1.18 CI profile under 4.0 aborted in
+HotSpot's allocation sampler after unprofiled jobs had completed. The exact cause remains
+unproven: one local 4.0 repetition passed. With 4.6, two STRING/distinct profiles pass
+on Flink 1.18 and one passes on 2.2, including the UDAF and builtin control, with
+nonempty CPU/allocation collapsed stacks.
+Profile runs retain the same queries, sizes and failure handling. Each benchmark JVM sends
+`-XX:ErrorFile` to its case's artifact directory so a future crash retains its `hs_err` report.
+Historical 4.0 profiles and all unfavorable timings remain evidence for their recorded versions.
 
 The artifact preserves raw JFR files, GC logs and benchmark records. Profiler startup writes
 a native stdout message that Surefire may report as a channel diagnostic; inspect the log,

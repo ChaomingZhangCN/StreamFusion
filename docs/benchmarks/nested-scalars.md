@@ -49,13 +49,19 @@ The local 1.18 candidate uses copied sources; every production Java source match
 candidate revision and its loaded library matches the pinned candidate release. All smoke
 durations are excluded.
 
-With `--profiler-agent /path/to/libasyncProfiler.so` from released async-profiler 4.0,
+With `--profiler-agent /path/to/libasyncProfiler.so` from released async-profiler 4.6,
 separate identity, transform and Rust control jobs record Java/native CPU-clock samples
 at 2 ms with DWARF stacks and Java allocation samples at 1 MiB, for both runtimes.
 These jobs use at most one million rows and three measured pairs. Their durations are
 excluded. Allocation samples estimate allocation volume, not copied bytes or retained
 heap; inclusive stacks overlap. Rust control costs cannot be attributed to a callback
 shape that does not execute the same Rust work.
+
+New workflow runs pin 4.6 with a verified release-archive checksum, including its upstream
+[glibc TLS race repair](https://github.com/async-profiler/async-profiler/pull/1771). Historical
+4.0 profile artifacts retain their original version. Every case directs JVM fatal-error
+reports into the retained artifact directory alongside JFR and GC logs; a crashed profiler
+or benchmark still fails the diagnostic run.
 
 The `Nested scalar release diagnostics` workflow runs these comparisons on separate
 Flink 2.2.1 and 1.18.1 hosts, verifies callback parity first and uploads full mixed JFR
