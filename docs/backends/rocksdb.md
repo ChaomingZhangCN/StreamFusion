@@ -67,6 +67,7 @@ minimum alignment. This prevents an oversized configured buffer from allocating
 an entire small slot budget at once and evicting cached reads. The configured
 write-buffer size and total shared memory budget are unchanged.
 
+
 Aligned same-range recovery opens a local copy of the checkpoint database. Rescaling reads only the
 key groups assigned to the recovering subtask and writes a new local database. This preserves
 Flink's max-parallelism and key-group redistribution semantics.
@@ -194,6 +195,7 @@ and changelog setting. Stateless native SQL remains eligible. Use `state.changel
 with StreamFusion's native state backends. This is unrelated to SQL insert/update/delete changelog
 rows, which supported native SQL operators handle normally.
 
+
 The controlled [record-layout and probe-reuse measurements](../optimizations/rocksdb-write-through.md#separating-record-layout-from-probe-reuse-2026-09-30)
 show that bounded reuse is a memory safeguard, not a universal speedup. Unique-key
 inputs favored the old bucket store in the state-level diagnostic; groups larger
@@ -250,6 +252,7 @@ serves normal reads and canonical savepoint export. Existing frame keys and unre
 layouts remain unchanged. See [OVER checkpoint semantics](../operators/over.md#primitive-zero-initialized-over-sums)
 for the limit on reconstructing arithmetic history discarded by old writers.
 
+
 ### Scalar window keys
 
 Direct fixed-window and session stores decode newly admitted TINYINT/SMALLINT, TIME,
@@ -260,6 +263,7 @@ admitted type changes its persisted encoding in this extension. Two-restore SQL 
 cover nullable composite keys on memory and direct RocksDB for fixed/session windows,
 bounded ROWS OVER, interval joins and window joins on both supported Flink releases. See
 [scalar key coverage](../operators/window-aggregate.md#scalar-grouping-and-partition-keys).
+
 
 FLOAT/DOUBLE partition keys also use their natural Float32/Float64 carriage in direct
 fixed-window and session state. The floating extension's two-restore comparisons regenerate
