@@ -2091,7 +2091,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | MAP_UNION | Rust stable typed membership/gather for total matching nullable basic maps, preserving right ordering/duplicates and Flink NULL-key behavior |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
 | Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated |
-| Runtime ROW(...) | Flink generated program through the existing batch JVM bridge |
+| Runtime ROW(...) | Released DataFusion named-struct construction for total BOOLEAN/integer/DECIMAL fields; other fields and representation-sensitive consumers remain generated |
 | OBJECT_OF | Flink generated program through the existing batch JVM bridge |
 | OBJECT_UPDATE | Flink generated program through the existing batch JVM bridge |
 
@@ -2718,3 +2718,8 @@ or input-reference expressions. Runtime equal keys remain separate entries;
 repeated/generated key expressions retain Flink evaluation because its constructor
 deduplicates generated expressions rather than runtime key values. Fallible
 operands also remain generated, including discarded value-expression cases.
+
+ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
+released named-struct builder, sharing field arrays. Fields retain their SQL
+names and nullable values; the constructed row itself is present with INSERT
+row kind. Other fields and representation-dependent row consumers remain generated.

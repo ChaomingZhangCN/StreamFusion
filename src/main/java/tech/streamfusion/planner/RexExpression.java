@@ -1580,6 +1580,18 @@ final class RexExpression {
       }
       return emitBuiltinCall(call,196);
     }
+    if (NativeConfig.collectionExpressionsEnabled() && call.getKind()==SqlKind.ROW) {
+      if (call.getOperands().isEmpty() || call.getOperands().stream().anyMatch(arg ->
+          !java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,
+              SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL).contains(arg.getType().getSqlTypeName())
+              || requiresRowShortCircuit(arg)))
+        return reject("ROW uses Flink evaluation outside total basic fields");
+      add(KIND_CALL,197,call.getOperands().size()*2);
+      for(int i=0;i<call.getOperands().size();i++) {
+        if (!emitStringLiteral(call.getType().getFieldList().get(i).getName()) || !emit(call.getOperands().get(i))) return false;
+      }
+      return true;
+    }
     boolean ordinaryArray = call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR
         && call.getType().getComponentType().isNullable()
         && java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,

@@ -2764,3 +2764,8 @@ or input-reference expressions. Runtime equal keys remain separate entries;
 repeated/generated key expressions retain Flink evaluation because its constructor
 deduplicates generated expressions rather than runtime key values. Fallible
 operands also remain generated, including discarded value-expression cases.
+
+ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
+released named-struct builder, sharing field arrays. Fields retain their SQL
+names and nullable values; the constructed row itself is present with INSERT
+row kind. Other fields and representation-dependent row consumers remain generated.

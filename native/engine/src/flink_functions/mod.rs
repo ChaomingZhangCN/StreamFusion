@@ -245,6 +245,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         194 => map_projection::function(2),
         195 => map_union::function(arity),
         196 => map_constructor::function(arity),
+        197 => datafusion::functions::core::named_struct().as_ref().clone(),
         _ => return None,
     })
 }

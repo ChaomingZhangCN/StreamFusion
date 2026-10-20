@@ -236,6 +236,10 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
             196,
             vec![integers.clone(), long(2), long(3), integers.clone()],
         ),
+        (
+            197,
+            vec![literal("f0"), integers.clone(), literal("f1"), long(2)],
+        ),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

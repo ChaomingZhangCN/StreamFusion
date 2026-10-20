@@ -379,3 +379,18 @@ Query: `MAP[idx,idx+1]`, 2,000,000 rows, INT, width 8. Method and resources matc
 Elapsed time changes by -15.13% versus the prior evaluator and +24.32% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-map-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-allocations-2026-10-20.csv) retain the evidence. Nine released SQL tests cover basic type widths and repeated-key expression fallback, including discarded fallible values.
+
+## ROW complete-job evidence
+
+Query: `ROW(idx,idx+1)`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.460757 | 0.456146-0.469860 |
+| baseline streamfusion | 0.767587 | 0.760155-0.778142 |
+| candidate stock | 0.478091 | 0.467846-0.482988 |
+| candidate streamfusion | 0.584552 | 0.577802-0.608428 |
+
+Elapsed time changes by -23.85% versus the prior evaluator and +22.27% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-row-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-row-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-row-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover basic types, NULL fields, field access and filtered batches.
