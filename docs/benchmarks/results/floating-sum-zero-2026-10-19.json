@@ -1,0 +1,1787 @@
+{
+  "date": "2026-10-19",
+  "production_base": "650426d8",
+  "change": "Enable FLOAT/DOUBLE SUM0 using typed zero-initialized running state in grouped, local/global and window accumulators; no numerical-compatibility flag changed.",
+  "boundary": "SUM0 accumulator update plus final value/bit consumption. Flink generated released Java accumulator receives prebuilt BinaryRowData; Rust production accumulator receives equivalent prebuilt Arrow primitive arrays in 1024-value slices. Setup/generation, reset/construction, input preparation/import/export and printing are untimed. No prefix, checkpoints, grouping, JNI callback, timer, or perimeter transpose is measured. Timed cohorts run serially without builds/tests.",
+  "resources": {
+    "jdk": 17,
+    "java_heap": "2GiB",
+    "native_allocator": "release+mimalloc",
+    "warmups": 5,
+    "trials": 9,
+    "input": "one nullable FLOAT/DOUBLE column, every seventh input NULL, periodic signed quarter values"
+  },
+  "cohorts": [
+    {
+      "flink": "2.2.1",
+      "type": "float",
+      "rows": 1048576,
+      "input_sha256": "20cfdec768206541c9ed2a5059636e54946c60c8e86069bbf61e442a992c64ca",
+      "stock_log_sha256": "ee6036f79bc25d9f57f8e354b49ab86c56f53fb33a529dd352a25c0476abfa8b",
+      "stock_trials": [
+        {
+          "type": "float",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.017485841",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.017141882",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.010699860",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.016871588",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.010185165",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.009523803",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.009972831",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.009995914",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.009286072",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.009950990",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.011285111",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.009575224",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.010275812",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.010472203",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002779393,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002669719,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.00277783,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002710526,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.002621635,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002625284,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002647408,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002636451,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002616682,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002561295,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.002729328,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002803729,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002703748,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002585695,
+          "bits": 3286376448,
+          "rows": 1048576
+        }
+      ],
+      "stock_median_seconds": 0.009972831,
+      "rust_median_seconds": 0.002636451,
+      "result_bits_equal": true
+    },
+    {
+      "flink": "2.2.1",
+      "type": "double",
+      "rows": 1048576,
+      "input_sha256": "48a2b2bef08aa1f8f8d1388dece193becfc295a7cf53e408349f888870423412",
+      "stock_log_sha256": "ee6036f79bc25d9f57f8e354b49ab86c56f53fb33a529dd352a25c0476abfa8b",
+      "stock_trials": [
+        {
+          "type": "double",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.013528874",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.010777162",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.011372788",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.010235898",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.010335792",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.031708611",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.029989240",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.028202576",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.009811101",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.010898578",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.010099967",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.009859546",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.010273723",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.010173944",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002342632,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002265045,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002645284,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002218149,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.002141079,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.00220356,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002273829,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002198707,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002204109,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002209389,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.00212204,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002204563,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002183142,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002289712,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        }
+      ],
+      "stock_median_seconds": 0.010273723,
+      "rust_median_seconds": 0.002204109,
+      "result_bits_equal": true
+    },
+    {
+      "flink": "1.18.1",
+      "type": "float",
+      "rows": 1048576,
+      "input_sha256": "20cfdec768206541c9ed2a5059636e54946c60c8e86069bbf61e442a992c64ca",
+      "stock_log_sha256": "ddbcad42559325cd7b4cd9e7e63f1ae35f68d122595c5d35cd1c60e570dbf08a",
+      "stock_trials": [
+        {
+          "type": "float",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.014502224",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.015431659",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.009800939",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.015496832",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.009920977",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.009385622",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.010269219",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.009122683",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.009219173",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.009711429",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.010131826",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.011520882",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.009279477",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.009969230",
+          "bits": "3286376448",
+          "rows": "1048576",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002658087,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002646878,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002683311,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002731128,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.002657505,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002616529,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002624202,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002614959,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002624999,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002692458,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.002748207,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002766661,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002612852,
+          "bits": 3286376448,
+          "rows": 1048576
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002635577,
+          "bits": 3286376448,
+          "rows": 1048576
+        }
+      ],
+      "stock_median_seconds": 0.009711429,
+      "rust_median_seconds": 0.002624999,
+      "result_bits_equal": true
+    },
+    {
+      "flink": "1.18.1",
+      "type": "double",
+      "rows": 1048576,
+      "input_sha256": "48a2b2bef08aa1f8f8d1388dece193becfc295a7cf53e408349f888870423412",
+      "stock_log_sha256": "ddbcad42559325cd7b4cd9e7e63f1ae35f68d122595c5d35cd1c60e570dbf08a",
+      "stock_trials": [
+        {
+          "type": "double",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.017174573",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.013305017",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.013749277",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.014047326",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.031634110",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.034797137",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.034427609",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.020740703",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.012634596",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.012523140",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.013034951",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.012523731",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.013559429",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.013124852",
+          "bits": "-4576708354524577792",
+          "rows": "1048576",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002265322,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002265487,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002250025,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002328808,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.00222076,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002390042,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002505428,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002214826,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002367458,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002347203,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.002317524,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002303138,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002651504,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002255468,
+          "bits": -4576708354524577792,
+          "rows": 1048576
+        }
+      ],
+      "stock_median_seconds": 0.013124852,
+      "rust_median_seconds": 0.002347203,
+      "result_bits_equal": true
+    },
+    {
+      "flink": "2.2.1",
+      "type": "float",
+      "rows": 16384,
+      "input_sha256": "33b9bb79c790b22f7e6820f2c1eddcf8f3164ec9d36dd847bbb6d7ce00045d18",
+      "stock_log_sha256": "799401e8f0df46ba67862074220364c461cfd32766bb9a2939c66aac54d73dfc",
+      "stock_trials": [
+        {
+          "type": "float",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.001039056",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.000629892",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.000594059",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.000518175",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.000482478",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.000463674",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.000520634",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.000488321",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.000306180",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.000196692",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.000190124",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.000169828",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.000167893",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "float",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.000165642",
+          "bits": "3255238656",
+          "rows": "16384",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 4.1356e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 4.1415e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 7.1685e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 5.6048e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 4.1486e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 4.1332e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 4.13e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 4.1324e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 4.1542e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 4.1257e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 4.1327e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 4.1316e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 4.9542e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 4.1659e-05,
+          "bits": 3255238656,
+          "rows": 16384
+        }
+      ],
+      "stock_median_seconds": 0.000196692,
+      "rust_median_seconds": 4.1327e-05,
+      "result_bits_equal": true
+    },
+    {
+      "flink": "2.2.1",
+      "type": "double",
+      "rows": 16384,
+      "input_sha256": "2ab588097565ead0c6b49dadd1d6bd884056eda04c8fb1780105cdbeac38dabb",
+      "stock_log_sha256": "799401e8f0df46ba67862074220364c461cfd32766bb9a2939c66aac54d73dfc",
+      "stock_trials": [
+        {
+          "type": "double",
+          "trial": "0",
+          "warmup": "true",
+          "seconds": "0.001073526",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "1",
+          "warmup": "true",
+          "seconds": "0.000610869",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "2",
+          "warmup": "true",
+          "seconds": "0.000508217",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "3",
+          "warmup": "true",
+          "seconds": "0.000472641",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "4",
+          "warmup": "true",
+          "seconds": "0.000477529",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "5",
+          "warmup": "false",
+          "seconds": "0.000469847",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "6",
+          "warmup": "false",
+          "seconds": "0.000506640",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "7",
+          "warmup": "false",
+          "seconds": "0.000518574",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "8",
+          "warmup": "false",
+          "seconds": "0.000510057",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "9",
+          "warmup": "false",
+          "seconds": "0.000473528",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "10",
+          "warmup": "false",
+          "seconds": "0.000602632",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "11",
+          "warmup": "false",
+          "seconds": "0.000489865",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "12",
+          "warmup": "false",
+          "seconds": "0.000476570",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        },
+        {
+          "type": "double",
+          "trial": "13",
+          "warmup": "false",
+          "seconds": "0.000502777",
+          "bits": "-4593425329313284096",
+          "rows": "16384",
+          "layout": "binary"
+        }
+      ],
+      "rust_trials": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 4.0054e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 3.4635e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 3.4794e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 8.7643e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 3.4307e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 3.3651e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 3.5566e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 3.538e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 3.5435e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 3.4412e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 3.4425e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 6.3167e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 3.2809e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 3.4448e-05,
+          "bits": -4593425329313284096,
+          "rows": 16384
+        }
+      ],
+      "stock_median_seconds": 0.000502777,
+      "rust_median_seconds": 3.4448e-05,
+      "result_bits_equal": true
+    }
+  ],
+  "rust_driver_sha256": "ad10b60e912345834f42aa6064196c8f9c04cf5a5438957ef3f055d820a6f5ff",
+  "candidate_runtime_dso_sha256": "d104fb1a4b45e993ff227d52faa1cca4f6d05b00e2bd67fc58e74b9b4803dc4e",
+  "validation": [
+    {
+      "log": "streamfusion-floating-sum-zero-parity22.log",
+      "sha256": "9cc5cdafd28df36870c838ec7e6e4f7fa2a4aa270aec676a76dabe889b1d46d9",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkWindowSharedSumSqlHarnessTest",
+          "tests": 30,
+          "failures": 4,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkDistinctAverageSqlHarnessTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkSharedAggregateSqlHarnessTest",
+          "tests": 32,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-floating-sum-zero-fixed22.log",
+      "sha256": "db7537b622845bd247c8eda556e35c3ea425c411027b8d21f11701503d3572af",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkWindowSharedSumSqlHarnessTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkSharedAggregateSqlHarnessTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-floating-sum-zero-parity118.log",
+      "sha256": "7c2d10c8d0de3738939b5b477d415b0f8fca6cbaa3712bd3a124c1b5dff7e78f",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkWindowSharedSumSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skips": 1
+        },
+        {
+          "class": "tech.streamfusion.FlinkDistinctAverageSqlHarnessTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "class": "tech.streamfusion.FlinkSharedAggregateSqlHarnessTest",
+          "tests": 36,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-floating-sum-zero-recovery22.log",
+      "sha256": "d8fd0af150b69745428058d1e7eeaea3c04c9334f3ee27a73485f61b0c05ab76",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkFloatingSumZeroRecoveryTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-floating-sum-zero-recovery118.log",
+      "sha256": "f88c50eaf0aa8e14cf81c60757ff6c61511fb0986e001eee8c62f07c1e0a464d",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkFloatingSumZeroRecoveryTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    }
+  ],
+  "native_tests": {
+    "passed": 10,
+    "filter": "zero_sum",
+    "log_sha256": "c1de67ae8b7e6d8c0080f1a104b644aace3d5d4699cced3615472fa3377e8b3d"
+  },
+  "criterion": {
+    "window_fixtures": 24,
+    "group_fixtures": 16,
+    "window_allocations": [
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/256/1",
+        "allocation_calls": "79",
+        "requested_bytes": "14167",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "40"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/256/1",
+        "allocation_calls": "79",
+        "requested_bytes": "14199",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "48"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/256/1",
+        "allocation_calls": "79",
+        "requested_bytes": "14151",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "36"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/256/1",
+        "allocation_calls": "79",
+        "requested_bytes": "14167",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "40"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/256/64",
+        "allocation_calls": "872",
+        "requested_bytes": "105366",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2560"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/256/64",
+        "allocation_calls": "872",
+        "requested_bytes": "108406",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3072"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/256/64",
+        "allocation_calls": "872",
+        "requested_bytes": "103846",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2304"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/256/64",
+        "allocation_calls": "872",
+        "requested_bytes": "105366",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2560"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/256/256",
+        "allocation_calls": "1915",
+        "requested_bytes": "357550",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "10240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/256/256",
+        "allocation_calls": "1915",
+        "requested_bytes": "361614",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "12288"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/256/256",
+        "allocation_calls": "1915",
+        "requested_bytes": "355518",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "9216"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/256/256",
+        "allocation_calls": "1915",
+        "requested_bytes": "357550",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "10240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/4096/1",
+        "allocation_calls": "83",
+        "requested_bytes": "110167",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "40"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/4096/1",
+        "allocation_calls": "83",
+        "requested_bytes": "110199",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "48"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/4096/1",
+        "allocation_calls": "83",
+        "requested_bytes": "110151",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "36"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/4096/1",
+        "allocation_calls": "83",
+        "requested_bytes": "110167",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "40"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/4096/64",
+        "allocation_calls": "1128",
+        "requested_bytes": "232086",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2560"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/4096/64",
+        "allocation_calls": "1128",
+        "requested_bytes": "265846",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3072"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/4096/64",
+        "allocation_calls": "1128",
+        "requested_bytes": "215206",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2304"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/4096/64",
+        "allocation_calls": "1128",
+        "requested_bytes": "232086",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "2560"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/bigint/4096/4096",
+        "allocation_calls": "28831",
+        "requested_bytes": "5649678",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "163840"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/decimal38/4096/4096",
+        "allocation_calls": "28831",
+        "requested_bytes": "5715182",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "196608"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/float/4096/4096",
+        "allocation_calls": "28831",
+        "requested_bytes": "5616926",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "147456"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "window_zero_sum",
+        "case": "window_zero_sum/double/4096/4096",
+        "allocation_calls": "28831",
+        "requested_bytes": "5649678",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "163840"
+      }
+    ],
+    "mode": "release smoke only; no Criterion throughput claims"
+  },
+  "corrections": [
+    "Initial Java window selection failed four newly admitted floating cases because the production accumulator factory still restricted SUM0 to exact types. After extending that factory, all eight width/phase cases and four direct Table API cases pass.",
+    "Plain SQL SUM0 is not a registered released SQL signature. Direct admission is tested through the released Table API sum0() method; initial SQL and guessed API fixture attempts were corrected before final validation."
+  ],
+  "limitations": [
+    "Accumulator timings are not GROUP BY, window, OVER, or whole-job speedups.",
+    "Previous admission used the host function; no independently timed previous complete StreamFusion job is claimed.",
+    "Current OVER primitive SUM0-to-SUM lowering is unchanged and needs a separate signed-zero/all-NULL audit.",
+    "The frozen Java runtime predates only the benchmark adapter addition; the Rust driver calls the same production accumulator code.",
+    "Allocation requests and Arrow buffer sharing do not measure copied bytes or RSS."
+  ]
+}

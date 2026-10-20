@@ -61,18 +61,23 @@ class FlinkSharedStatefulScalarSqlHarnessTest {
         "SELECT tick(id), tick(id + 10) FROM src WHERE fail_if_called(id) > 0"
       })
   void sharedFunctionRowsKeepTheReleasedException(String sql) {
-    NativeFailureParity.run(
-            () -> {
-              var table = FlinkCoalesceEvaluationSqlHarnessTest.environment(9);
-              table.getConfig().set("streamfusion.calc.sharedStatefulUdf.enabled", "true");
-              return table;
-            },
-            sql)
+    NativeFailureParity.run(() -> FlinkCoalesceEvaluationSqlHarnessTest.environment(9), sql)
         .assertFailure(
             IllegalStateException.class,
             "unselected operand evaluated",
             NativeFailureParity.Phase.ROW_EVALUATION,
             NativeFailureParity.Route.NATIVE);
+  }
+
+  @Test
+  void explicitFalseRetainsStockForSharedCalls() throws Exception {
+    NativeParity.assertFallback(
+        () -> {
+          var table = FlinkCoalesceEvaluationSqlHarnessTest.environment(9);
+          table.getConfig().set("streamfusion.calc.sharedStatefulUdf.enabled", "false");
+          return table;
+        },
+        "SELECT tick(id), tick(id + 1) FROM src");
   }
 
   private static void compare(String sql, int count, boolean changelog) throws Exception {
@@ -120,7 +125,6 @@ class FlinkSharedStatefulScalarSqlHarnessTest {
                 ? table.fromChangelogStream(source, schema)
                 : table.fromDataStream(source, schema));
         table.getConfig().set("streamfusion.native.enabled", Boolean.toString(nativeEnabled));
-        table.getConfig().set("streamfusion.calc.sharedStatefulUdf.enabled", "true");
         var scan = NativePlanner.install(table);
         try {
           var result = table.executeSql(sql);

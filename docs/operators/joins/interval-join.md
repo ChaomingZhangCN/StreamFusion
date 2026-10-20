@@ -48,9 +48,11 @@ case is defined against released RocksDB rather than heap state.
 
 ## Admission
 
-Same equi-key/type/residual conditions as the [regular join](regular-join.md): a supported-type
-equi-key, null-dropping keys for a non-INNER join, and a non-equi residual the native expression
-engine can express. All four join types — INNER, LEFT, RIGHT, and FULL — are native.
+Equi-keys use the [verified scalar whitelist](../window-aggregate.md#scalar-grouping-and-partition-keys):
+all integer widths, FLOAT/DOUBLE, character, BOOLEAN, DATE, TIME, TIMESTAMP/LTZ, DECIMAL, binary and intervals,
+including multiple scalar key columns. Collection/ROW/object key columns
+retain fallback. Non-INNER joins require null-dropping keys, and the native expression engine
+must express every non-equi residual. All four join types — INNER, LEFT, RIGHT, and FULL — are native.
 
 ## Falls back to Flink when
 

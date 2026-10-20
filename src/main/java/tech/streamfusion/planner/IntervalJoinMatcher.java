@@ -64,7 +64,7 @@ final class IntervalJoinMatcher {
               leftType.getFieldList().get(leftKeys[i]).getType().getSqlTypeName())
           || !WindowAggregateMatcher.supportedGroupingKeyType(
               rightType.getFieldList().get(rightKeys[i]).getType().getSqlTypeName())) {
-        return "interval join: equi-join keys must be bigint/int/string/boolean/date/timestamp/decimal";
+        return "interval join: unsupported equi-join key type for native scalar carriage";
       }
     }
     IntervalJoinSpec.WindowBounds bounds = windowBounds(join);

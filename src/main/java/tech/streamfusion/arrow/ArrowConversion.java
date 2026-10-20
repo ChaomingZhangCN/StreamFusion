@@ -121,15 +121,17 @@ import tech.streamfusion.arrow.writers.VarBinaryWriter;
 import tech.streamfusion.arrow.writers.VarCharWriter;
 
 /**
- * The Arrow ↔ {@link RowData} type mapping, reader factory, and writer factory, ported (and trimmed) from
- * Flink's {@code org.apache.flink.table.runtime.arrow.ArrowUtils}. Vendored rather than depended on
- * because that class lives in {@code flink-python}, which ships in the distribution's {@code opt/} and is
- * not on a normal Java job's classpath; the per-type readers/writers it drives are vendored alongside
- * (this package), so a clean clone builds without it.
+ * The Arrow ↔ {@link RowData} type mapping, reader factory, and writer factory, ported (and
+ * trimmed) from Flink's {@code org.apache.flink.table.runtime.arrow.ArrowUtils}. Vendored rather
+ * than depended on because that class lives in {@code flink-python}, which ships in the
+ * distribution's {@code opt/} and is not on a normal Java job's classpath; the per-type
+ * readers/writers it drives are vendored alongside (this package), so a clean clone builds without
+ * it.
  *
- * <p>One deliberate divergence from upstream: a {@code TIMESTAMP}/{@code TIMESTAMP_LTZ} column maps to a
- * struct of epoch milliseconds and nanos within the millisecond, regardless of declared precision.
- * This preserves Flink's range and any fractional nanos already present in a runtime value.
+ * <p>One deliberate divergence from upstream: a {@code TIMESTAMP}/{@code TIMESTAMP_LTZ} column maps
+ * to a struct of epoch milliseconds and nanos within the millisecond, regardless of declared
+ * precision. This preserves Flink's range and any fractional nanos already present in a runtime
+ * value.
  */
 public final class ArrowConversion {
   private ArrowConversion() {}
@@ -172,8 +174,8 @@ public final class ArrowConversion {
 
   /**
    * The (key, value) logical types of a map-like column: a {@link MapType}'s key/value, or — for a
-   * {@link MultisetType}, carried as a MAP&lt;element, count&gt; — the element type and a non-null INT
-   * count.
+   * {@link MultisetType}, carried as a MAP&lt;element, count&gt; — the element type and a non-null
+   * INT count.
    */
   private static LogicalType[] mapKeyValue(LogicalType logicalType) {
     if (logicalType instanceof MapType) {
@@ -221,7 +223,8 @@ public final class ArrowConversion {
       for (int i = 0; i < types.size(); i++) {
         children.add(toArrowField(names.get(i), types.get(i), true, preserve));
       }
-      if (preserve) children.add(NestedRepresentation.kindField(children));
+      if (preserve || nestedScalarUdfsEnabled())
+        children.add(NestedRepresentation.kindField(children));
     } else if (logicalType instanceof MapType || logicalType instanceof MultisetType) {
       // A MAP, or a MULTISET carried as MAP<element, count> (mapKeyValue resolves which).
       LogicalType[] kv = mapKeyValue(logicalType);
@@ -239,12 +242,27 @@ public final class ArrowConversion {
     return new Field(fieldName, fieldType, children);
   }
 
+  private static boolean variableBinaryTransport() {
+    return nestedScalarUdfsEnabled() || binaryEltEnabled();
+  }
+
+  public static boolean binaryEltEnabled() {
+    return Boolean.parseBoolean(System.getProperty("streamfusion.experimental.binaryElt", "true"));
+  }
+
+  public static boolean nestedScalarUdfsEnabled() {
+    return Boolean.parseBoolean(
+        System.getProperty("streamfusion.experimental.nestedScalarUdfs", "true"));
+  }
+
   /**
    * Whether a column the native engine produces as {@code actual} is read correctly as the Flink
    * type {@code declared} by the vectors {@link #createColumnVector} builds. That dispatch is by
    * Arrow type, not by the declared type, so this is the contract a native output must meet: the
    * same Arrow type the row type converts to, except that timestamps and times may carry any unit
-   * (and any zone), which the vectors convert on read. Nested children are held to the same rule.
+   * (and any zone), which the vectors convert on read. The nested-callback and binary-selection
+   * paths also read fixed binary outputs through its length-delimited binary schema. Nested
+   * children follow the same rules.
    */
   public static boolean readsAs(Field actual, LogicalType declared) {
     return readsAs(actual, toArrowField(actual.getName(), declared));
@@ -257,28 +275,29 @@ public final class ArrowConversion {
       return true;
     ArrowType actualType = actual.getType();
     ArrowType expectedType = expected.getType();
-    if ((actualType instanceof ArrowType.Timestamp || TimestampAccessor.isComponentTimestamp(actual))
-        && (expectedType instanceof ArrowType.Timestamp || TimestampAccessor.isComponentTimestamp(expected))) {
+    if ((actualType instanceof ArrowType.Timestamp
+            || TimestampAccessor.isComponentTimestamp(actual))
+        && (expectedType instanceof ArrowType.Timestamp
+            || TimestampAccessor.isComponentTimestamp(expected))) {
       return true;
     }
     boolean convertibleOnRead =
         actualType instanceof ArrowType.Time && expectedType instanceof ArrowType.Time
-            || MapListRepresentation.isMapList(actual) && expectedType instanceof ArrowType.Map;
+            || MapListRepresentation.isMapList(actual) && expectedType instanceof ArrowType.Map
+            || variableBinaryTransport()
+                && actualType instanceof ArrowType.FixedSizeBinary
+                && expectedType instanceof ArrowType.Binary;
     if (!convertibleOnRead && !actualType.equals(expectedType)) {
       return false;
     }
-    List<Field> actualChildren = actual.getChildren();
-    actualChildren =
-        actualChildren.stream()
+    List<Field> actualChildren =
+        NestedRowKinds.dataFields(actual.getChildren()).stream()
             .filter(field -> !NestedRepresentation.isBinaryRowBytes(field))
             .collect(Collectors.toList());
-    if (actualChildren.size() == expected.getChildren().size() + 1
-        && actualChildren
-            .get(actualChildren.size() - 1)
-            .getMetadata()
-            .containsKey("streamfusion.nested-row-kind"))
-      actualChildren = actualChildren.subList(0, actualChildren.size() - 1);
-    List<Field> expectedChildren = expected.getChildren();
+    List<Field> expectedChildren =
+        NestedRowKinds.dataFields(expected.getChildren()).stream()
+            .filter(field -> !NestedRepresentation.isBinaryRowBytes(field))
+            .collect(Collectors.toList());
     if (actualChildren.size() != expectedChildren.size()) {
       return false;
     }
@@ -300,9 +319,20 @@ public final class ArrowConversion {
   /** Binary ROW payloads are used only by an immediate, verified exit projection. */
   public static ArrowReader createArrowReader(
       VectorSchemaRoot root, RowType rowType, boolean binaryRows) {
+    return createArrowReader(root, rowType, binaryRows, false);
+  }
+
+  /** Reader for synchronous consumers that copy or serialize before the batch closes. */
+  public static ArrowReader createBorrowedStringReader(VectorSchemaRoot root, RowType rowType) {
+    return createArrowReader(root, rowType, false, true);
+  }
+
+  private static ArrowReader createArrowReader(
+      VectorSchemaRoot root, RowType rowType, boolean binaryRows, boolean borrowStrings) {
     List<ColumnVector> columnVectors = new ArrayList<>();
     List<FieldVector> fieldVectors = root.getFieldVectors();
-    // Iterate the row type's columns, not the root's: a batch may carry trailing system columns (the
+    // Iterate the row type's columns, not the root's: a batch may carry trailing system columns
+    // (the
     // hidden $row_kind$) the row type does not name, which the caller reads separately.
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       var column = createColumnVector(fieldVectors.get(i), rowType.getTypeAt(i));
@@ -310,8 +340,26 @@ public final class ArrowConversion {
         ((ArrowRowColumnVector) column).binaryRowsForExit();
       columnVectors.add(column);
     }
-    org.apache.arrow.vector.complex.ListVector[] caches = StringCacheColumns.readers(root, rowType.getFieldCount());
-    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches);
+    org.apache.arrow.vector.complex.ListVector[] caches =
+        StringCacheColumns.readers(root, rowType.getFieldCount());
+    BorrowedStringValues[] borrowed = null;
+    if (borrowStrings) {
+      for (int i = 0; i < rowType.getFieldCount(); i++) {
+        switch (rowType.getTypeAt(i).getTypeRoot()) {
+          case CHAR:
+          case VARCHAR:
+            var values = BorrowedStringValues.create(fieldVectors.get(i));
+            if (values != null) {
+              if (borrowed == null) borrowed = new BorrowedStringValues[rowType.getFieldCount()];
+              borrowed[i] = values;
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    }
+    return new ArrowReader(columnVectors.toArray(new ColumnVector[0]), caches, borrowed);
   }
 
   /** A writer that appends {@link RowData} rows into the (pre-built, matching) Arrow vectors. */
@@ -454,7 +502,8 @@ public final class ArrowConversion {
       return VarBinaryWriter.forRow((VarBinaryVector) vector);
     } else if (vector instanceof DecimalVector) {
       DecimalVector decimalVector = (DecimalVector) vector;
-      return DecimalWriter.forRow(decimalVector, getPrecision(decimalVector), decimalVector.getScale());
+      return DecimalWriter.forRow(
+          decimalVector, getPrecision(decimalVector), decimalVector.getScale());
     } else if (vector instanceof DateDayVector) {
       return DateWriter.forRow((DateDayVector) vector);
     } else if (vector instanceof TimeSecVector
@@ -529,7 +578,8 @@ public final class ArrowConversion {
       return VarBinaryWriter.forArray((VarBinaryVector) vector);
     } else if (vector instanceof DecimalVector) {
       DecimalVector decimalVector = (DecimalVector) vector;
-      return DecimalWriter.forArray(decimalVector, getPrecision(decimalVector), decimalVector.getScale());
+      return DecimalWriter.forArray(
+          decimalVector, getPrecision(decimalVector), decimalVector.getScale());
     } else if (vector instanceof DateDayVector) {
       return DateWriter.forArray((DateDayVector) vector);
     } else if (vector instanceof TimeSecVector
@@ -635,6 +685,8 @@ public final class ArrowConversion {
 
     @Override
     public ArrowType visit(BinaryType binaryType) {
+      // Released Flink values can retain bytes whose length differs from BINARY(n).
+      if (variableBinaryTransport()) return ArrowType.Binary.INSTANCE;
       return new ArrowType.FixedSizeBinary(binaryType.getLength());
     }
 

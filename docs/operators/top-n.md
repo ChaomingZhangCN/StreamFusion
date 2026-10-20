@@ -5,9 +5,15 @@ columns decide their rank. Only sort-key copies normalize zero; emitted payloads
 keys keep the original bits. Snapshot restore normalizes retained sort keys as well, including
 older raw snapshots, before ranking new input.
 
-MAP and MULTISET fields in retained rows fall back at planning time, including fields nested
-inside ARRAY or ROW. Arrow's row codec cannot store them even when they are only payloads.
-This restriction also applies to LIMIT/SortLimit, which use the same state representation.
+Ordinary Top-N carries MAP and MULTISET payloads recursively, including within ARRAY/ROW or other maps.
+They use the existing tagged List-of-entry-struct storage view so NULL keys and values survive
+Arrow row encoding and IPC checkpoints. Partition, order and update-fast unique-key fields still
+exclude MAP/MULTISET descendants; payload admission does not extend key equality or ordering.
+LIMIT/SortLimit, processing-time first-N and ordinary non-time ROW_NUMBER share this carriage.
+Updating Top-N/LIMIT inputs with any MAP/MULTISET descendant still fall back: full-row
+retraction needs Flink's representation-dependent map equality, not physical List equality.
+[Issue #437](https://github.com/datafusion-contrib/StreamFusion/issues/437) tracks that contract,
+including equivalent maps with reordered entries. No performance flag bypasses this guard.
 
 **Status:** Native — all three rank strategies, idle-state TTL included; a small set of matcher
 gaps below.
@@ -67,12 +73,26 @@ cascades even when rank is not projected. An updated row moving into the hidden 
 its former visible position before the remaining visible transitions. Checkpoints and canonical
 memory/RocksDB transitions retain the prefix and reapply the selected range on restore.
 
-A hidden-rank retracting offset follows Flink's heap-state emission semantics: a cascade mutates
-the retained row kinds, and later retractions compare those kinds along with the full payload.
-Sort-key counts advance even when a payload removal fails. Native memory and RocksDB state both
-persist the kinds and independent counts, including zero-count keys with retained payloads.
-This path preserves every per-record cascade even when mini-batching is enabled. Projected-rank
-and update-fast paths retain their existing behavior.
+A hidden-rank retracting offset follows the selected Flink backend's value-copy semantics.
+With heap state, a cascade mutates shared retained row kinds; later retractions compare those
+kinds along with the full payload. RocksDB reads serialized copies instead: only explicitly
+written source-sort-group lists retain their mutations. An insertion writes its new row after
+emission. A retraction writes its source list before shifting later groups, so those later
+emissions do not mutate persisted kinds. Native memory and direct RocksDB preserve these
+respective contracts, including within a physical Arrow batch.
+
+Sort-key counts advance even when a payload removal fails. Both stores persist independent
+counts, including zero-count keys with retained payloads. The path preserves each per-record
+cascade even with mini-batching enabled. Projected-rank and update-fast paths are unchanged.
+Sixteen released-SQL cases per supported Flink line cover unique/tied sort keys, both backends,
+projected/hidden ranks and two checkpoint restores. The previous native RocksDB path failed
+both uninterrupted and recovered hidden-rank controls; the heap/projected controls passed.
+[Validation evidence](../benchmarks/results/hidden-offset-backend-copies-2026-10-20.json).
+
+The state encoding is unchanged. Old native RocksDB checkpoints retain their recorded kinds;
+future correct copy behavior cannot reconstruct the stock-RocksDB history that the previous
+heap-style mutation model did not record. Replaying from an unaffected source/state is needed
+when that historical difference matters.
 
 Without OFFSET, each retraction of a selected row emits its removal and any promoted row,
 even when an identical duplicate replaces it. Projected ranks retain the corresponding
@@ -349,3 +369,37 @@ RocksDB, and fixed-offset firing retains its ordered-prefix scan.
 
 The `-Dstreamfusion.operator.windowRank.enabled` switch covers both shapes; window dedup reuses the
 window-rank operator rather than getting its own switch — see [Configuration](../configuration.md).
+
+
+## Retained MAP/MULTISET payload qualification
+
+Released SQL comparisons cover eight payload families: string/integer-key maps, multisets,
+ARRAY-of-MAP, ROW-containing-MAP, and MAP values containing ARRAY/ROW/MAP. NULL parents, empties,
+NULL keys and nullable values pass ordinary Top-N, sorted/arrival LIMIT, hidden OFFSET, first-N
+and non-time ROW_NUMBER, plus inner/outer/semi/anti joins. Two checkpoint failures cover memory
+and direct RocksDB. Updating joins and ranking cases pin correct fallback, including colliding
+map keys reordered on retraction. Three MAP UDF/consumer compositions now run natively: Flink
+lifts those callbacks above rank, and their external Map signatures use the default-enabled
+[generated callback](calc-filter.md#java-map-scalar-signatures). Flink 1.18 skips eight ordinary non-time
+ROW_NUMBER cases because the released host lacks that operator.
+
+The retained-payload revision, before the MAP callback extension, passed 238 checks on Flink 2.2.1 and 230 with eight capability skips
+on 1.18.1, including 57 explicit correctness-fallback cases per line. Another 21 existing
+stateful map-carrier and nested SQL/JSON controls pass on each line; append-only payload
+checks now require native execution while the map-key check retains fallback.
+
+The [benchmark evidence](../benchmarks/results/retained-map-payloads-2026-10-20.json) retains every
+trial, independent full output oracle, native profile and allocation probe. The prepared-format
+Top-N gate compares production Java rank on BinaryRowData with production Rust rank on Arrow,
+including budgeted state and complete map consumption, with five warmups/nine trials. Final
+stock/native median ratios range from 1.03x to 6.90x across eight MAP/MULTISET cohorts. Wide
+high-churn timings are close and their ranges overlap. This establishes no complete-job or
+join-throughput claim. The [batch rejection technique](../optimizations/bounded-rank-payloads.md)
+explains the low-churn gain and its measured limits.
+
+
+Four additional nested-UDF composition controls per release cover a returned ROW containing a
+string-to-string MAP, on heap/RocksDB with two restores. Ordinary scalar ordering stays native.
+Sorting by a computed collection expression still preserves the existing final-projection/fused-
+consumer guard: richer collection representations cannot enter an unverified stateful boundary.
+These are callback/schema checks, not additional UDF type admission or throughput evidence.

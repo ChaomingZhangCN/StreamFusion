@@ -1,0 +1,763 @@
+{
+  "flink": "2.2.1",
+  "unavailable_on": "1.18.1 (released catalog lacks ELT)",
+  "warmups": 5,
+  "runs": 9,
+  "batch_rows": 1024,
+  "boundary": "Stock released generated Calc on prepared BinaryRowData, including RowData output access; production CalcProgram/Binary ELT inside Rust on prepared Arrow, including output consumption. Setup, initial Arrow import and final export/perimeter JNI/transposes excluded. Both prewarm the same 1024-row prefix before clocks.",
+  "driver_sha256": "13591e756b2d4b76e9bb65570d088def3d33c377b29c20c2a722a9e60b200680",
+  "cohorts": [
+    {
+      "label": "small",
+      "rows": 16384,
+      "nominal_width": 4,
+      "logical_binary_width": 4,
+      "actual_lengths": "NULL, empty, nominal width, nominal+3/+5/+8, and rare4097-byte values; zero/high bytes; NULL/negative/zero/valid/out-of-bounds indices",
+      "fixture": "/tmp/streamfusion-binary-elt-admission-final/small.arrow",
+      "fixture_sha256": "9340723bbceb14aabf477ce2b74c1646a0a686657e03bf1c9ac5152b909fb1ba",
+      "fixture_log": "/tmp/streamfusion-binary-elt-admission-final/small-fixture.log",
+      "stock_verified_log": "/tmp/streamfusion-binary-elt-admission-final/small-verified.log",
+      "native_log": "/tmp/streamfusion-binary-elt-admission-final/small-rust.jsonl",
+      "flink": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.005024046,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002995651,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002425627,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002089229,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.00155729,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002804915,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.001632376,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.001597768,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.001311383,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.001302139,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.001471749,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.001047105,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.001002531,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.001122308,
+          "rows": 16384,
+          "width": 4,
+          "checksum": 178772
+        }
+      ],
+      "rust": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.000128815,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.000120468,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.000117791,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.000116354,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.00011614,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.000118452,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.000115459,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.000115293,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.000115613,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.000115592,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.000115988,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.000115229,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.000133288,
+          "rows": 16384,
+          "checksum": 178772
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.000116705,
+          "rows": 16384,
+          "checksum": 178772
+        }
+      ],
+      "medians": {
+        "flink": 0.001311383,
+        "rust": 0.000115613
+      },
+      "ratio": 11.34286801657253,
+      "full_values_and_rowkinds_verified": true
+    },
+    {
+      "label": "large",
+      "rows": 262144,
+      "nominal_width": 64,
+      "logical_binary_width": 4,
+      "actual_lengths": "NULL, empty, nominal width, nominal+3/+5/+8, and rare4097-byte values; zero/high bytes; NULL/negative/zero/valid/out-of-bounds indices",
+      "fixture": "/tmp/streamfusion-binary-elt-admission-final/large.arrow",
+      "fixture_sha256": "8b0845c9aafa439dee6771d68c7b20b260697672683d17c4432037567bbed48e",
+      "fixture_log": "/tmp/streamfusion-binary-elt-admission-final/large-fixture.log",
+      "stock_verified_log": "/tmp/streamfusion-binary-elt-admission-final/large-verified.log",
+      "native_log": "/tmp/streamfusion-binary-elt-admission-final/large-rust.jsonl",
+      "flink": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.036424194,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.036295367,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.012767527,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.019574469,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.012916477,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.012849541,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.014933508,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.013711015,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.012556642,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.016341173,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.012493435,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.012571734,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.012633518,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.031510441,
+          "rows": 262144,
+          "width": 64,
+          "checksum": 5931569
+        }
+      ],
+      "rust": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002986266,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002908497,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002742417,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.00272004,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.003065428,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002947302,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002911555,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002664769,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002566826,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002659554,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.002479411,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002510542,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002614211,
+          "rows": 262144,
+          "checksum": 5931569
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002501576,
+          "rows": 262144,
+          "checksum": 5931569
+        }
+      ],
+      "medians": {
+        "flink": 0.012849541,
+        "rust": 0.002614211
+      },
+      "ratio": 4.9152654472037645,
+      "full_values_and_rowkinds_verified": true
+    },
+    {
+      "label": "wide",
+      "rows": 131072,
+      "nominal_width": 256,
+      "logical_binary_width": 4,
+      "actual_lengths": "NULL, empty, nominal width, nominal+3/+5/+8, and rare4097-byte values; zero/high bytes; NULL/negative/zero/valid/out-of-bounds indices",
+      "fixture": "/tmp/streamfusion-binary-elt-admission-final/wide.arrow",
+      "fixture_sha256": "3d53b5aa19fadbb197d0fd89bcea3348070026e01199abf91810322bd0a25df7",
+      "fixture_log": "/tmp/streamfusion-binary-elt-admission-final/wide-fixture.log",
+      "stock_verified_log": "/tmp/streamfusion-binary-elt-admission-final/wide-verified.log",
+      "native_log": "/tmp/streamfusion-binary-elt-admission-final/wide-rust.jsonl",
+      "flink": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.04379998,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.019820487,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.01639919,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.011153745,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.013037188,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.009997609,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.015623002,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.009964208,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.010948015,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.025683385,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.034764626,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.034471736,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.015537941,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.011281282,
+          "rows": 131072,
+          "width": 256,
+          "checksum": 8089142
+        }
+      ],
+      "rust": [
+        {
+          "trial": 0,
+          "warmup": true,
+          "seconds": 0.002673798,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 1,
+          "warmup": true,
+          "seconds": 0.002563357,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 2,
+          "warmup": true,
+          "seconds": 0.002264747,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 3,
+          "warmup": true,
+          "seconds": 0.002345313,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 4,
+          "warmup": true,
+          "seconds": 0.002161807,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 5,
+          "warmup": false,
+          "seconds": 0.002252843,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 6,
+          "warmup": false,
+          "seconds": 0.002125144,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 7,
+          "warmup": false,
+          "seconds": 0.002109952,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 8,
+          "warmup": false,
+          "seconds": 0.002230464,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 9,
+          "warmup": false,
+          "seconds": 0.002131907,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 10,
+          "warmup": false,
+          "seconds": 0.002493217,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 11,
+          "warmup": false,
+          "seconds": 0.002182416,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 12,
+          "warmup": false,
+          "seconds": 0.002158581,
+          "rows": 131072,
+          "checksum": 8089142
+        },
+        {
+          "trial": 13,
+          "warmup": false,
+          "seconds": 0.002020612,
+          "rows": 131072,
+          "checksum": 8089142
+        }
+      ],
+      "medians": {
+        "flink": 0.015537941,
+        "rust": 0.002158581
+      },
+      "ratio": 7.198220034365168,
+      "full_values_and_rowkinds_verified": true
+    }
+  ],
+  "base": "ea1d4e86",
+  "source_branch": "fix/235-binary-selection",
+  "profile": "release+mimalloc; JDK17; release11 Java bytecode; 2GiB stock heap",
+  "parity_library": {
+    "path": "/tmp/streamfusion-jvm-defaults/libstreamfusion.so",
+    "sha256": "c959d221bd556944be49444c130eab9e967cdc54a887b019925ce22f7dc765c6",
+    "note": "Pinned release from the integrated JVM aggregate/nested-scalar base. No Rust production changes in binary ELT admission."
+  },
+  "validation": {
+    "flink22": {
+      "unique_selected_default_cases": 55,
+      "passed": 55,
+      "logs": [
+        "/tmp/streamfusion-binary-defaults22.log",
+        "/tmp/streamfusion-binary-extra22.log"
+      ]
+    },
+    "flink118": {
+      "unique_selected_default_cases": 55,
+      "passed": 36,
+      "expected_catalog_skips": 19,
+      "logs": [
+        "/tmp/streamfusion-binary-defaults118.log",
+        "/tmp/streamfusion-binary-extra118.log"
+      ]
+    },
+    "recovery_per_line": 8,
+    "separate_worker_jvm_cases_per_line": 4,
+    "remote_input_rows": 5003,
+    "explicit_false": {
+      "passed": 23,
+      "log": "/tmp/streamfusion-binary-explicit-false22-final.log",
+      "disabled_default_coverage_methods": 4
+    },
+    "independent_binary_default_with_nested_disabled": {
+      "passed": 7,
+      "log": "/tmp/streamfusion-binary-without-nested22.log"
+    },
+    "criterion": {
+      "profile": "release+mimalloc",
+      "fixtures_passed": 1104,
+      "log": "/tmp/streamfusion-binary-defaults-criterion/streamfusion-binary_expressions.log"
+    }
+  },
+  "sources": {
+    "native/engine/examples/binary_elt.rs": "c657b2888d36bc60a92a1f8b80bf87f20766e6e83a7f304916b1cfb4697f7eee",
+    "src/test/java/tech/streamfusion/BinaryEltAdmissionBenchmark.java": "2a48fa65f88088bd4ea3d8681097c6d8f7c290a2fb2dc5a1971792006b8bec8d",
+    "src/main/java/tech/streamfusion/arrow/ArrowConversion.java": "49800ffb83c0c6a94b621d0978fcd2aea1d203058d4d81602e59acd88f31e050",
+    "src/main/java/tech/streamfusion/planner/RexExpression.java": "83e1c109e375b326414fe7548dc2b352252c9a2ed4263358c0fb478db9909fd1"
+  },
+  "preliminary_diagnostics": [
+    "/tmp/streamfusion-binary-elt-stock-preliminary-v2.log",
+    "/tmp/streamfusion-binary-elt-native-preliminary.jsonl"
+  ],
+  "preliminary_exclusion": "Early stock diagnostics overlapped native compilation; final timing and oracle passes ran serially without other builds.",
+  "previous_behavior": "The preceding default rejected binary ELT and ran the same released stock Calc used here. Existing explicit-false checks verify that route. No whole-job speed claim."
+}

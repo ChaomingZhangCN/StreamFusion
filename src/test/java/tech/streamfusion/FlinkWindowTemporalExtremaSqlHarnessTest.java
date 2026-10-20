@@ -72,20 +72,7 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
   void mixedStringAndTimestampExtremaPreserveSelectedRows(String phase, String shape, int precision) {
     String query = sql(shape,
         "MIN(tv), MAX(lv), MIN(CAST(k AS STRING)), MAX(CAST(ts AS STRING)), COUNT(*)");
-    if (phase.equals("ONE_PHASE")) {
-      var runs = NativeFailureParity.run(() -> environment(phase, precision, "UTC", false), query);
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("single-phase string MIN/MAX requires")), runs.toString());
-    }
-    check(() -> {
-      var table = environment(phase, precision, "UTC", false);
-      if (phase.equals("ONE_PHASE")) {
-        table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
-      }
-      return table;
-    }, query, phase);
+    check(() -> environment(phase, precision, "UTC", false), query, phase);
   }
 
   @ParameterizedTest
@@ -221,19 +208,12 @@ class FlinkWindowTemporalExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void attachedWindowsRetainTheirSinglePhaseGate(String phase) {
+  void attachedWindowsKeepTemporalValuesAcrossBothPhases(String phase) {
     String query = "SELECT window_start, window_end, MIN(lo), MAX(hi), COUNT(*) FROM ("
         + "SELECT k, window_start, window_end, MIN(tv) AS lo, MAX(lv) AS hi FROM TABLE("
         + "TUMBLE(TABLE src, DESCRIPTOR(rt), INTERVAL '10' SECOND)) GROUP BY k, window_start, window_end) "
         + "GROUP BY window_start, window_end";
-    if (phase.equals("TWO_PHASE")) {
-      check(() -> environment(phase, 9, "UTC", false), query, phase);
-    } else {
-      var runs = NativeFailureParity.run(() -> environment(phase, 9, "UTC", false), query);
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("attached-window aggregation requires two-phase execution")), runs.toString());
-    }
+    check(() -> environment(phase, 9, "UTC", false), query, phase);
   }
 
   private static String sql(String shape, String aggregates) {

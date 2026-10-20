@@ -42,11 +42,15 @@ class FlinkDropUpdateBeforeSqlHarnessTest {
     assertTrue(actual.stream().anyMatch(row -> row.get(0).equals("-D")), actual.toString());
   }
 
-  @Test
-  void standaloneRowSourceFilterRetainsStockWithoutOptIn() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void standaloneFilterHonorsExplicitOverride(boolean enabled) throws Exception {
     try (var metrics = new RecoveryExecutionMetrics()) {
       var env = metrics.environment(new Configuration(), 1, 0);
       var table = StreamTableEnvironment.create(env);
+      table
+          .getConfig()
+          .set("streamfusion.dropUpdateBefore.standalone.enabled", Boolean.toString(enabled));
       var source =
           fromData(
               env,
@@ -64,11 +68,15 @@ class FlinkDropUpdateBeforeSqlHarnessTest {
               .schema(Schema.newBuilder().fromResolvedSchema(query.getResolvedSchema()).build())
               .build());
       String plan = table.explainSql("INSERT INTO snk SELECT id, vs FROM src");
-      assertEquals(0, scan.substitutions(), plan);
-      assertTrue(
-          scan.fallbackReasons().stream()
-              .anyMatch(r -> r.contains("standalone row-source filtering")),
-          scan.explainSummary());
+      if (enabled) {
+        assertTrue(
+            scan.substitutions() > 0 && scan.fallbackReasons().isEmpty(), scan.explainSummary());
+      } else {
+        assertEquals(0, scan.substitutions(), plan);
+        assertTrue(
+            scan.fallbackReasons().stream().anyMatch(r -> r.contains("explicitly disabled")),
+            scan.explainSummary());
+      }
     }
   }
 
@@ -116,9 +124,7 @@ class FlinkDropUpdateBeforeSqlHarnessTest {
       table.createTemporaryView(
           "src",
           table.fromChangelogStream(source, Schema.newBuilder().build(), ChangelogMode.all()));
-      if (sql.equals("SELECT id, vs FROM src")) {
-        table.getConfig().set("streamfusion.dropUpdateBefore.standalone.enabled", "true");
-      }
+      if (sql.equals("SELECT id, vs FROM src")) {}
       var result = capture(table, nativeRun, disabled, sql);
       if (nativeRun && !disabled) {
         RecoveryExecutionMetrics.assertConsumed(

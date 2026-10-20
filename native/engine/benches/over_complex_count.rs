@@ -229,15 +229,15 @@ fn bench(c: &mut Criterion) {
                 ])
                 .unwrap();
                 for proctime in [false, true] {
-                    if proctime && kind.starts_with("multiset") {
-                        continue;
-                    }
                     for frame in 0..4 {
                         if proctime && frame == 2 {
                             continue;
                         }
                         let offset = if frame == 1 { 3 } else { 10 };
-                        let create = || Over::framed(0, 3, frame, offset, proctime);
+                        let create = || {
+                            Over::framed(0, 3, frame, offset, proctime)
+                                .with_budget(1024 * 1024 * 1024)
+                        };
                         let execute = |state: &mut Over| {
                             if proctime {
                                 state.push_proctime(input.clone())

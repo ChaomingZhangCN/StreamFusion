@@ -20,10 +20,12 @@ ownership bridge. Watermarks and other stream control events pass through the st
 including after a fully discarded batch. Record timestamps are retained.
 
 A lone row-source filter cannot repay both Arrow conversions: a release measurement at 4 million
-rows recorded 0.713 s native versus 0.476 s stock Flink. Its default remains stock;
-`streamfusion.dropUpdateBefore.standalone.enabled=true` opts into that measured-slower case.
-This gate does not reject a filter inside a larger admitted native chain or already fed by a
-columnar producer. Types outside the shared row/Arrow conversion contract fall back.
+rows recorded 0.713 s native versus 0.476 s stock Flink. That complete-job result remains
+separate from the small-functionality gate. The [Rust-side comparison](../benchmarks/rust-feature-admission-2026-10-19.md)
+measures 2.97 ms native versus 7.49 ms Flink for 262,144 matching rows, so the standalone
+path now defaults native. `streamfusion.dropUpdateBefore.standalone.enabled=false` retains
+stock explicitly. This override does not reject a filter inside a larger admitted native chain
+or already fed by a columnar producer. Types outside the shared row/Arrow conversion contract fall back.
 Disable the operator with
 `streamfusion.operator.dropUpdateBefore.enabled=false`; the usual whole-island rule applies.
 
@@ -73,3 +75,10 @@ include the initial standalone regression and final fallback controls. That stan
 stock-fallback medians are 0.436 s StreamFusion and 0.442 s paired stock. This is avoided work,
 not native filtering throughput. [CPU diagnostics](../benchmarks/results/drop-update-before-profiles-2026-10-18.json)
 retain the conversion/copy evidence; profiled elapsed times are excluded from the comparison.
+
+
+The [2026-10-19 operator-format audit](../benchmarks/feature-admission-2026-10-19.md)
+also finds the mixed-kind standalone operator slower with prebuilt Arrow input: 17.0 ms
+versus Flink's 8.8 ms for 262,144 logical rows. Arrow filtering/copying and C Data handoffs
+remain intrinsic costs after perimeter transposes are excluded. Those Java-wrapper timings include JNI/C Data handoffs; the later Rust-side comparison above
+changes admission. Composed filter admission is unchanged.

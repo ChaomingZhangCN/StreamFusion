@@ -45,7 +45,7 @@ final class OverAggregateMatcher {
     for (int key : group.keys.toArray()) {
       if (!WindowAggregateMatcher.supportedGroupingKeyType(
           inputType.getFieldList().get(key).getType().getSqlTypeName())) {
-        return "OVER: PARTITION BY only on bigint/int/string/boolean/date/timestamp/decimal keys";
+        return "OVER: unsupported PARTITION BY key type for native scalar carriage";
       }
     }
     if (!group.upperBound.isCurrentRow()) {
@@ -82,16 +82,6 @@ final class OverAggregateMatcher {
     if (valueColumns(window, group, inputType) == null) {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
           + " DECIMAL";
-    }
-    if (proctimeOrder) {
-      for (int column : valueColumns(window, group, inputType)) {
-        if (column < inputType.getFieldCount()
-            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
-                FlinkTypeFactory$.MODULE$.toLogicalType(
-                    inputType.getFieldList().get(column).getType()))) {
-          return "OVER: proctime MAP-valued COUNT retains Flink until conversion costs improve";
-        }
-      }
     }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
@@ -369,12 +359,8 @@ final class OverAggregateMatcher {
   static int[] kinds(StreamPhysicalOverAggregate over) {
     List<Window.RexWinAggCall> aggCalls = over.logicWindow().groups.get(0).aggCalls;
     int[] kinds = new int[aggCalls.size()];
-    int[] valueTypes = valueTypeCodes(over);
     for (int i = 0; i < aggCalls.size(); i++) {
       int kind = kindCode(aggCalls.get(i).getOperator().getKind());
-      if (aggCalls.get(i).getKind() == SqlKind.SUM0 && valueTypes[i] < 2000) {
-        kind = WindowAggregateMatcher.KIND_SUM;
-      }
       kinds[i] = aggCalls.get(i).distinct ? kind + 100 : kind;
     }
     return kinds;

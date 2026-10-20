@@ -237,8 +237,7 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
       substitutions = previousSubstitutions;
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
       recordFallback(
-          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow"
-              + " conversion overhead");
+          "dropUpdateBefore: standalone row-source filtering is explicitly disabled");
       return root;
     }
     // Pass 2 inserts a row↔columnar transpose at each perimeter edge (rowwise source/sink ↔
@@ -290,6 +289,17 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
 
     // A non-windowed GROUP BY both emits and consumes a changelog, so it is exempt from the
     // insert-only guard — its input may be insert-only or itself a changelog.
+    entries.add(
+        Substitution.of(
+                StreamPhysicalGroupAggregate.class,
+                "jvmGroupAggregate",
+                JvmGroupAggregateMatcher::substitute)
+            .shaped(JvmGroupAggregateMatcher::enabledUserAggregate)
+            .matching(JvmGroupAggregateMatcher::matches)
+            .reason(JvmGroupAggregateMatcher::unsupportedReason)
+            .keyedState()
+            .changelogSafe());
+
     entries.add(
         Substitution.of(
                 StreamPhysicalGroupAggregate.class,

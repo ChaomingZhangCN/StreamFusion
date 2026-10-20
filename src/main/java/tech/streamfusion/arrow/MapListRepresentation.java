@@ -3,6 +3,7 @@ package tech.streamfusion.arrow;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -41,6 +42,21 @@ public final class MapListRepresentation {
 
   public static boolean isMapList(Field field) {
     return field.getType() instanceof ArrowType.List && "1".equals(field.getMetadata().get(MARKER));
+  }
+
+  /** A borrowed export view; close the original root, never this view's shared vectors. */
+  public static VectorSchemaRoot forExport(VectorSchemaRoot root) {
+    boolean hasMap = false;
+    for (Field field : root.getSchema().getFields()) hasMap |= containsMap(field);
+    if (!hasMap) return root;
+    return new VectorSchemaRoot(
+        forIpc(root.getSchema()), root.getFieldVectors(), root.getRowCount());
+  }
+
+  private static boolean containsMap(Field field) {
+    if (field.getType() instanceof ArrowType.Map) return true;
+    for (Field child : field.getChildren()) if (containsMap(child)) return true;
+    return false;
   }
 
   public static Schema forIpc(Schema schema) {

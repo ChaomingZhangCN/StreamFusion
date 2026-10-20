@@ -18,6 +18,7 @@
 
 package tech.streamfusion.arrow.vectors;
 
+import java.util.Arrays;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.GenericRowData;
@@ -30,105 +31,98 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
-
 import tech.streamfusion.arrow.ArrowReader;
 import tech.streamfusion.arrow.NestedRepresentation;
-
-import java.util.Arrays;
 
 /** Arrow column vector for Row. */
 @Internal
 public final class ArrowRowColumnVector implements RowColumnVector {
 
-    /** Container which is used to store the sequence of row values of a column to read. */
-    private final StructVector structVector;
+  /** Container which is used to store the sequence of row values of a column to read. */
+  private final StructVector structVector;
 
-    private final ColumnVector[] fieldColumns;
-    private final boolean represented;
-    private final org.apache.arrow.vector.VarBinaryVector binaryRows;
-    private boolean binaryRowsForExit;
-    private final ArrowReader reader;
-    private final RowDataSerializer serializer;
-    private final RowData.FieldGetter[] getters;
+  private final ColumnVector[] fieldColumns;
+  private final boolean represented;
+  private final org.apache.arrow.vector.VarBinaryVector binaryRows;
+  private boolean binaryRowsForExit;
+  private final ArrowReader reader;
+  private final RowDataSerializer serializer;
+  private final RowData.FieldGetter[] getters;
 
-    public ArrowRowColumnVector(StructVector structVector, ColumnVector[] fieldColumns) {
-        this(structVector, fieldColumns, null);
+  public ArrowRowColumnVector(StructVector structVector, ColumnVector[] fieldColumns) {
+    this(structVector, fieldColumns, null);
+  }
+
+  public ArrowRowColumnVector(
+      StructVector structVector, ColumnVector[] fieldColumns, LogicalType[] types) {
+    this.structVector = Preconditions.checkNotNull(structVector);
+    this.fieldColumns = Preconditions.checkNotNull(fieldColumns);
+    binaryRows = NestedRepresentation.binaryRows(structVector);
+    represented =
+        NestedRepresentation.kinds(structVector) != null
+            || Arrays.stream(fieldColumns).anyMatch(NestedRepresentation::requiresView);
+    reader = represented ? new ArrowReader(fieldColumns) : null;
+    serializer = !represented ? null : new RowDataSerializer(types);
+    getters = !represented ? null : new RowData.FieldGetter[types.length];
+    if (getters != null)
+      for (int i = 0; i < types.length; i++) getters[i] = RowData.createFieldGetter(types[i], i);
+  }
+
+  @Override
+  public ColumnarRowData getRow(int i) {
+    VectorizedColumnBatch vectorizedColumnBatch = new VectorizedColumnBatch(fieldColumns);
+    return new ColumnarRowData(vectorizedColumnBatch, i);
+  }
+
+  public RowData getRowData(int i) {
+    if (!preservesRepresentation()) return getRow(i);
+    if (structVector.isNull(i)) return null;
+    if (binaryRows != null && !binaryRows.isNull(i)) {
+      byte[] bytes = binaryRows.get(i);
+      var segment = org.apache.flink.core.memory.MemorySegmentFactory.wrap(bytes);
+      var kinds = NestedRepresentation.kinds(structVector);
+      if (!binaryRowsForExit
+          && kinds != null
+          && (kinds.get(i) & NestedRepresentation.NESTED_ROW) != 0) {
+        var nested = new org.apache.flink.table.data.binary.NestedRowData(fieldColumns.length);
+        nested.pointTo(segment, 0, bytes.length);
+        return serializer.copy(nested);
+      }
+      var value = new org.apache.flink.table.data.binary.BinaryRowData(fieldColumns.length);
+      value.pointTo(segment, 0, bytes.length);
+      return value;
     }
+    var row = reader.read(i);
+    var kinds = NestedRepresentation.kinds(structVector);
+    if (kinds != null && !kinds.isNull(i))
+      row.setRowKind(RowKind.fromByteValue((byte) (kinds.get(i) & 3)));
+    if (kinds != null && !kinds.isNull(i) && (kinds.get(i) & NestedRepresentation.BINARY_ROW) != 0)
+      return serializer.toBinaryRow(row).copy();
+    var values = new GenericRowData(getters.length);
+    values.setRowKind(row.getRowKind());
+    for (int field = 0; field < getters.length; field++)
+      values.setField(field, row.isNullAt(field) ? null : getters[field].getFieldOrNull(row));
+    return serializer.copy(values);
+  }
 
-    public ArrowRowColumnVector(
-            StructVector structVector, ColumnVector[] fieldColumns, LogicalType[] types) {
-        this.structVector = Preconditions.checkNotNull(structVector);
-        this.fieldColumns = Preconditions.checkNotNull(fieldColumns);
-        binaryRows = NestedRepresentation.binaryRows(structVector);
-        represented =
-                NestedRepresentation.kinds(structVector) != null
-                        || Arrays.stream(fieldColumns).anyMatch(NestedRepresentation::requiresView);
-        reader = represented ? new ArrowReader(fieldColumns) : null;
-        serializer = !represented ? null : new RowDataSerializer(types);
-        getters = !represented ? null : new RowData.FieldGetter[types.length];
-        if (getters != null)
-            for (int i = 0; i < types.length; i++)
-                getters[i] = RowData.createFieldGetter(types[i], i);
-    }
+  /** The exit projection consumes these owned binary values immediately. */
+  public void binaryRowsForExit() {
+    binaryRowsForExit = true;
+  }
 
-    @Override
-    public ColumnarRowData getRow(int i) {
-        VectorizedColumnBatch vectorizedColumnBatch = new VectorizedColumnBatch(fieldColumns);
-        return new ColumnarRowData(vectorizedColumnBatch, i);
-    }
+  public boolean preservesRepresentation() {
+    return represented;
+  }
 
-    public RowData getRowData(int i) {
-        if (!preservesRepresentation()) return getRow(i);
-        if (structVector.isNull(i)) return null;
-        if (binaryRows != null && !binaryRows.isNull(i)) {
-            byte[] bytes = binaryRows.get(i);
-            var segment = org.apache.flink.core.memory.MemorySegmentFactory.wrap(bytes);
-            var kinds = NestedRepresentation.kinds(structVector);
-            if (!binaryRowsForExit
-                    && kinds != null
-                    && (kinds.get(i) & NestedRepresentation.NESTED_ROW) != 0) {
-                var nested =
-                        new org.apache.flink.table.data.binary.NestedRowData(fieldColumns.length);
-                nested.pointTo(segment, 0, bytes.length);
-                return serializer.copy(nested);
-            }
-            var value = new org.apache.flink.table.data.binary.BinaryRowData(fieldColumns.length);
-            value.pointTo(segment, 0, bytes.length);
-            return value;
-        }
-        var row = reader.read(i);
-        var kinds = NestedRepresentation.kinds(structVector);
-        if (kinds != null && !kinds.isNull(i))
-            row.setRowKind(RowKind.fromByteValue((byte) (kinds.get(i) & 3)));
-        if (kinds != null
-                && !kinds.isNull(i)
-                && (kinds.get(i) & NestedRepresentation.BINARY_ROW) != 0)
-            return serializer.toBinaryRow(row).copy();
-        var values = new GenericRowData(getters.length);
-        values.setRowKind(row.getRowKind());
-        for (int field = 0; field < getters.length; field++)
-            values.setField(field, row.isNullAt(field) ? null : getters[field].getFieldOrNull(row));
-        return serializer.copy(values);
-    }
+  public boolean binaryArray(int index) {
+    var kinds = NestedRepresentation.kinds(structVector);
+    return kinds != null
+        && !kinds.isNull(index)
+        && (kinds.get(index) & NestedRepresentation.BINARY_ARRAY) != 0;
+  }
 
-    /** The exit projection consumes these owned binary values immediately. */
-    public void binaryRowsForExit() {
-        binaryRowsForExit = true;
-    }
-
-    public boolean preservesRepresentation() {
-        return represented;
-    }
-
-    public boolean binaryArray(int index) {
-        var kinds = NestedRepresentation.kinds(structVector);
-        return kinds != null
-                && !kinds.isNull(index)
-                && (kinds.get(index) & NestedRepresentation.BINARY_ARRAY) != 0;
-    }
-
-    @Override
-    public boolean isNullAt(int i) {
-        return structVector.isNull(i);
-    }
+  @Override
+  public boolean isNullAt(int i) {
+    return structVector.isNull(i);
+  }
 }

@@ -27,7 +27,7 @@ public final class FileSinkCompat {
   public static org.apache.arrow.vector.types.pojo.Schema encoderSchema(
       org.apache.flink.table.types.logical.RowType type) {
     var schema = tech.streamfusion.arrow.ArrowConversion.toArrowSchema(type);
-    return schema;
+    return tech.streamfusion.arrow.ArrowFileBatch.schema(schema);
   }
 
   public static DataStream<PartitionCommitInfo> writer(

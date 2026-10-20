@@ -1,9 +1,5 @@
 package tech.streamfusion.operator;
 
-import tech.streamfusion.Native;
-import tech.streamfusion.operator.MiniBatchMetrics.FlushReason;
-import tech.streamfusion.planner.NativeConfig;
-import tech.streamfusion.state.RocksDBNativeStateSupport;
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
@@ -13,6 +9,10 @@ import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.types.logical.RowType;
+import tech.streamfusion.Native;
+import tech.streamfusion.arrow.MapListRepresentation;
+import tech.streamfusion.operator.MiniBatchMetrics.FlushReason;
+import tech.streamfusion.state.RocksDBNativeStateSupport;
 
 /**
  * Regular (non-windowed) updating join, fed Arrow batches on both inputs and emitting Arrow batches.
@@ -133,7 +133,7 @@ public class NativeColumnarUpdatingJoinOperator
   @Override
   protected long createRocksDBHandle(
       RocksDBNativeStateSupport rocksdb, byte[][] restoredPartitions) {
-    return withRowSchemas(
+    return withMapListSchemas(
         leftType,
         rightType,
         (left, right) ->
@@ -158,7 +158,7 @@ public class NativeColumnarUpdatingJoinOperator
 
   @Override
   protected long createHandle() {
-    return withRowSchemas(
+    return withMapListSchemas(
         leftType,
         rightType,
         (left, right) ->
@@ -186,7 +186,7 @@ public class NativeColumnarUpdatingJoinOperator
 
   @Override
   protected long restoreRawHandle(byte[][] snapshots) {
-    return withRowSchemas(
+    return withMapListSchemas(
         leftType,
         rightType,
         (left, right) ->
@@ -337,7 +337,8 @@ public class NativeColumnarUpdatingJoinOperator
         in.getFieldVectors().isEmpty() ? allocator : in.getFieldVectors().get(0).getAllocator();
     try (ArrowArray inArray = ArrowArray.allocateNew(inAllocator);
         ArrowSchema inSchema = ArrowSchema.allocateNew(inAllocator)) {
-      Data.exportVectorSchemaRoot(inAllocator, in, dictionaries, inArray, inSchema);
+      Data.exportVectorSchemaRoot(
+          inAllocator, MapListRepresentation.forExport(in), dictionaries, inArray, inSchema);
       // Flink's TtlTimeProvider clock: the processing-time service is System.currentTimeMillis in
       // production and harness-controlled in tests, so expiry is deterministic to test.
       long now = getProcessingTimeService().getCurrentProcessingTime();

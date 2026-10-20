@@ -240,8 +240,8 @@ and blackhole sink, and both transposes:
 The counters verify 14M rows consumed directly per case and 28M timestamp values sharing buffers
 in identity, including warmups. Text and epoch improve against their paired controls; identity
 remains about 1% slower. Cross-JVM control drift and the missing final repeat against the previous
-correct fallback prevent broader admission. The temporal option and both experiments stay off by
-default. The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
+correct fallback prevent broader admission. The two experiments stay off by default; temporal
+UDF coverage itself defaults on under the accepted UDF performance exception. The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
 [issue #389](https://github.com/datafusion-contrib/StreamFusion/issues/389) tracks the remaining default-performance work.
 
 ### Java and Rust profiling evidence
@@ -388,3 +388,9 @@ are test-only. On the preceding main checkout, omit `sharedscalar.expectDirect` 
 To measure the unchanged default fallback, also pass `-Dsharedscalar.enabled=false
 -Dsharedscalar.expectNative=false`. The benchmark asserts the native plan, both transposes,
 consumed row counts and the direct-evaluation counter for the candidate.
+
+
+Shared stateful and temporal UDF coverage now defaults on under the maintainer-approved UDF
+performance exception. The earlier opt-in/fallback controls above retain their original scope;
+they establish optimization effects, not a faster-than-Flink claim. The alternative direct-temporal
+and timestamp-alias execution experiments retain their own defaults and type guards.

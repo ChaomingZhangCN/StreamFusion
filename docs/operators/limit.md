@@ -33,10 +33,12 @@ flushes. The SQL fixture keeps processing-time batch markers at zero for both ex
 crossing a wall-clock boundary can otherwise split identical rows into different bundles,
 changing the host's retained row kinds and even its final OFFSET result. The fallback case
 still executes both jobs and requires zero native substitutions and the precise reason.
-Hidden-rank retracting OFFSET always preserves
-per-record cascades: emitting a row mutates its retained kind, affecting later full-row equality.
-Its sort-key counts advance independently of successful payload removals, exactly as in Flink's
-heap state backend. Checkpoints and memory/RocksDB transitions preserve both kinds and counts. The
+Hidden-rank retracting OFFSET always preserves per-record cascades. Heap state retains emitted
+row-kind mutations through shared references; RocksDB retains only mutations in explicitly
+written source-sort-group lists. Later full-row equality follows that selected-backend history.
+Sort-key counts advance independently of successful payload removals. Checkpoints and
+memory/RocksDB transitions preserve the recorded kinds and counts; see the
+[Top-N state compatibility note](top-n.md) for old native RocksDB history. The
 single-phase aggregate is used where a retracting two-phase SUM still has its own admission
 gap; enabling LIMIT does not bypass an upstream aggregate's gate.
 
@@ -84,7 +86,10 @@ coverage and composition work, not a standalone throughput improvement. Reproduc
   exchanges and batch markers remain native. Preserving the upstream bundle order is the
   remaining composition work in [#102](https://github.com/datafusion-contrib/StreamFusion/issues/102).
 
-- MAP/MULTISET fields in retained rows, including nested ARRAY/ROW fields, because the shared
-  Top-N row codec cannot store them. These queries fall back before operator initialization.
+- Any updating input with MAP/MULTISET descendants: retained-row equality remains unverified
+  ([#437](https://github.com/datafusion-contrib/StreamFusion/issues/437)). Insert-only payloads use
+  the verified map-list transport.
+- MAP/MULTISET descendants in partition, sort or update-fast unique-key fields. Payloads,
+  including nested maps and multisets, use the verified map-list transport described in [Top-N](top-n.md).
 - A `LIMIT`/`OFFSET` with no `FETCH` (row count) at all — an unbounded skip.
 - A SortLimit whose selected Flink rank strategy cannot be read or has not been resolved.

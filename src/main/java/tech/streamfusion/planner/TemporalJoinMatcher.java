@@ -62,7 +62,7 @@ final class TemporalJoinMatcher {
               leftType.getFieldList().get(leftKeys[i]).getType().getSqlTypeName())
           || !WindowAggregateMatcher.supportedGroupingKeyType(
               rightType.getFieldList().get(rightKeys[i]).getType().getSqlTypeName())) {
-        return "temporal join: equi-join keys must be bigint/int/string/boolean/date/timestamp/decimal";
+        return "temporal join: unsupported equi-join key type for native scalar carriage";
       }
     }
     Optional<RexNode> condition = joinSpec.getNonEquiCondition();

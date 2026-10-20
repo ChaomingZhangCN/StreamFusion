@@ -15,6 +15,23 @@ pub fn binary_elt_function(arity: usize, width: i32) -> datafusion::logical_expr
     crate::flink_functions::binary_elt::function(arity, width)
 }
 
+/// The same zero-initialized accumulator used by grouped and window SUM0.
+pub struct ZeroSum(Box<dyn Accumulator>);
+
+impl ZeroSum {
+    pub fn new(value_type: i64) -> Self {
+        Self(build_aggregates(&[22], &[value_type])[0].create_accumulator())
+    }
+
+    pub fn update(&mut self, values: &ArrayRef) {
+        self.0.update_batch(std::slice::from_ref(values)).unwrap();
+    }
+
+    pub fn value(&mut self) -> ScalarValue {
+        self.0.evaluate().unwrap()
+    }
+}
+
 /// A filter predicate compiled once (on the first `run`) and reused, as the operator uses it.
 pub struct Filter(FilterExpression);
 
@@ -431,6 +448,14 @@ impl Session {
 pub struct Over(OverWindowAggregator);
 
 impl Over {
+    pub fn with_budget(mut self, budget_bytes: i64) -> Self {
+        self.0 = self
+            .0
+            .with_memory_budget(budget_bytes)
+            .expect("OVER benchmark budget");
+        self
+    }
+
     pub fn framed(value_type: i64, kind: i64, frame: i64, offset: i64, proctime: bool) -> Self {
         Over(OverWindowAggregator::new(
             vec![value_type],
@@ -635,6 +660,11 @@ pub struct PersistentUpdatingJoin(UpdatingJoiner<crate::updating_join::RocksJoin
 
 #[cfg(feature = "rocksdb-state")]
 impl PersistentUpdatingJoin {
+    pub fn with_unique_join_keys(mut self, left: bool, right: bool) -> Self {
+        self.0 = self.0.with_unique_join_keys(left, right);
+        self
+    }
+
     fn operator(
         schema: SchemaRef,
         mini_batch: bool,
@@ -723,6 +753,13 @@ impl PersistentUpdatingJoin {
 pub struct AppendTopN(TopNRanker);
 
 impl AppendTopN {
+    pub fn with_budget(mut self, budget_bytes: i64) -> Self {
+        self.0 = self
+            .0
+            .with_memory_budget(budget_bytes)
+            .expect("Top-N benchmark budget");
+        self
+    }
     pub fn with_top1_fast(mut self, enabled: bool) -> Self {
         self.0 = self.0.with_top1_fast(enabled);
         self
@@ -2317,4 +2354,68 @@ impl StringOverReduction {
 /// Production changelog metadata filter; includes mask construction and Arrow filtering.
 pub fn drop_update_before(batch: &RecordBatch) -> RecordBatch {
     crate::changelog_filter::drop_update_before(batch)
+}
+
+/// The production hidden-OFFSET ranker under each host backend's value-copy contract.
+pub struct HiddenOffsetRank {
+    backend: HiddenOffsetBackend,
+}
+enum HiddenOffsetBackend {
+    Memory(RetractableTopNRanker),
+    #[cfg(feature = "rocksdb-state")]
+    Rocks(RetractableTopNRanker<crate::topn::RocksTopNStore>),
+}
+impl HiddenOffsetRank {
+    pub fn new(schema: SchemaRef, directory: Option<&str>) -> Self {
+        let sort = vec![SortColumn {
+            index: 1,
+            ascending: true,
+            nulls_first: false,
+        }];
+        let empty = RecordBatch::new_empty(schema.clone());
+        let converters =
+            crate::topn::TopNConverters::build(&empty, schema.fields().len(), &[0], &sort);
+        #[cfg(feature = "rocksdb-state")]
+        let store = directory.map(|directory| {
+            crate::state::RocksStore::create(
+                PersistentSort::config(
+                    directory,
+                    include_str!("../benches/fixtures/rocks-options.json"),
+                ),
+                crate::topn::TopNStateCodec::new(&converters),
+            )
+            .expect("OFFSET store")
+        });
+        let ranker =
+            RetractableTopNRanker::new(vec![0], sort, 1, 4, false).with_converters(converters);
+        #[cfg(feature = "rocksdb-state")]
+        let ranker = ranker.with_payload_schema(schema);
+        #[cfg(feature = "rocksdb-state")]
+        if let Some(store) = store {
+            return Self {
+                backend: HiddenOffsetBackend::Rocks(
+                    ranker
+                        .with_backend(store)
+                        .with_read_through_budget(1 << 30)
+                        .expect("OFFSET budget"),
+                ),
+            };
+        }
+        #[cfg(not(feature = "rocksdb-state"))]
+        assert!(directory.is_none(), "RocksDB feature required");
+        Self {
+            backend: HiddenOffsetBackend::Memory(
+                ranker
+                    .with_read_through_budget(1 << 30)
+                    .expect("OFFSET budget"),
+            ),
+        }
+    }
+    pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
+        match &mut self.backend {
+            HiddenOffsetBackend::Memory(operator) => operator.push(batch, 0).expect("OFFSET push"),
+            #[cfg(feature = "rocksdb-state")]
+            HiddenOffsetBackend::Rocks(operator) => operator.push(batch, 0).expect("OFFSET push"),
+        }
+    }
 }

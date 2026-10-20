@@ -95,3 +95,11 @@ file encoder applies that property to the Arrow write schema and the Parquet des
 so definition levels agree and keys survive readback. Operator batches retain their existing Arrow
 representation. The partitioned SQL sink parity check compares data, directories, success markers
 and complete footer schemas. See [Flink line compatibility](../flink-compatibility.md).
+
+## Nested ROW execution metadata
+
+Internal nested RowKind children remain outside persisted SQL schemas. File schemas and
+reader projections contain only declared fields; Arrow file writes retain the original
+value buffers while excluding these execution sidecars. Nested ROWs loaded from files have
+INSERT kind, matching Flink. Top-level changelog columns retain their existing contract.
+See [nested Java scalar results](../operators/calc-filter.md#nested-java-scalar-results).

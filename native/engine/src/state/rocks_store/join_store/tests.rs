@@ -627,3 +627,23 @@ fn record_join_probe_cache_profile() {
         }
     }
 }
+
+#[test]
+fn record_join_unique_retractions_clear_different_payloads() {
+    for unique in [false, true] {
+        for left in [false, true] {
+            for kind in [1, 3] {
+                let dir = Directory::new(&format!("unique-retract-{unique}-{left}-{kind}"));
+                let mut disk = persistent(&dir.0.join("state"), unique, (0, 0));
+                let mut resident = memory(unique, (0, 0));
+                step(&mut disk, &mut resident, &[(Some(1), 100, 0)], left, 0);
+                step(&mut disk, &mut resident, &[(Some(1), 999, kind)], left, 0);
+                let probe = batch(&[(Some(1), 20, 0)]);
+                let expected = resident.push(&probe, !left, 0).unwrap();
+                let actual = disk.push(&probe, !left, 0).unwrap();
+                assert_eq!(actual.num_rows(), usize::from(!unique));
+                assert_eq!(multiset(&actual), multiset(&expected));
+            }
+        }
+    }
+}

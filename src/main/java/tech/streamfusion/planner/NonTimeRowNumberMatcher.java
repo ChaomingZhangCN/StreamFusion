@@ -75,7 +75,7 @@ final class NonTimeRowNumberMatcher {
         return "non-time ROW_NUMBER: unsupported partition key type";
       }
     }
-    if (!ArrowRowTypeSupport.supports(FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType))
+    if (!RowDataArrowConverter.supports(FlinkTypeFactory$.MODULE$.toLogicalRowType(inputType))
         || !RowDataArrowConverter.supports(
             FlinkTypeFactory$.MODULE$.toLogicalRowType(over.getRowType()))) {
       return "non-time ROW_NUMBER: unsupported Arrow row payload";

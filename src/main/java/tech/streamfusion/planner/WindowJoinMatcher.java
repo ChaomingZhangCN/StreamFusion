@@ -15,7 +15,7 @@ import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalW
  * Recognizes the event-time window joins the native operator implements: {@code a JOIN b ON a.k =
  * b.k} where both sides were windowed by identical event-time windowing TVFs, so each row carries
  * matching {@code window_start}/{@code window_end} columns. Requires an INNER/LEFT/RIGHT/FULL join,
- * equi-join keys of supported types (bigint/int/string/boolean/date/timestamp/decimal) — zero or
+ * equi-join keys of verified scalar types — zero or
  * more, since the sides' window bounds are always joined on, so a windows-only join (Nexmark q5)
  * matches within each window — null-filtering keys, a natively expressible residual (if any), and a
  * window-attached event-time windowing on both sides. Anything else (proctime, an inexpressible
@@ -85,8 +85,7 @@ final class WindowJoinMatcher {
               leftType.getFieldList().get(leftKeys[i]).getType().getSqlTypeName())
           || !WindowAggregateMatcher.supportedGroupingKeyType(
               rightType.getFieldList().get(rightKeys[i]).getType().getSqlTypeName())) {
-        return "window join: equi-join keys must be"
-                   + " bigint/int/string/boolean/date/timestamp/decimal";
+        return "window join: unsupported equi-join key type for native scalar carriage";
       }
     }
     return null;

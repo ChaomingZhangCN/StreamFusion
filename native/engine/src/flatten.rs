@@ -165,6 +165,10 @@ pub(crate) fn unnest_projected(
                         .expect("struct");
                     let children = sfields
                         .iter()
+                        .take(
+                            streamfusion_bridge::nested_row_kind_index(sfields)
+                                .unwrap_or(sfields.len()),
+                        )
                         .enumerate()
                         .map(|(i, f)| {
                             let child = sa.column(i);

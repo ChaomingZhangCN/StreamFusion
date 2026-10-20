@@ -1020,7 +1020,8 @@ impl TumblingAggregator {
     }
 
     /// Folds grouped rows into their (window, key) accumulators. Timestamp extrema read
-    /// selected rows directly; other columns use Arrow slices or type-preserving `take`. When a memory
+    /// selected rows directly. String extrema select a single winner before updating the existing
+    /// accumulator; other columns use Arrow slices or type-preserving `take`. When a memory
     /// budget is set, each touched group's footprint change is folded into the tracked state size —
     /// measuring only touched groups keeps accounting O(batch), not O(open state).
     fn accumulate_grouped(
@@ -1041,6 +1042,22 @@ impl TumblingAggregator {
             .iter()
             .zip(values)
             .map(|(aggregate, value)| aggregate.scalar_column(value))
+            .collect();
+        let strings: Vec<_> = self
+            .aggregates
+            .iter()
+            .zip(values)
+            .map(|(aggregate, values)| {
+                let minimum = match aggregate {
+                    WindowAggregate::Builtin(a) if a.fun().name() == "min" => true,
+                    WindowAggregate::Builtin(a) if a.fun().name() == "max" => false,
+                    _ => return None,
+                };
+                values
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .map(|column| (column, minimum))
+            })
             .collect();
         let counts = self
             .aggregates
@@ -1077,14 +1094,42 @@ impl TumblingAggregator {
                 .zip(&timestamps)
                 .zip(&counts)
                 .zip(&scalar_columns)
-                .map(|(((value, timestamp), count), scalar)| {
+                .zip(&strings)
+                .map(|((((value, timestamp), count), scalar), string)| {
                     if timestamp.is_some() || *count || scalar.is_some() {
                         Ok(None)
                     } else {
                         match slice {
                             Some((offset, length)) => Ok(Some(value.slice(offset, length))),
-                            _ => take(value, indices.as_ref().expect("selection indices"), None)
-                                .map(Some),
+                            None => {
+                                if let Some((column, minimum)) = string {
+                                    let winner = selected_rows
+                                        .iter()
+                                        .copied()
+                                        .filter(|&row| column.is_valid(row as usize))
+                                        .reduce(|best, row| {
+                                            let better = if *minimum {
+                                                column.value(row as usize)
+                                                    < column.value(best as usize)
+                                            } else {
+                                                column.value(row as usize)
+                                                    > column.value(best as usize)
+                                            };
+                                            if better {
+                                                row
+                                            } else {
+                                                best
+                                            }
+                                        });
+                                    Ok(Some(value.slice(
+                                        winner.unwrap_or(0) as usize,
+                                        usize::from(winner.is_some()),
+                                    )))
+                                } else {
+                                    take(value, indices.as_ref().expect("selection indices"), None)
+                                        .map(Some)
+                                }
+                            }
                         }
                     }
                 })

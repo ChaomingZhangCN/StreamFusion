@@ -10,18 +10,33 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 class FlinkOverNestedComplexCountSqlHarnessTest {
+  static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> cases() {
+    return java.util.stream.Stream.of(
+            "hashmap", "tech.streamfusion.state.RocksDBNativeStateBackendFactory")
+        .flatMap(
+            backend ->
+                java.util.stream.Stream.of(false, true)
+                    .flatMap(
+                        multiset ->
+                            java.util.stream.Stream.of(
+                                    "rt,ROWS UNBOUNDED PRECEDING",
+                                    "pt,ROWS UNBOUNDED PRECEDING",
+                                    "pt,RANGE UNBOUNDED PRECEDING",
+                                    "pt,ROWS BETWEEN 3 PRECEDING AND CURRENT ROW")
+                                .map(
+                                    shape -> {
+                                      String[] parts = shape.split(",", 2);
+                                      return org.junit.jupiter.params.provider.Arguments.of(
+                                          backend, multiset, parts[0], parts[1]);
+                                    })));
+  }
+
   @ParameterizedTest
-  @CsvSource({
-    "hashmap,false",
-    "hashmap,true",
-    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,false",
-    "tech.streamfusion.state.RocksDBNativeStateBackendFactory,true"
-  })
-  void nestedNullableMapAndMultisetKeysSurviveRepeatedRecovery(String backend, boolean multisetOnly)
-      throws Exception {
+  @org.junit.jupiter.params.provider.MethodSource("cases")
+  void nestedNullableMapAndMultisetKeysSurviveRepeatedRecovery(
+      String backend, boolean multisetOnly, String order, String frame) throws Exception {
     var array =
         DataTypes.ARRAY(
             multisetOnly
@@ -35,7 +50,11 @@ class FlinkOverNestedComplexCountSqlHarnessTest {
             DataTypes.FIELD("r", struct),
             DataTypes.FIELD("rt", DataTypes.TIMESTAMP(3)));
     var schema =
-        Schema.newBuilder().fromRowDataType(type).watermark("rt", "SOURCE_WATERMARK()").build();
+        Schema.newBuilder()
+            .fromRowDataType(type)
+            .watermark("rt", "SOURCE_WATERMARK()")
+            .columnByExpression("pt", "PROCTIME()")
+            .build();
     var rows = new ArrayList<Row>();
     for (long i = 0; i < 120; i++) {
       var map = new LinkedHashMap<String, Long>();
@@ -62,8 +81,12 @@ class FlinkOverNestedComplexCountSqlHarnessTest {
           NativeFailureParity.runRecovery(
               recovery::uninterrupted,
               recovery::get,
-              "SELECT id, COUNT(a) OVER w, COUNT(r) OVER w FROM recovery_input "
-                  + "WINDOW w AS (ORDER BY rt ROWS UNBOUNDED PRECEDING)");
+              "SELECT id, a, r, COUNT(a) OVER w, COUNT(r) OVER w FROM recovery_input "
+                  + "WINDOW w AS (ORDER BY "
+                  + order
+                  + " "
+                  + frame
+                  + ")");
       result.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertFalse(result.host().rows().isEmpty());
       recovery.verifyRepeatedRecovery();

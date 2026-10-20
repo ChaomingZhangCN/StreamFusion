@@ -29,21 +29,28 @@ class FlinkOverMultisetCountSqlHarnessTest {
 
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> recoveryCases() {
     return java.util.stream.Stream.of(
-            "ROWS UNBOUNDED PRECEDING",
-            "RANGE UNBOUNDED PRECEDING",
-            "ROWS BETWEEN 3 PRECEDING AND CURRENT ROW",
-            "RANGE BETWEEN INTERVAL '0.3' SECOND PRECEDING AND CURRENT ROW")
+            "rt,ROWS UNBOUNDED PRECEDING",
+            "rt,RANGE UNBOUNDED PRECEDING",
+            "rt,ROWS BETWEEN 3 PRECEDING AND CURRENT ROW",
+            "rt,RANGE BETWEEN INTERVAL '0.3' SECOND PRECEDING AND CURRENT ROW",
+            "pt,ROWS UNBOUNDED PRECEDING",
+            "pt,RANGE UNBOUNDED PRECEDING",
+            "pt,ROWS BETWEEN 3 PRECEDING AND CURRENT ROW")
         .flatMap(
-            frame ->
+            shape ->
                 java.util.stream.Stream.of(
                         "hashmap", "tech.streamfusion.state.RocksDBNativeStateBackendFactory")
                     .map(
-                        backend -> org.junit.jupiter.params.provider.Arguments.of(frame, backend)));
+                        backend -> {
+                          String[] parts = shape.split(",", 2);
+                          return org.junit.jupiter.params.provider.Arguments.of(
+                              parts[0], parts[1], backend);
+                        }));
   }
 
   @ParameterizedTest
   @MethodSource("recoveryCases")
-  void countsAndOriginalMultisetsSurviveRepeatedRecovery(String frame, String backend)
+  void countsAndOriginalMultisetsSurviveRepeatedRecovery(String order, String frame, String backend)
       throws Exception {
     try (var recovery = recovery(backend).withExecutionMetrics()) {
       var result =
@@ -51,7 +58,9 @@ class FlinkOverMultisetCountSqlHarnessTest {
               recovery::uninterrupted,
               recovery::get,
               "SELECT id, k, v, COUNT(v) OVER w, COUNT(*) OVER w FROM recovery_input "
-                  + "WINDOW w AS (PARTITION BY k ORDER BY rt "
+                  + "WINDOW w AS (PARTITION BY k ORDER BY "
+                  + order
+                  + " "
                   + frame
                   + ")");
       result.assertSuccess(NativeFailureParity.Route.NATIVE);
@@ -72,15 +81,14 @@ class FlinkOverMultisetCountSqlHarnessTest {
         "RANGE UNBOUNDED PRECEDING",
         "ROWS BETWEEN 3 PRECEDING AND CURRENT ROW"
       })
-  void proctimeRetainsMapStoragePerformanceFallback(String frame) {
+  void proctimeCountsAndCarriesOriginalBags(String frame) {
     try (var source = recovery("hashmap")) {
       String query =
-          "SELECT COUNT(v) OVER (PARTITION BY k ORDER BY pt " + frame + ") FROM recovery_input";
+          "SELECT id, k, v, COUNT(v) OVER (PARTITION BY k ORDER BY pt "
+              + frame
+              + ") FROM recovery_input";
       var result = NativeFailureParity.run(source::uninterrupted, query);
-      result.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertTrue(
-          result.nativeRun().fallbackReasons().stream()
-              .anyMatch(reason -> reason.contains("proctime MAP")));
+      result.assertSuccess(NativeFailureParity.Route.NATIVE);
     }
   }
 

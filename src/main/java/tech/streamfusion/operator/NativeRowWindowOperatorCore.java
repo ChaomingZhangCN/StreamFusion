@@ -170,7 +170,7 @@ public abstract class NativeRowWindowOperatorCore extends NativeWindowOperatorCo
    * transfers its buffers only for outputs without window properties.
    */
   private static void copyKeyColumn(FieldVector source, FieldVector target, int n, boolean transferBuffers) {
-    if (target instanceof IntVector) {
+    if (target instanceof IntVector && source instanceof BigIntVector) {
       if (transferBuffers) target.allocateNew();
       IntVector dst = (IntVector) target;
       BigIntVector src = (BigIntVector) source;

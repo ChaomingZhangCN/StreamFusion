@@ -309,6 +309,8 @@ pub(crate) fn emit_running(agg: &RunningAgg, count: i64, result_type: &DataType)
         // can have a zero net count but a nonzero sum adjustment for the global merge.
         RunningAgg::Count(_)
         | RunningAgg::ZeroSumInt { .. }
+        | RunningAgg::ZeroSumF32(_)
+        | RunningAgg::ZeroSumF64(_)
         | RunningAgg::AvgPartialSumInt(_)
         | RunningAgg::AvgPartialSumFloat(_)
         | RunningAgg::AvgPartialSumDecimal { .. } => agg.emit(),
@@ -4224,6 +4226,72 @@ mod zero_sum_tests {
             let mut agg = GroupAggregator::new(vec![kind], vec![5800], vec![0], vec![], true);
             let out = agg.update(&decimal_batch(vec![None]), 0).unwrap();
             assert_eq!(out.column(0).is_null(0), kind == 23);
+        }
+    }
+
+    #[test]
+    fn floating_zero_sum_snapshots_keep_rounded_state_and_zero_for_null_groups() {
+        for code in [6, 1] {
+            let batch = |values: Vec<Option<f64>>, retract: bool| {
+                let values: ArrayRef = if code == 6 {
+                    Arc::new(arrow::array::Float32Array::from_iter(
+                        values.into_iter().map(|value| value.map(|v| v as f32)),
+                    ))
+                } else {
+                    Arc::new(arrow::array::Float64Array::from(values))
+                };
+                let mut columns = vec![("v", values.clone())];
+                if retract {
+                    columns.push((
+                        ROW_KIND_COLUMN,
+                        Arc::new(Int8Array::from_value(3, values.len())),
+                    ));
+                }
+                RecordBatch::try_from_iter(columns).unwrap()
+            };
+            let last = |output: &RecordBatch| {
+                ScalarValue::try_from_array(output.column(0), output.num_rows() - 1).unwrap()
+            };
+            let zero = if code == 6 {
+                ScalarValue::Float32(Some(0.0))
+            } else {
+                ScalarValue::Float64(Some(0.0))
+            };
+            let mut agg = GroupAggregator::new(vec![22], vec![code], vec![0], vec![], true);
+            assert_eq!(
+                last(&agg.update(&batch(vec![None], false), 0).unwrap()),
+                zero
+            );
+            let high = if code == 6 {
+                16_777_216.0
+            } else {
+                9_007_199_254_740_992.0
+            };
+            agg.update(&batch(vec![Some(high), Some(1.0)], false), 0)
+                .unwrap();
+            let snapshot = agg.snapshot();
+            let mut restored =
+                GroupAggregator::restore(vec![22], vec![code], vec![0], vec![], true, &snapshot, 0);
+            assert_eq!(
+                last(
+                    &restored
+                        .update(&batch(vec![Some(-high)], false), 0)
+                        .unwrap()
+                ),
+                zero
+            );
+            let snapshot = restored.snapshot();
+            let mut restored =
+                GroupAggregator::restore(vec![22], vec![code], vec![0], vec![], true, &snapshot, 0);
+            let expected = if code == 6 {
+                ScalarValue::Float32(Some(-1.0))
+            } else {
+                ScalarValue::Float64(Some(-1.0))
+            };
+            assert_eq!(
+                last(&restored.update(&batch(vec![Some(1.0)], true), 0).unwrap()),
+                expected
+            );
         }
     }
 

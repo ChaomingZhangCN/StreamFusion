@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-20",
+  "scope": "Hidden-rank retracting Top-N OFFSET row-kind persistence follows selected host state backend; correctness-only fix, no acceleration claim",
+  "baseline": {
+    "scalar_two_restore_controls": {
+      "pass": 3,
+      "fail": 1,
+      "failure": "Rocks hidden OFFSET: stock 437 vs native 421 emitted rows"
+    },
+    "isolated_controls": {
+      "pass": 6,
+      "fail": 2,
+      "failures": "Rocks hidden OFFSET, uninterrupted and two-restore"
+    }
+  },
+  "released_sources": {
+    "1.18.1": {
+      "url": "https://repo.maven.apache.org/maven2/org/apache/flink/flink-table-runtime/1.18.1/flink-table-runtime-1.18.1-sources.jar",
+      "sha256": "07d20618193742eed0d3e166e8ed4cfc10518c652f682b442d37d80315cdb35b",
+      "path": "org/apache/flink/table/runtime/operators/rank/RetractableTopNFunction.java"
+    },
+    "2.2.1": {
+      "url": "https://repo.maven.apache.org/maven2/org/apache/flink/flink-table-runtime/2.2.1/flink-table-runtime-2.2.1-sources.jar",
+      "sha256": "6e453283568dceadf7ce4323170e8894b6895e107e08b5f89a201aba0a2b2277",
+      "path": "org/apache/flink/table/runtime/operators/rank/RetractableTopNFunction.java"
+    }
+  },
+  "candidate": {
+    "sha256": "606e02b4ad071817d39ea19943dd71ddfa8828fb3341d35ff905b49cc56103c0",
+    "build": "release + mimalloc; JDK17 for SQL"
+  },
+  "validation": {
+    "flink_2.2.1": {
+      "pass": 16,
+      "fail": 0
+    },
+    "flink_1.18.1": {
+      "pass": 16,
+      "fail": 0
+    },
+    "matrix": [
+      "heap/RocksDB",
+      "hidden/projected rank",
+      "unique/tied sort keys",
+      "uninterrupted/two failure-restores"
+    ],
+    "native_topn_tests": {
+      "pass": 58,
+      "fail": 0
+    },
+    "criterion_fixtures": 16,
+    "strict_docs": true
+  },
+  "state_compatibility": "Byte layout unchanged. Preserve old recorded kinds; cannot infer the stock-RocksDB history lost under prior native heap-style mutation semantics."
+}

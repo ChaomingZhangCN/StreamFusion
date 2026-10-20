@@ -568,7 +568,7 @@ impl JoinStateStore for RocksJoinStore {
         self.scratch.clear();
         self.scratch.extend_from_slice(&index.prefix);
         self.scratch.extend_from_slice(payload);
-        if unique && matches!(kind, 0 | 2) {
+        if unique {
             let prefix = index.prefix.clone();
             self.replaced.insert(prefix.clone());
             for (key, point) in &mut self.points {
