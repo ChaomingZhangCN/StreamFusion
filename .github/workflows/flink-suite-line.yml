@@ -61,7 +61,7 @@ jobs:
         with:
           path: .flink-suite/${{ inputs.line }}/flink-${{ inputs.version }}
           key: upstream-classes-ubuntu2404-${{ runner.arch }}-${{ steps.java.outputs.version }}-${{ inputs.version }}-${{ hashFiles('bin/flink-suite.sh', 'dev/flink-suite/settings.xml', '.github/workflows/flink-suite-line.yml') }}
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: ./.github/actions/setup-rust
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: upstream-suite
