@@ -5,17 +5,44 @@ use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use std::{fs::File, hint::black_box, sync::Arc, time::Instant};
-use streamfusion::bench::Tumbling;
+use streamfusion::bench::{Session, Tumbling};
 
-fn operation(shape: &str) -> Tumbling {
-    Tumbling::with_window_budget(
+enum Window {
+    Fixed(Tumbling),
+    Session(Session),
+}
+impl Window {
+    fn update(&mut self, batch: &RecordBatch) {
+        match self {
+            Self::Fixed(op) => op.update(batch),
+            Self::Session(op) => op.update(batch),
+        }
+    }
+    fn flush(&mut self, watermark: i64) -> RecordBatch {
+        match self {
+            Self::Fixed(op) => op.flush(watermark),
+            Self::Session(op) => op.flush(watermark),
+        }
+    }
+}
+
+fn operation(shape: &str) -> Window {
+    if shape == "session" {
+        return Window::Session(Session::with_budget(
+            2000,
+            3,
+            vec![1, 2, 3],
+            1024 * 1024 * 1024,
+        ));
+    }
+    Window::Fixed(Tumbling::with_window_budget(
         10000,
         if shape == "tumble" { 10000 } else { 2000 },
         shape == "cumulate",
         3,
         vec![1, 2, 3],
         1024 * 1024 * 1024,
-    )
+    ))
 }
 
 fn canonical_input(batch: RecordBatch) -> RecordBatch {
@@ -199,10 +226,10 @@ fn drop_trials(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|drop [warmups=5] [runs=7] [output.arrow]");
+    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|session|drop [warmups=5] [runs=7] [output.arrow]");
     let path = &args[1];
     let shape = &args[2];
-    assert!(["tumble", "hop", "cumulate", "drop"].contains(&shape.as_str()));
+    assert!(["tumble", "hop", "cumulate", "session", "drop"].contains(&shape.as_str()));
     let warmups: usize = args.get(3).map(|s| s.parse().unwrap()).unwrap_or(5);
     let runs: usize = args.get(4).map(|s| s.parse().unwrap()).unwrap_or(7);
     let lengths: Vec<usize> =

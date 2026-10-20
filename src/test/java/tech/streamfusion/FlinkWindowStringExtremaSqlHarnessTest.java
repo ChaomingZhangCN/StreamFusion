@@ -53,7 +53,6 @@ class FlinkWindowStringExtremaSqlHarnessTest {
       java.util.function.UnaryOperator<TableEnvironment> configure = table -> {
         table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
         table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-        table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
         table.getConfig().set("streamfusion.transpose.batchRows", "3");
         return table;
       };
@@ -227,7 +226,6 @@ class FlinkWindowStringExtremaSqlHarnessTest {
     var table = StreamTableEnvironment.create(env);
     table.getConfig().setLocalTimeZone(java.time.ZoneOffset.UTC);
     table.getConfig().set("table.optimizer.agg-phase-strategy", phase);
-    table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "true");
     var input = env.fromSequence(0, 5002).map(id -> Row.of(
         id % 5 == 0 ? null : (int) (id % 5),
         id % 5 == 4 || id % 7 == 0 ? null : values[(int) (id % values.length)],
