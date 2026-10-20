@@ -218,7 +218,8 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         181 => datafusion::functions_nested::min_max::array_max_udf()
             .as_ref()
             .clone(),
-        182 => array_edit::function(),
+        182 => array_edit::function(false),
+        183 => array_edit::function(true),
         _ => return None,
     })
 }

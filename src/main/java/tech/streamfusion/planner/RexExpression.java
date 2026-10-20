@@ -1964,7 +1964,8 @@ final class RexExpression {
       }
       return emitBuiltinCall(call, "ARRAY_CONTAINS".equals(functionName) ? 178 : 179);
     }
-    if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_APPEND".equals(functionName)) {
+    if (NativeConfig.collectionExpressionsEnabled()
+        && ("ARRAY_APPEND".equals(functionName) || "ARRAY_PREPEND".equals(functionName))) {
       var args = call.getOperands();
       if (args.size() != 2 || !nativeBasicArray(args.get(0).getType())
           || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
@@ -1972,7 +1973,7 @@ final class RexExpression {
           || args.stream().anyMatch(this::requiresRowShortCircuit)) {
         return reject(functionName + " uses Flink evaluation outside total matching basic arrays");
       }
-      return emitBuiltinCall(call, 182);
+      return emitBuiltinCall(call, "ARRAY_APPEND".equals(functionName) ? 182 : 183);
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {

@@ -35,6 +35,13 @@ class FlinkArrayEditSqlHarnessTest {
     BuiltinFunctionParity.assertParity(() -> environment(type), sql + " WHERE id < 0");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
+  void prependPreservesNullsAndPlacesTheElementFirst(String type) throws Exception {
+    verify(type, "ARRAY_PREPEND(a,n)", "ARRAY_PREPEND");
+    verify(type, "ARRAY_PREPEND(a,CAST(NULL AS " + sqlType(type) + "))", "ARRAY_PREPEND");
+  }
+
   static String sqlType(String type) {
     return type.equals("DECIMAL") ? "DECIMAL(38,9)" : type;
   }

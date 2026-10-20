@@ -50,3 +50,25 @@ multiple batches, filters and all-filtered batches. The Criterion suite verifies
 90 independent expected results; the scalar registry covers opcode 182 in all
 nine null/Unicode/batch profiles. Full stateful recovery tests are outside this
 stateless scalar change's local validation.
+
+## Prepending elements
+
+ARRAY_PREPEND uses the same checked offset builder, placing the scalar before
+the visible child range. It retains the same basic nullable-type admission and
+NULL-container/element rules. The SQL and Criterion fixtures independently check
+the resulting element order, including sliced and empty inputs.
+
+## ARRAY_PREPEND complete-job evidence
+
+Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.579178 | 0.571242-0.585162 |
+| baseline streamfusion | 1.030478 | 1.010875-1.038272 |
+| candidate stock | 0.580153 | 0.567207-0.587232 |
+| candidate streamfusion | 0.603231 | 0.594722-0.607353 |
+
+Elapsed time changes by -41.46% versus the prior evaluator and +3.98% versus paired stock Flink. The remaining stock regression is retained under #392; native coverage is not a universal standalone speedup.
+
+[All 20 trials](../benchmarks/collection-array-prepend-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-prepend-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-prepend-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.

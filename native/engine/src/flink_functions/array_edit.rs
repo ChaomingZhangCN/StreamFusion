@@ -8,20 +8,26 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-pub(super) fn function() -> ScalarUDF {
-    ScalarUDF::new_from_impl(ArrayAppend {
+pub(super) fn function(prepend: bool) -> ScalarUDF {
+    ScalarUDF::new_from_impl(ArrayEdit {
         signature: Signature::any(2, Volatility::Immutable),
+        prepend,
     })
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct ArrayAppend {
+struct ArrayEdit {
     signature: Signature,
+    prepend: bool,
 }
 
-impl ScalarUDFImpl for ArrayAppend {
+impl ScalarUDFImpl for ArrayEdit {
     fn name(&self) -> &str {
-        "flink_array_append"
+        if self.prepend {
+            "flink_array_prepend"
+        } else {
+            "flink_array_append"
+        }
     }
 
     fn signature(&self) -> &Signature {
@@ -38,11 +44,14 @@ impl ScalarUDFImpl for ArrayAppend {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        datafusion::functions::utils::make_scalar_function(append, vec![])(&args.args)
+        datafusion::functions::utils::make_scalar_function(
+            |arrays| edit(arrays, self.prepend),
+            vec![],
+        )(&args.args)
     }
 }
 
-fn append(args: &[ArrayRef]) -> Result<ArrayRef> {
+fn edit(args: &[ArrayRef], prepend: bool) -> Result<ArrayRef> {
     let array = as_list_array(&args[0])?;
     let original = array.values().to_data();
     let elements = args[1].to_data();
@@ -55,12 +64,17 @@ fn append(args: &[ArrayRef]) -> Result<ArrayRef> {
     offsets.push(0);
     for row in 0..array.len() {
         if array.is_valid(row) {
+            if prepend {
+                values.extend(1, row, row + 1);
+            }
             values.extend(
                 0,
                 array.value_offsets()[row] as usize,
                 array.value_offsets()[row + 1] as usize,
             );
-            values.extend(1, row, row + 1);
+            if !prepend {
+                values.extend(1, row, row + 1);
+            }
         }
         offsets.push(i32::try_from(values.len()).map_err(|_| {
             datafusion::common::DataFusionError::Execution("ARRAY exceeds Arrow offsets".into())
@@ -97,7 +111,7 @@ mod tests {
         );
         let values: ArrayRef =
             Arc::new(Int64Array::from(vec![None, Some(9), Some(i64::MAX), None]));
-        let output = append(&[input, values]).unwrap();
+        let output = edit(&[input.clone(), values.clone()], false).unwrap();
         let expected = ListArray::from_iter_primitive::<Int64Type, _, _>([
             Some(vec![Some(1), None, Some(1), None]),
             None,
@@ -105,5 +119,12 @@ mod tests {
             Some(vec![None, None]),
         ]);
         assert_eq!(output.as_ref(), &expected);
+        let expected = ListArray::from_iter_primitive::<Int64Type, _, _>([
+            Some(vec![None, Some(1), None, Some(1)]),
+            None,
+            Some(vec![Some(i64::MAX)]),
+            Some(vec![None, None]),
+        ]);
+        assert_eq!(edit(&[input, values], true).unwrap().as_ref(), &expected);
     }
 }

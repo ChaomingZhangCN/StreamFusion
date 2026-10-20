@@ -1,15 +1,18 @@
-use std::sync::Arc;
-
 use arrow::array::{ArrayRef, Int64Array, ListArray, RecordBatch};
 use arrow::datatypes::{DataType, Field, Int64Type};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use std::sync::Arc;
 use streamfusion::bench::CalcProgram;
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
-
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
-
-fn fixture(kind: &DataType, rows: usize, width: usize, nulls: bool) -> (RecordBatch, ArrayRef) {
+fn fixture(
+    kind: &DataType,
+    rows: usize,
+    width: usize,
+    nulls: bool,
+    op: i64,
+) -> (RecordBatch, ArrayRef) {
     let samples = (0..=rows)
         .map(|row| {
             (!nulls || row % 7 != 0).then(|| {
@@ -28,22 +31,29 @@ fn fixture(kind: &DataType, rows: usize, width: usize, nulls: bool) -> (RecordBa
         .map(|(array, needle)| {
             array.as_ref().map(|a| {
                 let mut a = a.clone();
-                a.push(*needle);
+                match op {
+                    182 => {
+                        a.push(*needle);
+                    }
+                    183 => {
+                        a.insert(0, *needle);
+                    }
+                    _ => unreachable!(),
+                }
                 a
             })
         })
         .collect::<Vec<_>>();
-    let list_type = DataType::List(Arc::new(Field::new_list_field(kind.clone(), true)));
+    let ty = DataType::List(Arc::new(Field::new_list_field(kind.clone(), true)));
     let lists = ListArray::from_iter_primitive::<Int64Type, _, _>(samples).slice(1, rows);
     let expected = ListArray::from_iter_primitive::<Int64Type, _, _>(expected).slice(1, rows);
-    let lists = arrow::compute::cast(&lists, &list_type).unwrap();
+    let lists = arrow::compute::cast(&lists, &ty).unwrap();
     let needles = arrow::compute::cast(&Int64Array::from(needles).slice(1, rows), kind).unwrap();
     (
         RecordBatch::try_from_iter([("a", lists), ("n", needles)]).unwrap(),
-        arrow::compute::cast(&expected, &list_type).unwrap(),
+        arrow::compute::cast(&expected, &ty).unwrap(),
     )
 }
-
 fn run(c: &mut Criterion) {
     header();
     let mut group = c.benchmark_group("array_edits");
@@ -57,33 +67,39 @@ fn run(c: &mut Criterion) {
                     DataType::Int64,
                     DataType::Decimal128(38, 9),
                 ] {
-                    let (batch, expected) = fixture(&kind, rows, width, nulls);
-                    let mut calc = CalcProgram::new(
-                        vec![6, 0, 0],
-                        vec![182, 0, 1],
-                        vec![2, 0, 0],
-                        vec![],
-                        vec![],
-                        vec![],
-                    );
-                    let label = format!("append/{kind}/{rows}/width={width}/nulls={nulls}");
-                    assert_eq!(
-                        calc.run(batch.clone()).column(0).as_ref(),
-                        expected.as_ref(),
-                        "{label}"
-                    );
-                    let (output, allocations) = measure(|| calc.run(batch.clone()));
-                    report(&label, batch.columns(), output.columns(), allocations);
-                    group.throughput(Throughput::Elements(rows as u64));
-                    group.bench_function(BenchmarkId::from_parameter(label), |b| {
-                        b.iter(|| std::hint::black_box(calc.run(batch.clone())))
-                    });
+                    for op in [182, 183] {
+                        let (batch, expected) = fixture(&kind, rows, width, nulls, op);
+                        let mut calc = CalcProgram::new(
+                            vec![6, 0, 0],
+                            vec![op, 0, if op >= 185 { 0 } else { 1 }],
+                            vec![2, 0, 0],
+                            vec![],
+                            vec![],
+                            vec![],
+                        );
+                        let name = match op {
+                            182 => "append",
+                            183 => "prepend",
+                            _ => unreachable!(),
+                        };
+                        let label = format!("{name}/{kind}/{rows}/width={width}/nulls={nulls}");
+                        assert_eq!(
+                            calc.run(batch.clone()).column(0).as_ref(),
+                            expected.as_ref(),
+                            "{label}"
+                        );
+                        let (output, allocations) = measure(|| calc.run(batch.clone()));
+                        report(&label, batch.columns(), output.columns(), allocations);
+                        group.throughput(Throughput::Elements(rows as u64));
+                        group.bench_function(BenchmarkId::from_parameter(label), |b| {
+                            b.iter(|| std::hint::black_box(calc.run(batch.clone())))
+                        });
+                    }
                 }
             }
         }
     }
     group.finish();
 }
-
 criterion_group!(benches, run);
 criterion_main!(benches);
