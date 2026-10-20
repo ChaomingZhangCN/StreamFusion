@@ -2609,3 +2609,9 @@ encode/decode, Flink-compatible key hashing, TUMBLE, SESSION and OVER. Untimed o
 codec round trips, complete row counts and session snapshot continuation. Fixture/operator
 setup remains outside timing; stateful adapters enable the production memory budget. Run
 `--bench keys_and_checkpoints --filter scalar_partition_keys --smoke`.
+
+
+`scalar_partition_keys` also includes 48 FLOAT/DOUBLE fixtures, bringing the selection to
+192 cases. They run the same six production paths with natural Float32/Float64 keys,
+including nullable keys, distinct raw NaN payloads, encode/decode checks and session
+snapshot continuation. The released SQL matrix observes raw output key bits separately.

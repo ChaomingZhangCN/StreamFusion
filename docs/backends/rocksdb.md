@@ -263,3 +263,10 @@ admitted type changes its persisted encoding in this extension. Two-restore SQL 
 cover nullable composite keys on memory and direct RocksDB for fixed/session windows,
 bounded ROWS OVER, interval joins and window joins on both supported Flink releases. See
 [scalar key coverage](../operators/window-aggregate.md#scalar-grouping-and-partition-keys).
+
+
+FLOAT/DOUBLE partition keys also use their natural Float32/Float64 carriage in direct
+fixed-window and session state. The floating extension's two-restore comparisons regenerate
+distinct NaN payloads after source deserialization and project their raw bits after the
+stateful operation; source/sink canonicalization cannot collapse the oracle. Signed zero,
+infinities, subnormals and NULL are covered alongside ordinary finite values.

@@ -587,8 +587,8 @@ final class WindowAggregateMatcher {
   }
 
   /**
-   * Verified scalar keys for windows, OVER partitions and time-bounded joins. Floating-point
-   * equality and nested key representations retain their separate admission guards.
+   * Verified scalar keys for windows, OVER partitions and time-bounded joins. Nested key
+   * representations retain their separate admission guards.
    */
   static boolean supportedGroupingKeyType(SqlTypeName type) {
     if (type == SqlTypeName.BINARY
@@ -599,6 +599,8 @@ final class WindowAggregateMatcher {
     return supportedKeyType(type)
         || type == SqlTypeName.TINYINT
         || type == SqlTypeName.SMALLINT
+        || type == SqlTypeName.FLOAT
+        || type == SqlTypeName.DOUBLE
         || type == SqlTypeName.TIME
         || type == SqlTypeName.BINARY
         || type == SqlTypeName.VARBINARY

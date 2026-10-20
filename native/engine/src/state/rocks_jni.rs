@@ -2532,9 +2532,11 @@ pub extern "system" fn Java_tech_streamfusion_Native_closeRocksDBTemporalSorter<
 
 /// The Arrow carriage type of a window grouping-key column, from the JVM key-type code: timestamps
 /// keep their existing codec and legacy INT widens to int64. Newly admitted narrow integers,
-/// TIME, binary and month-interval keys retain their natural Arrow carriage.
+/// floating point, TIME, binary and month-interval keys retain their natural Arrow carriage.
 fn window_key_data_type(code: i64) -> DataType {
     match code {
+        1 => DataType::Float64,
+        6 => DataType::Float32,
         3 => DataType::Utf8,
         4 => DataType::Int16,
         5 => DataType::Int8,

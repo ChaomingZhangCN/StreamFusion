@@ -796,6 +796,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (keyType) {
+      case TYPE_FLOAT:
+        ((Float4Vector) target).setSafe(i, ((Float4Vector) source).get(i));
+        break;
+      case TYPE_DOUBLE:
+        ((Float8Vector) target).setSafe(i, ((Float8Vector) source).get(i));
+        break;
       case TYPE_TINYINT:
         ((TinyIntVector) target).setSafe(i, ((TinyIntVector) source).get(i));
         break;
@@ -837,6 +843,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     for (int j = 0; j < keyCount; j++) {
       LogicalType type = outputType.getTypeAt(j);
       switch (type.getTypeRoot()) {
+        case FLOAT:
+          types[j] = TYPE_FLOAT;
+          break;
+        case DOUBLE:
+          types[j] = TYPE_DOUBLE;
+          break;
         case TINYINT:
           types[j] = TYPE_TINYINT;
           break;
@@ -894,6 +906,10 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return new DecimalVector(name, allocator, decimalPrecision(keyType), decimalScale(keyType));
     }
     switch (keyType) {
+      case TYPE_FLOAT:
+        return new Float4Vector(name, allocator);
+      case TYPE_DOUBLE:
+        return new Float8Vector(name, allocator);
       case TYPE_TINYINT:
         return new TinyIntVector(name, allocator);
       case TYPE_SMALLINT:
@@ -934,6 +950,12 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (keyType) {
+      case TYPE_FLOAT:
+        ((Float4Vector) vector).setSafe(i, row.getFloat(column));
+        break;
+      case TYPE_DOUBLE:
+        ((Float8Vector) vector).setSafe(i, row.getDouble(column));
+        break;
       case TYPE_TINYINT:
         ((TinyIntVector) vector).setSafe(i, row.getByte(column));
         break;
@@ -981,6 +1003,10 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
           ((DecimalVector) vector).getObject(i), decimalPrecision(keyType), decimalScale(keyType));
     }
     switch (keyType) {
+      case TYPE_FLOAT:
+        return ((Float4Vector) vector).get(i);
+      case TYPE_DOUBLE:
+        return ((Float8Vector) vector).get(i);
       case TYPE_TINYINT:
         return ((TinyIntVector) vector).get(i);
       case TYPE_SMALLINT:

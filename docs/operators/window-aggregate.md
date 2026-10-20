@@ -1606,9 +1606,9 @@ not window assignment, timers or a complete window job.
 
 ## Scalar grouping and partition keys
 
-Grouping keys admit TINYINT, SMALLINT, INT, BIGINT, CHAR/VARCHAR, BOOLEAN, DATE, TIME,
+Grouping keys admit TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, CHAR/VARCHAR, BOOLEAN, DATE, TIME,
 TIMESTAMP/TIMESTAMP_LTZ, DECIMAL, BINARY/VARBINARY and both interval families. Composite
-keys may combine these scalar columns. FLOAT/DOUBLE and collection/ROW/object key columns
+keys may combine these scalar columns. Collection/ROW/object key columns
 retain fallback; a composite of scalar columns does not imply support for a ROW-valued key.
 The same scalar whitelist applies to time-based OVER partitions, non-time ROW_NUMBER
 partitions on Flink 2.2, and interval/window/event-time temporal join keys.
@@ -1670,3 +1670,59 @@ keeps the requested operations on Flink; its key projection/hash therefore follo
 stock path. This boundary supplies no whole-job speedup claim. The artifact retains all
 variability, including Java JIT/GC effects; fifty warmups replace the exploratory five-warmup
 run, whose early cases overstated some improvements.
+
+
+### Floating partition keys
+
+FLOAT and DOUBLE grouping/partition/equi-key columns use Float32/Float64 Arrow vectors and
+the existing Flink BinaryRow key hash and raw-bit key codec. Signed zero and distinct NaN
+payloads retain their identity; this does not change SQL scalar floating comparison rules.
+The direct fixed-window/session RocksDB key decoder uses the same natural widths. No
+previously admitted key changes its persisted encoding.
+
+The floating extension adds 56 SQL/recovery cases on Flink 2.2.1 and 54 on 1.18.1, with two
+non-time ROW_NUMBER capability skips on 1.18. Both phases of fixed windows, sessions, all
+seven time-based OVER shapes and interval/window/temporal joins are covered. Fixtures
+include NULL, signed zero, positive/negative NaN payloads, infinities and subnormals.
+They construct NaNs after source deserialization and observe raw bits in the output,
+so serializer canonicalization cannot hide a key mismatch. Two restores on both state
+backends cover TUMBLE, SESSION, bounded ROWS OVER and interval/window joins. The actual
+previous matcher keeps all twelve selected controls on Flink.
+
+The key materialization admission uses the same Java/RowData versus Rust/Arrow boundary
+as the preceding scalar extension, including an exact per-row signed hash oracle. Its
+[raw artifact](../benchmarks/results/floating-keys-2026-10-20.json) retains all warmups,
+measurements and configuration. This does not establish complete-job throughput.
+
+To reproduce the floating key gate after compiling on JDK 17:
+
+```sh
+SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am test \
+  -Dtest=ScalarKeyAdmissionBenchmark -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dsf.testForks=1 -Dscalar.keys.types=float,double \
+  -Dscalar.keys.rows=262144 -Dscalar.keys.cardinality=4096 \
+  -Dscalar.keys.warmups=50 -Dscalar.keys.runs=9 \
+  -Dscalar.keys.export=target/scalar-keys
+cargo run --manifest-path native/Cargo.toml -p streamfusion --release \
+  --features mimalloc --example scalar_key_hash -- target/scalar-keys-float.arrow 50 9
+cargo run --manifest-path native/Cargo.toml -p streamfusion --release \
+  --features mimalloc --example scalar_key_hash -- target/scalar-keys-double.arrow 50 9
+```
+
+Prepare/export inputs before the Rust clock, and run timing serially without competing tests
+or builds. Use 16,384 rows and 64 keys for the small profile. The JSON rows contain the
+measured runtime seconds and consumed hash sum; the driver first checks every golden hash.
+
+
+Floating-key medians use the same 16,384-row/64-key and 262,144-row/4,096-key profiles,
+fifty warmups and nine samples, with no concurrent tests/builds. The nullable key contains
+finite quarter values and raw IEEE edge values. Every signed hash matches released Flink.
+
+| Key | Small Flink, ms | Small Rust, ms | Large Flink, ms | Large Rust, ms |
+|---|---:|---:|---:|---:|
+| float | 0.486 | 0.329 | 7.452 | 5.310 |
+| double | 0.521 | 0.334 | 11.252 | 5.490 |
+
+These key materialization medians improve 1.40–2.05× over stock and the preceding
+fallback path. The raw artifact includes each trial and range; these are not window/join
+job speedups. Existing checkpoint/key-group formats for earlier key types are unchanged.

@@ -49,8 +49,8 @@ case is defined against released RocksDB rather than heap state.
 ## Admission
 
 Equi-keys use the [verified scalar whitelist](../window-aggregate.md#scalar-grouping-and-partition-keys):
-all integer widths, character, BOOLEAN, DATE, TIME, TIMESTAMP/LTZ, DECIMAL, binary and intervals,
-including multiple scalar key columns. FLOAT/DOUBLE and collection/ROW/object key columns
+all integer widths, FLOAT/DOUBLE, character, BOOLEAN, DATE, TIME, TIMESTAMP/LTZ, DECIMAL, binary and intervals,
+including multiple scalar key columns. Collection/ROW/object key columns
 retain fallback. Non-INNER joins require null-dropping keys, and the native expression engine
 must express every non-equi residual. All four join types — INNER, LEFT, RIGHT, and FULL — are native.
 

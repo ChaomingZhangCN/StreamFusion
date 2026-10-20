@@ -1,5 +1,5 @@
 use super::*;
-use arrow::array::{Int16Array, Int32Array, Time32MillisecondArray};
+use arrow::array::{Float32Array, Float64Array, Int16Array, Int32Array, Time32MillisecondArray};
 use streamfusion::bench::{Over, Session, Tumbling};
 
 fn key(code: i64, rows: usize, keys: usize) -> ArrayRef {
@@ -7,6 +7,34 @@ fn key(code: i64, rows: usize, keys: usize) -> ArrayRef {
         .map(|row| (row % 11 != 0).then_some((row % keys) as i64 - 32))
         .collect::<Vec<_>>();
     match code {
+        1 => Arc::new(Float64Array::from(
+            values
+                .iter()
+                .map(|v| {
+                    v.map(|v| {
+                        if v % 17 == 0 {
+                            f64::from_bits(0x7ff8000000000000 | v.unsigned_abs())
+                        } else {
+                            v as f64 * 0.25
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )),
+        6 => Arc::new(Float32Array::from(
+            values
+                .iter()
+                .map(|v| {
+                    v.map(|v| {
+                        if v % 17 == 0 {
+                            f32::from_bits(0x7fc00000 | v.unsigned_abs() as u32)
+                        } else {
+                            v as f32 * 0.25
+                        }
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )),
         5 => Arc::new(Int8Array::from(
             values
                 .iter()
@@ -42,7 +70,7 @@ pub(super) fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("scalar_partition_keys");
     for rows in [64, 4096] {
         for keys in [1, 64] {
-            for code in [5, 4, 9, 11, 12, 13] {
+            for code in [5, 4, 9, 11, 12, 13, 6, 1] {
                 let array = key(code, rows, keys);
                 let shard: ArrayRef = Arc::new(Int64Array::from_iter_values(
                     (0..rows).map(|r| (r % 3) as i64),

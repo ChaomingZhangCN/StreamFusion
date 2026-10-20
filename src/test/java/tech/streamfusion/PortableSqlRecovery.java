@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.CheckpointListener;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -18,6 +19,7 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
@@ -37,6 +39,7 @@ final class PortableSqlRecovery implements Supplier<TableEnvironment>, AutoClose
   private final int[] boundaries;
   private final boolean changelog;
   private Map<Integer, Long> watermarks = Map.of();
+  private MapFunction<Row, Row> inputMapping;
   private long taskOffHeapBytes;
   private boolean holdAfterInput;
   private int parallelism = 1;
@@ -82,6 +85,12 @@ final class PortableSqlRecovery implements Supplier<TableEnvironment>, AutoClose
             "checkpoint boundaries must be ascending input prefixes");
       previous = boundary;
     }
+  }
+
+  PortableSqlRecovery withInputMapping(MapFunction<Row, Row> mapping) {
+    if (!runIds.isEmpty()) throw new IllegalStateException("configure input before execution");
+    inputMapping = java.util.Objects.requireNonNull(mapping);
+    return this;
   }
 
   PortableSqlRecovery withWatermarks(Map<Integer, Long> afterOffsets) {
@@ -205,13 +214,15 @@ final class PortableSqlRecovery implements Supplier<TableEnvironment>, AutoClose
     env.enableCheckpointing(50);
     var table = StreamTableEnvironment.create(env);
     table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
-    var stream =
+    DataStream<Row> stream =
         env.addSource(
                 new RecoveringSource(
                     runId, input, recover ? boundaries : new int[0], watermarks, holdAfterInput))
             .returns(inputType)
             .uid("portable-recovery-source")
             .setMaxParallelism(128);
+    if (inputMapping != null)
+      stream = stream.map(inputMapping).returns(inputType).uid("portable-recovery-input-mapping");
     table.createTemporaryView(
         "recovery_input",
         changelog

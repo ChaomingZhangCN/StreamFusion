@@ -18,8 +18,8 @@ is applied natively, same as the other join shapes.
 ## Admission
 
 Equi-keys use the [verified scalar whitelist](../window-aggregate.md#scalar-grouping-and-partition-keys),
-including narrow integers, TIME, binary and both interval families. FLOAT/DOUBLE and
-collection/ROW/object key columns retain fallback. Keys must drop NULLs (LEFT is the only
+including narrow integers, FLOAT/DOUBLE, TIME, binary and both interval families.
+Collection/ROW/object key columns retain fallback. Keys must drop NULLs (LEFT is the only
 non-INNER shape Flink itself allows here — see below). The
 residual beyond the `FOR SYSTEM_TIME` condition must be expressible by the native expression engine.
 

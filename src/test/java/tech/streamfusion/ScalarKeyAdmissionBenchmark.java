@@ -110,6 +110,14 @@ class ScalarKeyAdmissionBenchmark {
 
   private static Object key(String type, int id, int keys, int width) {
     switch (type) {
+      case "float":
+        return id % 13 == 0
+            ? (Float) FlinkScalarKeySqlHarnessTest.key(type, id)
+            : (float) (id - keys / 2) * .25f;
+      case "double":
+        return id % 13 == 0
+            ? (Double) FlinkScalarKeySqlHarnessTest.key(type, id)
+            : (id - keys / 2) * .25;
       case "tinyint":
         return (byte) (id - 128);
       case "smallint":

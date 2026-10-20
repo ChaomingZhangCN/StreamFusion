@@ -14,11 +14,12 @@ import org.apache.flink.types.Row;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 
-class FlinkScalarKeySqlHarnessTest {
+public class FlinkScalarKeySqlHarnessTest {
   static Stream<String> types() {
     return Stream.of(
         System.getProperty(
-                "scalar.keys.types", "tinyint,smallint,time,time0,binary,varbinary,months,millis")
+                "scalar.keys.types",
+                "tinyint,smallint,time,time0,binary,varbinary,months,millis,float,double")
             .split(","));
   }
 
@@ -38,7 +39,7 @@ class FlinkScalarKeySqlHarnessTest {
   @MethodSource("cases")
   void typedCompositeKeysKeepEqualityAndOutputTypes(String type, String shape) {
     try (var metrics = new RecoveryExecutionMetrics()) {
-      var runs = NativeFailureParity.run(() -> environment(metrics, type), sql(shape));
+      var runs = NativeFailureParity.run(() -> environment(metrics, type), typedSql(type, shape));
       runs.assertSuccess(
           Boolean.getBoolean("scalar.keys.expectFallback")
               ? NativeFailureParity.Route.FALLBACK
@@ -86,7 +87,7 @@ class FlinkScalarKeySqlHarnessTest {
                 table.getConfig().set("table.exec.mini-batch.size", "7");
                 return table;
               },
-              sql(shape));
+              typedSql(type, shape));
       runs.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
       assertTrue(
@@ -151,10 +152,13 @@ class FlinkScalarKeySqlHarnessTest {
                 64)
             .withWatermarks(Map.of(24, 1200L, 56, 1600L, 80, 9999L))
             .withExecutionMetrics()) {
+      if (type.equals("float") || type.equals("double"))
+        recovery.withInputMapping(row -> rawFloatingKey(row, type));
       java.util.function.UnaryOperator<TableEnvironment> configure =
           table -> {
             table.getConfig().set("streamfusion.transpose.batchRows", "7");
             table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+            registerKeyBits(table, type);
             table.createTemporaryView("src", table.from("recovery_input"));
             return table;
           };
@@ -162,7 +166,7 @@ class FlinkScalarKeySqlHarnessTest {
           NativeFailureParity.runRecovery(
               () -> configure.apply(recovery.uninterrupted()),
               () -> configure.apply(recovery.get()),
-              sql(shape));
+              typedSql(type, shape));
       runs.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
       recovery.verifyRepeatedRecovery();
@@ -173,6 +177,10 @@ class FlinkScalarKeySqlHarnessTest {
 
   static DataType keyType(String type) {
     switch (type) {
+      case "float":
+        return DataTypes.FLOAT();
+      case "double":
+        return DataTypes.DOUBLE();
       case "tinyint":
         return DataTypes.TINYINT();
       case "smallint":
@@ -197,6 +205,28 @@ class FlinkScalarKeySqlHarnessTest {
   static Object key(String type, long row) {
     int i = (int) (row / 2 % 5);
     switch (type) {
+      case "float":
+        return Float.intBitsToFloat(
+            new int[] {
+                  0x80000000, 0, 0x7fc00001, 0x7fc00002, 0xffc00001,
+                  0x7f800000, 0xff800000, 1, 0x80000001, 0x3f800000
+                }
+                [(int) (row / 2 % 10)]);
+      case "double":
+        return Double.longBitsToDouble(
+            new long[] {
+                  0x8000000000000000L,
+                  0,
+                  0x7ff8000000000001L,
+                  0x7ff8000000000002L,
+                  0xfff8000000000001L,
+                  0x7ff0000000000000L,
+                  0xfff0000000000000L,
+                  1,
+                  0x8000000000000001L,
+                  0x3ff0000000000000L
+                }
+                [(int) (row / 2 % 10)]);
       case "tinyint":
         return new byte[] {Byte.MIN_VALUE, -1, 0, 1, Byte.MAX_VALUE}[i];
       case "smallint":
@@ -219,11 +249,22 @@ class FlinkScalarKeySqlHarnessTest {
     }
   }
 
+  private static Row rawFloatingKey(Row row, String type) {
+    Row copy = Row.copy(row);
+    long id = (Long) row.getField(0);
+    copy.setField(1, id % 11 == 0 ? null : key(type, id));
+    return copy;
+  }
+
   static TableEnvironment environment(RecoveryExecutionMetrics metrics, String type) {
-    var env = metrics.environment(new org.apache.flink.configuration.Configuration(), 3, 0);
+    boolean floating = type.equals("float") || type.equals("double");
+    var env =
+        metrics.environment(
+            new org.apache.flink.configuration.Configuration(), floating ? 1 : 3, 0);
     env.getConfig().setAutoWatermarkInterval(0);
     env.getConfig().enableObjectReuse();
     var table = StreamTableEnvironment.create(env);
+    registerKeyBits(table, type);
     table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
     table.getConfig().set("streamfusion.transpose.batchRows", "7");
     var dtype =
@@ -244,10 +285,16 @@ class FlinkScalarKeySqlHarnessTest {
                         i % 7 == 0 ? null : i,
                         Instant.ofEpochMilli(1000 + i / 8 * 100)))
             .collect(tech.streamfusion.compat.ListCollectors.toList());
+    org.apache.flink.streaming.api.datastream.DataStream<Row> input =
+        fromData(env, rows, ExternalTypeInfo.<Row>of(dtype));
+    if (floating) {
+      // Source serialization canonicalizes NaNs; create the raw payloads after deserialization.
+      input = input.map(row -> rawFloatingKey(row, type)).returns(ExternalTypeInfo.<Row>of(dtype));
+    }
     table.createTemporaryView(
         "src",
         table.fromDataStream(
-            fromData(env, rows, ExternalTypeInfo.<Row>of(dtype)),
+            input,
             Schema.newBuilder()
                 .fromRowDataType(dtype)
                 .watermark("rt", "rt - INTERVAL '1' SECOND")
@@ -265,10 +312,23 @@ class FlinkScalarKeySqlHarnessTest {
               .mapToObj(
                   i -> Row.of(key(type, i), (int) (i % 2), i, Instant.ofEpochMilli(900 + i * 100)))
               .collect(tech.streamfusion.compat.ListCollectors.toList());
+      org.apache.flink.streaming.api.datastream.DataStream<Row> dimension =
+          fromData(env, dims, ExternalTypeInfo.<Row>of(dimType));
+      if (floating) {
+        dimension =
+            dimension
+                .map(
+                    row -> {
+                      Row copy = Row.copy(row);
+                      copy.setField(0, key(type, (Long) row.getField(2)));
+                      return copy;
+                    })
+                .returns(ExternalTypeInfo.<Row>of(dimType));
+      }
       table.createTemporaryView(
           "dim",
           table.fromDataStream(
-              fromData(env, dims, ExternalTypeInfo.<Row>of(dimType)),
+              dimension,
               Schema.newBuilder()
                   .fromRowDataType(dimType)
                   .watermark("rt", "rt - INTERVAL '1' SECOND")
@@ -276,6 +336,30 @@ class FlinkScalarKeySqlHarnessTest {
                   .build()));
     }
     return table;
+  }
+
+  private static void registerKeyBits(TableEnvironment table, String type) {
+    if (type.equals("float")) table.createTemporarySystemFunction("key_bits", new FloatBits());
+    if (type.equals("double")) table.createTemporarySystemFunction("key_bits", new DoubleBits());
+  }
+
+  public static final class FloatBits extends org.apache.flink.table.functions.ScalarFunction {
+    public Long eval(Float value) {
+      return value == null ? null : Integer.toUnsignedLong(Float.floatToRawIntBits(value));
+    }
+  }
+
+  public static final class DoubleBits extends org.apache.flink.table.functions.ScalarFunction {
+    public Long eval(Double value) {
+      return value == null ? null : Double.doubleToRawLongBits(value);
+    }
+  }
+
+  private static String typedSql(String type, String shape) {
+    String query = sql(shape);
+    return type.equals("float") || type.equals("double")
+        ? "SELECT *,key_bits(k) AS raw_key_bits FROM (" + query + ")"
+        : query;
   }
 
   static String window(String shape) {
@@ -309,10 +393,10 @@ class FlinkScalarKeySqlHarnessTest {
           + " SECOND),SESSION_END(rt,INTERVAL '0.2' SECOND) FROM src GROUP BY"
           + " k,shard,SESSION(rt,INTERVAL '0.2' SECOND)";
     if (shape.equals("interval"))
-      return "SELECT a.id,b.id,a.k,a.shard FROM src a JOIN src b ON a.k=b.k AND a.shard=b.shard AND"
+      return "SELECT a.id AS left_id,b.id AS right_id,a.k,a.shard FROM src a JOIN src b ON a.k=b.k AND a.shard=b.shard AND"
           + " a.rt BETWEEN b.rt - INTERVAL '0.1' SECOND AND b.rt + INTERVAL '0.1' SECOND";
     if (shape.equals("window_join"))
-      return "SELECT a.id,b.id,a.k,a.shard FROM (SELECT * FROM TABLE(TUMBLE(TABLE"
+      return "SELECT a.id AS left_id,b.id AS right_id,a.k,a.shard FROM (SELECT * FROM TABLE(TUMBLE(TABLE"
           + " src,DESCRIPTOR(rt),INTERVAL '1' SECOND))) a JOIN (SELECT * FROM"
           + " TABLE(TUMBLE(TABLE src,DESCRIPTOR(rt),INTERVAL '1' SECOND))) b ON a.k=b.k AND"
           + " a.shard=b.shard AND a.window_start=b.window_start AND"
