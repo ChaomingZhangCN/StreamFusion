@@ -76,6 +76,14 @@ RocksDB and checkpoint/restore code. Diagnostic artifacts stay in the runner tem
 directory. Performance comparisons retain their normal storage and serial execution:
 parallel workers require `--smoke`, and the Rust fixture selector rejects timing runs.
 
+Paimon 1.0 compatibility builds release workspace libraries once with `mimalloc`, matching
+the reactor's `bench` profile, and verifies JNI/package boundaries before Maven runs. Both
+the source/sink parity phase and the upstream SQL phase pass `-Dnative.build.skip=true`
+and reuse those libraries. Previously each Maven module invoked Cargo with a different
+package selection: the successful main run on 2026-10-20 performed seven release builds,
+recompiling DataFusion three times. The test selections, JVM limits and single-fork SQL
+execution stay the same. Cargo's compilation timings are retained with the test evidence.
+
 Default-enabled paths need positive native-route assertions. Fixed-size-binary compatibility
 tests construct that legacy physical schema explicitly rather than changing global feature
 flags. Component-timestamp extrema exercise checkpoint/retraction values on RocksDB, including

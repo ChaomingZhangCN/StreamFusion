@@ -75,9 +75,15 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Test upstream fork isolation
         run: python3 -m unittest discover -s bin -p test_paimon1_ci.py
-      - name: Source and sink parity (build release libraries)
+      - name: Build release native libraries once for the complete reactor
+        working-directory: native
+        run: cargo build --workspace --lib --release --features mimalloc --locked --timings
+      - name: Verify native JNI exports
+        run: python3 bin/check-native-workspace.py --libraries native/target/release
+      - name: Source and sink parity (reuse release libraries)
         run: >-
           mvn -B -ntp -Pflink-1.18,paimon1,bench -pl streamfusion-paimon1 -am
+          -Dnative.build.skip=true
           -Dsf.testForks=1 '-Dtest=LegacyPaimon*Test,PaimonSourceSqlTest,PaimonSplitWatermarksTest,PaimonFetcherLifecycleTest'
           -Dsurefire.failIfNoSpecifiedTests=false '-Dsf.extraJvmArgs=-Xmx2g -XX:ActiveProcessorCount=2 --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED' test
       - name: Upstream SQL tests (reuse release libraries)
@@ -97,3 +103,4 @@ jobs:
             streamfusion-paimon1/target/upstream-suite/inventory/
             streamfusion-paimon1/target/upstream-suite/diagnostics/
             streamfusion-paimon1/target/native-reports/
+            native/target/cargo-timings/
