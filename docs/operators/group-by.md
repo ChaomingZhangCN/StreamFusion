@@ -15,15 +15,16 @@ local/global plans. Mini-batch-disabled aggregation does not validate an unused 
 
 ## Single-phase
 
-Flink's internal `SUM0` admits nullable TINYINT, SMALLINT, INT, BIGINT and DECIMAL,
+Flink's internal `SUM0` admits nullable TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE and DECIMAL,
 including global aggregation and per-aggregate FILTER. This lets shared `COUNT(v)`,
 `AVG(v)` and `SUM(v)` reductions keep their native aggregate and outer Calc. SUM0 starts
 at zero and emits zero when no non-NULL input contributes; the host-planned Calc uses
 COUNT to restore NULL for AVG/SUM. Integer accumulation wraps at the declared width.
 DECIMAL uses a widened `(38, input-scale)` accumulator whose overflow stays NULL;
-ordinary SUM's reset-after-overflow rule is deliberately different. DISTINCT and
-floating SUM0 remain unsupported. Released Flink's invalid DECIMAL(38,38) SUM0
-initializer remains on the host.
+ordinary SUM's reset-after-overflow rule is deliberately different. DISTINCT SUM0 remains
+unsupported. Floating SUM0 starts from positive zero and rounds each addition/subtraction at
+the declared FLOAT/DOUBLE width; ordinary floating SUM still starts at the first non-NULL value.
+Released Flink's invalid DECIMAL(38,38) SUM0 initializer remains on the host.
 
 COUNT/SUM DISTINCT uses Java boxed floating equality: all NaN payloads count as one value,
 while positive and negative zero remain distinct. The same encoding is used for local/global
@@ -576,7 +577,7 @@ through the extremes multiset, and `AVG` merges the `(DECIMAL(38, s), bigint)` p
 division emit.
 
 SUM0 has one typed partial: zero for an all-NULL local bundle, a wrapped integer
-sum, or the widened decimal sum. A NULL decimal partial means overflow and latches
+sum, a FLOAT/DOUBLE sum rounded at its width, or the widened decimal sum. A NULL decimal partial means overflow and latches
 the global state, while a NULL input to the local accumulator is ignored. Both
 stages support retractions; zero net count does not discard a nonzero sum adjustment.
 
@@ -639,7 +640,7 @@ same final output as Flink's shared bitmask view, since a filtered distinct is a
 distinct over the filtered row subset.
 
 **A retracting local input** (the aggregate consumes another aggregate's changelog — Nexmark q4's
-shape) is native for `COUNT`, `AVG`, exact `SUM0` and ordinary integer `SUM`.
+shape) is native for `COUNT`, `AVG`, `SUM0` and ordinary integer `SUM`.
 SUM_RETRACT uses a separate `(sum, BIGINT count)` partial pair; the other admitted layouts are invariant under
 retraction. The local subtracts `-U`/`-D` rows, and the appended (or reused) `count1` `COUNT(*)`
 partial drives per-key liveness in the global (`-D` and state drop when the merged count reaches
@@ -668,7 +669,7 @@ Still falling back, specific to the two-phase split: the opt-in `distinct-agg.sp
 incremental chain (a deliberate non-goal — see [Unsupported operators](unsupported.md)),
 `MIN`/`MAX` with a retained physical `DISTINCT` flag, floating `SUM(DISTINCT)` and
 `AVG(DISTINCT)`, and — under a
-retracting input — any aggregate other than `COUNT`/`AVG`/exact `SUM0`/ordinary exact integer `SUM`
+retracting input — any aggregate other than `COUNT`/`AVG`/`SUM0`/ordinary exact integer `SUM`
 (non-integer SUM and MIN/MAX retract variants retain unverified layouts, and a monotonicity-exempt `MIN`/`MAX` ignores
 retractions in ways the native fold would not) plus `DISTINCT` (its view value switches to
 per-filter live counts under retraction).
@@ -766,7 +767,7 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
 
 **Local group aggregate (two-phase local half) only:**
 
-- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, insert-only SINGLE_VALUE over the
+- Any aggregate other than SUM/MIN/MAX/COUNT/AVG/SUM0, insert-only SINGLE_VALUE over the
   supported single-phase scalar types, or ordinary append LISTAGG over the string pair above.
 - A SUM/MIN/MAX value type outside bigint/int/smallint/tinyint/float/double/decimal (MIN/MAX also admit
   strings, DATE, TIME, BOOLEAN and timestamps), or an AVG value type outside
@@ -778,18 +779,18 @@ input in streaming mode emits no aggregate row. Native string/JSON coverage is d
   `MIN`/`MAX` with a retained physical `DISTINCT` flag (Flink normally removes it).
 - A partial whose declared type differs from what the native side emits — defensive only, not
   reachable from Flink's own planner.
-- A retracting input with any aggregate other than plain COUNT/AVG/exact SUM0/exact integer SUM.
+- A retracting input with any aggregate other than plain COUNT/AVG/SUM0/exact integer SUM.
 
 **Global group aggregate (two-phase merge) only:**
 
-- Any merge other than SUM/MIN/MAX/COUNT/AVG/exact SUM0, the typed SINGLE_VALUE split, or
+- Any merge other than SUM/MIN/MAX/COUNT/AVG/SUM0, the typed SINGLE_VALUE split, or
   ordinary append LISTAGG with its (separator, prefix) string pair.
 - A partial column outside bigint/int/smallint/tinyint/float/double/decimal, except the typed
   MIN/MAX, SINGLE_VALUE and LISTAGG partials described above.
 - An AVG whose partial pair isn't `(bigint, bigint)` for an integer average, `(double, bigint)` for
   float/double, or `(decimal(38, s), bigint)` for decimal.
 - A distinct merge outside the local half's `COUNT`/`SUM(DISTINCT)` scope.
-- A retracting merge with any aggregate other than plain COUNT/AVG/exact SUM0/exact integer SUM (those merge natively, the
+- A retracting merge with any aggregate other than plain COUNT/AVG/SUM0/exact integer SUM (those merge natively, the
   `count1` partial driving per-key liveness).
 - An unsupported grouping-key or output column type.
 
@@ -1291,3 +1292,26 @@ non-mimalloc release trials, and the final production build. The final release D
 Criterion's `group_record_counter/sum_count` fixtures separately exercise the production
 partial merge at 256/4096 rows and 1/64 keys, including NULL contribution counts and negative
 record counters; that native boundary does not stand in for the complete Flink comparison.
+
+## Floating SUM0 admission
+
+FLOAT/DOUBLE SUM0 is enabled for the admitted grouped and local/global shapes, including
+retractions and FILTER. The released Table API exposes `expression.sum0()`; plain SQL
+`SUM0(...)` is not registered. Internal planner SUM0 calls use the same native accumulator.
+The existing DISTINCT and invalid DECIMAL initializer restrictions remain.
+
+[Validation and timing evidence](../benchmarks/results/floating-sum-zero-2026-10-19.json)
+retains 92 distinct selected cases on 2.2.1 across corrected runs and 91 passes plus one
+expected session-TVF skip on 1.18.1. Eight added checks per release fail twice after completed
+checkpoints on heap/native RocksDB, in one/two phases. They cover NULL prefixes, rounded
+cancellation, retractions and zero-net-count local bundles, requiring actual native execution.
+Ten native SUM0 tests preserve initialization, rounding, IEEE behavior and restored state;
+24 window and 16 grouped release Criterion fixtures pass (12 and eight floating cases added).
+
+The small admission benchmark measures only the production SUM0 accumulator and final value
+consumption. Stock uses Flink's released generated Java handler on prebuilt BinaryRowData;
+StreamFusion starts inside Rust on matching prebuilt Arrow. At 1,048,576 values with NULLs,
+Flink 2.2 FLOAT measures 9.97 ms versus 2.64 ms Rust, and DOUBLE 10.27 ms versus 2.20 ms.
+Both output bit patterns match exactly. All warmups and trials, smaller inputs and Flink 1.18
+controls are retained. These function measurements do not claim faster complete GROUP BY or
+window jobs; grouping, state-backend I/O and perimeter conversions are outside this boundary.

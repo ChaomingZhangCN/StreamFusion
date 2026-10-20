@@ -396,6 +396,8 @@ final class WindowAggregateMatcher {
 
   static boolean supportedZeroSumValue(RelDataType type) {
     switch (type.getSqlTypeName()) {
+      case FLOAT:
+      case DOUBLE:
       case TINYINT:
       case SMALLINT:
       case INTEGER:

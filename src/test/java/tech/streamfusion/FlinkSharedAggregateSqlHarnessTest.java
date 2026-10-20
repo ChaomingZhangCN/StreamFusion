@@ -62,7 +62,7 @@ class FlinkSharedAggregateSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"INT,0", "INT,2", "BIGINT,0", "BIGINT,2", "DECIMAL,0", "DECIMAL,2"})
+  @CsvSource({"INT,0", "INT,2", "BIGINT,0", "BIGINT,2", "DECIMAL,0", "DECIMAL,2", "FLOAT,0", "FLOAT,2", "DOUBLE,0", "DOUBLE,2"})
   void sharedReductionsKeepNullGroupsFiltersAndEmptyInput(String type, int bundle) throws Exception {
     for (String sql : List.of(
         "SELECT k, COUNT(v), AVG(v), SUM(v) FROM src GROUP BY k",
@@ -75,7 +75,7 @@ class FlinkSharedAggregateSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"INT,0", "INT,2", "BIGINT,0", "BIGINT,2", "DECIMAL,0", "DECIMAL,2"})
+  @CsvSource({"INT,0", "INT,2", "BIGINT,0", "BIGINT,2", "DECIMAL,0", "DECIMAL,2", "FLOAT,0", "FLOAT,2", "DOUBLE,0", "DOUBLE,2"})
   void sharedReductionsRetractAndRecreateGroups(String type, int bundle) throws Exception {
     assertParity(type, bundle, true, false,
         "SELECT k, COUNT(v), AVG(v), SUM(v) FROM src GROUP BY k");
@@ -86,6 +86,24 @@ class FlinkSharedAggregateSqlHarnessTest {
   void sharedSumsKeepExactOverflowBehavior(String type, int bundle) throws Exception {
     assertParity(type, bundle, false, true,
         "SELECT k, COUNT(v), AVG(v), SUM(v) FROM src GROUP BY k");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"FLOAT,0", "FLOAT,2", "DOUBLE,0", "DOUBLE,2"})
+  void directFloatingZeroSumsPreserveNonNullZero(String type, int bundle) throws Exception {
+    var runs = NativeFailureParity.run(() -> {
+      var table = environment(type, bundle, false, false);
+      var result = table.from("src")
+          .groupBy(org.apache.flink.table.api.Expressions.$("k"))
+          .select(org.apache.flink.table.api.Expressions.$("k"),
+              org.apache.flink.table.api.Expressions.$("v").sum0().as("z"));
+      table.createTemporaryView("sum_zero_result", result);
+      return table;
+    }, "SELECT * FROM sum_zero_result");
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
+    assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
+    assertEquals(2, runs.nativeRun().rows().stream()
+        .filter(row -> row.get(0).equals("+I")).count());
   }
 
   private static void assertParity(String type, int bundle, boolean retracting,
@@ -111,12 +129,17 @@ class FlinkSharedAggregateSqlHarnessTest {
     table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
     table.getConfig().set("table.exec.mini-batch.size", Integer.toString(Math.max(1, bundle)));
     DataType valueType = type.equals("INT") ? INT() : type.equals("BIGINT") ? BIGINT()
+        : type.equals("FLOAT") ? FLOAT() : type.equals("DOUBLE") ? DOUBLE()
         : overflow ? DECIMAL(38, 0) : DECIMAL(7, 2);
     DataType rowType = ROW(FIELD("k", INT().notNull()), FIELD("v", valueType));
-    Object first = type.equals("INT") ? Integer.valueOf(1)
+    Object first = type.equals("FLOAT") ? (Object) Float.valueOf(1.25f)
+        : type.equals("DOUBLE") ? (Object) Double.valueOf(1.25)
+        : type.equals("INT") ? Integer.valueOf(1)
         : type.equals("BIGINT") ? Long.valueOf(overflow ? Long.MAX_VALUE : 1)
         : new BigDecimal(overflow ? "99999999999999999999999999999999999999" : "1.25");
-    Object second = type.equals("INT") ? Integer.valueOf(2)
+    Object second = type.equals("FLOAT") ? (Object) Float.valueOf(2.5f)
+        : type.equals("DOUBLE") ? (Object) Double.valueOf(2.5)
+        : type.equals("INT") ? Integer.valueOf(2)
         : type.equals("BIGINT") ? Long.valueOf(overflow ? 1 : 2)
         : new BigDecimal(overflow ? "1" : "2.50");
     List<Row> rows = new ArrayList<>(List.of(

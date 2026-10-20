@@ -112,7 +112,9 @@ Append-only session and legacy windows use the same accumulator factory; attache
 retain their existing two-phase-only gate. SQL comparisons cover these layouts as well.
 
 Released Flink cannot initialize AVG/SUM0 over `DECIMAL(38,38)`. That shape stays on Flink,
-including its planning failure; floating SUM0 and DISTINCT SUM0 also stay outside admission.
+including its planning failure. Floating SUM0 uses typed zero-initialized state; DISTINCT SUM0
+stays outside admission. FLOAT additions/subtractions round at FLOAT width and DOUBLE at
+DOUBLE width, preserving the difference from ordinary SUM's first-value initialization.
 
 The local stage retains rows whose slice has already fired: that slice can still belong to
 an open HOP or CUMULATE window. The global merge admits each partial only into final windows
@@ -1595,3 +1597,8 @@ representative complete jobs, not universal or sustained-throughput claims. The
 trial, prior stock control, source/library hash and all 308 native allocation/buffer reports.
 Reproduce with `WindowComplexCountBenchmark -Dwindow.cases=multiset`
 and the row/key/width/phase/frame properties shown above.
+
+Floating SUM0 shares the [typed zero-initialized accumulator](group-by.md#floating-sum0-admission).
+The FLOAT/DOUBLE one/two-phase SQL cases pass on both released lines; local/global state
+keeps the declared floating width. The standalone accumulator admission measures the function,
+not window assignment, timers or a complete window job.

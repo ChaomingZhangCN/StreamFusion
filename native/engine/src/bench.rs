@@ -15,6 +15,23 @@ pub fn binary_elt_function(arity: usize, width: i32) -> datafusion::logical_expr
     crate::flink_functions::binary_elt::function(arity, width)
 }
 
+/// The same zero-initialized accumulator used by grouped and window SUM0.
+pub struct ZeroSum(Box<dyn Accumulator>);
+
+impl ZeroSum {
+    pub fn new(value_type: i64) -> Self {
+        Self(build_aggregates(&[22], &[value_type])[0].create_accumulator())
+    }
+
+    pub fn update(&mut self, values: &ArrayRef) {
+        self.0.update_batch(std::slice::from_ref(values)).unwrap();
+    }
+
+    pub fn value(&mut self) -> ScalarValue {
+        self.0.evaluate().unwrap()
+    }
+}
+
 /// A filter predicate compiled once (on the first `run`) and reused, as the operator uses it.
 pub struct Filter(FilterExpression);
 

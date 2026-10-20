@@ -720,6 +720,8 @@ impl WindowAggregate {
                 | DataType::Int16
                 | DataType::Int32
                 | DataType::Int64
+                | DataType::Float32
+                | DataType::Float64
                 | DataType::Decimal128(_, _),
             ) => WindowAggregate::ZeroSum(value_type.clone()),
             (RETRACT_SUM, DataType::Decimal128(_, scale)) => {
@@ -1214,6 +1216,8 @@ pub(crate) enum RunningAgg {
         sum: f64,
         result: DataType,
     },
+    ZeroSumF32(f32),
+    ZeroSumF64(f64),
     // The LOCAL half of a two-phase AVG (kind 8): the widened running sum alone — the count rides a
     // separate COUNT partial state. Folds like AvgInt/AvgFloat (any integer / float input widens),
     // but emits the raw sum, not a quotient; the global half divides after merging. Matching Flink's
@@ -1277,6 +1281,8 @@ impl RunningAgg {
                         result: value_type.clone(),
                     }
                 }
+                DataType::Float32 => ZeroSumF32(0.0),
+                DataType::Float64 => ZeroSumF64(0.0),
                 DataType::Decimal128(_, scale) => AvgPartialSumDecimal {
                     sum: 0,
                     scale: *scale,
@@ -1465,6 +1471,8 @@ impl RunningAgg {
                     *value = Some(candidate);
                 }
             }
+            (ZeroSumF32(sum), Num::F32(v)) => *sum += v,
+            (ZeroSumF64(sum), Num::F64(v)) => *sum += v,
             (ZeroSumInt { sum, .. }, Num::I64(v)) => *sum = sum.wrapping_add(v),
             (ZeroSumInt { sum, .. }, Num::I32(v)) => *sum = sum.wrapping_add(v as i64),
             (ZeroSumInt { sum, .. }, Num::I16(v)) => *sum = sum.wrapping_add(v as i64),
@@ -1536,6 +1544,8 @@ impl RunningAgg {
     pub(crate) fn retract(&mut self, value: Num) {
         use RunningAgg::*;
         match (self, value) {
+            (ZeroSumF32(sum), Num::F32(v)) => *sum -= v,
+            (ZeroSumF64(sum), Num::F64(v)) => *sum -= v,
             (ZeroSumInt { sum, .. }, Num::I64(v)) => *sum = sum.wrapping_sub(v),
             (ZeroSumInt { sum, .. }, Num::I32(v)) => *sum = sum.wrapping_sub(v as i64),
             (ZeroSumInt { sum, .. }, Num::I16(v)) => *sum = sum.wrapping_sub(v as i64),
@@ -1591,6 +1601,8 @@ impl RunningAgg {
                 scale,
                 ..
             } => ScalarValue::Decimal128(*value, *precision, *scale),
+            ZeroSumF32(sum) => ScalarValue::Float32(Some(*sum)),
+            ZeroSumF64(sum) => ScalarValue::Float64(Some(*sum)),
             ZeroSumInt { sum, result } => avg_int_scalar(*sum, result),
             SumI64(v) | MinI64(v) | MaxI64(v) | FirstI64(v) | LastI64(v) => ScalarValue::Int64(*v),
             SumI32(v) | MinI32(v) | MaxI32(v) | FirstI32(v) | LastI32(v) => ScalarValue::Int32(*v),
@@ -1689,6 +1701,8 @@ impl RunningAgg {
             TypedExtreme { data_type, .. } => data_type.clone(),
             MinMaxTimestamp => streamfusion_bridge::timestamp::timestamp_type(),
             AvgInt { result, .. } | AvgFloat { result, .. } => result.clone(),
+            ZeroSumF32(_) => DataType::Float32,
+            ZeroSumF64(_) => DataType::Float64,
             AvgPartialSumInt(_) => DataType::Int64,
             AvgPartialSumFloat(_) => DataType::Float64,
             AvgPartialSumDecimal { scale, .. } => DataType::Decimal128(38, *scale),
@@ -1726,6 +1740,8 @@ impl RunningAgg {
             (OverDecimalValue { value, .. }, ScalarValue::Decimal128(saved, _, _)) => {
                 *value = *saved
             }
+            (ZeroSumF32(sum), ScalarValue::Float32(Some(v))) => *sum = *v,
+            (ZeroSumF64(sum), ScalarValue::Float64(Some(v))) => *sum = *v,
             (ZeroSumInt { sum, .. }, ScalarValue::Int8(Some(v))) => *sum = *v as i64,
             (ZeroSumInt { sum, .. }, ScalarValue::Int16(Some(v))) => *sum = *v as i64,
             (ZeroSumInt { sum, .. }, ScalarValue::Int32(Some(v))) => *sum = *v as i64,

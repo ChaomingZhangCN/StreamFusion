@@ -81,7 +81,8 @@ class FlinkWindowSharedSumSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"ONE_PHASE,TINYINT", "TWO_PHASE,TINYINT", "ONE_PHASE,SMALLINT", "TWO_PHASE,SMALLINT"})
+  @CsvSource({"ONE_PHASE,TINYINT", "TWO_PHASE,TINYINT", "ONE_PHASE,SMALLINT", "TWO_PHASE,SMALLINT",
+      "ONE_PHASE,FLOAT", "TWO_PHASE,FLOAT", "ONE_PHASE,DOUBLE", "TWO_PHASE,DOUBLE"})
   void narrowReducedAggregatesRetainTheirDeclaredWidth(String phase, String type) {
     String value = "CAST(i AS " + type + ")";
     String sql = "SELECT k, window_start, window_end, COUNT(" + value + "), AVG(" + value

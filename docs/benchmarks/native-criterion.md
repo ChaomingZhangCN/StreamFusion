@@ -342,9 +342,9 @@ Some historical suites use
 | Sink format encoding | `format_encode`, `kafka_sink` | Production JSON, CSV, raw, Avro, Confluent Avro, Protobuf; historical JSON/timestamp comparisons |
 | Parquet file operations | `parquet_io` | Production encode, selected-row encode, ordinary decode, paired INT96 decode, nullable wide strings and full-range timestamps |
 | ORC post-decode normalization | `normalization` | CHAR trimming, string pass-through, full-range timestamp conversion |
-| Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64/all-distinct keys |
+| Shared exact window reductions | `window_zero_sum` | COUNT/SUM0 update and final flush over nullable BIGINT/DECIMAL/FLOAT/DOUBLE at 256/4096 rows and 1/64/all-distinct keys |
 | Window string extrema | `window_string_extrema` | Production TUMBLE/HOP/CUMULATE MIN/MAX update and watermark flush over 256/4096 rows, 1/64/batch-sized keys and nullable 16/256-byte UTF-8 values; independent extrema checked before timing |
-| Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
+| Historical operator experiments and typed window coverage | `operators`, `calc_selection`, `scalar_functions` | Typed distinct, mini-batch sizes, aggregate layouts, selection strategies, DATE_FORMAT and string comparisons; SUM0 update/flush/snapshot over nullable BIGINT/DECIMAL/FLOAT/DOUBLE at 256/4096 rows and 1/64 keys; production tumbling STRING MIN/MAX update/flush over 128/4096 rows, 1/64/1024 keys, 8/128-byte strings and NULLs |
 | Window scalar extrema | `window_scalar_extrema` | Accounted DATE/TIME/BOOLEAN MIN/MAX update/flush across TUMBLE/HOP/CUMULATE and SESSION merge, 128/4096 rows, one/64/1024 keys, NULL-only groups; independent extrema oracle and allocation diagnostics |
 | Typed DISTINCT first/last | `distinct_ordered_values` | Production immediate grouped update over all integer widths, FLOAT/DOUBLE, narrow/wide DECIMAL, DATE/TIME, BOOLEAN, nanosecond TIMESTAMP and 8/256-byte strings; 64/4,096 rows, one/64 keys, four/128 source values and append/delete batches. NULL-only groups, boxed floating membership and exact selected payloads are checked against an independent arrival-order oracle. Retract seeds and operator construction stay outside timing; allocation and Arrow buffer reports accompany all 256 fixtures. Thirty-two mixed COUNT DISTINCT/COUNT(*) cases verify every ordered pre/postimage, including primitive floating equality, NULL-only groups and final removals. |
 | Local/global SINGLE_VALUE partials | `local_single_values`, `typed_group_values` | Production local accumulation and global count-partial merge, each with update/flush over BIGINT, BOOLEAN, DECIMAL(20,3), nanosecond TIMESTAMP and 8/256-byte strings; 16/1,024/16,384 unique keys, nullable keys/values and 1/13/full physical batches. Independent source-column/count/INSERT checks, whole-batch buffer identity and untimed allocation/buffer reports; fixture/operator construction and operator/output teardown stay outside timing. The typed group suite adds ordinary immediate/mini-batch SINGLE_VALUE and typed DISTINCT controls. |
@@ -2567,3 +2567,11 @@ lengths. Input/state setup stays outside production update/output timing; alloca
 and buffer sharing are recorded. The complete existing target now has 120 fixtures; no new
 Cargo target is introduced. Run `--bench non_time_row_number --filter non_time_floating_rank
 --smoke` for the focused selection.
+
+The floating SUM0 extension adds 12 `window_zero_sum` fixtures and eight `operators/group_zero_sum`
+fixtures across 256/4096 rows and the existing cardinalities. All 24 window and 16 group fixtures
+pass in release mode. Window fixtures check typed zero for NULL-only groups against independent
+integer-range sums; focused native tests additionally pin cancellation, signed zero, infinity,
+NaN, retraction and snapshot behavior. The separate
+[admission evidence](results/floating-sum-zero-2026-10-19.json) compares the production accumulator
+with Flink's generated Java handler on equal logical input in each runtime's own format.

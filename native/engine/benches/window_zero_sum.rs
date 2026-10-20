@@ -1,4 +1,6 @@
-use arrow::array::{Array, ArrayRef, Decimal128Array, Int64Array, RecordBatch};
+use arrow::array::{
+    Array, ArrayRef, Decimal128Array, Float32Array, Float64Array, Int64Array, RecordBatch,
+};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use std::sync::Arc;
 use streamfusion::bench::Tumbling;
@@ -12,7 +14,8 @@ fn bench_window_zero_sum(c: &mut Criterion) {
     let mut group = c.benchmark_group("window_zero_sum");
     for rows in [256usize, 4096] {
         for cardinality in [1usize, 64, rows] {
-            for decimal in [false, true] {
+            for name in ["bigint", "decimal38", "float", "double"] {
+                let decimal = name == "decimal38";
                 let value = |i: usize| {
                     ((cardinality == 1 || i % cardinality != 0) && i % 7 != 0).then_some(i as i128)
                 };
@@ -24,6 +27,20 @@ fn bench_window_zero_sum(c: &mut Criterion) {
                                 .unwrap(),
                         ),
                         5802,
+                    )
+                } else if name == "float" {
+                    (
+                        Arc::new(Float32Array::from_iter(
+                            (0..rows).map(|i| value(i).map(|v| v as f32)),
+                        )),
+                        6,
+                    )
+                } else if name == "double" {
+                    (
+                        Arc::new(Float64Array::from_iter(
+                            (0..rows).map(|i| value(i).map(|v| v as f64)),
+                        )),
+                        1,
                     )
                 } else {
                     (
@@ -81,6 +98,24 @@ fn bench_window_zero_sum(c: &mut Criterion) {
                                 .value(row),
                             sum
                         );
+                    } else if name == "float" {
+                        assert_eq!(
+                            actual
+                                .as_any()
+                                .downcast_ref::<Float32Array>()
+                                .unwrap()
+                                .value(row),
+                            sum as f32
+                        );
+                    } else if name == "double" {
+                        assert_eq!(
+                            actual
+                                .as_any()
+                                .downcast_ref::<Float64Array>()
+                                .unwrap()
+                                .value(row),
+                            sum as f64
+                        );
                     } else {
                         assert_eq!(
                             actual
@@ -93,7 +128,6 @@ fn bench_window_zero_sum(c: &mut Criterion) {
                     }
                 }
                 group.throughput(Throughput::Elements(rows as u64));
-                let name = if decimal { "decimal38" } else { "bigint" };
                 let mut allocation_probe = Tumbling::new(1000, code, vec![3, 22]);
                 let (probe_output, allocations) = measure(|| {
                     allocation_probe.update(&batch);

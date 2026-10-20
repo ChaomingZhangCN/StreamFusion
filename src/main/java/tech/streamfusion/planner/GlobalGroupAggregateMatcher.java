@@ -76,7 +76,7 @@ final class GlobalGroupAggregateMatcher {
                   && kind != WindowAggregateMatcher.KIND_AVG
                   && kind != GroupAggregateMatcher.KIND_SUM_ZERO
                   && kind != WindowAggregateMatcher.KIND_SUM))) {
-        return "global group aggregate: a retracting merge admits COUNT, AVG, exact SUM0 and exact"
+        return "global group aggregate: a retracting merge admits COUNT, AVG, SUM0 and exact"
             + " integer SUM only";
       }
       // COUNT/SUM/AVG(DISTINCT x): the merge folds the local bundles' (value, count) view entries
@@ -186,10 +186,8 @@ final class GlobalGroupAggregateMatcher {
       RelDataType partialRel = inputType.getFieldList().get(offset).getType();
       offset++;
       if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
-          && (call.isDistinct()
-              || !(GroupAggregateMatcher.isIntegerType(partialRel.getSqlTypeName())
-                  || partialRel.getSqlTypeName() == SqlTypeName.DECIMAL))) {
-        return "global group aggregate: SUM0 requires exact integer or DECIMAL partials";
+          && (call.isDistinct() || !WindowAggregateMatcher.supportedZeroSumValue(partialRel))) {
+        return "global group aggregate: SUM0 requires non-DISTINCT numeric partials";
       }
       // MIN/MAX retain typed nonnumeric partials; other partials must support numeric folding.
       if (LocalGroupAggregateMatcher.isStringExtreme(kind, partialRel.getSqlTypeName())
