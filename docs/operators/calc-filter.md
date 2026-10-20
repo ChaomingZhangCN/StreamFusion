@@ -2093,7 +2093,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated |
 | Runtime ROW(...) | Released DataFusion named-struct construction for total BOOLEAN/integer/DECIMAL fields; other fields and representation-sensitive consumers remain generated |
 | OBJECT_OF | Released named-struct construction for validated metadata and total basic fields; other signatures remain generated |
-| OBJECT_UPDATE | Flink generated program through the existing batch JVM bridge |
+| OBJECT_UPDATE | Native field selection only for one unshared inline basic OBJECT_OF in the complete Calc and atomic literal/input-reference values; shared objects and other signatures remain generated |
 
 The generated route evaluates the complete filter and projection together, preserving failure
 order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
@@ -2728,3 +2728,10 @@ OBJECT_OF with validated class/field metadata and total basic fields reuses the
 released named-struct builder. Runtime values and field order match Flink's fresh
 GenericRowData construction; metadata validation still belongs to Flink planning.
 String/nested/temporal fields and fallible operands retain generated evaluation.
+
+OBJECT_UPDATE admits only one unshared inline basic OBJECT_OF construction in the
+complete Calc, with literal/input-reference field values and literal field names.
+It folds the field choices into the released named-struct builder. Flink still
+validates field names and rejects repeated update names during planning. Shared objects, runtime structured inputs,
+nested updates and non-atomic values retain generated evaluation to preserve
+Flink's in-place mutation, aliases, evaluation order and random/UDF effects.

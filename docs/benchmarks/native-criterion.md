@@ -2774,3 +2774,10 @@ OBJECT_OF with validated class/field metadata and total basic fields reuses the
 released named-struct builder. Runtime values and field order match Flink's fresh
 GenericRowData construction; metadata validation still belongs to Flink planning.
 String/nested/temporal fields and fallible operands retain generated evaluation.
+
+OBJECT_UPDATE admits only one unshared inline basic OBJECT_OF construction in the
+complete Calc, with literal/input-reference field values and literal field names.
+It folds the field choices into the released named-struct builder. Flink still
+validates field names and rejects repeated update names during planning. Shared objects, runtime structured inputs,
+nested updates and non-atomic values retain generated evaluation to preserve
+Flink's in-place mutation, aliases, evaluation order and random/UDF effects.

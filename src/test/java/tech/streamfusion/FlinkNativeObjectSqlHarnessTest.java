@@ -25,6 +25,19 @@ class FlinkNativeObjectSqlHarnessTest {
   @Test void basicObjectsAndFieldAccessUseSharedNativeFields()throws Exception{
     verify(object(),"OBJECT_OF");verify("("+object()+").a","OBJECT_OF");
   }
+  @Test void unsharedInlineUpdatesPreserveFields()throws Exception{
+    verify("OBJECT_UPDATE("+object()+",'a',id)","OBJECT_UPDATE");
+    verify("OBJECT_UPDATE("+object()+",'a',id,'b',n)","OBJECT_UPDATE");
+  }
+  @Test void aliasesRetainReleasedMutationAndProjectionOrder(){
+    tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction("OBJECT_UPDATE");
+    for(String sql:List.of(
+        "SELECT o,OBJECT_UPDATE(o,'a',id),o FROM (SELECT id,"+object()+" AS o FROM src)",
+        "SELECT OBJECT_UPDATE(o,'a',id),o FROM (SELECT id,"+object()+" AS o FROM src)")){
+      var runs=NativeFailureParity.run(FlinkNativeObjectSqlHarnessTest::environment,sql);
+      runs.assertSuccess(NativeFailureParity.Route.NATIVE);
+    }
+  }
   public static class NumericItem {
     public Integer a;
     public Integer b;

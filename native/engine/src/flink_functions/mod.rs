@@ -247,6 +247,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         196 => map_constructor::function(arity),
         197 => datafusion::functions::core::named_struct().as_ref().clone(),
         198 => datafusion::functions::core::named_struct().as_ref().clone(),
+        199 => datafusion::functions::core::named_struct().as_ref().clone(),
         _ => return None,
     })
 }

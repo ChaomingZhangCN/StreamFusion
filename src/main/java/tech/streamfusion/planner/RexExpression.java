@@ -581,6 +581,16 @@ final class RexExpression {
     encoder.expressionClassLoader =
         org.apache.flink.table.planner.utils.ShortcutUtils.unwrapClassLoader(calc);
     encoder.configure(org.apache.flink.table.planner.utils.ShortcutUtils.unwrapTableConfig(calc));
+    int[] constructions={0};
+    var objectVisitor=new org.apache.calcite.rex.RexVisitorImpl<Void>(true) {
+      @Override public Void visitCall(RexCall call) {
+        if (call.getOperator().getName().equals("OBJECT_OF")) constructions[0]++;
+        return super.visitCall(call);
+      }
+    };
+    for(var project:calc.getProgram().getProjectList()) calc.getProgram().expandLocalRef(project).accept(objectVisitor);
+    if(calc.getProgram().getCondition()!=null)calc.getProgram().expandLocalRef(calc.getProgram().getCondition()).accept(objectVisitor);
+    encoder.uniqueObjectConstruction=constructions[0]==1;
     encoder.watermarkAvailable = true;
     encoder.javaStringInputs = HostStringInputs.areJavaBacked(calc.getInput());
     return encoder;
@@ -1532,6 +1542,24 @@ final class RexExpression {
                 .contains(t.getSqlTypeName()));
   }
 
+  private boolean uniqueObjectConstruction;
+
+  static boolean nativeObjectUpdate(RexCall call) {
+    var args=call.getOperands();
+    if (!call.getOperator().getName().equals("OBJECT_UPDATE")
+        || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null
+        || args.size()<3 || args.size()%2!=1 || !(args.get(0) instanceof RexCall)
+        || !nativeObjectOf((RexCall)args.get(0))) return false;
+    var original=(RexCall)args.get(0);
+    for(int i=2;i<original.getOperands().size();i+=2)
+      if (!(original.getOperands().get(i) instanceof RexLiteral || original.getOperands().get(i) instanceof RexInputRef)) return false;
+    for(int i=1;i<args.size();i+=2) {
+      if (!(args.get(i) instanceof RexLiteral) || ((RexLiteral)args.get(i)).isNull()
+          || !(args.get(i+1) instanceof RexLiteral || args.get(i+1) instanceof RexInputRef)) return false;
+    }
+    return true;
+  }
+
   static boolean nativeObjectOf(RexCall call) {
     var args=call.getOperands();
     if (!call.getOperator().getName().equals("OBJECT_OF")
@@ -1605,6 +1633,22 @@ final class RexExpression {
       add(KIND_CALL,197,call.getOperands().size()*2);
       for(int i=0;i<call.getOperands().size();i++) {
         if (!emitStringLiteral(call.getType().getFieldList().get(i).getName()) || !emit(call.getOperands().get(i))) return false;
+      }
+      return true;
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && call.getOperator().getName().equals("OBJECT_UPDATE")) {
+      if (!uniqueObjectConstruction || !nativeObjectUpdate(call))
+        return reject("OBJECT_UPDATE retains Flink mutation for shared or non-inline objects and non-atomic values");
+      var args=call.getOperands();var original=(RexCall)args.get(0);
+      java.util.Map<String,RexNode> fields=new java.util.LinkedHashMap<>();
+      for(int i=1;i<original.getOperands().size();i+=2)
+        fields.put(((RexLiteral)original.getOperands().get(i)).getValueAs(String.class),original.getOperands().get(i+1));
+      for(int i=1;i<args.size();i+=2)
+        fields.put(((RexLiteral)args.get(i)).getValueAs(String.class),args.get(i+1));
+      add(KIND_CALL,199,call.getType().getFieldCount()*2);
+      for(var field:call.getType().getFieldList()) {
+        RexNode value=fields.get(field.getName());
+        if (value==null || !emitStringLiteral(field.getName()) || !emit(value)) return false;
       }
       return true;
     }

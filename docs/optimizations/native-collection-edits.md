@@ -409,3 +409,18 @@ Query: `OBJECT_OF('tech.streamfusion.FlinkNativeObjectSqlHarnessTest$NumericItem
 Elapsed time changes by -41.19% versus the prior evaluator and -27.15% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-object-of-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-object-of-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-object-of-allocations-2026-10-20.csv) retain the evidence. Released SQL tests cover basic structured values and field access. Class/field validation remains with Flink.
+
+## OBJECT_UPDATE complete-job evidence
+
+Query: `OBJECT_UPDATE(OBJECT_OF('tech.streamfusion.FlinkNativeObjectSqlHarnessTest$NumericItem','a',idx,'b',idx),'a',idx)`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.524227 | 0.511699-0.562427 |
+| baseline streamfusion | 0.656629 | 0.646492-0.679796 |
+| candidate stock | 0.461467 | 0.454539-0.465250 |
+| candidate streamfusion | 0.379016 | 0.376367-0.381759 |
+
+Elapsed time changes by -42.28% versus the prior evaluator and -17.87% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-object-update-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-object-update-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-object-update-allocations-2026-10-20.csv) retain the evidence. Released SQL tests cover inline atomic updates and alias-sensitive projection orders; shared or non-atomic inputs remain generated.
