@@ -2599,3 +2599,13 @@ existing production parent-validity kernels and independent count/frame/checkpoi
 The `over_map_count` release example is a separate functionality-admission driver with the
 production native budget enabled; it is not a replacement for Criterion or complete-job
 measurements.
+
+
+The existing `keys_and_checkpoints` suite adds `scalar_partition_keys`: 144 fixtures for
+Int8, Int16, millisecond Time32, Binary, month-interval Int32 and day-time-interval Int64
+keys. Each combines 64/4096 rows, one/64 keys and a second scalar shard, including NULLs
+and 64-byte binary values with zero bytes. The six measured operations are production key
+encode/decode, Flink-compatible key hashing, TUMBLE, SESSION and OVER. Untimed oracles check
+codec round trips, complete row counts and session snapshot continuation. Fixture/operator
+setup remains outside timing; stateful adapters enable the production memory budget. Run
+`--bench keys_and_checkpoints --filter scalar_partition_keys --smoke`.

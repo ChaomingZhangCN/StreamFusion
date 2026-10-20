@@ -353,7 +353,9 @@ The matcher declines:
 - DECIMAL scale-38 SUM/SUM0/AVG, including DISTINCT: both released Flink lines fail
   while constructing the zero accumulator, even for SUM. Scale 37 is admitted.
   COUNT and value selections retain scale-38 support.
-- A `PARTITION BY` key outside bigint/int/string/boolean/date/timestamp/decimal.
+- A `PARTITION BY` key outside the [verified scalar types](window-aggregate.md#scalar-grouping-and-partition-keys):
+  integer widths, character, BOOLEAN, DATE, TIME, TIMESTAMP/LTZ, DECIMAL, binary and intervals.
+  FLOAT/DOUBLE and collection/ROW/object key columns retain fallback.
 - A frame not of the form `… PRECEDING .. CURRENT ROW` (a `ROWS`/`RANGE` lower bound that isn't a
   constant preceding offset or UNBOUNDED PRECEDING).
 - A bounded-RANGE frame over a proctime order.

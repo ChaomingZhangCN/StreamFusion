@@ -45,7 +45,7 @@ final class OverAggregateMatcher {
     for (int key : group.keys.toArray()) {
       if (!WindowAggregateMatcher.supportedGroupingKeyType(
           inputType.getFieldList().get(key).getType().getSqlTypeName())) {
-        return "OVER: PARTITION BY only on bigint/int/string/boolean/date/timestamp/decimal keys";
+        return "OVER: unsupported PARTITION BY key type for native scalar carriage";
       }
     }
     if (!group.upperBound.isCurrentRow()) {

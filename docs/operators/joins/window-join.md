@@ -7,7 +7,8 @@ retracting/updating input falls it back per the [insert-only guard](../index.md#
 
 ## Admission
 
-The same key/type/residual conditions as the [interval join](interval-join.md) — a supported-type
+The same [scalar key whitelist](../window-aggregate.md#scalar-grouping-and-partition-keys)
+and type/residual conditions as the [interval join](interval-join.md) — a supported-type
 equi-key, null-dropping keys for a non-INNER join, a non-equi residual the native expression engine
 can express, and all four join types (INNER/LEFT/RIGHT/FULL) native — plus one condition specific to
 this shape: **both sides must carry the same time semantics**, either both event-time windows or

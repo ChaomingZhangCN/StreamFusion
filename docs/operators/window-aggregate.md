@@ -753,7 +753,7 @@ enables columnar composition with downstream consumers; it is not a standalone t
 - Legacy proctime `HOP` when the slide does not divide the size. Event-time legacy `HOP` supports
   non-dividing and gapped windows.
 - Legacy processing-time `SESSION`.
-- Key type outside bigint/int/string/boolean/date/timestamp/decimal.
+- A grouping key outside the [verified scalar types](#scalar-grouping-and-partition-keys).
 - A value type/aggregate mismatch.
   DATE/TIME/BOOLEAN and TIMESTAMP/TIMESTAMP_LTZ values are admitted for insert-only MIN/MAX
   and COUNT(DISTINCT).
@@ -1602,3 +1602,71 @@ Floating SUM0 shares the [typed zero-initialized accumulator](group-by.md#floati
 The FLOAT/DOUBLE one/two-phase SQL cases pass on both released lines; local/global state
 keeps the declared floating width. The standalone accumulator admission measures the function,
 not window assignment, timers or a complete window job.
+
+
+## Scalar grouping and partition keys
+
+Grouping keys admit TINYINT, SMALLINT, INT, BIGINT, CHAR/VARCHAR, BOOLEAN, DATE, TIME,
+TIMESTAMP/TIMESTAMP_LTZ, DECIMAL, BINARY/VARBINARY and both interval families. Composite
+keys may combine these scalar columns. FLOAT/DOUBLE and collection/ROW/object key columns
+retain fallback; a composite of scalar columns does not imply support for a ROW-valued key.
+The same scalar whitelist applies to time-based OVER partitions, non-time ROW_NUMBER
+partitions on Flink 2.2, and interval/window/event-time temporal join keys.
+
+New narrow-integer, TIME, binary and interval keys use their natural Arrow carriage:
+Int8, Int16, millisecond Time32, length-delimited Binary, Int32 months or Int64 milliseconds.
+TIME(0) preserves runtime millisecond values, matching released Flink. Binary equality uses
+all actual bytes, including empty values, embedded zeroes and raw lengths different from
+SQL BINARY(n). Disabling both `streamfusion.experimental.nestedScalarUdfs` and
+`streamfusion.experimental.binaryElt` selects the legacy fixed-width transport; BINARY keys
+then retain stock execution. Either default-enabled option provides the verified transport.
+Existing INT grouping keys keep their widened Int64 state encoding, so this extension does
+not reinterpret existing INT checkpoints.
+
+The released-Flink SQL matrix checks all eight new logical variants, nullable composite
+keys, seven-row physical batches, object reuse and parallelism three. Its 216 cases per
+release cover both fixed-window phases, sessions, all seven existing time-based OVER
+frames, interval/window/temporal joins and two memory/direct-RocksDB restores. Flink 2.2
+also verifies eight non-time ROW_NUMBER partition cases; Flink 1.18 retains its host
+restriction on non-time OVER. Repeated recovery covers TUMBLE, SESSION, bounded ROWS OVER,
+interval joins and window joins, with controlled watermarks and full output/type comparison.
+
+### Key materialization measurements
+
+`ScalarKeyAdmissionBenchmark` compares the released Flink key selector's projection and
+BinaryRowData hash with production native key materialization/hash on equivalent prebuilt
+Arrow inputs. The Rust driver verifies every row's exact signed hash against Flink outside
+timing; both timed paths consume a sum. Fixtures contain a nullable key, an INT shard and
+an unused BIGINT payload, forcing a real key projection. Rust clocks begin after Arrow
+import. Perimeter JNI, import/export and transposes are outside this functionality gate.
+This measures key routing, not aggregate/join execution or complete-job throughput.
+Representative operator and checkpoint paths have separate Criterion/SQL coverage.
+
+Final measurements and all warmup/trial values are retained in
+[the scalar-key artifact](../benchmarks/results/scalar-keys-2026-10-20.json).
+
+The Flink 2.2.1/JDK 17 release comparison uses one runtime thread per engine, a 2 GiB Java
+heap, 1,024-row native batches, fifty warmups and nine measured trials. No competing build
+or test ran during measurement. Small inputs have 16,384 rows, nominally 64 keys and four-byte
+binary values; large inputs have 262,144 rows, nominally 4,096 keys and 64-byte binary values.
+TINYINT wraps to its actual value domain. NULL occurs every eleventh row; binary values
+include empty, nominal and nominal+1/+2 lengths. Medians (milliseconds):
+
+| Key | Small Flink | Small Rust | Large Flink | Large Rust |
+|---|---:|---:|---:|---:|
+| tinyint | 0.572 | 0.327 | 9.841 | 5.234 |
+| smallint | 0.510 | 0.328 | 10.332 | 5.288 |
+| time | 0.551 | 0.376 | 10.290 | 6.431 |
+| time0 | 1.244 | 0.376 | 10.941 | 6.044 |
+| binary | 0.621 | 0.387 | 28.378 | 10.175 |
+| varbinary | 0.669 | 0.386 | 25.062 | 10.236 |
+| months | 0.489 | 0.362 | 13.275 | 5.866 |
+| millis | 1.272 | 0.326 | 16.265 | 5.488 |
+
+Key materialization is 1.35–3.91× faster by these medians. Every per-row hash is checked
+against released Flink before timing, rather than relying on a checksum alone. The actual
+preceding matcher was also executed against 48 selected SQL fixtures on Flink 1.18 and
+keeps the requested operations on Flink; its key projection/hash therefore follows that
+stock path. This boundary supplies no whole-job speedup claim. The artifact retains all
+variability, including Java JIT/GC effects; fifty warmups replace the exploratory five-warmup
+run, whose early cases overstated some improvements.

@@ -17,8 +17,10 @@ is applied natively, same as the other join shapes.
 
 ## Admission
 
-Same equi-key/type conditions as the [regular join](regular-join.md): a supported-type equi-key and
-null-dropping keys (LEFT is the only non-INNER shape Flink itself allows here — see below). The
+Equi-keys use the [verified scalar whitelist](../window-aggregate.md#scalar-grouping-and-partition-keys),
+including narrow integers, TIME, binary and both interval families. FLOAT/DOUBLE and
+collection/ROW/object key columns retain fallback. Keys must drop NULLs (LEFT is the only
+non-INNER shape Flink itself allows here — see below). The
 residual beyond the `FOR SYSTEM_TIME` condition must be expressible by the native expression engine.
 
 ## Idle-state TTL
@@ -41,7 +43,7 @@ the scheme exactly:
 
 See [Configuration](../../configuration.md) for the TTL flag surface.
 
-## Real gap: none
+## Released processing-time restriction
 
 A **processing-time** temporal table join (`FOR SYSTEM_TIME AS OF probe.proctime` against a
 versioned table) and the legacy proctime temporal *function* join are both parity, not a gap — Flink

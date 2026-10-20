@@ -251,3 +251,15 @@ to typed NULL until the operator reconstructs them from retained rows. The same 
 serves normal reads and canonical savepoint export. Existing frame keys and unrelated state
 layouts remain unchanged. See [OVER checkpoint semantics](../operators/over.md#primitive-zero-initialized-over-sums)
 for the limit on reconstructing arithmetic history discarded by old writers.
+
+
+### Scalar window keys
+
+Direct fixed-window and session stores decode newly admitted TINYINT/SMALLINT, TIME,
+BINARY/VARBINARY and both interval key families using their natural Arrow types. TIME uses
+millisecond Time32 in the shared row codec; month intervals use Int32 and day-time intervals
+use Int64. Existing INT window keys retain their widened Int64 encoding. No previously
+admitted type changes its persisted encoding in this extension. Two-restore SQL comparisons
+cover nullable composite keys on memory and direct RocksDB for fixed/session windows,
+bounded ROWS OVER, interval joins and window joins on both supported Flink releases. See
+[scalar key coverage](../operators/window-aggregate.md#scalar-grouping-and-partition-keys).

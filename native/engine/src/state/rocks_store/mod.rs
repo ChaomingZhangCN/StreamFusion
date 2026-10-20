@@ -191,6 +191,7 @@ pub(crate) fn rocks_row_supported(types: &[DataType]) -> bool {
                     | DataType::Utf8
                     | DataType::Binary
                     | DataType::Date32
+                    | DataType::Time32(arrow::datatypes::TimeUnit::Millisecond)
                     | DataType::Decimal128(_, _)
                     | DataType::Timestamp(_, None)
             )

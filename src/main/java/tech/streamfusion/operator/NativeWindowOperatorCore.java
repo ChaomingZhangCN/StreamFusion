@@ -21,6 +21,7 @@ import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -74,6 +75,9 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
   protected static final int TYPE_DATE = 8;
   protected static final int VALUE_TIME = 9;
   protected static final int VALUE_BOOLEAN = 10;
+  protected static final int KEY_BINARY = 11;
+  protected static final int KEY_MONTHS = 12;
+  protected static final int KEY_MILLIS = 13;
 
   // Parameterized type codes pack precision/scale into the code so they thread through the existing
   // int[] without parallel arrays. Timestamp keys keep their milliseconds and fractional nanos (any
@@ -792,6 +796,21 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (keyType) {
+      case TYPE_TINYINT:
+        ((TinyIntVector) target).setSafe(i, ((TinyIntVector) source).get(i));
+        break;
+      case TYPE_SMALLINT:
+        ((SmallIntVector) target).setSafe(i, ((SmallIntVector) source).get(i));
+        break;
+      case VALUE_TIME:
+        ((TimeMilliVector) target).setSafe(i, ((TimeMilliVector) source).get(i));
+        break;
+      case KEY_MONTHS:
+        ((IntVector) target).setSafe(i, ((IntVector) source).get(i));
+        break;
+      case KEY_BINARY:
+        ((VarBinaryVector) target).setSafe(i, (byte[]) source.getObject(i));
+        break;
       case TYPE_STRING:
         ((VarCharVector) target).setSafe(i, ((VarCharVector) source).get(i));
         break;
@@ -818,6 +837,25 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
     for (int j = 0; j < keyCount; j++) {
       LogicalType type = outputType.getTypeAt(j);
       switch (type.getTypeRoot()) {
+        case TINYINT:
+          types[j] = TYPE_TINYINT;
+          break;
+        case SMALLINT:
+          types[j] = TYPE_SMALLINT;
+          break;
+        case TIME_WITHOUT_TIME_ZONE:
+          types[j] = VALUE_TIME;
+          break;
+        case BINARY:
+        case VARBINARY:
+          types[j] = KEY_BINARY;
+          break;
+        case INTERVAL_YEAR_MONTH:
+          types[j] = KEY_MONTHS;
+          break;
+        case INTERVAL_DAY_TIME:
+          types[j] = KEY_MILLIS;
+          break;
         case INTEGER:
           types[j] = TYPE_INT;
           break;
@@ -856,6 +894,16 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return new DecimalVector(name, allocator, decimalPrecision(keyType), decimalScale(keyType));
     }
     switch (keyType) {
+      case TYPE_TINYINT:
+        return new TinyIntVector(name, allocator);
+      case TYPE_SMALLINT:
+        return new SmallIntVector(name, allocator);
+      case VALUE_TIME:
+        return new TimeMilliVector(name, allocator);
+      case KEY_MONTHS:
+        return new IntVector(name, allocator);
+      case KEY_BINARY:
+        return new VarBinaryVector(name, allocator);
       case TYPE_STRING:
         return new VarCharVector(name, allocator);
       case TYPE_BOOLEAN:
@@ -886,6 +934,21 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
       return;
     }
     switch (keyType) {
+      case TYPE_TINYINT:
+        ((TinyIntVector) vector).setSafe(i, row.getByte(column));
+        break;
+      case TYPE_SMALLINT:
+        ((SmallIntVector) vector).setSafe(i, row.getShort(column));
+        break;
+      case VALUE_TIME:
+        ((TimeMilliVector) vector).setSafe(i, row.getInt(column));
+        break;
+      case KEY_MONTHS:
+        ((IntVector) vector).setSafe(i, row.getInt(column));
+        break;
+      case KEY_BINARY:
+        ((VarBinaryVector) vector).setSafe(i, row.getBinary(column));
+        break;
       case TYPE_STRING:
         ((VarCharVector) vector).setSafe(i, row.getString(column).toBytes());
         break;
@@ -918,6 +981,16 @@ public abstract class NativeWindowOperatorCore<OUT> extends AbstractNativeStatef
           ((DecimalVector) vector).getObject(i), decimalPrecision(keyType), decimalScale(keyType));
     }
     switch (keyType) {
+      case TYPE_TINYINT:
+        return ((TinyIntVector) vector).get(i);
+      case TYPE_SMALLINT:
+        return ((SmallIntVector) vector).get(i);
+      case VALUE_TIME:
+        return ((TimeMilliVector) vector).get(i);
+      case KEY_MONTHS:
+        return ((IntVector) vector).get(i);
+      case KEY_BINARY:
+        return ((VarBinaryVector) vector).get(i);
       case TYPE_STRING:
         return StringData.fromBytes(((VarCharVector) vector).get(i));
       case TYPE_BOOLEAN:

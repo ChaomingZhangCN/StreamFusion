@@ -278,8 +278,8 @@ final class WindowAggregateMatcher {
   }
 
   /**
-   * The window-shape-independent terms: an event-time rowtime over a local-time-zone attribute,
-   * at most one bigint grouping key, and aggregates that all read the same supported value column.
+   * Window-independent admission: a supported event-time attribute, scalar grouping keys, and
+   * aggregates that each read a supported value column.
    */
   private static boolean supportedAggregation(
       WindowingStrategy windowing,
@@ -578,11 +578,7 @@ final class WindowAggregateMatcher {
     return true;
   }
 
-  /**
-   * Key types the joins and {@code OVER} carry (bigint/int/string). Window grouping keys carry a
-   * wider set via {@link #supportedGroupingKeyType}; the join/partition paths keep this narrower set
-   * until their wider-key handling is covered.
-   */
+  /** Base integer/character key types, shared by the scalar-key admission below. */
   static boolean supportedKeyType(SqlTypeName type) {
     return type == SqlTypeName.BIGINT
         || type == SqlTypeName.INTEGER
@@ -591,12 +587,23 @@ final class WindowAggregateMatcher {
   }
 
   /**
-   * Grouping-key types a window aggregate carries: the join set plus boolean, date, timestamp
-   * (carried as millisecond/fraction pairs), and decimal (an Arrow decimal column). The native key path is
-   * type-general, so these are a JVM-side vector + boxing only.
+   * Verified scalar keys for windows, OVER partitions and time-bounded joins. Floating-point
+   * equality and nested key representations retain their separate admission guards.
    */
   static boolean supportedGroupingKeyType(SqlTypeName type) {
+    if (type == SqlTypeName.BINARY
+        && !tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled()
+        && !tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled()) {
+      return false;
+    }
     return supportedKeyType(type)
+        || type == SqlTypeName.TINYINT
+        || type == SqlTypeName.SMALLINT
+        || type == SqlTypeName.TIME
+        || type == SqlTypeName.BINARY
+        || type == SqlTypeName.VARBINARY
+        || type.getFamily() == org.apache.calcite.sql.type.SqlTypeFamily.INTERVAL_YEAR_MONTH
+        || type.getFamily() == org.apache.calcite.sql.type.SqlTypeFamily.INTERVAL_DAY_TIME
         || type == SqlTypeName.BOOLEAN
         || type == SqlTypeName.DATE
         || type == SqlTypeName.TIMESTAMP
