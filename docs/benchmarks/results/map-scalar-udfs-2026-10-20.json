@@ -1,0 +1,1170 @@
+{
+  "date": "2026-10-20",
+  "feature": "Default external Java MAP scalar callbacks through Flink-generated whole-Calc evaluation",
+  "base_commit": "a0fe91e8a5583c6b531c56466b7954131825d520",
+  "released_flink": [
+    "2.2.1",
+    "1.18.1"
+  ],
+  "java": "OpenJDK 17",
+  "native_profile": "release",
+  "native_library_sha256": "05889f15ede3c9a58e38c255cf91f302286b9f7fdad13aefc89007cc10eccb04",
+  "production_change": "Java planner/type admission only. Existing generated expression evaluation, ownership and native bridge implementations are reused.",
+  "admission": "Accepted UDF performance exception; no standalone speedup claimed and no new performance opt-in.",
+  "coverage": {
+    "map_shapes": [
+      "STRING/INT",
+      "INT/INT",
+      "STRING/ARRAY<INT>",
+      "STRING/ROW",
+      "STRING/MAP",
+      "BOOLEAN/DECIMAL38",
+      "FLOAT/DOUBLE",
+      "DATE/TIME",
+      "DECIMAL38/TIMESTAMP9",
+      "INTERVAL_MONTH/INTERVAL_SECOND3",
+      "ROW/INT"
+    ],
+    "tests": "58 SQL/TableAPI,16 two-restore heap/Rocks p1/3,14 lifecycle/ownership/errors/guards,8 remote (4 MAP +4 existing ROW/binary),149 existing SQL regression checks per line. 245 pass2.2;236pass+9released-host skips1.18. Opt-out58both; collection flagfalse58native2.2.",
+    "stock_fixture_corrections": "Nested TIME signature resolves TIME(0) while runtime milliseconds survive. Released interval SQL uses MONTH and SECOND(3) canonical units. The ROW field named raw requires quoting. Initial stock signature/parse failures were fixture errors, not excluded feature cases.",
+    "still_guarded": [
+      "Updating MAP retained payload equality/retractions (#437)",
+      "Unverified computed collection results before state/exchange boundaries",
+      "Custom type inference and internal MapData conversion",
+      "Root ARRAY/MULTISET, DATE/TIME and fixed BINARY UDF signatures remain independent gaps"
+    ]
+  },
+  "checks": [
+    {
+      "log": "streamfusion-map-udf-sql-recovery22.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 24.2
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfRecoveryTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 5.634
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSemanticsTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 3.023
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-sql-recovery118.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 27.34
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfRecoveryTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 5.443
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSemanticsTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 3.007
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-regressions22-v2.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 16.1
+        },
+        {
+          "class": "tech.streamfusion.FlinkNestedJsonJvmSqlHarnessTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 4.333
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapPayloadSqlHarnessTest",
+          "tests": 104,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 36.09
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSemanticsTest",
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 4.984
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-regressions118.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "seconds": 14.99
+        },
+        {
+          "class": "tech.streamfusion.FlinkNestedJsonJvmSqlHarnessTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 4.432
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapPayloadSqlHarnessTest",
+          "tests": 104,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 8,
+          "seconds": 30.76
+        },
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSemanticsTest",
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 4.205
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-remote22.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 24.33
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-remote118.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 23.24
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-optout22.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 23.0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-optout118.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 22.63
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-independent-collections22.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 24.8
+        },
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 18.0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-original-remote118.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 21.83
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-map-udf-baseline22-fixed.log",
+      "classes": [
+        {
+          "class": "tech.streamfusion.FlinkMapScalarUdfSqlHarnessTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 14.36
+        }
+      ]
+    }
+  ],
+  "handoffs": {
+    "criterion_test_fixtures": 48,
+    "production_boundary": "C Data export/import; full/cached schema, Map/tagged List, three shapes at16/1024 rows and4/64 entries. Fixture setup excluded. JVM callback and complete job excluded.",
+    "allocation_probes": [
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width4_listfalse_cachedfalse",
+        "allocation_calls": 105,
+        "requested_bytes": 6789,
+        "shared_output_buffer_bytes": 706,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width4_listfalse_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 4904,
+        "shared_output_buffer_bytes": 706,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width4_listtrue_cachedfalse",
+        "allocation_calls": 112,
+        "requested_bytes": 7182,
+        "shared_output_buffer_bytes": 706,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width4_listtrue_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 4904,
+        "shared_output_buffer_bytes": 706,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width4_listfalse_cachedfalse",
+        "allocation_calls": 162,
+        "requested_bytes": 10816,
+        "shared_output_buffer_bytes": 1538,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width4_listfalse_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 6992,
+        "shared_output_buffer_bytes": 1538,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width4_listtrue_cachedfalse",
+        "allocation_calls": 169,
+        "requested_bytes": 11209,
+        "shared_output_buffer_bytes": 1538,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width4_listtrue_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 6992,
+        "shared_output_buffer_bytes": 1538,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width4_listfalse_cachedfalse",
+        "allocation_calls": 154,
+        "requested_bytes": 10479,
+        "shared_output_buffer_bytes": 1324,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width4_listfalse_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7280,
+        "shared_output_buffer_bytes": 1324,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width4_listtrue_cachedfalse",
+        "allocation_calls": 161,
+        "requested_bytes": 10872,
+        "shared_output_buffer_bytes": 1324,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width4_listtrue_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7280,
+        "shared_output_buffer_bytes": 1324,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width64_listfalse_cachedfalse",
+        "allocation_calls": 105,
+        "requested_bytes": 6789,
+        "shared_output_buffer_bytes": 10260,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width64_listfalse_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 4904,
+        "shared_output_buffer_bytes": 10260,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width64_listtrue_cachedfalse",
+        "allocation_calls": 112,
+        "requested_bytes": 7182,
+        "shared_output_buffer_bytes": 10260,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows16_width64_listtrue_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 4904,
+        "shared_output_buffer_bytes": 10260,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width64_listfalse_cachedfalse",
+        "allocation_calls": 162,
+        "requested_bytes": 10816,
+        "shared_output_buffer_bytes": 23572,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width64_listfalse_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 6992,
+        "shared_output_buffer_bytes": 23572,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width64_listtrue_cachedfalse",
+        "allocation_calls": 169,
+        "requested_bytes": 11209,
+        "shared_output_buffer_bytes": 23572,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows16_width64_listtrue_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 6992,
+        "shared_output_buffer_bytes": 23572,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width64_listfalse_cachedfalse",
+        "allocation_calls": 154,
+        "requested_bytes": 10479,
+        "shared_output_buffer_bytes": 20929,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width64_listfalse_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7280,
+        "shared_output_buffer_bytes": 20929,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width64_listtrue_cachedfalse",
+        "allocation_calls": 161,
+        "requested_bytes": 10872,
+        "shared_output_buffer_bytes": 20929,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows16_width64_listtrue_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7280,
+        "shared_output_buffer_bytes": 20929,
+        "new_output_buffer_bytes": 2
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width4_listfalse_cachedfalse",
+        "allocation_calls": 105,
+        "requested_bytes": 6885,
+        "shared_output_buffer_bytes": 43840,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width4_listfalse_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 5000,
+        "shared_output_buffer_bytes": 43840,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width4_listtrue_cachedfalse",
+        "allocation_calls": 112,
+        "requested_bytes": 7278,
+        "shared_output_buffer_bytes": 43840,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width4_listtrue_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 5000,
+        "shared_output_buffer_bytes": 43840,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width4_listfalse_cachedfalse",
+        "allocation_calls": 162,
+        "requested_bytes": 10912,
+        "shared_output_buffer_bytes": 95744,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width4_listfalse_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 7088,
+        "shared_output_buffer_bytes": 95744,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width4_listtrue_cachedfalse",
+        "allocation_calls": 169,
+        "requested_bytes": 11305,
+        "shared_output_buffer_bytes": 95744,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width4_listtrue_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 7088,
+        "shared_output_buffer_bytes": 95744,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width4_listfalse_cachedfalse",
+        "allocation_calls": 154,
+        "requested_bytes": 10575,
+        "shared_output_buffer_bytes": 87772,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width4_listfalse_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7376,
+        "shared_output_buffer_bytes": 87772,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width4_listtrue_cachedfalse",
+        "allocation_calls": 161,
+        "requested_bytes": 10968,
+        "shared_output_buffer_bytes": 87772,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width4_listtrue_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7376,
+        "shared_output_buffer_bytes": 87772,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width64_listfalse_cachedfalse",
+        "allocation_calls": 105,
+        "requested_bytes": 6885,
+        "shared_output_buffer_bytes": 639924,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width64_listfalse_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 5000,
+        "shared_output_buffer_bytes": 639924,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width64_listtrue_cachedfalse",
+        "allocation_calls": 112,
+        "requested_bytes": 7278,
+        "shared_output_buffer_bytes": 639924,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/integer/rows1024_width64_listtrue_cachedtrue",
+        "allocation_calls": 69,
+        "requested_bytes": 5000,
+        "shared_output_buffer_bytes": 639924,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width64_listfalse_cachedfalse",
+        "allocation_calls": 162,
+        "requested_bytes": 10912,
+        "shared_output_buffer_bytes": 1470388,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width64_listfalse_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 7088,
+        "shared_output_buffer_bytes": 1470388,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width64_listtrue_cachedfalse",
+        "allocation_calls": 169,
+        "requested_bytes": 11305,
+        "shared_output_buffer_bytes": 1470388,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/decimal_timestamp/rows1024_width64_listtrue_cachedtrue",
+        "allocation_calls": 93,
+        "requested_bytes": 7088,
+        "shared_output_buffer_bytes": 1470388,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width64_listfalse_cachedfalse",
+        "allocation_calls": 154,
+        "requested_bytes": 10575,
+        "shared_output_buffer_bytes": 1395997,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width64_listfalse_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7376,
+        "shared_output_buffer_bytes": 1395997,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width64_listtrue_cachedfalse",
+        "allocation_calls": 161,
+        "requested_bytes": 10968,
+        "shared_output_buffer_bytes": 1395997,
+        "new_output_buffer_bytes": 128
+      },
+      {
+        "case": "bridge/map_udf_payloads/row_string/rows1024_width64_listtrue_cachedtrue",
+        "allocation_calls": 95,
+        "requested_bytes": 7376,
+        "shared_output_buffer_bytes": 1395997,
+        "new_output_buffer_bytes": 128
+      }
+    ],
+    "interpretation": "Shared/new columns are output buffer bytes. Allocation requests are not copied-byte counts; sliced validity can allocate new buffers."
+  },
+  "complete_jobs": {
+    "flink": "2.2.1",
+    "rows_and_width": [
+      [
+        16384,
+        4
+      ],
+      [
+        65536,
+        64
+      ]
+    ],
+    "parallelism": 1,
+    "task_heap": "2GiB",
+    "maven_heap": "512MiB",
+    "batch_rows": 1024,
+    "warmups": 2,
+    "trials": 5,
+    "order": "Alternate stock/native-enabled order each trial; candidate and previous-fallback JVMs serial, each with paired stock controls. All other qualification finished before timing.",
+    "query": "SELECT id,map_identity(p) FROM src",
+    "function": "Non-deterministic external Java identity Map<STRING,INT> callback",
+    "boundary": "System.nanoTime around executeSql(...).await: execution planning/deployment, source map construction, both perimeter RowData/Arrow transposes, native JNI/C Data and callbacks, and row blackhole sink. Initial environment/explain setup excluded. This is a complete-job cost diagnostic, not a Rust-side small-functionality gate.",
+    "proof": "Candidate plan requires NativeCalc plus RowDataToArrow and ArrowToRowData; actual NativeCalc input metric must equal source count. Previous fallback asserts zero native substitutions/operators. Full result correctness is established by independent SQL parity/recovery tests; timed jobs use blackhole.",
+    "previous_fallback_commit": "a0fe91e8a5583c6b531c56466b7954131825d520",
+    "source_nulls": "NULL parent every11, empty parent every17, NULL key for some rows, NULL values every11entries. Source builds LinkedHashMaps during measured job.",
+    "reproduction": "SF_BENCHMARK=true mvn -pl streamfusion-runtime test -Pbench -Dtest=MapScalarUdfBenchmark -Dmapbench.rows=65536 -Dmapbench.width=64 -Dmapbench.warmups=2 -Dmapbench.runs=5 '-Dsf.extraJvmArgs=-Xmx2g -Dstreamfusion.exchange.zeroCopyLocal=false'",
+    "results": [
+      {
+        "revision": "candidate",
+        "rows": 16384,
+        "width": 4,
+        "native_expected": true,
+        "trials": [
+          {
+            "engine": "Flink",
+            "trial": 0,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.61565596
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 0,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.352261823
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 1,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.223278216
+          },
+          {
+            "engine": "Flink",
+            "trial": 1,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.155454869
+          },
+          {
+            "engine": "Flink",
+            "trial": 2,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.159970709
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 2,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.184475757
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 3,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.175233149
+          },
+          {
+            "engine": "Flink",
+            "trial": 3,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.153001316
+          },
+          {
+            "engine": "Flink",
+            "trial": 4,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.064364242
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 4,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.117964657
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 5,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.163299458
+          },
+          {
+            "engine": "Flink",
+            "trial": 5,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.065981274
+          },
+          {
+            "engine": "Flink",
+            "trial": 6,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.076013733
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 6,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.097219855
+          }
+        ],
+        "stats": {
+          "Flink": {
+            "median": 0.076013733,
+            "min": 0.064364242,
+            "max": 0.159970709
+          },
+          "StreamFusion": {
+            "median": 0.163299458,
+            "min": 0.097219855,
+            "max": 0.184475757
+          }
+        }
+      },
+      {
+        "revision": "previous_fallback",
+        "rows": 16384,
+        "width": 4,
+        "native_expected": false,
+        "trials": [
+          {
+            "engine": "Flink",
+            "trial": 0,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.611506436
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 0,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.18460027
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 1,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.171431885
+          },
+          {
+            "engine": "Flink",
+            "trial": 1,
+            "warmup": true,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.166571035
+          },
+          {
+            "engine": "Flink",
+            "trial": 2,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.14313022
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 2,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.135087527
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 3,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.135071694
+          },
+          {
+            "engine": "Flink",
+            "trial": 3,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.076179503
+          },
+          {
+            "engine": "Flink",
+            "trial": 4,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.076093478
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 4,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.07486053
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 5,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.069786397
+          },
+          {
+            "engine": "Flink",
+            "trial": 5,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.081221386
+          },
+          {
+            "engine": "Flink",
+            "trial": 6,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.080237212
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 6,
+            "warmup": false,
+            "rows": 16384,
+            "width": 4,
+            "seconds": 0.080867297
+          }
+        ],
+        "stats": {
+          "Flink": {
+            "median": 0.080237212,
+            "min": 0.076093478,
+            "max": 0.14313022
+          },
+          "StreamFusion": {
+            "median": 0.080867297,
+            "min": 0.069786397,
+            "max": 0.135087527
+          }
+        }
+      },
+      {
+        "revision": "candidate",
+        "rows": 65536,
+        "width": 64,
+        "native_expected": true,
+        "trials": [
+          {
+            "engine": "Flink",
+            "trial": 0,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.251872084
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 0,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.51296962
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 1,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.290095569
+          },
+          {
+            "engine": "Flink",
+            "trial": 1,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.676110805
+          },
+          {
+            "engine": "Flink",
+            "trial": 2,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.608920519
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 2,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.304871953
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 3,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.275835953
+          },
+          {
+            "engine": "Flink",
+            "trial": 3,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.617198801
+          },
+          {
+            "engine": "Flink",
+            "trial": 4,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.617785277
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 4,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.221388698
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 5,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.197625307
+          },
+          {
+            "engine": "Flink",
+            "trial": 5,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.647421416
+          },
+          {
+            "engine": "Flink",
+            "trial": 6,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.60313136
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 6,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.205885174
+          }
+        ],
+        "stats": {
+          "Flink": {
+            "median": 0.617198801,
+            "min": 0.60313136,
+            "max": 0.647421416
+          },
+          "StreamFusion": {
+            "median": 1.221388698,
+            "min": 1.197625307,
+            "max": 1.304871953
+          }
+        }
+      },
+      {
+        "revision": "previous_fallback",
+        "rows": 65536,
+        "width": 64,
+        "native_expected": false,
+        "trials": [
+          {
+            "engine": "Flink",
+            "trial": 0,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 1.22864387
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 0,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.744907807
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 1,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.677862557
+          },
+          {
+            "engine": "Flink",
+            "trial": 1,
+            "warmup": true,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.673860321
+          },
+          {
+            "engine": "Flink",
+            "trial": 2,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.606211552
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 2,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.609050814
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 3,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.61896643
+          },
+          {
+            "engine": "Flink",
+            "trial": 3,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.614495458
+          },
+          {
+            "engine": "Flink",
+            "trial": 4,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.607609646
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 4,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.619974584
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 5,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.614806868
+          },
+          {
+            "engine": "Flink",
+            "trial": 5,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.616420546
+          },
+          {
+            "engine": "Flink",
+            "trial": 6,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.60414639
+          },
+          {
+            "engine": "StreamFusion",
+            "trial": 6,
+            "warmup": false,
+            "rows": 65536,
+            "width": 64,
+            "seconds": 0.602321075
+          }
+        ],
+        "stats": {
+          "Flink": {
+            "median": 0.607609646,
+            "min": 0.60414639,
+            "max": 0.616420546
+          },
+          "StreamFusion": {
+            "median": 0.614806868,
+            "min": 0.602321075,
+            "max": 0.619974584
+          }
+        }
+      }
+    ]
+  }
+}

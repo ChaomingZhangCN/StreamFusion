@@ -62,7 +62,7 @@ final class GroupAggregateMatcher {
       }
       int kind = aggregateKind(agg, call);
       if (kind < 0 && call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.SUM0) {
-        return "GROUP BY: SUM0 requires a non-DISTINCT exact integer or DECIMAL value";
+        return "GROUP BY: SUM0 requires a non-DISTINCT numeric value";
       }
       if (kind < 0) {
         return "GROUP BY: only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE"
@@ -368,6 +368,8 @@ final class GroupAggregateMatcher {
     if (call.getArgList().size() != 1 || call.isDistinct()) return -1;
     var value = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
     switch (value.getSqlTypeName()) {
+      case FLOAT:
+      case DOUBLE:
       case TINYINT:
       case SMALLINT:
       case INTEGER:

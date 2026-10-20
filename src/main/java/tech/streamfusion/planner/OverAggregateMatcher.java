@@ -12,6 +12,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory$;
 import org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalOverAggregate;
@@ -45,7 +46,7 @@ final class OverAggregateMatcher {
     for (int key : group.keys.toArray()) {
       if (!WindowAggregateMatcher.supportedGroupingKeyType(
           inputType.getFieldList().get(key).getType().getSqlTypeName())) {
-        return "OVER: PARTITION BY only on bigint/int/string/boolean/date/timestamp/decimal keys";
+        return "OVER: unsupported PARTITION BY key type for native scalar carriage";
       }
     }
     if (!group.upperBound.isCurrentRow()) {
@@ -82,16 +83,6 @@ final class OverAggregateMatcher {
     if (valueColumns(window, group, inputType) == null) {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
           + " DECIMAL";
-    }
-    if (proctimeOrder) {
-      for (int column : valueColumns(window, group, inputType)) {
-        if (column < inputType.getFieldCount()
-            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
-                FlinkTypeFactory$.MODULE$.toLogicalType(
-                    inputType.getFieldList().get(column).getType()))) {
-          return "OVER: proctime MAP-valued COUNT retains Flink until conversion costs improve";
-        }
-      }
     }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
@@ -307,6 +298,11 @@ final class OverAggregateMatcher {
 
   private static boolean supportedValueType(SqlTypeName type, int kind, boolean distinct) {
     if (supportedValueType(type)) return true;
+    if (type == SqlTypeName.VARBINARY
+        || type.getFamily() == SqlTypeFamily.INTERVAL_DAY_TIME
+        || type.getFamily() == SqlTypeFamily.INTERVAL_YEAR_MONTH) {
+      return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
+    }
     if (type == SqlTypeName.ARRAY || type == SqlTypeName.MAP || type == SqlTypeName.ROW
         || type == SqlTypeName.MULTISET) {
       return kind == WindowAggregateMatcher.KIND_COUNT && !distinct;
@@ -369,12 +365,8 @@ final class OverAggregateMatcher {
   static int[] kinds(StreamPhysicalOverAggregate over) {
     List<Window.RexWinAggCall> aggCalls = over.logicWindow().groups.get(0).aggCalls;
     int[] kinds = new int[aggCalls.size()];
-    int[] valueTypes = valueTypeCodes(over);
     for (int i = 0; i < aggCalls.size(); i++) {
       int kind = kindCode(aggCalls.get(i).getOperator().getKind());
-      if (aggCalls.get(i).getKind() == SqlKind.SUM0 && valueTypes[i] < 2000) {
-        kind = WindowAggregateMatcher.KIND_SUM;
-      }
       kinds[i] = aggCalls.get(i).distinct ? kind + 100 : kind;
     }
     return kinds;

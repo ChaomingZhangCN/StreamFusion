@@ -26,6 +26,11 @@ pub(crate) use rocks_store::*;
 /// every key of those batches is resident, so point accesses are truthful and allocation-free.
 /// The memory store holds everything resident and the hooks default to no-ops.
 pub(crate) trait KeyedStateStore<V> {
+    /// The host backend copies values on MapState get/put rather than retaining row aliases.
+    fn serializes_values(&self) -> bool {
+        false
+    }
+
     fn enable_resident_cache(&mut self, _limit: usize, _reservation: Option<MemoryReservation>) {}
     fn contains(&self, key: &[u8]) -> bool;
     fn get(&self, key: &[u8]) -> Option<&V>;

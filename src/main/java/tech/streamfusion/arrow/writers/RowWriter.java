@@ -26,137 +26,131 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryArrayData;
 import org.apache.flink.table.data.binary.BinaryRowData;
-
 import tech.streamfusion.arrow.NestedRepresentation;
 
 /** {@link ArrowFieldWriter} for Row. */
 @Internal
 public abstract class RowWriter<T> extends ArrowFieldWriter<T> {
 
-    public static RowWriter<RowData> forRow(
-            StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
-        return new RowWriterForRow(structVector, fieldsWriters);
+  public static RowWriter<RowData> forRow(
+      StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
+    return new RowWriterForRow(structVector, fieldsWriters);
+  }
+
+  public static RowWriter<ArrayData> forArray(
+      StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
+    return new RowWriterForArray(structVector, fieldsWriters);
+  }
+
+  // ------------------------------------------------------------------------------------------
+
+  protected final ArrowFieldWriter<RowData>[] fieldsWriters;
+  private final GenericRowData nullRow;
+  private final TinyIntVector kinds;
+  private final org.apache.arrow.vector.VarBinaryVector binaryRows;
+
+  private RowWriter(StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
+    super(structVector);
+    this.fieldsWriters = fieldsWriters;
+    this.nullRow = new GenericRowData(fieldsWriters.length);
+    kinds = NestedRepresentation.kinds(structVector);
+    binaryRows = NestedRepresentation.binaryRows(structVector);
+  }
+
+  abstract boolean isNullAt(T in, int ordinal);
+
+  abstract RowData readRow(T in, int ordinal);
+
+  @Override
+  public void doWrite(T in, int ordinal) {
+    RowData row;
+    if (isNullAt(in, ordinal)) {
+      row = nullRow;
+      ((StructVector) getValueVector()).setNull(getCount());
+    } else {
+      row = readRow(in, ordinal);
+      ((StructVector) getValueVector()).setIndexDefined(getCount());
     }
-
-    public static RowWriter<ArrayData> forArray(
-            StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
-        return new RowWriterForArray(structVector, fieldsWriters);
+    for (int i = 0; i < fieldsWriters.length; i++) {
+      fieldsWriters[i].write(row, i);
     }
-
-    // ------------------------------------------------------------------------------------------
-
-    protected final ArrowFieldWriter<RowData>[] fieldsWriters;
-    private final GenericRowData nullRow;
-    private final TinyIntVector kinds;
-    private final org.apache.arrow.vector.VarBinaryVector binaryRows;
-
-    private RowWriter(StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
-        super(structVector);
-        this.fieldsWriters = fieldsWriters;
-        this.nullRow = new GenericRowData(fieldsWriters.length);
-        kinds = NestedRepresentation.kinds(structVector);
-        binaryRows = NestedRepresentation.binaryRows(structVector);
+    if (binaryRows != null) {
+      if (row instanceof BinaryRowData
+          || row instanceof org.apache.flink.table.data.binary.NestedRowData) {
+        org.apache.flink.table.data.binary.BinarySection binary =
+            (org.apache.flink.table.data.binary.BinarySection) row;
+        binaryRows.setSafe(
+            getCount(),
+            org.apache.flink.table.data.binary.BinarySegmentUtils.copyToBytes(
+                binary.getSegments(), binary.getOffset(), binary.getSizeInBytes()));
+      } else binaryRows.setNull(getCount());
     }
+    if (kinds != null)
+      kinds.setSafe(
+          getCount(),
+          row.getRowKind().toByteValue()
+              | (row instanceof BinaryRowData ? NestedRepresentation.BINARY_ROW : 0)
+              | (binaryRows != null
+                      && row instanceof org.apache.flink.table.data.binary.NestedRowData
+                  ? NestedRepresentation.NESTED_ROW
+                  : 0)
+              | (in instanceof BinaryArrayData ? NestedRepresentation.BINARY_ARRAY : 0));
+  }
 
-    abstract boolean isNullAt(T in, int ordinal);
+  @Override
+  public void finish() {
+    super.finish();
+    for (ArrowFieldWriter<?> fieldsWriter : fieldsWriters) {
+      fieldsWriter.finish();
+    }
+    if (kinds != null) kinds.setValueCount(getCount());
+    if (binaryRows != null) binaryRows.setValueCount(getCount());
+  }
 
-    abstract RowData readRow(T in, int ordinal);
+  @Override
+  public void reset() {
+    super.reset();
+    for (ArrowFieldWriter<?> fieldsWriter : fieldsWriters) {
+      fieldsWriter.reset();
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------
+
+  /** {@link RowWriter} for {@link RowData} input. */
+  public static final class RowWriterForRow extends RowWriter<RowData> {
+
+    private RowWriterForRow(StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
+      super(structVector, fieldsWriters);
+    }
 
     @Override
-    public void doWrite(T in, int ordinal) {
-        RowData row;
-        if (isNullAt(in, ordinal)) {
-            row = nullRow;
-            ((StructVector) getValueVector()).setNull(getCount());
-        } else {
-            row = readRow(in, ordinal);
-            ((StructVector) getValueVector()).setIndexDefined(getCount());
-        }
-        for (int i = 0; i < fieldsWriters.length; i++) {
-            fieldsWriters[i].write(row, i);
-        }
-        if (binaryRows != null) {
-            if (row instanceof BinaryRowData
-                    || row instanceof org.apache.flink.table.data.binary.NestedRowData) {
-                org.apache.flink.table.data.binary.BinarySection binary =
-                        (org.apache.flink.table.data.binary.BinarySection) row;
-                binaryRows.setSafe(
-                        getCount(),
-                        org.apache.flink.table.data.binary.BinarySegmentUtils.copyToBytes(
-                                binary.getSegments(), binary.getOffset(), binary.getSizeInBytes()));
-            } else binaryRows.setNull(getCount());
-        }
-        if (kinds != null)
-            kinds.setSafe(
-                    getCount(),
-                    row.getRowKind().toByteValue()
-                            | (row instanceof BinaryRowData ? NestedRepresentation.BINARY_ROW : 0)
-                            | (binaryRows != null
-                                            && row
-                                                    instanceof
-                                                    org.apache.flink.table.data.binary.NestedRowData
-                                    ? NestedRepresentation.NESTED_ROW
-                                    : 0)
-                            | (in instanceof BinaryArrayData
-                                    ? NestedRepresentation.BINARY_ARRAY
-                                    : 0));
+    boolean isNullAt(RowData in, int ordinal) {
+      return in.isNullAt(ordinal);
     }
 
     @Override
-    public void finish() {
-        super.finish();
-        for (ArrowFieldWriter<?> fieldsWriter : fieldsWriters) {
-            fieldsWriter.finish();
-        }
-        if (kinds != null) kinds.setValueCount(getCount());
-        if (binaryRows != null) binaryRows.setValueCount(getCount());
+    RowData readRow(RowData in, int ordinal) {
+      return in.getRow(ordinal, fieldsWriters.length);
+    }
+  }
+
+  /** {@link RowWriter} for {@link ArrayData} input. */
+  public static final class RowWriterForArray extends RowWriter<ArrayData> {
+
+    private RowWriterForArray(
+        StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
+      super(structVector, fieldsWriters);
     }
 
     @Override
-    public void reset() {
-        super.reset();
-        for (ArrowFieldWriter<?> fieldsWriter : fieldsWriters) {
-            fieldsWriter.reset();
-        }
+    boolean isNullAt(ArrayData in, int ordinal) {
+      return in.isNullAt(ordinal);
     }
 
-    // ------------------------------------------------------------------------------------------
-
-    /** {@link RowWriter} for {@link RowData} input. */
-    public static final class RowWriterForRow extends RowWriter<RowData> {
-
-        private RowWriterForRow(
-                StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
-            super(structVector, fieldsWriters);
-        }
-
-        @Override
-        boolean isNullAt(RowData in, int ordinal) {
-            return in.isNullAt(ordinal);
-        }
-
-        @Override
-        RowData readRow(RowData in, int ordinal) {
-            return in.getRow(ordinal, fieldsWriters.length);
-        }
+    @Override
+    RowData readRow(ArrayData in, int ordinal) {
+      return in.getRow(ordinal, fieldsWriters.length);
     }
-
-    /** {@link RowWriter} for {@link ArrayData} input. */
-    public static final class RowWriterForArray extends RowWriter<ArrayData> {
-
-        private RowWriterForArray(
-                StructVector structVector, ArrowFieldWriter<RowData>[] fieldsWriters) {
-            super(structVector, fieldsWriters);
-        }
-
-        @Override
-        boolean isNullAt(ArrayData in, int ordinal) {
-            return in.isNullAt(ordinal);
-        }
-
-        @Override
-        RowData readRow(ArrayData in, int ordinal) {
-            return in.getRow(ordinal, fieldsWriters.length);
-        }
-    }
+  }
 }

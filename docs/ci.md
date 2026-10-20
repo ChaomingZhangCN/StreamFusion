@@ -33,7 +33,8 @@ workflow run and commit; it is not a release payload or a cache of test outcomes
 the independent debug library builds with one without changing test selection or test concurrency.
 Actual elapsed-time savings must be measured in GitHub Actions after this change runs.
 
-All Rust workflows use the local `setup-rust` action to install Rust 1.94.0 and remove the
+All Rust workflows, including the consolidated JVM aggregate and nested-scalar diagnostics,
+use the local `setup-rust` action to install Rust 1.94.0 and remove the
 runner image's unused `stable` toolchain before restoring caches. The Rust cache action hashes
 every installed compiler, not just the selected compiler. Previous logs showed the unused
 hosted toolchain changing from 1.99.0 to 1.99.1 while the project stayed on 1.94.0, splitting
@@ -50,7 +51,31 @@ additional tagged-module jobs. Standalone native package checks remain in the Ru
 `bin/test_ci_module_groups.py` exercises the actual runtime Surefire configuration with one
 fixture for every declared module tag and one untagged fixture, requiring each to run once.
 
+## Consolidated feature validation
+
+Keep related coverage and default-enable changes on one PR while repairing their combined CI.
+A newer PR head cancels obsolete runs, including JVM aggregate release diagnostics; correctness
+checks and diagnostic fixtures still run on the current head. Superseded PRs should be closed
+and their active runs canceled rather than leaving multiple copies queued.
+
+Criterion, JVM aggregate and nested-scalar artifacts use fresh runner temporary directories,
+outside the cached Cargo target. Restored dependency builds must not restore candidate-library
+snapshots or old trials into a new run. Artifact uploads retain these temporary outputs even
+when a diagnostic fails.
+
+Default-enabled paths need positive native-route assertions. Fixed-size-binary compatibility
+tests construct that legacy physical schema explicitly rather than changing global feature
+flags. Component-timestamp extrema exercise checkpoint/retraction values on RocksDB, including
+cases that previously asserted fallback. Hidden-offset recovery expectations distinguish heap
+row mutation from serialized state copies; the released-Flink SQL controls remain authoritative.
+Nested connector schemas must exclude internal ROW transport fields while retaining user fields,
+nulls, logical ordering and independently owned Arrow buffer references.
+
 ## Maven dependencies
+
+The upstream execution-evidence agent is a separate JDK 17 development tool. Its standalone
+POM pins the compiler plugin to 3.13.0 so Maven 3.8 also honors `maven.compiler.release=17`
+instead of inheriting a compiler that defaults to unsupported Java 5 source and target levels.
 
 Java CI jobs resolve their selected reactor's dependencies before building or testing:
 

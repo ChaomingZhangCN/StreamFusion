@@ -161,7 +161,7 @@ final class GlobalWindowAggregateMatcher {
       if (kind == WindowAggregateMatcher.KIND_SUM_ZERO
           && !WindowAggregateMatcher.supportedZeroSumValue(
               inputType.getFieldList().get(partialColumns[i]).getType())) {
-        return "global window aggregate: SUM0 requires an exact integer or DECIMAL partial";
+        return "global window aggregate: SUM0 requires a numeric partial";
       }
       if (!WindowAggregateMatcher.supportedAggregateValueType(kind, partialType)) {
         return "global window aggregate: unsupported partial column type " + partialType;

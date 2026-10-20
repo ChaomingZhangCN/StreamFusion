@@ -34,7 +34,7 @@ class FixedBinaryNullWireTest {
   void serializedNullSlotsRemainZeroWithDirtyFreshAllocations(int width) throws Exception {
     RowType type = RowType.of(new BinaryType(width));
     try (var allocator = new PoisonedAllocator();
-         var root = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(type), allocator)) {
+        var root = VectorSchemaRoot.create(FixedBinaryFixtures.schema(type), allocator)) {
       var writer = ArrowConversion.createRowDataArrowWriter(root, type, 8);
       byte[] value = new byte[width];
       Arrays.fill(value, (byte) 0x80);

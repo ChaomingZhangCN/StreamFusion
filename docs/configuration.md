@@ -16,20 +16,30 @@ serialized operator configuration rather than process-global state before a stab
   controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
-- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default false) — opt into a lone
-  row-source changelog filter that loses to stock Flink because of the two Arrow conversions.
+- **`streamfusion.experimental.jvmGroupAggregates`** (system property, default true) — enable
+  verified synchronous single-phase JVM UDAFs with VARCHAR/INT/BIGINT inputs/results. Set false
+  for the preceding host fallback. Cache and borrowed-exit performance experiments retain their
+  existing defaults. See [GROUP BY](operators/group-by.md#jvm-aggregate-investigation).
+- **`streamfusion.experimental.nestedScalarUdfs`** (system property, default true) — enable
+  verified external Java Row and Map callbacks and the matching nested RowKind/raw BINARY
+  transport. MAP callbacks use Flink-generated whole-Calc evaluation; computed collection outputs
+  retain representation guards before unverified state/exchange boundaries.
+  Configure the same value in planner and task JVMs; false restores the preceding transport and
+  nested-signature fallback. See [Calc/filter](operators/calc-filter.md).
+- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone
+  changelog filter after verified Rust-side Arrow admission. Explicit `false` retains stock
+  for the standalone shape. Complete row-source jobs can still lose because of perimeter costs.
   Filters inside an admitted native pipeline retain ordinary admission. See
   [drop update-before](operators/drop-update-before.md).
-- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
-  native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
-  Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
-  measurements. Existing admitted binary/generated shapes are unaffected. See
-  [Calc/filter](operators/calc-filter.md) for the scope and results.
-- **`streamfusion.calc.temporalUdf.enabled`** (default false) — opt into complete-row generated
-  Calc evaluation for scalar UDFs using `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ
-  arguments/results. Standalone row-source projections remain slower than stock Flink in release
-  measurements. The default preserves host execution; builtin temporal functions retain their
-  existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default true) — complete-row native
+  Calc evaluation for shared non-deterministic scalar calls, preserving Flink invocation order.
+  Explicit `false` retains the shared-call host route. Slower JVM UDF execution is an accepted
+  tradeoff for correct coverage. See [Calc/filter](operators/calc-filter.md).
+- **`streamfusion.calc.temporalUdf.enabled`** (default true) — complete-row generated Calc
+  evaluation for verified `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ UDF signatures.
+  Explicit `false` forces those UDFs to stock. Correctness/type/lifecycle gates remain in force;
+  slower UDF execution alone does not block coverage. See
+  [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
 - **`streamfusion.experimental.collectionExpressions`** (default true) — enable the
   collection kernels and generated collection/constructor programs described in
   [Calc/filter coverage](operators/calc-filter.md#collection-expressions). The planner serializes
@@ -46,7 +56,9 @@ serialized operator configuration rather than process-global state before a stab
 - **`-Dstreamfusion.expression.<NAME>.allowIncompatible=true`** — opt into the faster pure-Rust
   path for expressions that otherwise use a byte-exact JVM upcall or fall back (`UPPER`/`LOWER`,
   `REGEXP_EXTRACT`, `DATE_FORMAT`/`EXTRACT` over `TIMESTAMP_LTZ`, `ROUND` on float, transcendental
-  math). Off by default — parity-first. See the per-operator/expression pages under
+  math). Floating math and non-DECIMAL ROUND use exact generated evaluation by default;
+  these flags select the existing approximate Rust alternatives. Off by default — parity-first.
+  See the per-operator/expression pages under
   [Operators](operators/index.md) for exactly which functions this affects and how they can diverge.
 - **`-Dstreamfusion.plan.shareSources=false`** — disable the substitution pass's own source-sharing
   (two branches scanning the same native source normally collapse into one read); restores one
@@ -106,25 +118,24 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 - `nativeArrowAllocatorBytes` — the process-wide Arrow FFI allocator's current footprint.
 - `nativeStateBytes` — tracked state drawing on that budget, sampled per batch.
 
-## Experimental Window Coverage
+## Window coverage
 
-`streamfusion.window.string-extrema.single-phase.enabled` defaults to `false`. Set it to `true`
-in Flink table configuration to admit single-phase CHAR/VARCHAR MIN/MAX, including admitted
-processing-time, session and legacy windows. High-cardinality single-phase CUMULATE regressed
-against Flink in the complete-job comparison, so stock Flink remains the default for these
-string aggregates. Two-phase local/global string extrema do not require this option. See
-[Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+CHAR/VARCHAR MIN/MAX now run natively by default in every otherwise supported window shape,
+including fixed processing-time windows, sessions and legacy group windows. The optional
+`streamfusion.window.string-extrema.single-phase.enabled=false` forces stock execution;
+`true` matches the default. The Rust-side string selection optimization removes the former
+high-cardinality HOP restriction; the separate session kernel also passes the Rust-side gate.
+Two-phase local/global string extrema do not require this option.
+See [Window aggregate](operators/window-aggregate.md#string-minmax).
 
-Single-phase attached-window re-aggregation over a fixed grid now runs natively by default when
-its upstream native window contains only ordinary COUNT aggregates and the size is at most five
-slides/steps. This includes the verified
-COUNT-to-MAX and mixed outer SUM/MIN/MAX/AVG cascades. Regional calendar callbacks and other
-upstream aggregate layouts and wider overlap retain stock execution by default; existing AUTO/TWO_PHASE admission
-is unchanged. The optional `streamfusion.window.attached.single-phase.enabled` setting overrides
-this choice: `false` forces the single-phase attached path to stock, while `true` opts into all
-otherwise supported attached layouts, including the experimental persistent/regional paths.
-See [Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
-for coverage and the complete-job performance matrix.
+Single-phase attached-window re-aggregation now runs natively for all otherwise supported
+append-only event-time TUMBLE/HOP/CUMULATE layouts, including regional calendars, wider overlap
+and upstream aggregates beyond COUNT. The optional
+`streamfusion.window.attached.single-phase.enabled=false` forces stock execution; `true`
+now matches the default. FILTER, retracting inputs and unsupported types still fall back.
+[The admission audit](benchmarks/feature-admission-2026-10-19.md) compares stock RowData with
+matching prebuilt Arrow inputs, with intrinsic conversions included. Complete-job timings
+remain separate evidence, including retained slower wide-overlap jobs.
 
 ## Diagnostics
 
@@ -140,3 +151,19 @@ for coverage and the complete-job performance matrix.
 
 See [Benchmarks](benchmarks.md) for how to reproduce the throughput numbers, and
 [Optimizations](optimizations/index.md) for how these flags map to specific performance techniques.
+
+
+## Binary selection
+
+The JVM system property `streamfusion.experimental.binaryElt` defaults to `true`. Verified
+INTEGER-indexed binary `ELT` expressions run without an opt-in. Explicit `false` retains
+stock execution; use the same setting in planner and task JVMs. This also transports SQL `BINARY(n)` values through length-delimited
+Arrow Binary vectors, preserving raw payload lengths without changing their SQL types.
+The nested-scalar option independently selects the same transport when enabled.
+
+Ordinary safe selection uses the existing Rust kernel; expressions requiring released
+Flink evaluation retain that generated path. Unsupported index overloads retain fallback.
+Legacy variable-length cast guards and nested scalar admission rules are unchanged.
+Default admission follows the Rust/Arrow versus Java/RowData functionality gate. The
+[historical binary measurements](operators/calc-filter.md#binary-casts-and-fixed-width-generated-expressions)
+retain slower conversion-inclusive standalone results; they are separate from this gate.

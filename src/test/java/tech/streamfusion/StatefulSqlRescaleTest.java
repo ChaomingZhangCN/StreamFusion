@@ -25,6 +25,7 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tech.streamfusion.compat.ListCollectors;
 
@@ -33,9 +34,36 @@ import tech.streamfusion.compat.ListCollectors;
 class StatefulSqlRescaleTest {
   private static final Map<String, Object> RESULTS = new TreeMap<>();
 
-  @ParameterizedTest(name = "rescale-rocks={0}")
+  @ParameterizedTest(name = "rescale-rocks={0}-typed-table={1}")
+  @CsvSource({"false,false", "true,false", "false,true", "true,true"})
+  void groupedStateAcrossBothDirections(boolean rocks, boolean typedTable, @TempDir Path directory)
+      throws Exception {
+    groupedScenario(rocks, directory, false, false, typedTable);
+  }
+
+  @ParameterizedTest(name = "jvm-rescale-rocks={0}")
   @ValueSource(booleans = {false, true})
-  void groupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory) throws Exception {
+  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+      named = "streamfusion.experimental.jvmGroupAggregates",
+      matches = "true")
+  void jvmGroupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory)
+      throws Exception {
+    groupedScenario(rocks, directory, true, false, false);
+  }
+
+  @ParameterizedTest(name = "jvm-savepoint-rescale-rocks={0}")
+  @ValueSource(booleans = {false, true})
+  @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+      named = "streamfusion.experimental.jvmGroupAggregates",
+      matches = "true")
+  void jvmGroupedSavepointAcrossBothDirections(boolean rocks, @TempDir Path directory)
+      throws Exception {
+    groupedScenario(rocks, directory, true, true, false);
+  }
+
+  private void groupedScenario(
+      boolean rocks, Path directory, boolean jvm, boolean savepoint, boolean typedTable)
+      throws Exception {
     List<Row> input = new ArrayList<>();
     String text = "long-duplicate-é🙂".repeat(128);
     for (int k = 0; k < 128; k++) {
@@ -51,19 +79,28 @@ class StatefulSqlRescaleTest {
       input.add(Row.ofKind(RowKind.INSERT, k, null, "other"));
     }
     Map<String, Long> expected = new TreeMap<>();
-    for (int k = 0; k < 128; k++) expected.put(k + "|-0.50|1", 1L);
+    for (int k = 0; k < 128; k++) expected.put(k + (jvm ? "|0|2|[0]" : "|-0.50|1"), 1L);
     String backend = rocks ? "tech.streamfusion.state.RocksDBNativeStateBackendFactory" : "hashmap";
     Map<String, Object> report = new java.util.LinkedHashMap<>();
     List<Map<String, Object>> stageEvidence = new ArrayList<>();
     report.put("passed", false);
     report.put("backend", backend);
+    report.put("typedTableFunction", typedTable);
+    report.put("checkpointIntervalMs", typedTable ? 1000 : 50);
     report.put("parallelisms", List.of(1, 3, 2));
     report.put("maxParallelism", 128);
     report.put("sourceOffsets", List.of(256, 512, 768));
     report.put("physicalBatchRows", 5);
-    report.put("logicalMiniBatchRows", 3);
+    report.put("logicalMiniBatchRows", jvm ? 0 : 3);
+    report.put("jvmAggregate", jvm);
+    report.put("snapshotFormat", savepoint ? "CANONICAL savepoint" : "externalized checkpoint");
     report.put("stages", stageEvidence);
-    RESULTS.put(rocks ? "rocksdb" : "memory", report);
+    RESULTS.put(
+        (jvm ? "jvm-" : "")
+            + (savepoint ? "savepoint-" : "")
+            + (rocks ? "rocksdb" : "memory")
+            + (typedTable ? "-typed-table" : ""),
+        report);
     try {
       var reference =
           runStage(
@@ -74,6 +111,9 @@ class StatefulSqlRescaleTest {
               directory.resolve("host-output"),
               null,
               false,
+              jvm,
+              false,
+              typedTable,
               expected);
       report.put("reference", reference.evidence());
       List<Stage> stages = new ArrayList<>();
@@ -89,6 +129,9 @@ class StatefulSqlRescaleTest {
                 directory.resolve("native-output"),
                 restore,
                 true,
+                jvm,
+                savepoint,
+                typedTable,
                 i == 2 ? expected : null);
         stages.add(stage);
         stageEvidence.add(stage.evidence());
@@ -186,6 +229,9 @@ class StatefulSqlRescaleTest {
       Path output,
       Path restore,
       boolean nativeRun,
+      boolean jvm,
+      boolean savepoint,
+      boolean typedTable,
       Map<String, Long> expected)
       throws Exception {
     var type =
@@ -203,16 +249,35 @@ class StatefulSqlRescaleTest {
             .holdAfterInput()
             .withRescaleDeployment(parallelism, checkpoints, restore)) {
       var table = (StreamTableEnvironment) recovery.uninterrupted();
+      if (typedTable) recovery.executionEnvironment().enableCheckpointing(1000);
       table.getConfig().set("streamfusion.transpose.batchRows", "5");
-      table.getConfig().set("table.exec.mini-batch.enabled", "true");
+      table.getConfig().set("table.exec.mini-batch.enabled", Boolean.toString(!jvm));
       table.getConfig().set("table.exec.mini-batch.size", "3");
       table.getConfig().set("table.exec.mini-batch.allow-latency", "1 h");
+      if (jvm) {
+        table.createTemporarySystemFunction("test_aggregate", new PortableSqlFixtures.Sum());
+        table.createTemporarySystemFunction(
+            "view_aggregate", new FlinkJvmAggregateSqlHarnessTest.ViewAggregate());
+      }
       if (nativeRun) tech.streamfusion.planner.NativePlanner.install(table);
-      var query =
-          table.sqlQuery(
-              "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY k");
+      String sql =
+          jvm
+              ? "SELECT k, test_aggregate(CAST(amount AS BIGINT)), COUNT(text_value),"
+                  + " view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
+              : "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY k";
+      if (typedTable) {
+        table.createTemporarySystemFunction(
+            "typed_rows",
+            new FlinkTypedTableFunctionSqlHarnessTest.TypedRows(DataTypes.DECIMAL(20, 2)));
+        sql =
+            "SELECT s.k, SUM(t.v), COUNT(DISTINCT s.text_value) FROM recovery_input s, LATERAL"
+                + " TABLE(typed_rows(2, s.amount)) AS t(v, pos) WHERE t.pos = 0 GROUP BY s.k";
+      }
+      var query = table.sqlQuery(sql);
       String plan = query.explain();
-      if (nativeRun) assertTrue(plan.contains("NativeColumnarGroupAggregate"), plan);
+      String operatorPrefix = jvm ? "NativeJvmGroup" : "NativeColumnarGroupAggregate";
+      if (nativeRun) assertTrue(plan.contains(operatorPrefix), plan);
+      if (nativeRun && typedTable) assertTrue(plan.contains("NativeTableFunction"), plan);
       var rows = table.toChangelogStream(query);
       int index = 0;
       for (var transformation : rows.getTransformation().getTransitivePredecessors()) {
@@ -229,7 +294,8 @@ class StatefulSqlRescaleTest {
                           + "|"
                           + row.getField(1)
                           + "|"
-                          + row.getField(2))
+                          + row.getField(2)
+                          + (jvm ? "|" + row.getField(3) : ""))
               .returns(Types.STRING)
               .uid("rescale-encode");
       tech.streamfusion.compat.CheckpointFileSink.attach(encoded, output, "rescale-output");
@@ -246,17 +312,33 @@ class StatefulSqlRescaleTest {
               .collect(ListCollectors.toList());
       List<OperatorID> aggregateIds =
           graph.getStreamNodes().stream()
-              .filter(n -> n.getOperatorName().contains("NativeColumnarGroupAggExecNode"))
+              .filter(
+                  n ->
+                      n.getOperatorName()
+                          .contains(jvm ? "NativeJvmGroup" : "NativeColumnarGroupAggExecNode"))
               .map(n -> new OperatorID(hashes.get(n.getId())))
               .collect(ListCollectors.toList());
       if (nativeRun) assertEquals(1, aggregateIds.size(), graph.getStreamNodes().toString());
       var client = env.executeAsync(graph);
+      Path triggeredSavepoint = null;
       try {
         recovery.awaitCompletedInput();
+        if (savepoint) {
+          String location =
+              client
+                  .triggerSavepoint(
+                      checkpoints.resolve("savepoints").toUri().toString(),
+                      org.apache.flink.core.execution.SavepointFormatType.CANONICAL)
+                  .get(60, TimeUnit.SECONDS);
+          triggeredSavepoint = Path.of(java.net.URI.create(location));
+          assertTrue(Files.isRegularFile(triggeredSavepoint.resolve("_metadata")));
+        }
         if (nativeRun)
-          RecoveryExecutionMetrics.assertConsumed(
-              recovery.nativeExecution(), "NativeColumnarGroupAggregate");
+          RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), operatorPrefix);
         else assertTrue(recovery.nativeExecution().isEmpty());
+        if (nativeRun && typedTable)
+          RecoveryExecutionMetrics.assertConsumed(
+              recovery.nativeExecution(), "NativeTableFunction");
         if (expected != null) {
           long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
           while (!expected.equals(materialized(output)) && System.nanoTime() < deadline)
@@ -275,20 +357,24 @@ class StatefulSqlRescaleTest {
       }
       assertEquals(0, recovery.observations().get(0).get("activeSources"));
       SharedFlinkCluster.assertNativeMemoryReleased("rescale-stage-" + parallelism);
-      Path checkpoint;
-      try (var paths = Files.walk(checkpoints)) {
-        checkpoint =
-            paths
-                .filter(p -> p.getFileName().toString().equals("_metadata"))
-                .map(Path::getParent)
-                .max(
-                    java.util.Comparator.comparingLong(
-                        p -> Long.parseLong(p.getFileName().toString().substring(4))))
-                .orElseThrow();
+      Path checkpoint = triggeredSavepoint;
+      if (checkpoint == null) {
+        try (var paths = Files.walk(checkpoints)) {
+          checkpoint =
+              paths
+                  .filter(p -> p.getFileName().toString().equals("_metadata"))
+                  .map(Path::getParent)
+                  .max(
+                      java.util.Comparator.comparingLong(
+                          p -> Long.parseLong(p.getFileName().toString().substring(4))))
+                  .orElseThrow();
+        }
       }
       var metadata =
           org.apache.flink.test.util.TestUtils.loadCheckpointMetadata(checkpoint.toString());
       List<String> ranges = new ArrayList<>();
+      if (metadata.getCheckpointProperties() != null)
+        assertEquals(savepoint, metadata.getCheckpointProperties().isSavepoint());
       if (nativeRun) {
         var aggregate =
             metadata.getOperatorStates().stream()
@@ -318,6 +404,8 @@ class StatefulSqlRescaleTest {
       }
       Map<String, Object> evidence =
           Map.of(
+              "snapshotFormat",
+              savepoint ? "CANONICAL savepoint" : "externalized checkpoint",
               "parallelism",
               parallelism,
               "sourceOffset",

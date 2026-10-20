@@ -243,3 +243,60 @@ feature stays opt-in: a 2M-event, native-RocksDB generated-row/blackhole
 comparison showed a modest +3.93% best-of-three geometric-mean throughput gain,
 with a +0.80% median query gain and several regressions. See
 [method, limits and all trials](../optimizations/rocksdb-io-uring.md).
+
+Bounded OVER floating SUM0 frame values retain the running accumulator needed for Flink's
+add/retract rounding. Extended layouts carry a version prefix before Arrow row encoding.
+The reader accepts old unmarked frame values using the previous layout and maps new fields
+to typed NULL until the operator reconstructs them from retained rows. The same dual decoder
+serves normal reads and canonical savepoint export. Existing frame keys and unrelated state
+layouts remain unchanged. See [OVER checkpoint semantics](../operators/over.md#primitive-zero-initialized-over-sums)
+for the limit on reconstructing arithmetic history discarded by old writers.
+
+
+### Scalar window keys
+
+Direct fixed-window and session stores decode newly admitted TINYINT/SMALLINT, TIME,
+BINARY/VARBINARY and both interval key families using their natural Arrow types. TIME uses
+millisecond Time32 in the shared row codec; month intervals use Int32 and day-time intervals
+use Int64. Existing INT window keys retain their widened Int64 encoding. No previously
+admitted type changes its persisted encoding in this extension. Two-restore SQL comparisons
+cover nullable composite keys on memory and direct RocksDB for fixed/session windows,
+bounded ROWS OVER, interval joins and window joins on both supported Flink releases. See
+[scalar key coverage](../operators/window-aggregate.md#scalar-grouping-and-partition-keys).
+
+
+FLOAT/DOUBLE partition keys also use their natural Float32/Float64 carriage in direct
+fixed-window and session state. The floating extension's two-restore comparisons regenerate
+distinct NaN payloads after source deserialization and project their raw bits after the
+stateful operation; source/sink canonicalization cannot collapse the oracle. Signed zero,
+infinities, subnormals and NULL are covered alongside ordinary finite values.
+
+### Hidden OFFSET row-kind mutations
+
+General retracting Top-N with OFFSET and no projected rank follows released Flink's RocksDB
+MapState copy semantics. Emitting a row kind mutates a transient deserialized row; it changes
+stored state only when the owning list is explicitly put. Insertions write their source list
+after emission, while retractions write it before shifting subsequent sort groups. The native
+whole-partition codec preserves those logical per-list write boundaries even when it flushes
+one partition value at a physical batch boundary. Heap state keeps its shared-reference behavior.
+Consequently, the raw changelogs can differ between host backends; parity uses the same configured
+backend on both engines.
+
+No type code, checkpoint field or persisted byte layout changes. Existing stored row-kind
+history is retained, including history written by the preceding native implementation's
+heap-style behavior on RocksDB. That past stock-RocksDB state cannot be inferred afterward.
+Fresh jobs and checkpoints made with the corrected behavior match the selected backend in
+sixteen SQL scenarios per released Flink line, including ties and two failure/restores. See
+[Top-N](../operators/top-n.md) for the affected shape and historical-state limitation.
+
+
+### Retained map and multiset payloads
+
+Top-N and regular updating joins export declared MAP/MULTISET schemas through the existing tagged
+List-of-entry-struct view. This changes schema interpretation while borrowing the original Arrow
+buffers at the JNI boundary. The row codec still owns its encoded retained payloads. Canonical IPC
+and direct RocksDB restoration use the same physical schema, recursively through ARRAY/ROW/maps.
+Previously admitted scalar schemas and bytes are unchanged; these MAP-bearing shapes previously
+fell back. Updating Top-N/LIMIT and MAP-bearing updating join inputs still use stock execution until the retained-row
+contract in [#437](https://github.com/datafusion-contrib/StreamFusion/issues/437) is implemented.
+Join/partition/order/unique-key contracts remain separately checked.

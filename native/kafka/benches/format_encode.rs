@@ -99,5 +99,66 @@ fn formats(c: &mut Criterion) {
     }
     group.finish();
 }
-criterion_group!(benches, formats);
+criterion_group!(benches, formats, nested_metadata);
 criterion_main!(benches);
+
+fn nested_metadata(c: &mut Criterion) {
+    use arrow::array::{Int8Array, StructArray};
+    use arrow::buffer::NullBuffer;
+    let mut group = c.benchmark_group("kafka/nested_row_metadata");
+    for rows in [16, 1024] {
+        for width in [8, 264] {
+            let text = format!("é,{}", "x".repeat(width));
+            let fields = vec![
+                Arc::new(Field::new("id", DataType::Int64, false)),
+                Arc::new(Field::new("text", DataType::Utf8, true)),
+            ];
+            let values = vec![
+                Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                Arc::new(StringArray::from_iter(
+                    (0..rows).map(|i| (i % 5 != 0).then_some(text.as_str())),
+                )) as ArrayRef,
+            ];
+            let valid = Some(NullBuffer::from_iter((0..rows).map(|i| i % 7 != 0)));
+            let logical = StructArray::new(fields.clone().into(), values.clone(), valid.clone());
+            let mut physical_fields = fields;
+            physical_fields.push(Arc::new(
+                Field::new("__sf_nested_row_kind", DataType::Int8, false).with_metadata(
+                    std::collections::HashMap::from([(
+                        "streamfusion.nested-row-kind".into(),
+                        "1".into(),
+                    )]),
+                ),
+            ));
+            let mut physical_values = values;
+            physical_values.push(Arc::new(Int8Array::from_iter_values(
+                (0..rows).map(|i| (i % 4) as i8),
+            )));
+            let physical = StructArray::new(physical_fields.into(), physical_values, valid);
+            let logical =
+                RecordBatch::try_from_iter(vec![("payload", Arc::new(logical) as ArrayRef)])
+                    .unwrap();
+            let input =
+                RecordBatch::try_from_iter(vec![("payload", Arc::new(physical) as ArrayRef)])
+                    .unwrap();
+            for (name, encoder) in [
+                ("json", FormatEncoder::json()),
+                ("csv", FormatEncoder::csv()),
+            ] {
+                let expected = encoder.encode(&logical);
+                let (output, allocations) = measure(|| encoder.encode(&input));
+                assert_eq!(output.len(), rows);
+                for row in 0..rows {
+                    assert_eq!(output.line(row), expected.line(row));
+                }
+                let label = format!("{name}/{rows}/bytes={width}");
+                report(&label, input.columns(), &[], allocations);
+                group.throughput(Throughput::Elements(rows as u64));
+                group.bench_function(label, |b| {
+                    b.iter(|| std::hint::black_box(encoder.encode(std::hint::black_box(&input))))
+                });
+            }
+        }
+    }
+    group.finish();
+}

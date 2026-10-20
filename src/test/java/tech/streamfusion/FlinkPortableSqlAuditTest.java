@@ -87,8 +87,12 @@ class FlinkPortableSqlAuditTest {
             "SELECT id, test_nested(nested) FROM nested_input",
             "nested_input",
             "test_nested",
-            EXPLICIT_FALLBACK,
-            "UDF return type not native: ROW",
+            tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled()
+                ? NATIVE_PARITY
+                : EXPLICIT_FALLBACK,
+            tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled()
+                ? ""
+                : "UDF return type not native: ROW",
             List.of(
                 row(1, org.apache.flink.types.Row.of(17L, new String[] {"a", null, "b"})),
                 row(2, org.apache.flink.types.Row.of(null, new String[0])),
@@ -116,8 +120,14 @@ class FlinkPortableSqlAuditTest {
             "SELECT k, test_aggregate(v) FROM test_input GROUP BY k",
             "test_input",
             "test_aggregate",
-            EXPLICIT_FALLBACK,
-            "only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE aggregates",
+            Boolean.parseBoolean(
+                    System.getProperty("streamfusion.experimental.jvmGroupAggregates", "true"))
+                ? NATIVE_PARITY
+                : EXPLICIT_FALLBACK,
+            Boolean.parseBoolean(
+                    System.getProperty("streamfusion.experimental.jvmGroupAggregates", "true"))
+                ? ""
+                : "only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE aggregates",
             List.of(row("A", 27L), row("B", 8L))));
     cases.add(
         success(
@@ -125,8 +135,14 @@ class FlinkPortableSqlAuditTest {
             "SELECT k, test_aggregate(v) FROM cdc_input GROUP BY k",
             "cdc_input",
             "test_aggregate",
-            EXPLICIT_FALLBACK,
-            "only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE aggregates",
+            Boolean.parseBoolean(
+                    System.getProperty("streamfusion.experimental.jvmGroupAggregates", "true"))
+                ? NATIVE_PARITY
+                : EXPLICIT_FALLBACK,
+            Boolean.parseBoolean(
+                    System.getProperty("streamfusion.experimental.jvmGroupAggregates", "true"))
+                ? ""
+                : "only SUM/MIN/MAX/COUNT/AVG/FIRST_VALUE/LAST_VALUE/SINGLE_VALUE aggregates",
             List.of(row("A", 12L), row("B", 8L))));
     cases.add(
         success(

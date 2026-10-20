@@ -34,7 +34,7 @@ class FlinkOverComplexCountSqlHarnessTest {
       assertFalse(result.host().rows().isEmpty());
       for (var row : result.host().rows()) {
         assertEquals(row.get(3), row.get(4));
-        if (order.equals("rt")) assertEquals(row.get(3), row.get(5));
+        assertEquals(row.get(3), row.get(5));
         if (Integer.valueOf(2).equals(row.get(2))) assertEquals(0L, row.get(3));
       }
       RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeOverAggregate");
@@ -152,23 +152,21 @@ class FlinkOverComplexCountSqlHarnessTest {
         "RANGE UNBOUNDED PRECEDING",
         "ROWS BETWEEN 3 PRECEDING AND CURRENT ROW"
       })
-  void processingTimeMapCountKeepsTheHostRoute(String frame) {
+  void processingTimeMapCountUsesNativeValidityState(String frame) {
     try (var metrics = new RecoveryExecutionMetrics()) {
       var table = environment(metrics);
       var scan = tech.streamfusion.planner.NativePlanner.install(table);
       String query = "SELECT COUNT(m) OVER (PARTITION BY k ORDER BY pt " + frame + ") FROM src";
-      assertFalse(table.explainSql(query).contains("NativeOverAggregate"));
-      assertTrue(
-          scan.fallbackReasons().stream().anyMatch(reason -> reason.contains("proctime MAP")),
-          scan.explainSummary());
+      assertTrue(table.explainSql(query).contains("NativeOverAggregate"));
       var result = NativeFailureParity.run(() -> environment(metrics), query);
-      result.assertSuccess(NativeFailureParity.Route.FALLBACK);
+      result.assertSuccess(NativeFailureParity.Route.NATIVE);
+      RecoveryExecutionMetrics.assertConsumed(metrics.nativeOperators(), "NativeOverAggregate");
     }
   }
 
   private static String sql(String order, String frame) {
     return "SELECT id, k, COUNT(a) OVER w, "
-        + (order.equals("rt") ? "COUNT(m) OVER w, " : "")
+        + "COUNT(m) OVER w, "
         + "COUNT(r) OVER w, COUNT(*) OVER w,"
         + " MIN(n) OVER w FROM src WINDOW w AS (PARTITION BY k ORDER BY "
         + order

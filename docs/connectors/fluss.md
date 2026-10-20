@@ -36,6 +36,12 @@ RPC implementation APIs, pinned to connector 1.0.0; this is not a stable public 
 polling contract. [Issue #25](https://github.com/datafusion-contrib/StreamFusion/issues/25)
 tracks the future public-API migration.
 
+The external ROW schema contains only logical fields. Schema compatibility and recursive buffer
+loading ignore marked internal RowKind/binary-row children, preserving logical field order and
+parent validity. Reading a bare wire ROW supplies INSERT kinds for the internal representation;
+conversion between internal representations retains existing kinds. Append output removes these
+transport children through retained buffer views. This does not widen the connector whitelist.
+
 The accelerated connection selects direct receive allocations instead of the released
 SDK's default heap-preferring accumulator. Its length-aware accumulator reserves a
 complete direct frame once the four-byte length is available, avoiding repeated growth

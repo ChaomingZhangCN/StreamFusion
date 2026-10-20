@@ -91,14 +91,20 @@ final class CollectionValueIdentity {
     if (tech.streamfusion.arrow.MapListRepresentation.containsMap(
             org.apache.flink.table.planner.calcite.FlinkTypeFactory$.MODULE$.toLogicalRowType(
                 input.getRowType()))
-        && containsMapListOver(node)) return true;
+        && containsMapListProducer(node)) return true;
     return requiresRepresentedRowSink(node);
   }
 
-  private static boolean containsMapListOver(RelNode node) {
+  private static boolean containsMapListProducer(RelNode node) {
     return node instanceof StreamPhysicalNativeOverAggregate
             && ((StreamPhysicalNativeOverAggregate) node).usesMapListTransport()
-        || node.getInputs().stream().anyMatch(CollectionValueIdentity::containsMapListOver);
+        || (node instanceof StreamPhysicalNativeColumnarTopN
+                || node instanceof StreamPhysicalNativeColumnarUpdatingJoin
+                || node instanceof StreamPhysicalNativeFirstN)
+            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
+                org.apache.flink.table.planner.calcite.FlinkTypeFactory$.MODULE$.toLogicalRowType(
+                    node.getRowType()))
+        || node.getInputs().stream().anyMatch(CollectionValueIdentity::containsMapListProducer);
   }
 
   private static boolean requiresRepresentedRowSink(RelNode node) {
@@ -136,7 +142,6 @@ final class CollectionValueIdentity {
   }
 
   static boolean crossesBoundary(RelNode root, boolean finalOutput) {
-    if (!NativeConfig.collectionExpressionsEnabled()) return false;
     return crossesBoundary(root, null, finalOutput);
   }
 
@@ -151,7 +156,8 @@ final class CollectionValueIdentity {
                 (org.apache.flink.table.planner.plan.nodes.physical.stream.StreamPhysicalCorrelate)
                     parent))) {
       var program = ((Calc) node).getProgram();
-      if (RexExpression.usesCollectionFunctions(program)
+      if ((RexExpression.usesCollectionFunctions(program)
+              || RexExpression.usesMapScalarUdf(program))
           && program.getProjectList().stream().anyMatch(ref -> sensitive(ref.getType())))
         return true;
     }

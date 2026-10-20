@@ -47,19 +47,13 @@ class FlinkWindowSharedSumSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void sharedAttachedAggregatesPreserveTheExistingPhaseGate(String phase) {
+  void sharedAttachedAggregatesPreserveValuesInBothPhases(String phase) {
     String sql = "SELECT window_start, window_end, COUNT(total), AVG(total), SUM(total) FROM ("
         + "SELECT k, window_start, window_end, SUM(d) AS total FROM TABLE(" + window("TUMBLE")
         + ") GROUP BY k, window_start, window_end) GROUP BY window_start, window_end";
     var runs = NativeFailureParity.run(() -> environment(phase, false), sql);
-    runs.assertSuccess(phase.equals("TWO_PHASE") ? NativeFailureParity.Route.NATIVE
-        : NativeFailureParity.Route.FALLBACK);
+    runs.assertSuccess(NativeFailureParity.Route.NATIVE);
     assertEquals(runs.host().resultTypes(), runs.nativeRun().resultTypes());
-    if (phase.equals("ONE_PHASE")) {
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("attached-window aggregation requires two-phase execution")),
-          runs.nativeRun().fallbackReasons().toString());
-    }
   }
 
   @ParameterizedTest
@@ -87,7 +81,8 @@ class FlinkWindowSharedSumSqlHarnessTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"ONE_PHASE,TINYINT", "TWO_PHASE,TINYINT", "ONE_PHASE,SMALLINT", "TWO_PHASE,SMALLINT"})
+  @CsvSource({"ONE_PHASE,TINYINT", "TWO_PHASE,TINYINT", "ONE_PHASE,SMALLINT", "TWO_PHASE,SMALLINT",
+      "ONE_PHASE,FLOAT", "TWO_PHASE,FLOAT", "ONE_PHASE,DOUBLE", "TWO_PHASE,DOUBLE"})
   void narrowReducedAggregatesRetainTheirDeclaredWidth(String phase, String type) {
     String value = "CAST(i AS " + type + ")";
     String sql = "SELECT k, window_start, window_end, COUNT(" + value + "), AVG(" + value

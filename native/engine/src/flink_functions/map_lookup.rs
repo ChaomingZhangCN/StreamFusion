@@ -1,17 +1,70 @@
 use std::sync::Arc;
 
 use arrow::array::{Array, ArrayRef, Scalar, UInt32Array};
-use arrow::datatypes::DataType;
-use datafusion::common::{cast::as_map_array, Result, ScalarValue};
+use arrow::datatypes::{DataType, Fields};
+use datafusion::common::{
+    cast::{as_list_array, as_map_array, as_struct_array},
+    Result, ScalarValue,
+};
 use datafusion::logical_expr::{ScalarUDF, Volatility};
 
-pub(crate) fn dynamic_function(map_type: DataType, compact_timestamp_key: bool) -> ScalarUDF {
-    let DataType::Map(entries, _) = &map_type else {
+fn entry_fields(data_type: &DataType) -> &Fields {
+    let (DataType::Map(entries, _) | DataType::List(entries)) = data_type else {
         unreachable!("map lookup input")
     };
     let DataType::Struct(fields) = entries.data_type() else {
         unreachable!("map entries")
     };
+    fields
+}
+
+struct MapView<'a> {
+    input: &'a ArrayRef,
+    offsets: &'a [i32],
+    keys: &'a ArrayRef,
+    values: &'a ArrayRef,
+}
+
+impl<'a> MapView<'a> {
+    fn new(input: &'a ArrayRef) -> Result<Self> {
+        let (offsets, keys, values) = match input.data_type() {
+            DataType::Map(_, _) => {
+                let map = as_map_array(input)?;
+                (map.value_offsets(), map.keys(), map.values())
+            }
+            DataType::List(_) => {
+                let list = as_list_array(input)?;
+                let entries = as_struct_array(list.values())?;
+                (list.value_offsets(), entries.column(0), entries.column(1))
+            }
+            _ => unreachable!("map lookup carriage"),
+        };
+        Ok(Self {
+            input,
+            offsets,
+            keys,
+            values,
+        })
+    }
+    fn keys(&self) -> &ArrayRef {
+        self.keys
+    }
+    fn values(&self) -> &ArrayRef {
+        self.values
+    }
+    fn value_offsets(&self) -> &[i32] {
+        self.offsets
+    }
+    fn len(&self) -> usize {
+        self.input.len()
+    }
+    fn is_null(&self, row: usize) -> bool {
+        self.input.is_null(row)
+    }
+}
+
+pub(crate) fn dynamic_function(map_type: DataType, compact_timestamp_key: bool) -> ScalarUDF {
+    let fields = entry_fields(&map_type);
     let key_type = fields[0].data_type().clone();
     let output = fields[1].data_type().clone();
     datafusion::logical_expr::create_udf(
@@ -35,7 +88,7 @@ fn dynamic_lookup(
     keys: &ArrayRef,
     compact_timestamp_key: bool,
 ) -> Result<ArrayRef> {
-    let map = as_map_array(input)?;
+    let map = MapView::new(input)?;
     let compare =
         arrow_ord::ord::make_comparator(map.keys().as_ref(), keys.as_ref(), Default::default())?;
     let offsets = map.value_offsets();
@@ -72,12 +125,7 @@ fn dynamic_lookup(
 }
 
 pub(crate) fn function(map_type: DataType, key: ScalarValue) -> ScalarUDF {
-    let DataType::Map(entries, _) = &map_type else {
-        unreachable!("map lookup input")
-    };
-    let DataType::Struct(fields) = entries.data_type() else {
-        unreachable!("map entries")
-    };
+    let fields = entry_fields(&map_type);
     let output = fields[1].data_type().clone();
     datafusion::logical_expr::create_udf(
         &format!("flink_map_lookup_{key:?}"),
@@ -92,7 +140,7 @@ pub(crate) fn function(map_type: DataType, key: ScalarValue) -> ScalarUDF {
 }
 
 fn lookup(input: &ArrayRef, key: &ScalarValue) -> Result<ArrayRef> {
-    let map = as_map_array(input)?;
+    let map = MapView::new(input)?;
     let matches_null_key = null_key_read_value(map.keys().data_type(), false).as_ref() == Some(key);
     let key = Scalar::new(key.to_array()?);
     let matches = arrow::compute::kernels::cmp::eq(map.keys(), &key)?;
@@ -148,6 +196,68 @@ mod tests {
     use arrow::array::{Int64Array, ListArray, MapArray, StringArray, StructArray};
     use arrow::buffer::{NullBuffer, OffsetBuffer};
     use arrow::datatypes::{Field, Int64Type};
+
+    fn map_list() -> ArrayRef {
+        let entries = StructArray::from(vec![
+            (
+                Arc::new(Field::new("key", DataType::Utf8, true)),
+                Arc::new(StringArray::from(vec![
+                    Some("x"),
+                    None,
+                    Some("a"),
+                    Some("a"),
+                ])) as ArrayRef,
+            ),
+            (
+                Arc::new(Field::new("value", DataType::Int64, true)),
+                Arc::new(Int64Array::from(vec![Some(1), Some(2), None, Some(9)])) as ArrayRef,
+            ),
+        ]);
+        Arc::new(ListArray::new(
+            Arc::new(Field::new("entries", entries.data_type().clone(), false)),
+            OffsetBuffer::new(vec![0, 3, 3, 3, 4].into()),
+            Arc::new(entries),
+            Some(NullBuffer::from(vec![true, false, true, true])),
+        ))
+    }
+
+    #[test]
+    fn list_map_literal_preserves_null_key_defaults_and_null_values() {
+        let input = map_list();
+        assert_eq!(
+            lookup(&input, &ScalarValue::Utf8(Some(String::new())))
+                .unwrap()
+                .as_ref(),
+            &Int64Array::from(vec![Some(2), None, None, None])
+        );
+        assert_eq!(
+            lookup(&input, &ScalarValue::Utf8(Some("a".into())))
+                .unwrap()
+                .as_ref(),
+            &Int64Array::from(vec![None, None, None, Some(9)])
+        );
+    }
+
+    #[test]
+    fn list_map_dynamic_lookup_handles_slices_empty_rows_and_null_keys() {
+        let input = map_list();
+        let keys: ArrayRef = Arc::new(StringArray::from(vec![
+            Some(""),
+            Some("a"),
+            None,
+            Some("a"),
+        ]));
+        assert_eq!(
+            dynamic_lookup(&input, &keys, false).unwrap().as_ref(),
+            &Int64Array::from(vec![Some(2), None, None, Some(9)])
+        );
+        assert_eq!(
+            dynamic_lookup(&input.slice(1, 3), &keys.slice(1, 3), false)
+                .unwrap()
+                .as_ref(),
+            &Int64Array::from(vec![None, None, Some(9)])
+        );
+    }
 
     #[test]
     fn sliced_dynamic_map_uses_first_match_and_preserves_nested_values() {

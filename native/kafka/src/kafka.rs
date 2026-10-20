@@ -547,7 +547,7 @@ impl NativeKafkaEncoder {
 
 /// Rebuilds the batch onto the declared sink boundary: each column takes its declared field name
 /// (the input plan may carry generated expression names) and has its TIMESTAMP_LTZ leaves re-marked
-/// (see `mark_ltz_leaves`), so the encoders below need no side channel.
+/// (see `BatchAnnotationPlan`), so the encoders below need no side channel.
 pub(crate) fn annotate_flink_types(
     batch: &RecordBatch,
     logical_types: &[String],
@@ -568,7 +568,14 @@ impl BatchAnnotationPlan {
         logical_types: &[String],
         field_names: &[String],
     ) -> Result<Self, String> {
-        if logical_types.is_empty() && field_names.is_empty() {
+        if logical_types.is_empty()
+            && field_names.is_empty()
+            && !batch
+                .schema()
+                .fields()
+                .iter()
+                .any(|field| contains_row_metadata(field.data_type()))
+        {
             return Ok(Self {
                 input_types: batch
                     .schema()
@@ -579,6 +586,16 @@ impl BatchAnnotationPlan {
                 schema: batch.schema(),
                 columns: vec![LtzMarkPlan::Identity; batch.num_columns()],
             });
+        }
+        if logical_types.is_empty() && field_names.is_empty() && batch.num_columns() > 0 {
+            let types = vec![String::new(); batch.num_columns()];
+            let names = batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| field.name().clone())
+                .collect::<Vec<_>>();
+            return Self::new(batch, &types, &names);
         }
         if logical_types.len() != batch.num_columns() || field_names.len() != batch.num_columns() {
             return Err(format!(
@@ -646,8 +663,12 @@ impl BatchAnnotationPlan {
             .zip(batch.columns())
             .map(|(plan, column)| plan.apply(column.clone()))
             .collect::<Result<Vec<_>, String>>()?;
-        RecordBatch::try_new(self.schema.clone(), columns)
-            .map_err(|error| format!("failed to annotate Kafka JSON schema: {error}"))
+        RecordBatch::try_new_with_options(
+            self.schema.clone(),
+            columns,
+            &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(batch.num_rows())),
+        )
+        .map_err(|error| format!("failed to annotate Kafka JSON schema: {error}"))
     }
 }
 
@@ -655,18 +676,43 @@ impl BatchAnnotationPlan {
 enum LtzMarkPlan {
     Identity,
     Timestamp,
-    Struct(Vec<LtzMarkPlan>),
+    Struct(Vec<(usize, LtzMarkPlan)>),
     List(Box<LtzMarkPlan>),
     LargeList(Box<LtzMarkPlan>),
+    FixedSizeList(Box<LtzMarkPlan>),
     Map(Box<LtzMarkPlan>, Box<LtzMarkPlan>),
+}
+
+fn contains_row_metadata(data_type: &DataType) -> bool {
+    match data_type {
+        DataType::Struct(fields) => {
+            streamfusion_bridge::nested_row_kind_index(fields).is_some()
+                || fields.iter().any(|field| {
+                    field
+                        .metadata()
+                        .get("streamfusion.nested-row-binary")
+                        .map(String::as_str)
+                        == Some("1")
+                        || contains_row_metadata(field.data_type())
+                })
+        }
+        DataType::List(field)
+        | DataType::LargeList(field)
+        | DataType::FixedSizeList(field, _)
+        | DataType::Map(field, _) => contains_row_metadata(field.data_type()),
+        _ => false,
+    }
 }
 
 impl LtzMarkPlan {
     fn new(data_type: &DataType, descriptor: &str) -> Result<Self, String> {
-        if !descriptor.contains("TIMESTAMP_LTZ") {
+        if !descriptor.contains("TIMESTAMP_LTZ") && !contains_row_metadata(data_type) {
             return Ok(Self::Identity);
         }
         let children = |expected: usize| -> Result<Vec<&str>, String> {
+            if descriptor.is_empty() {
+                return Ok(vec![""; expected]);
+            }
             let children = descriptor_children(descriptor).ok_or_else(|| {
                 format!("Flink descriptor {descriptor} does not match an Arrow container")
             })?;
@@ -685,18 +731,41 @@ impl LtzMarkPlan {
             {
                 Ok(Self::Timestamp)
             }
-            DataType::Struct(fields) => Ok(Self::Struct(
-                fields
+            DataType::Struct(fields) => {
+                let kind = streamfusion_bridge::nested_row_kind_index(fields);
+                let indices = fields
                     .iter()
-                    .zip(children(fields.len())?)
-                    .map(|(field, child)| Self::new(field.data_type(), child))
-                    .collect::<Result<Vec<_>, String>>()?,
-            )),
+                    .enumerate()
+                    .filter_map(|(index, field)| {
+                        let binary = field.data_type() == &DataType::Binary
+                            && field
+                                .metadata()
+                                .get("streamfusion.nested-row-binary")
+                                .map(String::as_str)
+                                == Some("1");
+                        (Some(index) != kind && !binary).then_some(index)
+                    })
+                    .collect::<Vec<_>>();
+                let descriptors = children(indices.len())?;
+                Ok(Self::Struct(
+                    indices
+                        .into_iter()
+                        .zip(descriptors)
+                        .map(|(index, child)| {
+                            Ok((index, Self::new(fields[index].data_type(), child)?))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?,
+                ))
+            }
             DataType::List(field) => Ok(Self::List(Box::new(Self::new(
                 field.data_type(),
                 children(1)?[0],
             )?))),
             DataType::LargeList(field) => Ok(Self::LargeList(Box::new(Self::new(
+                field.data_type(),
+                children(1)?[0],
+            )?))),
+            DataType::FixedSizeList(field, _) => Ok(Self::FixedSizeList(Box::new(Self::new(
                 field.data_type(),
                 children(1)?[0],
             )?))),
@@ -724,12 +793,15 @@ impl LtzMarkPlan {
                 .map_err(|error| error.to_string()),
             Self::Struct(plans) => {
                 let (fields, columns, nulls) = array.as_struct().clone().into_parts();
-                let columns = columns
-                    .into_iter()
-                    .zip(plans)
-                    .map(|(column, plan)| plan.apply(column))
+                let logical_fields = plans
+                    .iter()
+                    .map(|(index, _)| fields[*index].clone())
+                    .collect::<Vec<_>>();
+                let columns = plans
+                    .iter()
+                    .map(|(index, plan)| plan.apply(columns[*index].clone()))
                     .collect::<Result<Vec<_>, String>>()?;
-                let fields = fields
+                let fields = logical_fields
                     .iter()
                     .zip(&columns)
                     .map(|(field, column)| {
@@ -741,7 +813,11 @@ impl LtzMarkPlan {
                         )
                     })
                     .collect::<Vec<_>>();
-                Ok(Arc::new(StructArray::new(fields.into(), columns, nulls)))
+                if columns.is_empty() {
+                    Ok(Arc::new(StructArray::new_empty_fields(array.len(), nulls)))
+                } else {
+                    Ok(Arc::new(StructArray::new(fields.into(), columns, nulls)))
+                }
             }
             Self::List(plan) => {
                 let (field, offsets, values, nulls) = array.as_list::<i32>().clone().into_parts();
@@ -764,6 +840,23 @@ impl LtzMarkPlan {
                         .with_data_type(values.data_type().clone()),
                 );
                 Ok(Arc::new(LargeListArray::new(field, offsets, values, nulls)))
+            }
+            Self::FixedSizeList(plan) => {
+                let list = array
+                    .as_any()
+                    .downcast_ref::<arrow::array::FixedSizeListArray>()
+                    .ok_or("fixed-size list plan applied to a different array")?;
+                let (field, size, values, nulls) = list.clone().into_parts();
+                let values = plan.apply(values)?;
+                let field = Arc::new(
+                    field
+                        .as_ref()
+                        .clone()
+                        .with_data_type(values.data_type().clone()),
+                );
+                Ok(Arc::new(arrow::array::FixedSizeListArray::new(
+                    field, size, values, nulls,
+                )))
             }
             Self::Map(key_plan, value_plan) => {
                 let map = array.as_map();
@@ -823,6 +916,9 @@ fn descriptor_children(descriptor: &str) -> Option<Vec<&str>> {
         return None;
     }
     let inner = rest.strip_suffix('>')?;
+    if inner.trim().is_empty() {
+        return Some(Vec::new());
+    }
     let mut children = Vec::new();
     let mut depth = 0usize;
     let mut start = 0usize;
@@ -890,7 +986,7 @@ impl arrow::json::writer::EncoderFactory for FlinkJsonEncoderFactory {
             // TIMESTAMP_LTZ is an instant Flink renders at UTC with a 'Z' designator; plain
             // TIMESTAMP is the same wall-clock digit layout without any zone. Both trim the
             // fraction to its shortest form (appendFraction(NANO_OF_SECOND, 0, 9, true)). The
-            // boundary marks LTZ leaves with a UTC timezone (`mark_ltz_leaves`), so the Arrow type
+            // boundary marks LTZ leaves with a UTC timezone (`BatchAnnotationPlan`), so the Arrow type
             // alone selects the designator — at any nesting depth, since arrow-json's container
             // encoders consult this factory recursively.
             data_type if streamfusion_bridge::timestamp::is_timestamp(data_type) => {
@@ -2065,5 +2161,124 @@ mod decimal_node_tests {
             encode_legacy_decimal_node(unscaled, scale, false, &mut actual);
             assert_eq!(actual, scientific.as_bytes());
         }
+    }
+}
+
+#[cfg(test)]
+mod row_metadata_tests {
+    use super::*;
+    use arrow::array::{Int64Array, Int8Array, ListArray};
+    use arrow::buffer::{NullBuffer, OffsetBuffer};
+
+    #[test]
+    fn logical_rows_share_sliced_buffers_and_keep_user_fields_with_the_reserved_name() {
+        let values = Arc::new(Int64Array::from(vec![1, 2, 3, 4])) as ArrayRef;
+        let user = Arc::new(Int64Array::from(vec![11, 12, 13, 14])) as ArrayRef;
+        let metadata = Arc::new(Int8Array::from(vec![0, 1, 2, 3])) as ArrayRef;
+        let raw = Arc::new(arrow::array::BinaryArray::from(vec![b"a".as_slice(); 4])) as ArrayRef;
+        let fields = vec![
+            Arc::new(Field::new("v", DataType::Int64, true)),
+            Arc::new(
+                Field::new("__sf_binary_row", DataType::Binary, true).with_metadata(
+                    std::collections::HashMap::from([(
+                        "streamfusion.nested-row-binary".into(),
+                        "1".into(),
+                    )]),
+                ),
+            ),
+            Arc::new(Field::new("__sf_nested_row_kind", DataType::Int64, true)),
+            Arc::new(
+                Field::new("__sf_nested_row_kind", DataType::Int8, false).with_metadata(
+                    std::collections::HashMap::from([(
+                        "streamfusion.nested-row-kind".into(),
+                        "1".into(),
+                    )]),
+                ),
+            ),
+        ];
+        let rows = StructArray::new(
+            fields.into(),
+            vec![values, raw, user, metadata],
+            Some(NullBuffer::from(vec![true, false, true, true])),
+        )
+        .slice(1, 3);
+        let pointer = rows.column(0).to_data().buffers()[0].as_ptr();
+        let lists = ListArray::new(
+            Arc::new(Field::new("item", rows.data_type().clone(), true)),
+            OffsetBuffer::new(vec![0, 1, 1, 3].into()),
+            Arc::new(rows),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+        let batch =
+            RecordBatch::try_from_iter(vec![("rows", Arc::new(lists) as ArrayRef)]).unwrap();
+        for types in [vec![], vec!["ARRAY<ROW<BIGINT,BIGINT>>".to_string()]] {
+            let names = if types.is_empty() {
+                vec![]
+            } else {
+                vec!["rows".to_string()]
+            };
+            let output = annotate_flink_types(&batch, &types, &names).unwrap();
+            let list = output
+                .column(0)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap();
+            let rows = list
+                .values()
+                .as_any()
+                .downcast_ref::<StructArray>()
+                .unwrap();
+            assert_eq!(rows.num_columns(), 2);
+            assert_eq!(rows.column_names(), vec!["v", "__sf_nested_row_kind"]);
+            assert_eq!(rows.column(0).to_data().buffers()[0].as_ptr(), pointer);
+            assert!(list.is_null(1));
+            assert!(rows.is_null(0));
+            assert_eq!(
+                rows.column(0)
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap()
+                    .value(1),
+                3
+            );
+            assert_eq!(
+                rows.column(1)
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .unwrap()
+                    .value(2),
+                14
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_only_and_zero_column_rows_keep_their_lengths() {
+        let field = Arc::new(
+            Field::new("__sf_nested_row_kind", DataType::Int8, false).with_metadata(
+                std::collections::HashMap::from([(
+                    "streamfusion.nested-row-kind".into(),
+                    "1".into(),
+                )]),
+            ),
+        );
+        let rows = StructArray::new(
+            vec![field].into(),
+            vec![Arc::new(Int8Array::from(vec![0, 1, 2]))],
+            None,
+        );
+        let batch = RecordBatch::try_from_iter(vec![("r", Arc::new(rows) as ArrayRef)]).unwrap();
+        let output = annotate_flink_types(&batch, &["ROW<>".into()], &["r".into()]).unwrap();
+        let rows = output
+            .column(0)
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.num_columns(), 0);
+        let empty = batch.project(&[]).unwrap();
+        let output = annotate_flink_types(&empty, &[], &[]).unwrap();
+        assert_eq!(output.num_columns(), 0);
+        assert_eq!(output.num_rows(), 3);
     }
 }

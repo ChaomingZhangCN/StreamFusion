@@ -1,0 +1,1225 @@
+{
+  "baseline": "adbdafe4d125b40eeea3b995c0eb40591615e0bc",
+  "date": "2026-10-19",
+  "configuration": {
+    "flink": "2.2.1",
+    "jdk": "17",
+    "native": "fresh baseline release + mimalloc; native production unchanged",
+    "parallelism": 1,
+    "heap_gib": 2,
+    "rows": 500000,
+    "keys": 64,
+    "binary_width": 8,
+    "null_every": 7,
+    "empty_binary_every": 5,
+    "batch_rows": 1024,
+    "warmups": 2,
+    "measured_alternating_pairs": 5,
+    "exchange_zero_copy_local": false,
+    "watermarks": "source periodic emission disabled; all pending rows drain at end-of-input watermark. This is a batch-at-end workload, not evidence for periodic-watermark streaming throughput.",
+    "boundary": "runtime row source and blackhole row sink; both transposes, production IPC/JNI/state retained; intended native operator consumption asserted; executionSql-to-completion timed, metrics cluster boot outside timing",
+    "contention": "Own cargo build suspended during measurements; independent-JVM controls can drift"
+  },
+  "native_library_sha256": "a8bf912546404c4783691999c06cb7ca006db09192b666b2ed558c4287d0c9af",
+  "source_sha256": {
+    "src/main/java/tech/streamfusion/planner/OverAggregateMatcher.java": "62eebc9617f38ecd22a04cf0536a6ecf7f7349a38fa1fdb2bc3a9554cb4460bc",
+    "src/test/java/tech/streamfusion/FlinkOverBinaryIntervalCountSqlHarnessTest.java": "91ae4acb3a12041512785ed70b88825ef297a3abb36e9ee6ff1b62d3879ecdbd",
+    "src/test/java/tech/streamfusion/OverBinaryIntervalCountBenchmark.java": "0a75c3998ea399c2c44fe7750ddedfd5cc890212fdb8cf9cb5550ea06e0110dc"
+  },
+  "phases": {
+    "initial_partial_end_watermark": {
+      "log": "streamfusion-over-count-final-bench22.log",
+      "build_success": false,
+      "trials": [
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 3.273174
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.92765
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.622439
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.820282
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.512928
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.518773
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.504823
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.483143
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.669515
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.528894
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.529414
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.523779
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.328592
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.466191
+        },
+        {
+          "column": "b",
+          "frame": 1,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 51.584494
+        },
+        {
+          "column": "b",
+          "frame": 1,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.551261
+        },
+        {
+          "column": "b",
+          "frame": 1,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.461744
+        }
+      ],
+      "summaries": [
+        {
+          "column": "b",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.512928,
+          "native_median_seconds": 0.518773,
+          "stock_trials": [
+            1.512928197,
+            1.483143222,
+            1.669515042,
+            1.523778762,
+            1.328591909
+          ],
+          "native_trials": [
+            0.518772648,
+            0.504822565,
+            0.528894053,
+            0.529413891,
+            0.466190786
+          ]
+        }
+      ]
+    },
+    "candidate_running_range": {
+      "log": "streamfusion-over-count-running-final-bench22.log",
+      "build_success": true,
+      "trials": [
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 3.278074
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.068309
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.619448
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.683687
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.526017
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.535428
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.489096
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.304641
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.400455
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.423386
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.489119
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.529008
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.52127
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.512439
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.577027
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.459798
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.44665
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.267745
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.4534
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.411476
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.422879
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.37281
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.534912
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.459116
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.432224
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.433364
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.71879
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.448486
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.357874
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.432048
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 0.42865
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.446896
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.495918
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.434106
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.419294
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.478797
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.543076
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.451289
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.444767
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.492794
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.631447
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 0.440533
+        }
+      ],
+      "summaries": [
+        {
+          "column": "b",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.52127,
+          "native_median_seconds": 0.489119,
+          "stock_trials": [
+            1.526016991,
+            1.304640925,
+            1.40045513,
+            1.52900815,
+            1.521269657
+          ],
+          "native_trials": [
+            0.535428442,
+            0.489095513,
+            0.423385601,
+            0.489118567,
+            0.512439231
+          ]
+        },
+        {
+          "column": "d",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.4534,
+          "native_median_seconds": 0.432224,
+          "stock_trials": [
+            1.453400418,
+            1.372809788,
+            1.534911874,
+            1.433364087,
+            1.718789716
+          ],
+          "native_trials": [
+            0.411476255,
+            0.422878647,
+            0.459115958,
+            0.432224037,
+            0.448485564
+          ]
+        },
+        {
+          "column": "m",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.495918,
+          "native_median_seconds": 0.440533,
+          "stock_trials": [
+            1.49591805,
+            1.47879682,
+            1.543075859,
+            1.492793829,
+            1.631447435
+          ],
+          "native_trials": [
+            0.434105685,
+            0.419293981,
+            0.451289353,
+            0.444766954,
+            0.440532669
+          ]
+        }
+      ]
+    },
+    "prior_running_range": {
+      "log": "streamfusion-over-count-running-prior-bench22.log",
+      "build_success": true,
+      "trials": [
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 3.452871
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.80298
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.563885
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 2.11711
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.64902
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.654291
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.509722
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.534066
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.521209
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.559247
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.435662
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.424048
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.475085
+        },
+        {
+          "column": "b",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.55759
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.446189
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.601333
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.387732
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.496815
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.334643
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.358082
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.427665
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.485305
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.312941
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.334343
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.495268
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.659657
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.371375
+        },
+        {
+          "column": "d",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.44949
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.444072
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 0,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.305737
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.413073
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 1,
+          "warmup": true,
+          "rows": 500000,
+          "seconds": 1.462683
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.404799
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 2,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.28941
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.384305
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 3,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.377968
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.313493
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 4,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.475339
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.322584
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 5,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.351087
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "Flink",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.359729
+        },
+        {
+          "column": "m",
+          "frame": 0,
+          "order": "rt",
+          "engine": "StreamFusion",
+          "trial": 6,
+          "warmup": false,
+          "rows": 500000,
+          "seconds": 1.393583
+        }
+      ],
+      "summaries": [
+        {
+          "column": "b",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.521209,
+          "native_median_seconds": 1.55759,
+          "stock_trials": [
+            1.649019798,
+            1.534065933,
+            1.521209235,
+            1.424047719,
+            1.475084675
+          ],
+          "native_trials": [
+            1.654291344,
+            1.509721562,
+            1.559246758,
+            1.435661917,
+            1.557590254
+          ]
+        },
+        {
+          "column": "d",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.371375,
+          "native_median_seconds": 1.427665,
+          "stock_trials": [
+            1.334643187,
+            1.485305325,
+            1.312941197,
+            1.659657481,
+            1.371374569
+          ],
+          "native_trials": [
+            1.358082405,
+            1.427665187,
+            1.334343281,
+            1.495268008,
+            1.44948965
+          ]
+        },
+        {
+          "column": "m",
+          "order": "rt",
+          "frame": 0,
+          "rows": 500000,
+          "stock_median_seconds": 1.359729,
+          "native_median_seconds": 1.384305,
+          "stock_trials": [
+            1.404798615,
+            1.377967624,
+            1.313492848,
+            1.35108653,
+            1.359729418
+          ],
+          "native_trials": [
+            1.289410392,
+            1.384305105,
+            1.4753386,
+            1.322584172,
+            1.393583012
+          ]
+        }
+      ]
+    }
+  },
+  "bounded_rows_diagnostic": {
+    "completed": false,
+    "explanation": "Initial sequence completed binary running RANGE then was stopped during first stock bounded ROWS warmup under maintainer timebox. A thread dump records 31.609 CPU seconds in that stock task, stack at RowTimeRowsBoundedPrecedingFunction.onTimer. No bounded-frame acceleration claim is made. Completed running data remains above; no warmup or failed job discarded.",
+    "stack": "over-count-end-watermark-2026-10-19.txt"
+  },
+  "claims": "The three measured running RANGE cases beat paired stock and actual prior fallback, with separated trial ranges. Other frames/types are correctness-verified, not covered by these throughput claims."
+}

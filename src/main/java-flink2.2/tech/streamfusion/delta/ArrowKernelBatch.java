@@ -126,11 +126,15 @@ public final class ArrowKernelBatch implements ColumnarBatch, AutoCloseable {
       retained.add((FieldVector) transfer.getTo());
       fields.add(deltaField(vector.vector.getField(), schema.at(i)));
     }
-    return new VectorSchemaRoot(fields, retained, root.getRowCount());
+    try (VectorSchemaRoot source = new VectorSchemaRoot(retained)) {
+      return tech.streamfusion.arrow.ArrowSchemaViews.retain(retained,
+          new org.apache.arrow.vector.types.pojo.Schema(fields), root.getRowCount(),
+          root.getVector(0).getAllocator());
+    }
   }
 
-  /** Returns a synchronous-use view in Kernel column order; the batch remains its owner. */
-  VectorSchemaRoot borrowedRoot() {
+  /** Retains a logical view in Kernel column order, with independent buffer ownership. */
+  VectorSchemaRoot logicalRoot() {
     List<FieldVector> borrowed = new ArrayList<>(vectors.size());
     List<Field> fields = new ArrayList<>(vectors.size());
     for (int i = 0; i < vectors.size(); i++) {
@@ -138,7 +142,9 @@ public final class ArrowKernelBatch implements ColumnarBatch, AutoCloseable {
       borrowed.add(vector.vector);
       fields.add(deltaField(vector.vector.getField(), schema.at(i)));
     }
-    return new VectorSchemaRoot(fields, borrowed, root.getRowCount());
+    return tech.streamfusion.arrow.ArrowSchemaViews.retain(borrowed,
+        new org.apache.arrow.vector.types.pojo.Schema(fields), root.getRowCount(),
+        root.getVector(0).getAllocator());
   }
 
   /** Row permutation gathered by the native writer; empty means the full exported batch. */
@@ -151,7 +157,8 @@ public final class ArrowKernelBatch implements ColumnarBatch, AutoCloseable {
   }
 
   private static Field deltaField(Field arrowField, StructField deltaField) {
-    Field typed = deltaTimestampMetadata(arrowField, deltaField.getDataType());
+    Field typed = deltaTimestampMetadata(
+        tech.streamfusion.arrow.ArrowSchemaViews.logicalField(arrowField), deltaField.getDataType());
     return new Field(deltaField.getName(), typed.getFieldType(), typed.getChildren());
   }
 

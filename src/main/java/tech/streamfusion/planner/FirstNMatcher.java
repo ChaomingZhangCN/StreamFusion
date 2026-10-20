@@ -27,8 +27,9 @@ final class FirstNMatcher {
         && range.getRankEnd() <= Integer.MAX_VALUE
         && RowDataArrowConverter.supports(
             FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getRowType()))
-        && ArrowRowTypeSupport.supports(
-            FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getRowType()));
+        && ArrowRowTypeSupport.supportsFields(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getInput().getRowType()),
+            rank.partitionKey().toArray());
   }
 
   static RelNode substitute(StreamPhysicalRank rank, PlanContext ctx) {

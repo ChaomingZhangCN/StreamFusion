@@ -24,7 +24,7 @@ fn sort_array(array: &ArrayRef) -> ArrayRef {
                 .as_primitive::<Float64Type>()
                 .unary::<_, Float64Type>(|v| if v == 0.0 { 0.0 } else { v }),
         ),
-        _ => array.clone(),
+        _ => streamfusion_bridge::ordering::canonical_ordering_column(array),
     }
 }
 
@@ -945,6 +945,27 @@ impl<S: KeyedStateStore<TopNPartition>> TopNRanker<S> {
             .collect();
         let data_arrays: Vec<ArrayRef> = (0..arity).map(|i| batch.column(i).clone()).collect();
         let keys = encode_group_keys(&conv.sort, &sort_arrays, batch.num_rows());
+        // A fixed append-only bound only improves within this batch. A row already worse than
+        // its full partition cannot enter later; TTL and changing bounds must inspect all rows.
+        let needs_payloads = self.first_bound
+            || self.rank_end_column.is_some()
+            || self.non_time_row_number
+            || ttl.enabled()
+            || (0..batch.num_rows()).any(|row| {
+                let part = parts.encode(row);
+                self.groups.get(part).is_none_or(|buffer| {
+                    buffer.len() < self.limit.max(0) as usize
+                        || buffer
+                            .last()
+                            .is_none_or(|last| keys.row(row) < last.sort.row())
+                })
+            });
+        if !needs_payloads {
+            self.groups.end_bundle()?;
+            self.memory.record(self.groups.footprint_delta());
+            self.memory.account()?;
+            return Ok(self.emit(Vec::new(), Vec::new(), Vec::new()));
+        }
         let payloads = conv
             .payload
             .convert_columns(&data_arrays)
@@ -2249,6 +2270,7 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
         let (rank_output, rank_base) = (self.output_rank_number || self.offset > 0, self.offset);
         let track = self.memory.tracking();
         let mut delta = 0isize;
+        let serialized_state = self.groups.serializes_values();
         let groups = &mut self.groups;
 
         let mut out_rows: Vec<Arc<OwnedRow>> = Vec::new();
@@ -2297,6 +2319,7 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
                     self.offset,
                     self.limit,
                     self.generate_update_before,
+                    serialized_state,
                     &mut out_rows,
                     &mut out_kinds,
                 );

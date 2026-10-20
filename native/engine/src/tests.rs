@@ -6441,6 +6441,55 @@ fn updating_join_unique_join_key_update_replaces_the_prior_row() {
     assert_eq!(values(&out, 3), vec![200]);
 }
 
+#[test]
+fn unique_join_retractions_clear_the_key_without_comparing_payloads() {
+    for kind in [
+        JoinKind::Inner,
+        JoinKind::LeftOuter,
+        JoinKind::RightOuter,
+        JoinKind::FullOuter,
+        JoinKind::Semi,
+        JoinKind::Anti,
+    ] {
+        for left in [false, true] {
+            for unique in [false, true] {
+                for retract in [1, 3] {
+                    let mut joiner =
+                        UpdatingJoiner::new(vec![0], vec![0], kind, kv_schema(), kv_schema(), None)
+                            .with_unique_join_keys(unique, unique)
+                            .with_memory_budget(1 << 20)
+                            .unwrap();
+                    joiner
+                        .push(&changelog_join_batch(vec![1], vec![100], vec![0]), left, 0)
+                        .unwrap();
+                    assert!(joiner.memory.state_bytes > 0);
+                    joiner
+                        .push(
+                            &changelog_join_batch(vec![1], vec![999], vec![retract]),
+                            left,
+                            0,
+                        )
+                        .unwrap();
+                    assert_eq!(joiner.memory.state_bytes == 0, unique);
+                    let restored = UpdatingJoiner::restore(
+                        vec![0],
+                        vec![0],
+                        vec![],
+                        kind,
+                        kv_schema(),
+                        kv_schema(),
+                        None,
+                        &joiner.snapshot(),
+                        0,
+                    )
+                    .with_unique_join_keys(unique, unique);
+                    assert_eq!(restored.snapshot(), joiner.snapshot());
+                }
+            }
+        }
+    }
+}
+
 // A left row matches every buffered right row of its key (cartesian per key); different keys
 // never match.
 #[test]
@@ -9833,14 +9882,6 @@ mod rocksdb_group_multisets {
     fn group_temporal_boolean_extrema_rocks_checkpoint_preserves_values() {
         for (code, low, high) in temporal_boolean_values() {
             let types = vec![low.data_type(); 2];
-            if code == 9 {
-                assert!(!crate::state::rocks_store::rocks_group_supported(
-                    &[1, 2],
-                    &types,
-                    &types
-                ));
-                continue;
-            }
             let make =
                 || GroupAggregator::new(vec![1, 2], vec![code; 2], vec![1; 2], vec![0], true);
             let codec = || GroupStateCodec::new(vec![1, 2], types.clone(), vec![1; 2], vec![-1; 2]);
@@ -9878,14 +9919,6 @@ mod rocksdb_group_multisets {
     fn temporal_boolean_running_extrema_rocks_checkpoint_preserves_types() {
         for (code, low, high) in temporal_boolean_values() {
             let types = vec![low.data_type(); 2];
-            if code == 9 {
-                assert!(!crate::state::rocks_store::rocks_group_supported(
-                    &[10, 11],
-                    &types,
-                    &types
-                ));
-                continue;
-            }
             let make =
                 || GroupAggregator::new(vec![10, 11], vec![code; 2], vec![1; 2], vec![0], true);
             let codec =

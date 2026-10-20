@@ -82,7 +82,7 @@ class FlinkWindowFloatingDistinctSqlHarnessTest {
   @ParameterizedTest
   @CsvSource({"ONE_PHASE,TUMBLE", "TWO_PHASE,TUMBLE", "ONE_PHASE,HOP", "TWO_PHASE,HOP",
       "ONE_PHASE,CUMULATE", "TWO_PHASE,CUMULATE"})
-  void splitDistinctRetainsCanonicalMembershipAndTheAttachedPhaseGate(String phase, String shape) {
+  void splitDistinctRetainsCanonicalMembershipAcrossPhases(String phase, String shape) {
     try (var metrics = new RecoveryExecutionMetrics()) {
       var comparison = NativeFailureParity.run(() -> {
         var table = environment(metrics, phase);
@@ -91,7 +91,7 @@ class FlinkWindowFloatingDistinctSqlHarnessTest {
       }, "SELECT k, window_start, window_end, COUNT(DISTINCT f), COUNT(DISTINCT d),"
           + " COUNT(DISTINCT fb), COUNT(DISTINCT db) FROM TABLE(" + window(shape)
           + ") GROUP BY k, window_start, window_end");
-      comparison.assertSuccess(phase.equals("TWO_PHASE") ? NativeFailureParity.Route.NATIVE : NativeFailureParity.Route.FALLBACK);
+      comparison.assertSuccess(NativeFailureParity.Route.NATIVE);
       assertEquals(comparison.host().resultTypes(), comparison.nativeRun().resultTypes());
       for (var row : comparison.host().rows()) {
         assertEquals(row.get(4), row.get(6));

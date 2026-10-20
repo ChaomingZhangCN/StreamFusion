@@ -746,7 +746,8 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
         );
     }
 
-    /// `state.retractRecord(record)` — drops one appear-time, removing the row (and emptied key) at
+    /// A join key containing a unique key identifies a ValueState row: retraction clears that key
+    /// regardless of payload equality. Other sides drop one appear-time, removing the row (and key) at
     /// 0. An expired entry reads as absent, so the retraction is a state no-op in Flink; here the
     /// corpse is additionally removed (delete-on-read), with no decrement and nothing emitted —
     /// the caller still probes the other side and emits for whatever matches there. A decrement
@@ -755,10 +756,24 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
         state: &mut S,
         key: &[u8],
         row: &[u8],
+        unique: bool,
         ttl: StateTtl,
         track: bool,
         delta: &mut isize,
     ) {
+        if unique {
+            if let Some(bucket) = state.get(key) {
+                if track {
+                    *delta -= (join_key_entry_bytes(key)
+                        + bucket
+                            .keys()
+                            .map(|row| join_row_entry_bytes(&row.0))
+                            .sum::<usize>()) as isize;
+                }
+                state.remove(key);
+            }
+            return;
+        }
         let mut emptied = false;
         if let Some(bucket) = state.get_mut(key) {
             if let Some(meta) = bucket.get_mut(row) {
@@ -1422,6 +1437,11 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
                     input_state,
                     key,
                     full.as_ref(),
+                    if is_left {
+                        self.left_join_key_unique
+                    } else {
+                        self.right_join_key_unique
+                    },
                     input_ttl,
                     track,
                     &mut delta,
@@ -1613,10 +1633,12 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
                 }
             }
         } else {
+            let unique = self.side_join_key_unique(is_left);
             Self::retract_record(
                 self.input_state(is_left),
                 key,
                 full,
+                unique,
                 input_ttl,
                 track,
                 delta,
@@ -1719,7 +1741,15 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
                     delta,
                 );
             } else {
-                Self::retract_record(&mut self.left_state, key, full, left_ttl, track, delta);
+                Self::retract_record(
+                    &mut self.left_state,
+                    key,
+                    full,
+                    self.left_join_key_unique,
+                    left_ttl,
+                    track,
+                    delta,
+                );
             }
         } else {
             // processElement2: a right row flips associated left rows' degree across 0↔1, emitting or
@@ -1757,7 +1787,15 @@ impl<S: JoinStateStore> UpdatingJoiner<S> {
                     );
                 }
             } else {
-                Self::retract_record(&mut self.right_state, key, full, right_ttl, track, delta);
+                Self::retract_record(
+                    &mut self.right_state,
+                    key,
+                    full,
+                    self.right_join_key_unique,
+                    right_ttl,
+                    track,
+                    delta,
+                );
                 for other in &associated {
                     if other.num_assoc == 1 {
                         // semi: -D/-U[left] (input RowKind); anti: +I[left]

@@ -82,6 +82,12 @@ uses Kernel's physical column names, including nested struct fields, and restore
 TIMESTAMP_NTZ timezone metadata before writing. SQL insertion binds columns by position, so input
 aliases and generated expression names must not become names in the table's Parquet files.
 
+Before export, the Arrow view recursively excludes internal ROW transport children and applies
+Kernel's logical/physical field names and timestamp metadata. It retains buffer references rather
+than transposing nested values, and the exported root can close independently of its input. Both
+the direct write and buffered/selected write use this logical view, retaining the full source row
+range until the native selection gather.
+
 Sink constraints remain Flink-owned. A nullable query field assigned to a `NOT NULL` target keeps
 the Delta sink on the stock path so `table.exec.sink.not-null-enforcer` can fail or drop the row.
 When `table.exec.sink.type-length-enforcer` is enabled, bounded `CHAR`/`VARCHAR` and

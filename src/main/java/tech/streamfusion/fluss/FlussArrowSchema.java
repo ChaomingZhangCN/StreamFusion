@@ -33,10 +33,11 @@ public final class FlussArrowSchema {
         target.getType() instanceof org.apache.arrow.vector.types.pojo.ArrowType.Timestamp
             || TimestampAccessor.isComponentTimestamp(target);
     if (sourceTimestamp && targetTimestamp) return true;
-    if (!source.getType().equals(target.getType())
-        || source.getChildren().size() != target.getChildren().size()) return false;
-    for (int i = 0; i < source.getChildren().size(); i++) {
-      if (!compatible(source.getChildren().get(i), target.getChildren().get(i))) return false;
+    var from = tech.streamfusion.arrow.ArrowSchemaViews.dataFields(source.getChildren());
+    var to = tech.streamfusion.arrow.ArrowSchemaViews.dataFields(target.getChildren());
+    if (!source.getType().equals(target.getType()) || from.size() != to.size()) return false;
+    for (int i = 0; i < from.size(); i++) {
+      if (!compatible(from.get(i), to.get(i))) return false;
     }
     return true;
   }
@@ -174,11 +175,26 @@ public final class FlussArrowSchema {
     }
     target.loadFieldBuffers(
         new ArrowFieldNode(count, source.getNullCount()), source.getFieldBuffers());
-    List<FieldVector> from = source.getChildrenFromFields();
-    List<FieldVector> to = target.getChildrenFromFields();
+    List<FieldVector> from = tech.streamfusion.arrow.ArrowSchemaViews.dataChildren(source);
+    List<FieldVector> to = tech.streamfusion.arrow.ArrowSchemaViews.dataChildren(target);
     if (from.size() != to.size())
       throw new IllegalArgumentException("Fluss nested field count changed");
     for (int i = 0; i < from.size(); i++) convertVector(from.get(i), to.get(i));
+    if (target instanceof org.apache.arrow.vector.complex.StructVector) {
+      var kind = tech.streamfusion.arrow.NestedRowKinds.vector(
+          (org.apache.arrow.vector.complex.StructVector) target);
+      if (kind != null) {
+        var sourceKind = tech.streamfusion.arrow.NestedRowKinds.vector(
+            (org.apache.arrow.vector.complex.StructVector) source);
+        if (sourceKind != null) {
+          convertVector(sourceKind, kind);
+        } else {
+          kind.allocateNew(count);
+          for (int i = 0; i < count; i++) kind.setSafe(i, (byte) 0);
+          kind.setValueCount(count);
+        }
+      }
+    }
     target.setValueCount(count);
   }
 }

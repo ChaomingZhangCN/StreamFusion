@@ -31,8 +31,7 @@ class FlinkLegacyUdfSqlHarnessTest {
         "SELECT legacy_add(legacy_add(a)) FROM inputs"
       })
   void sharedStatefulLegacyFunctionsRetainHostEvaluationOrder(String sql) throws Exception {
-    NativeParity.assertFallbackReasonContains(
-        FlinkLegacyUdfSqlHarnessTest::environment, sql, "shared stateful scalar UDF");
+    NativeParity.assertParity(FlinkLegacyUdfSqlHarnessTest::environment, sql);
   }
 
   private static TableEnvironment environment() {

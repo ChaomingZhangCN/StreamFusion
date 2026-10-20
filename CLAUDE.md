@@ -109,7 +109,8 @@ outside timed execution and state the measured boundary. Use `bin/bench-native.p
 suites and `--smoke` to validate fixtures; the coverage inventory and methodology live in
 [docs/benchmarks/native-criterion.md](docs/benchmarks/native-criterion.md). Record allocation requests
 and Arrow buffer sharing when investigating copies, without equating either metric with copied bytes.
-Criterion isolates native costs; it does not replace the end-to-end Flink comparison below.
+Criterion isolates native costs; it does not supply the stock-Flink comparison required for the
+functionality gates below.
 
 ### Performance requirements for new features
 
@@ -122,14 +123,38 @@ baseline is insufficient if the new native path still loses to Flink. The regres
 passing parity tests is only one part of completing a feature.
 
 Use release builds, identical queries/data/resources, warmup, and repeated measurements. Include representative
-sizes, cardinalities, and types for the feature, and retain all production conversion, JNI, and state costs in
-the measured path. Verify that the intended native operators actually execute. Report stock Flink and native
+sizes, cardinalities, and types for the feature. Retain production JNI, state, and conversions intrinsic to the
+functionality being measured; complete-job benchmarks also retain all perimeter conversion costs. Verify that
+the intended native operators actually execute. Report stock Flink and native
 results, variability, and the benchmark configuration in the PR and relevant documentation; include measured
 improvements in the commit message. Distinguish startup-dominated results from sustained processing performance
 without discarding unfavorable end-to-end results.
 
-When a native path is slower, profile and optimize the bottleneck before treating the acceleration work as
-complete. Examine batch execution, allocation/copying, row conversions, JNI calls, and aggregate/state layout
+For **small functionality-enabling benchmarks**, each engine starts in its native execution
+runtime and input format: **stock Flink starts in Java on prebuilt `RowData`; StreamFusion
+starts in Rust on prebuilt Arrow `RecordBatch` buffers** containing the same logical data.
+For example, ten Flink rows must be compared with ten rows already in Arrow format, not ten
+Arrow batches. Match values, types, NULLs, widths, cardinalities, and resources. Prepare inputs
+and operator setup outside timing. Start and stop the StreamFusion timer **inside Rust**, after
+input Arrow import and before output export. Time the production operation and equivalent
+output consumption in Rust/Arrow; Flink times its operation and output consumption in Java/RowData.
+Initial Java-to-Rust JNI/C Data entry, final Rust-to-Java export, and perimeter RowData-to-Arrow
+and Arrow-to-RowData transposes are outside this small-functionality timer. State work, allocation,
+conversions and JVM/UDF callbacks intrinsic to the operation remain inside it. A Java timer around
+a JNI call does not satisfy this Rust-side admission boundary. Conversion-inclusive standalone-job
+timings remain separate diagnostics. This exception applies only to small functionality gating:
+Nexmark, connector, complete-pipeline, and end-to-end claims retain their full production boundaries.
+
+**UDF execution is an accepted performance exception.** User-defined scalar, table and aggregate
+functions may be slower than stock Flink, particularly when native execution calls back into the
+JVM. Admit correctness-verified UDF coverage without requiring a standalone speedup or adding a
+performance-only opt-in. Measure and document its costs without claiming acceleration. Preserve
+Flink's types, NULLs, evaluation order, shared function instances, lifecycle and failure semantics.
+This exception is already authorized by the maintainer; do not ask for that tradeoff again.
+
+Except for the accepted UDF exception above, when a native path is slower under its applicable
+gate, profile and optimize the bottleneck before treating the acceleration work as complete. Examine batch
+execution, allocation/copying, row conversions, JNI calls, and aggregate/state layout
 rather than assuming Rust or Arrow is inherently faster. Do not quietly enable a known slower path by default
 or dismiss a regression as coverage work. If a slower implementation is necessary groundwork for later
 optimization, obtain explicit maintainer agreement on the tradeoff, document its measured limits and follow-up

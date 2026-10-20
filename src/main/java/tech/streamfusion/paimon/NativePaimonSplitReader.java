@@ -230,7 +230,10 @@ public final class NativePaimonSplitReader
   }
 
   private NativePaimonFileReader openFile(DataFileMeta file, DataSplit split) throws IOException {
-    List<Field> fields = new ArrayList<>(ArrowConversion.toArrowSchema(outputType).getFields());
+    List<Field> fields =
+        new ArrayList<>(
+            tech.streamfusion.arrow.ArrowFileBatch.schema(ArrowConversion.toArrowSchema(outputType))
+                .getFields());
     List<String> names = new ArrayList<>(outputType.getFieldNames());
     if (primaryKey && split.isStreaming()) {
       fields.add(Field.nullable(RowDataArrowConverter.ROW_KIND_COLUMN, new ArrowType.Int(8, true)));

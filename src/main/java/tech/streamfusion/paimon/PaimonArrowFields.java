@@ -38,11 +38,15 @@ final class PaimonArrowFields {
   private PaimonArrowFields() {}
 
   static Schema annotate(Schema arrow, RowType paimon) {
+    arrow = tech.streamfusion.arrow.ArrowFileBatch.schema(arrow);
     List<Field> fields = new ArrayList<>();
     List<DataField> dataFields = paimon.getFields();
     if (arrow.getFields().size() != dataFields.size()) {
       throw new IllegalArgumentException(
-          "Arrow batch has " + arrow.getFields().size() + " columns for " + dataFields.size()
+          "Arrow batch has "
+              + arrow.getFields().size()
+              + " columns for "
+              + dataFields.size()
               + " Paimon fields");
     }
     for (int i = 0; i < dataFields.size(); i++) {
@@ -70,54 +74,54 @@ final class PaimonArrowFields {
       case ARRAY:
         {
           {
-        DataType element = ((ArrayType) type).getElementType();
-        children =
-            List.of(
-                annotate(
-                    children.get(0),
-                    children.get(0).getName(),
-                    element,
-                    SpecialFields.getArrayElementFieldId(fieldId, depth + 1),
-                    depth + 1));
-      }
+            DataType element = ((ArrayType) type).getElementType();
+            children =
+                List.of(
+                    annotate(
+                        children.get(0),
+                        children.get(0).getName(),
+                        element,
+                        SpecialFields.getArrayElementFieldId(fieldId, depth + 1),
+                        depth + 1));
+          }
           break;
         }
       case MAP:
         {
           {
-        MapType map = (MapType) type;
-        Field entries = children.get(0);
-        children =
-            List.of(
-                new Field(
-                    entries.getName(),
-                    entries.getFieldType(),
-                    List.of(
-                        annotate(
-                            entries.getChildren().get(0),
-                            entries.getChildren().get(0).getName(),
-                            map.getKeyType().copy(false),
-                            SpecialFields.getMapKeyFieldId(fieldId, depth + 1),
-                            depth + 1),
-                        annotate(
-                            entries.getChildren().get(1),
-                            entries.getChildren().get(1).getName(),
-                            map.getValueType(),
-                            SpecialFields.getMapValueFieldId(fieldId, depth + 1),
-                            depth + 1))));
-      }
+            MapType map = (MapType) type;
+            Field entries = children.get(0);
+            children =
+                List.of(
+                    new Field(
+                        entries.getName(),
+                        entries.getFieldType(),
+                        List.of(
+                            annotate(
+                                entries.getChildren().get(0),
+                                entries.getChildren().get(0).getName(),
+                                map.getKeyType().copy(false),
+                                SpecialFields.getMapKeyFieldId(fieldId, depth + 1),
+                                depth + 1),
+                            annotate(
+                                entries.getChildren().get(1),
+                                entries.getChildren().get(1).getName(),
+                                map.getValueType(),
+                                SpecialFields.getMapValueFieldId(fieldId, depth + 1),
+                                depth + 1))));
+          }
           break;
         }
       case ROW:
         {
           {
-        List<DataField> nested = ((RowType) type).getFields();
-        List<Field> annotated = new ArrayList<>();
-        for (int i = 0; i < nested.size(); i++) {
-          annotated.add(annotate(children.get(i), nested.get(i)));
-        }
-        children = annotated;
-      }
+            List<DataField> nested = ((RowType) type).getFields();
+            List<Field> annotated = new ArrayList<>();
+            for (int i = 0; i < nested.size(); i++) {
+              annotated.add(annotate(children.get(i), nested.get(i)));
+            }
+            children = annotated;
+          }
           break;
         }
       default:
@@ -129,10 +133,15 @@ final class PaimonArrowFields {
     }
     FieldType fieldType = arrow.getFieldType();
     ArrowType arrowType = fieldType.getType();
-    Field result = new Field(
-        name, new FieldType(type.isNullable(), arrowType, fieldType.getDictionary(), metadata), children);
-    return precision == null ? result : TimestampAccessor.withTimezone(result,
-        type instanceof LocalZonedTimestampType ? "UTC" : null);
+    Field result =
+        new Field(
+            name,
+            new FieldType(type.isNullable(), arrowType, fieldType.getDictionary(), metadata),
+            children);
+    return precision == null
+        ? result
+        : TimestampAccessor.withTimezone(
+            result, type instanceof LocalZonedTimestampType ? "UTC" : null);
   }
 
   @Nullable
@@ -189,10 +198,10 @@ final class PaimonArrowFields {
       case MAP:
         {
           {
-        MapType map = (MapType) type;
-        String key = unsupportedTypeReason(map.getKeyType());
+            MapType map = (MapType) type;
+            String key = unsupportedTypeReason(map.getKeyType());
             return key != null ? key : unsupportedTypeReason(map.getValueType());
-      }
+          }
         }
       case ROW:
         return unsupportedTypeReason((RowType) type);

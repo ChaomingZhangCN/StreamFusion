@@ -189,7 +189,7 @@ class FlinkStringWindowSqlHarnessTest {
   }
 
   private static TableEnvironment environment(String phase) {
-    return environment(phase, phase.equals("ONE_PHASE"));
+    return environment(phase, false);
   }
 
   private static TableEnvironment environment(String phase, boolean singlePhaseStrings) {
@@ -240,16 +240,36 @@ class FlinkStringWindowSqlHarnessTest {
     return table;
   }
 
+  @Test
+  void legacyStringExtremaRunNativelyWithoutAnOptIn() throws Exception {
+    NativeParity.assertKindedParity(
+        () -> environment("ONE_PHASE", false),
+        "SELECT k, TUMBLE_START(rt, INTERVAL '10' SECOND), MIN(text_value), MAX(text_value),"
+            + " COUNT(*) FROM src GROUP BY k, TUMBLE(rt, INTERVAL '10' SECOND)");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"TUMBLE", "HOP", "CUMULATE"})
-  void singlePhaseStringExtremaStayOnFlinkByDefault(String shape) throws Exception {
-    NativeParity.assertFallbackReasonContains(
+  void measuredSinglePhaseShapesRunNativelyWithoutAnOptIn(String shape) throws Exception {
+    NativeParity.assertKindedParity(
         () -> environment("ONE_PHASE", false),
         "SELECT k, window_start, window_end, MIN(text_value), MAX(text_value), COUNT(*) "
             + "FROM TABLE("
             + window(shape)
+            + ") GROUP BY k, window_start, window_end");
+  }
+
+  @Test
+  void explicitFalseRetainsStockForAnOtherwiseAdmittedShape() throws Exception {
+    NativeParity.assertFallbackReasonContains(
+        () -> {
+          var table = environment("ONE_PHASE", false);
+          table.getConfig().set("streamfusion.window.string-extrema.single-phase.enabled", "false");
+          return table;
+        },
+        "SELECT k, window_start, window_end, MIN(text_value) FROM TABLE("
+            + window("TUMBLE")
             + ") GROUP BY k, window_start, window_end",
-        "single-phase string MIN/MAX requires"
-            + " streamfusion.window.string-extrema.single-phase.enabled=true");
+        "single-phase string MIN/MAX requires");
   }
 }

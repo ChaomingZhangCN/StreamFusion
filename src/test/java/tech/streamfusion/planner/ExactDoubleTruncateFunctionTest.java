@@ -146,7 +146,9 @@ class ExactDoubleTruncateFunctionTest {
       var actual =
           assertThrows(
               failure.getClass(), () -> ExactDoubleTruncateFunction.truncate(value, scale));
-      assertEquals(failure.getMessage(), actual.getMessage());
+      // HotSpot can omit helpful NPE messages at frequently thrown implicit checks.
+      if (!(failure instanceof NullPointerException))
+        assertEquals(failure.getMessage(), actual.getMessage());
       return;
     }
     if (Double.isFinite(value) && scale >= -6 && scale <= 6

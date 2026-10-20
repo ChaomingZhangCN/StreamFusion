@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.types.logical.RowType;
 import tech.streamfusion.Native;
+import tech.streamfusion.arrow.MapListRepresentation;
 import tech.streamfusion.operator.MiniBatchMetrics.FlushReason;
 import tech.streamfusion.planner.NativeConfig;
 import tech.streamfusion.state.CanonicalNativeState;
@@ -247,7 +248,7 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
       RocksDBNativeStateSupport rocksdb, byte[][] restoredPartitions) {
     long now = getProcessingTimeService().getCurrentProcessingTime();
     if (updateFast()) {
-      return withRowSchema(
+      return withMapListSchema(
           rowType,
           schemaAddress ->
               Native.createRocksDBUpdateFastTopNRanker(
@@ -260,7 +261,7 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
                   rocksdb.keyGroupStart(), rocksdb.keyGroupEnd(), rocksdb.aligned(),
                   restoredPartitions));
     }
-    return withRowSchema(
+    return withMapListSchema(
         rowType,
         schemaAddress ->
             Native.createRocksDBTopNRanker(
@@ -490,7 +491,8 @@ public class NativeColumnarTopNOperator extends AbstractNativeStatefulOperator<A
         ArrowSchema inSchema = ArrowSchema.allocateNew(inAllocator);
         ArrowArray outArray = ArrowArray.allocateNew(allocator);
         ArrowSchema outSchema = ArrowSchema.allocateNew(allocator)) {
-      Data.exportVectorSchemaRoot(inAllocator, in, dictionaries, inArray, inSchema);
+      Data.exportVectorSchemaRoot(
+          inAllocator, MapListRepresentation.forExport(in), dictionaries, inArray, inSchema);
       // Flink's TtlTimeProvider clock: the processing-time service is System.currentTimeMillis in
       // production and harness-controlled in tests, so expiry is deterministic to test.
       long now = getProcessingTimeService().getCurrentProcessingTime();

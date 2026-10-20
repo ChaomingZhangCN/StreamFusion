@@ -156,8 +156,8 @@ final class NativeDeltaParquetHandler implements ParquetHandler {
       this.dataSchema = batch.getSchema();
       this.output = fs.create(target, false);
       byte[] chunk = new byte[DRAIN_CHUNK_BYTES];
-      VectorSchemaRoot root = batch.borrowedRoot();
-      try (org.apache.arrow.c.ArrowSchema encoderSchema =
+      try (VectorSchemaRoot root = batch.logicalRoot();
+          org.apache.arrow.c.ArrowSchema encoderSchema =
           org.apache.arrow.c.ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
         Data.exportSchema(
             NativeAllocator.SHARED,
@@ -187,8 +187,8 @@ final class NativeDeltaParquetHandler implements ParquetHandler {
               ? selected
               : Arrays.copyOfRange(selected, logicalOffset, logicalOffset + rowCount);
       int physicalOffset = selected.length == 0 ? logicalOffset : 0;
-      VectorSchemaRoot root = batch.borrowedRoot();
-      try (ArrowArray array = ArrowArray.allocateNew(NativeAllocator.SHARED)) {
+      try (VectorSchemaRoot root = batch.logicalRoot();
+          ArrowArray array = ArrowArray.allocateNew(NativeAllocator.SHARED)) {
         Data.exportVectorSchemaRoot(
             NativeAllocator.SHARED, root, NativeAllocator.DICTIONARIES, array);
         NativeParquet.parquetEncoderWrite(

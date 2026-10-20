@@ -18,13 +18,13 @@
       "test": "org.apache.flink.table.planner.runtime.stream.table.CalcITCase#testInlineScalarFunction",
       "display_name": "StateBackend=HEAP",
       "count": 1,
-      "route": "full_fallback"
+      "route": "mixed"
     },
     {
       "test": "org.apache.flink.table.planner.runtime.stream.table.CalcITCase#testInlineScalarFunction",
       "display_name": "StateBackend=ROCKSDB",
       "count": 1,
-      "route": "full_fallback"
+      "route": "mixed"
     },
     {
       "test": "org.apache.flink.table.api.TableEnvironmentITCase#testFromToDataStreamAndExecuteSql",

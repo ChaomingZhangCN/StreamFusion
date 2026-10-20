@@ -207,3 +207,24 @@ comparison. That loss is retained and tracked in
 [#394](https://github.com/datafusion-contrib/StreamFusion/issues/394). Regional calendars,
 non-COUNT upstream layouts and explicitly disabled attached windows retain their fallback;
 the separate calendar investigation remains [#350](https://github.com/datafusion-contrib/StreamFusion/issues/350).
+
+
+## Attached-boundary preparation
+
+For zones whose rules have a fixed offset, attached windows subtract the cached offset
+from local boundary milliseconds instead of constructing `Instant`, `LocalDateTime` and
+`ZonedDateTime` objects for each boundary of every row. Checked subtraction preserves
+overflow failure. Regional zones retain the existing calendar/DST conversion.
+
+Attached BIGINT values retain a full-range Arrow view when source and destination share
+an allocator root, following the existing timestamp handoff pattern. NULL validity and
+buffer references stay owned until synchronous native ingestion finishes. Different roots
+retain the copy path. Repeated aggregate arguments each own their retained reference.
+
+On the [operator-format fixture](../benchmarks/feature-admission-2026-10-19.md), 262,144 rows
+with 1,024-row batches reduce native attached SUM-input time from 45.0 to 17.6 ms and
+wide COUNT-input time from 44.8 to 16.5 ms, approximately 2.6–2.7×. Matched final stock
+medians are 42.3 and 37.0 ms. Fixed-offset arithmetic alone accounts for most of the gain;
+the second retention pass changes 18.5/17.0 ms to 17.6/16.5 ms in separate JVMs, a small
+increment without an isolated causal speedup claim. Full-pipeline performance is not
+inferred from these operator measurements.

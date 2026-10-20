@@ -35,6 +35,8 @@ import tech.streamfusion.compat.FlinkStreamOperator;
 public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
     implements OneInputStreamOperator<ArrowBatch, RowData> {
   private final RowType rowType;
+  private final boolean borrowStrings =
+      Boolean.getBoolean("streamfusion.experimental.borrowedStringExit");
   private final GeneratedProjection generatedProjection;
   private final boolean requiresBinaryRowCache;
   private transient Projection<RowData, BinaryRowData> projection;
@@ -116,7 +118,9 @@ public class ArrowToRowDataOperator extends FlinkStreamOperator<RowData>
     try (VectorSchemaRoot root = element.getValue().root()) {
       boolean project = projection != null && (!requiresBinaryRowCache || hasBinaryRowCaches(root));
       ArrowReader reader =
-          ArrowConversion.createArrowReader(root, rowType, project && requiresBinaryRowCache);
+          borrowStrings
+              ? ArrowConversion.createBorrowedStringReader(root, rowType)
+              : ArrowConversion.createArrowReader(root, rowType, project && requiresBinaryRowCache);
       TinyIntVector kinds = (TinyIntVector) root.getVector(RowDataArrowConverter.ROW_KIND_COLUMN);
       int rowCount = root.getRowCount();
       numOutputRows.inc(rowCount);

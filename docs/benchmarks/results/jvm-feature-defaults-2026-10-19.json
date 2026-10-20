@@ -1,0 +1,2993 @@
+{
+  "date": "2026-10-19",
+  "policy": "Correctness-verified UDF coverage defaults on under maintainer-authorized performance exception; no acceleration claim.",
+  "flink_versions": [
+    "2.2.1",
+    "1.18.1"
+  ],
+  "jdk": 17,
+  "mode": "release+mimalloc",
+  "source_base": "008a19db",
+  "libraries": {
+    "libstreamfusion_parquet.so": "16527eeff4e76df47f30a04bbb29eefaf5b82d23b99866918d91cb67dcc3fe3a",
+    "libstreamfusion.so": "c959d221bd556944be49444c130eab9e967cdc54a887b019925ce22f7dc765c6"
+  },
+  "default_properties": {
+    "streamfusion.experimental.jvmGroupAggregates": true,
+    "streamfusion.experimental.nestedScalarUdfs": true
+  },
+  "validation": [
+    {
+      "log": "streamfusion-jvm-defaults22.log",
+      "sha256": "082bb619fa79e80887e82dcea88ae492d7988371e92161dbcc530e47fcb42a62",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkFixedBinarySqlHarnessTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.operator.TransposeOperatorsTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedFixedBinarySqlHarnessTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarRecoveryTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJvmAggregateSqlHarnessTest",
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.NativeParityValueTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJsonJvmSqlHarnessTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkMapJsonJvmSqlHarnessTest",
+          "tests": 17,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkBinaryRowHashParityTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.arrow.Utf8WriterReuseTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-defaults118.log",
+      "sha256": "513bf4a6e0a0c21efb095058dba6eabd4f6b385e6601050e6fbf0b4c1bf4782b",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skips": 1
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkPortableSqlAuditTest",
+          "tests": 38,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkFixedBinarySqlHarnessTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skips": 5
+        },
+        {
+          "test_class": "tech.streamfusion.operator.TransposeOperatorsTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedFixedBinarySqlHarnessTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarRecoveryTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJvmAggregateSqlHarnessTest",
+          "tests": 45,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.NativeParityValueTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJsonJvmSqlHarnessTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skips": 2
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkMapJsonJvmSqlHarnessTest",
+          "tests": 17,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkBinaryRowHashParityTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.arrow.Utf8WriterReuseTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-defaults-regressions22.log",
+      "sha256": "faba893ce30ab836806ce55f93c4d33be6639bdb7fa05054fd132fac78b6db41",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkPortableSqlAuditTest",
+          "tests": 38,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkUnnestRowOrdinalitySqlHarnessTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJsonStringIdentitySqlHarnessTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkCollectionRepresentationSqlHarnessTest",
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkGeneratedCollectionSqlHarnessTest",
+          "tests": 86,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkComputedUnnestSqlHarnessTest",
+          "tests": 24,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkGeneratedUnnestSqlHarnessTest",
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJvmAggregateSqlHarnessTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkOverComplexCountSqlHarnessTest",
+          "tests": 31,
+          "failures": 24,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkObjectFunctionsSqlHarnessTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-row-forwarding-recheck22.log",
+      "sha256": "f32e847f672cb96131aac5c4090acd5b372d08163788268a6d0858cde69376e5",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkOverComplexCountSqlHarnessTest",
+          "tests": 31,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-defaults-regressions118.log",
+      "sha256": "22e0cd5508cbbac5c9f5e30fcb18ee6337845c9164762d2a8830132b210fc09d",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarSqlHarnessTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skips": 1
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkUnnestRowOrdinalitySqlHarnessTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skips": 5
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkJsonStringIdentitySqlHarnessTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skips": 11
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkCollectionRepresentationSqlHarnessTest",
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skips": 11
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkGeneratedCollectionSqlHarnessTest",
+          "tests": 86,
+          "failures": 0,
+          "errors": 0,
+          "skips": 15
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkComputedUnnestSqlHarnessTest",
+          "tests": 24,
+          "failures": 0,
+          "errors": 0,
+          "skips": 5
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkGeneratedUnnestSqlHarnessTest",
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skips": 6
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkOverComplexCountSqlHarnessTest",
+          "tests": 31,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkNestedScalarRemoteDeploymentTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.FlinkObjectFunctionsSqlHarnessTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skips": 6
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-parquet-boundary22.log",
+      "sha256": "e6df72ba8f04309ed9314987f3c0615137147aa4d3108bb0ddee92bddbc29be0",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkParquetSinkSqlHarnessTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.arrow.ArrowFileBatchTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-parquet-boundary118.log",
+      "sha256": "8bcf934e331e0339c1d00f654e40c80198c1ea1810440e140be39d8b694f6737",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.FlinkParquetSinkSqlHarnessTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.arrow.ArrowFileBatchTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-file-modules-tests.log",
+      "sha256": "c459b3e28c436580caf0172cd38875de9c6f4b78c9f7dce770ea30eee383a95a",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.iceberg.IcebergSinkAdapterTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.paimon.NativePaimonKeyValueFileWriterTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        },
+        {
+          "test_class": "tech.streamfusion.paimon.OrcArrowWriterTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 1,
+          "skips": 0
+        }
+      ]
+    },
+    {
+      "log": "streamfusion-jvm-orc-boundary22.log",
+      "sha256": "9ddd054e271a51eec01c7ae89eb45a86d54da8a7c648226ed6e9f65941cb79ba",
+      "classes": [
+        {
+          "test_class": "tech.streamfusion.paimon.OrcArrowWriterTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0
+        }
+      ]
+    }
+  ],
+  "native_engine": {
+    "passed": 794,
+    "ignored": 2
+  },
+  "corrections": [
+    "Initial Flink 2.2 broad run exposed 24 carried-ROW planner fallbacks. Narrowing generated evaluation to actual ROW expressions fixed all 31 affected OVER cases; both release lines pass.",
+    "Initial raw-CData ORC fixture exported an execution schema against a logical file schema. It now exports a retained logical-field view; all three ORC checks pass."
+  ],
+  "file_contract": "Nested RowKinds remain execution metadata. File/message schemas omit them, value buffers are retained without copying; top-level changelog columns remain intact.",
+  "limitations": [
+    "Historical nested/UDAF whole-job slowdowns remain diagnostic; UDF defaults do not claim speedup.",
+    "Native UDAFs retain existing single-phase/type/lifecycle restrictions.",
+    "Distinct test selections overlap; counts in per-class logs are not additive unique-case totals."
+  ],
+  "criterion_keys_and_checkpoints": {
+    "mode": "release smoke, not timing",
+    "fixtures": 159,
+    "allocations": [
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=1/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "696",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=1/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "1032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=1/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "136",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=1/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4740",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=1/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "5088",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3708"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=1/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "496",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=1/groups=1",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=1/groups=1",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=1/groups=128",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=1/groups=128",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16/keys=1",
+        "allocation_calls": "105",
+        "requested_bytes": "13321",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16/keys=1",
+        "allocation_calls": "49",
+        "requested_bytes": "4200",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16/keys=1",
+        "allocation_calls": "87",
+        "requested_bytes": "11633",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "160"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=64/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "696",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=64/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "1032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=64/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "136",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=64/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4740",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=64/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "5088",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3713"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=64/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "496",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=64/groups=1",
+        "allocation_calls": "170",
+        "requested_bytes": "122121",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=64/groups=1",
+        "allocation_calls": "172",
+        "requested_bytes": "29462",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=64/groups=128",
+        "allocation_calls": "2533",
+        "requested_bytes": "1194640",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=64/groups=128",
+        "allocation_calls": "607",
+        "requested_bytes": "99713",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16/keys=64",
+        "allocation_calls": "137",
+        "requested_bytes": "20245",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16/keys=64",
+        "allocation_calls": "82",
+        "requested_bytes": "12320",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16/keys=64",
+        "allocation_calls": "133",
+        "requested_bytes": "23097",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "640"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=16/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "696",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=16/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "1032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=16/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "136",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16/keys=16/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4740",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16/keys=16/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "5088",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3713"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16/keys=16/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "496",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=16/groups=1",
+        "allocation_calls": "170",
+        "requested_bytes": "122121",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=16/groups=1",
+        "allocation_calls": "172",
+        "requested_bytes": "29462",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16/keys=16/groups=128",
+        "allocation_calls": "2533",
+        "requested_bytes": "1194640",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16/keys=16/groups=128",
+        "allocation_calls": "607",
+        "requested_bytes": "99713",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16/keys=16",
+        "allocation_calls": "137",
+        "requested_bytes": "20245",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16/keys=16",
+        "allocation_calls": "82",
+        "requested_bytes": "12320",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16/keys=16",
+        "allocation_calls": "133",
+        "requested_bytes": "23097",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "640"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=1/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "17832",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=1/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "41472",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8192"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=1/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "4168",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=1/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "290148",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=1/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "282960",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "249210"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=1/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "4528",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=1/groups=1",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=1/groups=1",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=1/groups=128",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=1/groups=128",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/1024/keys=1",
+        "allocation_calls": "105",
+        "requested_bytes": "13321",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/1024/keys=1",
+        "allocation_calls": "49",
+        "requested_bytes": "4200",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/1024/keys=1",
+        "allocation_calls": "2103",
+        "requested_bytes": "334193",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "160"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=64/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "17832",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=64/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "41472",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8192"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=64/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "4168",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=64/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "290148",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=64/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "283728",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "249950"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=64/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "4528",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=64/groups=1",
+        "allocation_calls": "180",
+        "requested_bytes": "849945",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=64/groups=1",
+        "allocation_calls": "990",
+        "requested_bytes": "215262",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=64/groups=128",
+        "allocation_calls": "8343",
+        "requested_bytes": "4353344",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=64/groups=128",
+        "allocation_calls": "2469",
+        "requested_bytes": "449277",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/1024/keys=64",
+        "allocation_calls": "203",
+        "requested_bytes": "55621",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/1024/keys=64",
+        "allocation_calls": "180",
+        "requested_bytes": "40000",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/1024/keys=64",
+        "allocation_calls": "2337",
+        "requested_bytes": "474137",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "10240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=1024/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "17832",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=1024/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "41472",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8192"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=1024/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "4168",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/1024/keys=1024/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "290148",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/1024/keys=1024/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "284688",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "250891"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/1024/keys=1024/columns=2",
+        "allocation_calls": "6",
+        "requested_bytes": "5120",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=1024/groups=1",
+        "allocation_calls": "189",
+        "requested_bytes": "3215681",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=1024/groups=1",
+        "allocation_calls": "5218",
+        "requested_bytes": "1289974",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/1024/keys=1024/groups=128",
+        "allocation_calls": "20893",
+        "requested_bytes": "11892931",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/1024/keys=1024/groups=128",
+        "allocation_calls": "8901",
+        "requested_bytes": "1870161",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/1024/keys=1024",
+        "allocation_calls": "1194",
+        "requested_bytes": "683517",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/1024/keys=1024",
+        "allocation_calls": "2104",
+        "requested_bytes": "593280",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/1024/keys=1024",
+        "allocation_calls": "4214",
+        "requested_bytes": "1277785",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "40960"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=1/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "278952",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=1/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "657792",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "131072"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=1/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "65608",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=1/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4639308",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=1/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "4517456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "3990270"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=1/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "65968",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=1/groups=1",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=1/groups=1",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=1/groups=128",
+        "allocation_calls": "163",
+        "requested_bytes": "79417",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=1/groups=128",
+        "allocation_calls": "103",
+        "requested_bytes": "13014",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16384/keys=1",
+        "allocation_calls": "105",
+        "requested_bytes": "13321",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16384/keys=1",
+        "allocation_calls": "49",
+        "requested_bytes": "4200",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16384/keys=1",
+        "allocation_calls": "32823",
+        "requested_bytes": "5249393",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "160"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=64/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "278952",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=64/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "657792",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "131072"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=64/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "65608",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=64/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4639308",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=64/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "4529360",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "4002118"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=64/columns=2",
+        "allocation_calls": "5",
+        "requested_bytes": "65968",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=64/groups=1",
+        "allocation_calls": "180",
+        "requested_bytes": "849945",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=64/groups=1",
+        "allocation_calls": "990",
+        "requested_bytes": "215262",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=64/groups=128",
+        "allocation_calls": "8343",
+        "requested_bytes": "4353344",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=64/groups=128",
+        "allocation_calls": "2469",
+        "requested_bytes": "449277",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16384/keys=64",
+        "allocation_calls": "203",
+        "requested_bytes": "55621",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16384/keys=64",
+        "allocation_calls": "180",
+        "requested_bytes": "40000",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16384/keys=64",
+        "allocation_calls": "33057",
+        "requested_bytes": "5389337",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "10240"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=16384/columns=1",
+        "allocation_calls": "3",
+        "requested_bytes": "278952",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=16384/columns=1",
+        "allocation_calls": "9",
+        "requested_bytes": "657792",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "131072"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=16384/columns=1",
+        "allocation_calls": "4",
+        "requested_bytes": "65608",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_encode/16384/keys=16384/columns=2",
+        "allocation_calls": "4",
+        "requested_bytes": "4639308",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "arrow_row_decode/16384/keys=16384/columns=2",
+        "allocation_calls": "17",
+        "requested_bytes": "4564112",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "4036921"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "flink_binary_row_hash/16384/keys=16384/columns=2",
+        "allocation_calls": "6",
+        "requested_bytes": "66560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=16384/groups=1",
+        "allocation_calls": "249",
+        "requested_bytes": "51832673",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=16384/groups=1",
+        "allocation_calls": "82022",
+        "requested_bytes": "20500382",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_snapshot/16384/keys=16384/groups=128",
+        "allocation_calls": "22366",
+        "requested_bytes": "57668772",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "topn_restore/16384/keys=16384/groups=128",
+        "allocation_calls": "85705",
+        "requested_bytes": "21074681",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_snapshot/16384/keys=16384",
+        "allocation_calls": "16586",
+        "requested_bytes": "10757757",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "group_restore/16384/keys=16384",
+        "allocation_calls": "32828",
+        "requested_bytes": "9448384",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "window_rank/16384/keys=16384",
+        "allocation_calls": "65686",
+        "requested_bytes": "20385689",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "655360"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16/keys=1",
+        "allocation_calls": "31",
+        "requested_bytes": "1144",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16/keys=1",
+        "allocation_calls": "5",
+        "requested_bytes": "352",
+        "shared_output_buffer_bytes": "262",
+        "new_output_buffer_bytes": "16"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/16/left=false",
+        "allocation_calls": "116",
+        "requested_bytes": "9555",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "506"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/16/left=true",
+        "allocation_calls": "120",
+        "requested_bytes": "9999",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "702"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16/keys=64",
+        "allocation_calls": "31",
+        "requested_bytes": "1144",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16/keys=64",
+        "allocation_calls": "5",
+        "requested_bytes": "352",
+        "shared_output_buffer_bytes": "262",
+        "new_output_buffer_bytes": "16"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16/keys=16",
+        "allocation_calls": "31",
+        "requested_bytes": "1144",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16/keys=16",
+        "allocation_calls": "5",
+        "requested_bytes": "352",
+        "shared_output_buffer_bytes": "262",
+        "new_output_buffer_bytes": "16"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/1024/keys=1",
+        "allocation_calls": "1707",
+        "requested_bytes": "63280",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/1024/keys=1",
+        "allocation_calls": "5",
+        "requested_bytes": "1360",
+        "shared_output_buffer_bytes": "16768",
+        "new_output_buffer_bytes": "1024"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/1024/left=false",
+        "allocation_calls": "134",
+        "requested_bytes": "87259",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "34930"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/1024/left=true",
+        "allocation_calls": "138",
+        "requested_bytes": "104939",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "45730"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/1024/keys=64",
+        "allocation_calls": "1707",
+        "requested_bytes": "63280",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/1024/keys=64",
+        "allocation_calls": "5",
+        "requested_bytes": "1360",
+        "shared_output_buffer_bytes": "16768",
+        "new_output_buffer_bytes": "1024"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/1024/keys=1024",
+        "allocation_calls": "1707",
+        "requested_bytes": "63280",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/1024/keys=1024",
+        "allocation_calls": "5",
+        "requested_bytes": "1360",
+        "shared_output_buffer_bytes": "16768",
+        "new_output_buffer_bytes": "1024"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16384/keys=1",
+        "allocation_calls": "27228",
+        "requested_bytes": "1009456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16384/keys=1",
+        "allocation_calls": "5",
+        "requested_bytes": "16720",
+        "shared_output_buffer_bytes": "268288",
+        "new_output_buffer_bytes": "16384"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/16384/left=false",
+        "allocation_calls": "146",
+        "requested_bytes": "1273051",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "558949"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/unnest/16384/left=true",
+        "allocation_calls": "150",
+        "requested_bytes": "1554539",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "731671"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16384/keys=64",
+        "allocation_calls": "27228",
+        "requested_bytes": "1009456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16384/keys=64",
+        "allocation_calls": "5",
+        "requested_bytes": "16720",
+        "shared_output_buffer_bytes": "268288",
+        "new_output_buffer_bytes": "16384"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/flink_binary_row_hash/16384/keys=16384",
+        "allocation_calls": "27228",
+        "requested_bytes": "1009456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_row_keys/ordering/16384/keys=16384",
+        "allocation_calls": "5",
+        "requested_bytes": "16720",
+        "shared_output_buffer_bytes": "268288",
+        "new_output_buffer_bytes": "16384"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=4/seeds=1",
+        "allocation_calls": "32",
+        "requested_bytes": "1270",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=4/seeds=64",
+        "allocation_calls": "21",
+        "requested_bytes": "456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=4/seeds=16",
+        "allocation_calls": "21",
+        "requested_bytes": "456",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=256/seeds=1",
+        "allocation_calls": "29",
+        "requested_bytes": "2976",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=256/seeds=64",
+        "allocation_calls": "29",
+        "requested_bytes": "2976",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16/declared_width=4/payload_width=256/seeds=16",
+        "allocation_calls": "29",
+        "requested_bytes": "2976",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=4/seeds=1",
+        "allocation_calls": "952",
+        "requested_bytes": "19384",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=4/seeds=64",
+        "allocation_calls": "952",
+        "requested_bytes": "19384",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=4/seeds=1024",
+        "allocation_calls": "952",
+        "requested_bytes": "19384",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=256/seeds=1",
+        "allocation_calls": "1359",
+        "requested_bytes": "132032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=256/seeds=64",
+        "allocation_calls": "1359",
+        "requested_bytes": "132032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/1024/declared_width=4/payload_width=256/seeds=1024",
+        "allocation_calls": "1359",
+        "requested_bytes": "132032",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=4/seeds=1",
+        "allocation_calls": "15130",
+        "requested_bytes": "307672",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=4/seeds=64",
+        "allocation_calls": "15130",
+        "requested_bytes": "307672",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=4/seeds=16384",
+        "allocation_calls": "15130",
+        "requested_bytes": "307672",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=256/seeds=1",
+        "allocation_calls": "21614",
+        "requested_bytes": "2097568",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=256/seeds=64",
+        "allocation_calls": "21614",
+        "requested_bytes": "2097568",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion",
+        "suite": "keys_and_checkpoints",
+        "case": "engine/nested_binary_keys/16384/declared_width=4/payload_width=256/seeds=16384",
+        "allocation_calls": "21614",
+        "requested_bytes": "2097568",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "0"
+      }
+    ]
+  },
+  "validation_notes": [
+    "A shared-target incremental build linked stale bridge metadata; a clean release bridge rebuild passed all key/checkpoint fixtures. Bridge handoffs must run without the engine-only mimalloc feature."
+  ],
+  "criterion_handoffs": {
+    "mode": "release smoke, not timing",
+    "fixtures": 120,
+    "allocations": [
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=8/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3723",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=8/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11136",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "44544",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=8/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "308",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=264/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3723",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=264/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11136",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "44544",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=264/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "3892",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=4096/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3723",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16/bytes=4096/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11136",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "44544",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16/bytes=4096/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2784",
+        "shared_output_buffer_bytes": "57540",
+        "new_output_buffer_bytes": "2"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=8/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3819",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=8/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11520",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "46080",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=8/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "19316",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=264/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3819",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=264/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11520",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "46080",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=264/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "244084",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=4096/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "3819",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/1024/bytes=4096/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "11520",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "46080",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/1024/bytes=4096/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "2880",
+        "shared_output_buffer_bytes": "3608580",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=8/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "5739",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=8/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "19200",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "76800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=8/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "308964",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=264/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "5739",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=264/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "19200",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "76800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=264/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "3904228",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=4096/cached=false",
+        "allocation_calls": "58",
+        "requested_bytes": "5739",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/16384/bytes=4096/cached=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=1/shared=false",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=1/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=4/shared=false",
+        "allocation_calls": "160",
+        "requested_bytes": "19200",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=4/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=16/shared=false",
+        "allocation_calls": "640",
+        "requested_bytes": "76800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/c_data/fanout/16384/bytes=4096/consumers=16/shared=true",
+        "allocation_calls": "40",
+        "requested_bytes": "4800",
+        "shared_output_buffer_bytes": "57720836",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16/Timestamp(Second, None)",
+        "allocation_calls": "9",
+        "requested_bytes": "560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16/Timestamp(Millisecond, None)",
+        "allocation_calls": "9",
+        "requested_bytes": "560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16/Timestamp(Microsecond, None)",
+        "allocation_calls": "9",
+        "requested_bytes": "560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16/Timestamp(Nanosecond, None)",
+        "allocation_calls": "9",
+        "requested_bytes": "560",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "ordering/16/nan_nulls",
+        "allocation_calls": "5",
+        "requested_bytes": "416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "130"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16/keys=1",
+        "allocation_calls": "17",
+        "requested_bytes": "1724",
+        "shared_output_buffer_bytes": "322",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16/keys=64",
+        "allocation_calls": "148",
+        "requested_bytes": "15620",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "322"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16/keys=16",
+        "allocation_calls": "148",
+        "requested_bytes": "15620",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "322"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/1024/Timestamp(Second, None)",
+        "allocation_calls": "16",
+        "requested_bytes": "16816",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8320"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/1024/Timestamp(Millisecond, None)",
+        "allocation_calls": "16",
+        "requested_bytes": "16816",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8320"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/1024/Timestamp(Microsecond, None)",
+        "allocation_calls": "16",
+        "requested_bytes": "16816",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8320"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/1024/Timestamp(Nanosecond, None)",
+        "allocation_calls": "16",
+        "requested_bytes": "16816",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8320"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "ordering/1024/nan_nulls",
+        "allocation_calls": "5",
+        "requested_bytes": "8544",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "8320"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/1024/keys=1",
+        "allocation_calls": "20",
+        "requested_bytes": "26836",
+        "shared_output_buffer_bytes": "20608",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/1024/keys=64",
+        "allocation_calls": "616",
+        "requested_bytes": "102932",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "20608"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/1024/keys=1024",
+        "allocation_calls": "7216",
+        "requested_bytes": "891732",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "20608"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16384/Timestamp(Second, None)",
+        "allocation_calls": "24",
+        "requested_bytes": "266416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "133120"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16384/Timestamp(Millisecond, None)",
+        "allocation_calls": "24",
+        "requested_bytes": "266416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "133120"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16384/Timestamp(Microsecond, None)",
+        "allocation_calls": "24",
+        "requested_bytes": "266416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "133120"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "timestamp/16384/Timestamp(Nanosecond, None)",
+        "allocation_calls": "24",
+        "requested_bytes": "266416",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "133120"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "ordering/16384/nan_nulls",
+        "allocation_calls": "5",
+        "requested_bytes": "133344",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "133120"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16384/keys=1",
+        "allocation_calls": "24",
+        "requested_bytes": "410836",
+        "shared_output_buffer_bytes": "329728",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16384/keys=64",
+        "allocation_calls": "872",
+        "requested_bytes": "857492",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "329728"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "partition/16384/keys=16384",
+        "allocation_calls": "114744",
+        "requested_bytes": "14241556",
+        "shared_output_buffer_bytes": "0",
+        "new_output_buffer_bytes": "329728"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16/bytes=8/cached=false",
+        "allocation_calls": "131",
+        "requested_bytes": "8993",
+        "shared_output_buffer_bytes": "582",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16/bytes=8/cached=true",
+        "allocation_calls": "82",
+        "requested_bytes": "6368",
+        "shared_output_buffer_bytes": "582",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16/bytes=264/cached=false",
+        "allocation_calls": "131",
+        "requested_bytes": "8993",
+        "shared_output_buffer_bytes": "4678",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16/bytes=264/cached=true",
+        "allocation_calls": "82",
+        "requested_bytes": "6368",
+        "shared_output_buffer_bytes": "4678",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/1024/bytes=8/cached=false",
+        "allocation_calls": "134",
+        "requested_bytes": "9233",
+        "shared_output_buffer_bytes": "35979",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/1024/bytes=8/cached=true",
+        "allocation_calls": "85",
+        "requested_bytes": "6608",
+        "shared_output_buffer_bytes": "35979",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/1024/bytes=264/cached=false",
+        "allocation_calls": "134",
+        "requested_bytes": "9233",
+        "shared_output_buffer_bytes": "290443",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/1024/bytes=264/cached=true",
+        "allocation_calls": "85",
+        "requested_bytes": "6608",
+        "shared_output_buffer_bytes": "290443",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16384/bytes=8/cached=false",
+        "allocation_calls": "134",
+        "requested_bytes": "11153",
+        "shared_output_buffer_bytes": "575063",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16384/bytes=8/cached=true",
+        "allocation_calls": "85",
+        "requested_bytes": "8528",
+        "shared_output_buffer_bytes": "575063",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16384/bytes=264/cached=false",
+        "allocation_calls": "134",
+        "requested_bytes": "11153",
+        "shared_output_buffer_bytes": "4642391",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_row_kinds/16384/bytes=264/cached=true",
+        "allocation_calls": "85",
+        "requested_bytes": "8528",
+        "shared_output_buffer_bytes": "4642391",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16/declared_width=4/payload_width=4/cached=false",
+        "allocation_calls": "110",
+        "requested_bytes": "7346",
+        "shared_output_buffer_bytes": "272",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16/declared_width=4/payload_width=4/cached=true",
+        "allocation_calls": "67",
+        "requested_bytes": "4992",
+        "shared_output_buffer_bytes": "272",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16/declared_width=4/payload_width=256/cached=false",
+        "allocation_calls": "110",
+        "requested_bytes": "7346",
+        "shared_output_buffer_bytes": "2792",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16/declared_width=4/payload_width=256/cached=true",
+        "allocation_calls": "67",
+        "requested_bytes": "4992",
+        "shared_output_buffer_bytes": "2792",
+        "new_output_buffer_bytes": "0"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/1024/declared_width=4/payload_width=4/cached=false",
+        "allocation_calls": "113",
+        "requested_bytes": "7586",
+        "shared_output_buffer_bytes": "16931",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/1024/declared_width=4/payload_width=4/cached=true",
+        "allocation_calls": "70",
+        "requested_bytes": "5232",
+        "shared_output_buffer_bytes": "16931",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/1024/declared_width=4/payload_width=256/cached=false",
+        "allocation_calls": "113",
+        "requested_bytes": "7586",
+        "shared_output_buffer_bytes": "194087",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/1024/declared_width=4/payload_width=256/cached=true",
+        "allocation_calls": "70",
+        "requested_bytes": "5232",
+        "shared_output_buffer_bytes": "194087",
+        "new_output_buffer_bytes": "128"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16384/declared_width=4/payload_width=4/cached=false",
+        "allocation_calls": "113",
+        "requested_bytes": "9506",
+        "shared_output_buffer_bytes": "270587",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16384/declared_width=4/payload_width=4/cached=true",
+        "allocation_calls": "70",
+        "requested_bytes": "7152",
+        "shared_output_buffer_bytes": "270587",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16384/declared_width=4/payload_width=256/cached=false",
+        "allocation_calls": "113",
+        "requested_bytes": "9506",
+        "shared_output_buffer_bytes": "3101807",
+        "new_output_buffer_bytes": "2048"
+      },
+      {
+        "package": "streamfusion-bridge",
+        "suite": "handoffs",
+        "case": "bridge/nested_binary/16384/declared_width=4/payload_width=256/cached=true",
+        "allocation_calls": "70",
+        "requested_bytes": "7152",
+        "shared_output_buffer_bytes": "3101807",
+        "new_output_buffer_bytes": "2048"
+      }
+    ]
+  }
+}

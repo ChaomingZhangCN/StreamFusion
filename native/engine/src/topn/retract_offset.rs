@@ -12,6 +12,7 @@ pub(super) fn push(
     offset: i64,
     limit: i64,
     generate_update_before: bool,
+    serialized_state: bool,
     out_rows: &mut Vec<Arc<OwnedRow>>,
     out_kinds: &mut Vec<i8>,
 ) -> isize {
@@ -33,13 +34,18 @@ pub(super) fn push(
         buffer.insert(end, input.clone());
     }
 
-    let mut emit = |buffer: &mut [TopNRow], index: usize, rank: i64, kind: i8| {
-        if rank > offset && rank <= limit && (kind != 1 || generate_update_before) {
-            buffer[index].stored_kind = kind;
-            out_rows.push(Arc::clone(&buffer[index].payload));
-            out_kinds.push(kind);
-        }
-    };
+    let mut emit =
+        |buffer: &mut [TopNRow], index: usize, rank: i64, kind: i8, source_group: bool| {
+            if rank > offset && rank <= limit && (kind != 1 || generate_update_before) {
+                // RocksDB only serializes the explicitly updated source list. Insert writes its
+                // new row after emission; retract writes its source list before shifting later groups.
+                if !serialized_state || (!retract && index == end) || (retract && source_group) {
+                    buffer[index].stored_kind = kind;
+                }
+                out_rows.push(Arc::clone(&buffer[index].payload));
+                out_kinds.push(kind);
+            }
+        };
     let mut rank = 0;
     let mut current = None;
     let mut removed = None;
@@ -69,11 +75,11 @@ pub(super) fn push(
                         }
                     } else if let Some(previous) = current {
                         if retract {
-                            emit(buffer, previous, rank, 1);
-                            emit(buffer, index, rank, 2);
+                            emit(buffer, previous, rank, 1, matches_key);
+                            emit(buffer, index, rank, 2, matches_key);
                         } else {
-                            emit(buffer, index, rank, 1);
-                            emit(buffer, previous, rank, 2);
+                            emit(buffer, index, rank, 1, false);
+                            emit(buffer, previous, rank, 2, false);
                         }
                         current = Some(index);
                     }
@@ -86,7 +92,7 @@ pub(super) fn push(
         group_start = group_end;
     }
     if let Some(index) = current {
-        emit(buffer, index, rank, if retract { 3 } else { 0 });
+        emit(buffer, index, rank, if retract { 3 } else { 0 }, false);
     }
 
     if retract && start < end {
@@ -112,6 +118,58 @@ pub(super) fn push(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn serialized_lists_persist_only_explicit_map_state_writes() {
+        let converter = RowConverter::new(vec![SortField::new(DataType::Int64)]).unwrap();
+        let values: ArrayRef = Arc::new(Int64Array::from(vec![10, 20, 30, 5, 20]));
+        let rows = converter.convert_columns(&[values]).unwrap();
+        let input = |index| TopNRow {
+            sort: rows.row(index).owned(),
+            payload: Arc::new(rows.row(index).owned()),
+            ts_ms: 0,
+            stored_kind: 0,
+            sort_count: None,
+        };
+        for serialized in [false, true] {
+            let mut buffer = Vec::new();
+            let mut output = Vec::new();
+            let mut kinds = Vec::new();
+            for index in 0..4 {
+                push(
+                    &mut buffer,
+                    input(index),
+                    false,
+                    1,
+                    4,
+                    true,
+                    serialized,
+                    &mut output,
+                    &mut kinds,
+                );
+            }
+            assert_eq!(buffer[1].stored_kind, if serialized { 0 } else { 2 });
+            assert_eq!(buffer[2].stored_kind, if serialized { 0 } else { 2 });
+            output.clear();
+            kinds.clear();
+            push(
+                &mut buffer,
+                input(4),
+                true,
+                1,
+                4,
+                true,
+                serialized,
+                &mut output,
+                &mut kinds,
+            );
+            assert_eq!(kinds, if serialized { vec![1, 2, 3] } else { vec![] });
+            if serialized {
+                assert_eq!(buffer.len(), 3);
+                assert!(buffer.iter().all(|row| row.stored_kind == 0));
+            }
+        }
+    }
 
     #[test]
     fn legacy_snapshot_kinds_survive_without_explicit_counts() {

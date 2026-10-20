@@ -24,6 +24,58 @@ import tech.streamfusion.operator.RowDataArrowConverter;
 
 class FlussArrowSchemaTest {
   @Test
+  void nestedRowWireConversionRetainsValuesAndRestoresInternalKinds() {
+    var row =
+        org.apache.flink.table.types.logical.RowType.of(
+            new org.apache.flink.table.types.logical.BigIntType());
+    var logical = org.apache.flink.table.types.logical.RowType.of(row);
+    try (var allocator = new RootAllocator()) {
+      VectorSchemaRoot wire;
+      Schema internal;
+      long address;
+      try (var source =
+          RowDataArrowConverter.write(
+              List.of(
+                  org.apache.flink.table.data.GenericRowData.of(
+                      org.apache.flink.table.data.GenericRowData.ofKind(
+                          org.apache.flink.types.RowKind.DELETE, 91L)),
+                  org.apache.flink.table.data.GenericRowData.of((Object) null)),
+              logical,
+              allocator)) {
+        internal = source.getSchema();
+        var target =
+            new Schema(
+                internal.getFields().stream()
+                    .map(tech.streamfusion.arrow.ArrowSchemaViews::logicalField)
+                    .collect(java.util.stream.Collectors.toList()));
+        assertTrue(
+            FlussArrowSchema.compatible(internal.getFields().get(0), target.getFields().get(0)));
+        assertTrue(
+            FlussArrowSchema.compatible(target.getFields().get(0), internal.getFields().get(0)));
+        address =
+            ((StructVector) source.getVector(0)).getVectorById(0).getDataBuffer().memoryAddress();
+        try (var same = FlussArrowSchema.convert(source, internal, allocator)) {
+          assertEquals(
+              3,
+              tech.streamfusion.arrow.NestedRowKinds.vector((StructVector) same.getVector(0))
+                  .get(0));
+        }
+        wire = FlussArrowSchema.forAppend(source, target, allocator);
+        assertEquals(1, wire.getSchema().getFields().get(0).getChildren().size());
+      }
+      try (var output = wire;
+          var restored = FlussArrowSchema.convert(output, internal, allocator)) {
+        var struct = (StructVector) restored.getVector(0);
+        assertEquals(address, struct.getVectorById(0).getDataBuffer().memoryAddress());
+        assertEquals(91L, struct.getVectorById(0).getObject(0));
+        assertTrue(struct.isNull(1));
+        assertEquals(0, tech.streamfusion.arrow.NestedRowKinds.vector(struct).get(0));
+      }
+      assertEquals(0, allocator.getAllocatedMemory());
+    }
+  }
+
+  @Test
   void millisecondTimestampReadRetainsWireDataAfterInputCloses() {
     var wireSchema =
         new Schema(

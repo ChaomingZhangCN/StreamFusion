@@ -161,18 +161,8 @@ final class LocalGroupAggregateMatcher {
       if (kind == GroupAggregateMatcher.KIND_SUM_ZERO
           && (call.isDistinct()
               || call.getArgList().size() != 1
-              || !(GroupAggregateMatcher.isIntegerType(
-                      inputType
-                          .getFieldList()
-                          .get(call.getArgList().get(0))
-                          .getType()
-                          .getSqlTypeName())
-                  || inputType
-                          .getFieldList()
-                          .get(call.getArgList().get(0))
-                          .getType()
-                          .getSqlTypeName()
-                      == SqlTypeName.DECIMAL))) return false;
+              || !WindowAggregateMatcher.supportedZeroSumValue(
+                  inputType.getFieldList().get(call.getArgList().get(0)).getType()))) return false;
       // COUNT/SUM/AVG(DISTINCT x): the partial is the bundle's distinct count / distinct sum, and
       // the
       // bundle's (value, count) set rides a trailing view column (Flink's MapView partial) that the

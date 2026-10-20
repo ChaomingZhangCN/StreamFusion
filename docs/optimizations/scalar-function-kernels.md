@@ -16,8 +16,9 @@ cargo bench --manifest-path native/Cargo.toml -p streamfusion --features mimallo
 
 Run one benchmark at a time. Kernel diagnostics and complete SQL jobs measure different work.
 
-The current planner keeps binary ELT on stock Flink because standalone whole-job performance
-admission remains unmet. STRING ARRAY_DISTINCT uses released Flink generation under the
+The current planner admits verified binary ELT by default under its Rust/Arrow versus
+Java/RowData functionality gate. Slower historical complete-job results remain diagnostics.
+STRING ARRAY_DISTINCT uses released Flink generation under the
 accepted default-enabled collection tradeoff. Measurements below preserve historical native
 experiments; they do not imply that the direct STRING kernel is enabled. Boolean
 ARRAY_DISTINCT, fixed binary casts, and the scale-dependent exact DOUBLE TRUNCATE helper
@@ -1093,8 +1094,10 @@ investigating conversion costs rather than attributing the full gap to startup.
 Previous-production stock controls differ substantially, so these runs do not
 establish a clean cross-revision improvement or explain that variation.
 [All 60 trials, including identity controls](../benchmarks/fixed-binary-elt-sustained-2026-10-02.csv)
-retain unfavorable results. No new optimization or default admission is
-justified; the fixed-binary dynamic ELT performance gate remains unresolved.
+retain unfavorable results. Those complete-job measurements did not justify default
+admission at that revision. Current binary ELT admission follows the later
+[Rust-side functionality gate](../operators/calc-filter.md#binary-elt-default-admission-2026-10-20);
+the conversion-inclusive costs above remain unresolved diagnostics.
 
 ### Generated segment-copy exit rejected (2026-10-04)
 

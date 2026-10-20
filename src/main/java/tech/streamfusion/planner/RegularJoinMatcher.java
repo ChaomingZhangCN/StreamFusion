@@ -62,11 +62,19 @@ final class RegularJoinMatcher {
             FlinkTypeFactory$.MODULE$.toLogicalRowType(join.getRight().getRowType()))) {
       return "regular join: an input column type is not supported";
     }
-    if (!ArrowRowTypeSupport.supports(
-            FlinkTypeFactory$.MODULE$.toLogicalRowType(join.getLeft().getRowType()))
-        || !ArrowRowTypeSupport.supports(
-            FlinkTypeFactory$.MODULE$.toLogicalRowType(join.getRight().getRowType()))) {
-      return "regular join: Arrow row codec cannot carry MAP or MULTISET payloads";
+    for (RelNode input : join.getInputs()) {
+      if (tech.streamfusion.arrow.MapListRepresentation.containsMap(
+              FlinkTypeFactory$.MODULE$.toLogicalRowType(input.getRowType()))
+          && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) input)) {
+        return "regular join: updating MAP/MULTISET payload equality requires retained-row representation";
+      }
+    }
+    if (!ArrowRowTypeSupport.supportsFields(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(join.getLeft().getRowType()), leftKeys)
+        || !ArrowRowTypeSupport.supportsFields(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(join.getRight().getRowType()),
+            joinSpec.getRightKeys())) {
+      return "regular join: MAP/MULTISET join keys require a separate equality contract";
     }
     return null;
   }

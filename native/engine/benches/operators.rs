@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, BooleanArray, Decimal128Array, Int64Array, Int8Array, RecordBatch,
-    StringArray, StructArray,
+    Array, ArrayRef, BooleanArray, Decimal128Array, Float32Array, Float64Array, Int64Array,
+    Int8Array, RecordBatch, StringArray, StructArray,
 };
 use arrow::compute::filter_record_batch;
 use arrow::datatypes::{DataType, Field, Schema};
@@ -523,7 +523,8 @@ fn bench_group_zero_sum(c: &mut Criterion) {
     let mut group = c.benchmark_group("group_zero_sum");
     for rows in [256usize, 4096] {
         for cardinality in [1usize, 64] {
-            for decimal in [false, true] {
+            for name in ["bigint", "decimal38", "float", "double"] {
+                let decimal = name == "decimal38";
                 let keys: ArrayRef = Arc::new(Int64Array::from_iter_values(
                     (0..rows).map(|i| (i % cardinality) as i64),
                 ));
@@ -538,6 +539,22 @@ fn bench_group_zero_sum(c: &mut Criterion) {
                         ),
                         DataType::Decimal128(38, 2),
                         5802,
+                    )
+                } else if name == "float" {
+                    (
+                        Arc::new(Float32Array::from_iter(
+                            (0..rows).map(|i| (i % 7 != 0).then_some(i as f32)),
+                        )),
+                        DataType::Float32,
+                        6,
+                    )
+                } else if name == "double" {
+                    (
+                        Arc::new(Float64Array::from_iter(
+                            (0..rows).map(|i| (i % 7 != 0).then_some(i as f64)),
+                        )),
+                        DataType::Float64,
+                        1,
                     )
                 } else {
                     (
@@ -557,7 +574,6 @@ fn bench_group_zero_sum(c: &mut Criterion) {
                 )
                 .unwrap();
                 group.throughput(Throughput::Elements(rows as u64));
-                let name = if decimal { "decimal38" } else { "bigint" };
                 group.bench_function(format!("{name}/{rows}/{cardinality}"), |b| {
                     b.iter_batched(
                         || {

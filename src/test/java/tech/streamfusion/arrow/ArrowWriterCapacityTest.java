@@ -3,15 +3,15 @@ package tech.streamfusion.arrow;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Arrays;
-import org.apache.flink.core.memory.MemorySegment;
-import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.flink.core.memory.MemorySegment;
+import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.data.writer.BinaryRowWriter;
-import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -22,8 +22,8 @@ class ArrowWriterCapacityTest {
   void fixedCapacityCanGrowAndOwnsReusedInputWhileVariableCapacityStaysDefault() {
     RowType type = RowType.of(new BinaryType(256), new VarCharType());
     try (var allocator = new RootAllocator();
-         var sized = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(type), allocator);
-         var defaults = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(type), allocator)) {
+        var sized = VectorSchemaRoot.create(FixedBinaryFixtures.schema(type), allocator);
+        var defaults = VectorSchemaRoot.create(FixedBinaryFixtures.schema(type), allocator)) {
       var writer = ArrowConversion.createRowDataArrowWriter(sized, type, 2);
       ArrowConversion.createRowDataArrowWriter(defaults, type);
       assertTrue(sized.getVector(0).getValueCapacity() < defaults.getVector(0).getValueCapacity());
@@ -55,7 +55,7 @@ class ArrowWriterCapacityTest {
     for (int width : new int[] {1, 7, 8, 16, 256}) {
       RowType type = RowType.of(new BinaryType(width));
       try (var allocator = new RootAllocator();
-           var root = VectorSchemaRoot.create(ArrowConversion.toArrowSchema(type), allocator)) {
+          var root = VectorSchemaRoot.create(FixedBinaryFixtures.schema(type), allocator)) {
         var writer = ArrowConversion.createRowDataArrowWriter(root, type, 2);
         var row = new BinaryRowData(1);
         var input = new BinaryRowWriter(row);
@@ -120,8 +120,9 @@ class ArrowWriterCapacityTest {
           segments[0].put(base, serialized, 0, size);
         }
         try (var allocator = new RootAllocator();
-             var root = VectorSchemaRoot.create(
-                 ArrowConversion.toArrowSchema(RowType.of(new BinaryType(width))), allocator)) {
+            var root =
+                VectorSchemaRoot.create(
+                    FixedBinaryFixtures.schema(RowType.of(new BinaryType(width))), allocator)) {
           var row = new BinaryRowData(1);
           row.pointTo(segments, base, size);
           assertArrayEquals(expected, row.getBinary(0));
