@@ -67,7 +67,6 @@ minimum alignment. This prevents an oversized configured buffer from allocating
 an entire small slot budget at once and evicting cached reads. The configured
 write-buffer size and total shared memory budget are unchanged.
 
-
 Aligned same-range recovery opens a local copy of the checkpoint database. Rescaling reads only the
 key groups assigned to the recovering subtask and writes a new local database. This preserves
 Flink's max-parallelism and key-group redistribution semantics.
@@ -195,7 +194,6 @@ and changelog setting. Stateless native SQL remains eligible. Use `state.changel
 with StreamFusion's native state backends. This is unrelated to SQL insert/update/delete changelog
 rows, which supported native SQL operators handle normally.
 
-
 The controlled [record-layout and probe-reuse measurements](../optimizations/rocksdb-write-through.md#separating-record-layout-from-probe-reuse-2026-09-30)
 show that bounded reuse is a memory safeguard, not a universal speedup. Unique-key
 inputs favored the old bucket store in the state-level diagnostic; groups larger
@@ -252,7 +250,6 @@ serves normal reads and canonical savepoint export. Existing frame keys and unre
 layouts remain unchanged. See [OVER checkpoint semantics](../operators/over.md#primitive-zero-initialized-over-sums)
 for the limit on reconstructing arithmetic history discarded by old writers.
 
-
 ### Scalar window keys
 
 Direct fixed-window and session stores decode newly admitted TINYINT/SMALLINT, TIME,
@@ -264,9 +261,26 @@ cover nullable composite keys on memory and direct RocksDB for fixed/session win
 bounded ROWS OVER, interval joins and window joins on both supported Flink releases. See
 [scalar key coverage](../operators/window-aggregate.md#scalar-grouping-and-partition-keys).
 
-
 FLOAT/DOUBLE partition keys also use their natural Float32/Float64 carriage in direct
 fixed-window and session state. The floating extension's two-restore comparisons regenerate
 distinct NaN payloads after source deserialization and project their raw bits after the
 stateful operation; source/sink canonicalization cannot collapse the oracle. Signed zero,
 infinities, subnormals and NULL are covered alongside ordinary finite values.
+
+### Hidden OFFSET row-kind mutations
+
+General retracting Top-N with OFFSET and no projected rank follows released Flink's RocksDB
+MapState copy semantics. Emitting a row kind mutates a transient deserialized row; it changes
+stored state only when the owning list is explicitly put. Insertions write their source list
+after emission, while retractions write it before shifting subsequent sort groups. The native
+whole-partition codec preserves those logical per-list write boundaries even when it flushes
+one partition value at a physical batch boundary. Heap state keeps its shared-reference behavior.
+Consequently, the raw changelogs can differ between host backends; parity uses the same configured
+backend on both engines.
+
+No type code, checkpoint field or persisted byte layout changes. Existing stored row-kind
+history is retained, including history written by the preceding native implementation's
+heap-style behavior on RocksDB. That past stock-RocksDB state cannot be inferred afterward.
+Fresh jobs and checkpoints made with the corrected behavior match the selected backend in
+sixteen SQL scenarios per released Flink line, including ties and two failure/restores. See
+[Top-N](../operators/top-n.md) for the affected shape and historical-state limitation.

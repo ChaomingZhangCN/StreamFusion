@@ -67,12 +67,26 @@ cascades even when rank is not projected. An updated row moving into the hidden 
 its former visible position before the remaining visible transitions. Checkpoints and canonical
 memory/RocksDB transitions retain the prefix and reapply the selected range on restore.
 
-A hidden-rank retracting offset follows Flink's heap-state emission semantics: a cascade mutates
-the retained row kinds, and later retractions compare those kinds along with the full payload.
-Sort-key counts advance even when a payload removal fails. Native memory and RocksDB state both
-persist the kinds and independent counts, including zero-count keys with retained payloads.
-This path preserves every per-record cascade even when mini-batching is enabled. Projected-rank
-and update-fast paths retain their existing behavior.
+A hidden-rank retracting offset follows the selected Flink backend's value-copy semantics.
+With heap state, a cascade mutates shared retained row kinds; later retractions compare those
+kinds along with the full payload. RocksDB reads serialized copies instead: only explicitly
+written source-sort-group lists retain their mutations. An insertion writes its new row after
+emission. A retraction writes its source list before shifting later groups, so those later
+emissions do not mutate persisted kinds. Native memory and direct RocksDB preserve these
+respective contracts, including within a physical Arrow batch.
+
+Sort-key counts advance even when a payload removal fails. Both stores persist independent
+counts, including zero-count keys with retained payloads. The path preserves each per-record
+cascade even with mini-batching enabled. Projected-rank and update-fast paths are unchanged.
+Sixteen released-SQL cases per supported Flink line cover unique/tied sort keys, both backends,
+projected/hidden ranks and two checkpoint restores. The previous native RocksDB path failed
+both uninterrupted and recovered hidden-rank controls; the heap/projected controls passed.
+[Validation evidence](../benchmarks/results/hidden-offset-backend-copies-2026-10-20.json).
+
+The state encoding is unchanged. Old native RocksDB checkpoints retain their recorded kinds;
+future correct copy behavior cannot reconstruct the stock-RocksDB history that the previous
+heap-style mutation model did not record. Replaying from an unaffected source/state is needed
+when that historical difference matters.
 
 Without OFFSET, each retraction of a selected row emits its removal and any promoted row,
 even when an identical duplicate replaces it. Projected ranks retain the corresponding

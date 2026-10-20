@@ -1098,6 +1098,10 @@ impl<C: RocksStateCodec> RocksStore<C> {
 }
 
 impl<C: RocksStateCodec> KeyedStateStore<C::Value> for RocksStore<C> {
+    fn serializes_values(&self) -> bool {
+        true
+    }
+
     fn enable_resident_cache(&mut self, limit: usize, reservation: Option<MemoryReservation>) {
         assert!(
             self.multisets.is_empty(),

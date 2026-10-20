@@ -33,10 +33,12 @@ flushes. The SQL fixture keeps processing-time batch markers at zero for both ex
 crossing a wall-clock boundary can otherwise split identical rows into different bundles,
 changing the host's retained row kinds and even its final OFFSET result. The fallback case
 still executes both jobs and requires zero native substitutions and the precise reason.
-Hidden-rank retracting OFFSET always preserves
-per-record cascades: emitting a row mutates its retained kind, affecting later full-row equality.
-Its sort-key counts advance independently of successful payload removals, exactly as in Flink's
-heap state backend. Checkpoints and memory/RocksDB transitions preserve both kinds and counts. The
+Hidden-rank retracting OFFSET always preserves per-record cascades. Heap state retains emitted
+row-kind mutations through shared references; RocksDB retains only mutations in explicitly
+written source-sort-group lists. Later full-row equality follows that selected-backend history.
+Sort-key counts advance independently of successful payload removals. Checkpoints and
+memory/RocksDB transitions preserve the recorded kinds and counts; see the
+[Top-N state compatibility note](top-n.md) for old native RocksDB history. The
 single-phase aggregate is used where a retracting two-phase SUM still has its own admission
 gap; enabling LIMIT does not bypass an upstream aggregate's gate.
 

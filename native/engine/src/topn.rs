@@ -2194,6 +2194,7 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
         let (rank_output, rank_base) = (self.output_rank_number || self.offset > 0, self.offset);
         let track = self.memory.tracking();
         let mut delta = 0isize;
+        let serialized_state = self.groups.serializes_values();
         let groups = &mut self.groups;
 
         let mut out_rows: Vec<Arc<OwnedRow>> = Vec::new();
@@ -2242,6 +2243,7 @@ impl<S: KeyedStateStore<TopNPartition>> RetractableTopNRanker<S> {
                     self.offset,
                     self.limit,
                     self.generate_update_before,
+                    serialized_state,
                     &mut out_rows,
                     &mut out_kinds,
                 );

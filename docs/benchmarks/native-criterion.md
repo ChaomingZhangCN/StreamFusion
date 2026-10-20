@@ -168,7 +168,6 @@ Run `python3 bin/bench-native.py --bench over_distinct_store --smoke` to validat
 without constructing every persistent operator fixture. This is a registered Criterion
 target; shared helpers remain nested modules to avoid accidental Cargo target discovery.
 
-
 The `operators` target's `floating_group/distinct_avg` fixtures cover production FLOAT/DOUBLE
 DISTINCT averages at 256/4096 rows, one/64 keys and nullable/non-null inputs (16 cases).
 They retain membership and widened sum/count work while keeping batch construction outside
@@ -464,7 +463,6 @@ revision; all 96 profiles pass the released-Flink bit/schema/NULL comparisons.
 [Expanded JNI probes](double-truncate-expanded-probes-2026-10-01.csv) are retained. Timing
 comparisons for the revised helper remain pending.
 
-
 ## Persistent keep-first deduplication probes
 
 `persistent_state` also exercises the production disk-backed keep-first deduplicator. The
@@ -504,7 +502,6 @@ unique keys before being called an improvement. The allocation totals above
 include additional encoding/filtering work and cannot be attributed entirely
 to this clone.
 
-
 ## Parquet paired INT96 profiles
 
 The Parquet suite adds 24 INT96 profiles: 16, 1,024 and 16,384 rows, nullable and
@@ -527,7 +524,6 @@ release run; smoke checks provide only fixture and allocation evidence.
 Run `python3 bin/bench-native.py --bench parquet_io --filter int96 --smoke` to
 validate the profiles, then omit `--smoke` to retain timing samples.
 
-
 Decoder inputs are canonical INT96 files prepared with the released low-level
 Parquet writer outside measurement, including negative sub-millisecond epoch
 neighbors. Production encoder round trips use zero fractional remainder for
@@ -549,7 +545,6 @@ bytes with 17-row output batches and 1,882,535 bytes with 1,024-row batches.
 These profile differences include per-batch reader/output overhead and do not
 measure a new optimization or whole-job improvement.
 
-
 The DOUBLE TRUNCATE JNI suite adds `large_domain` (signed values near 1e12,
 scales -3..3) and `rounded_subunit` (scale-18 rounding boundaries near 1e-6 and
 zero, scale 6) to each of its reflective/generated and released/shortcut controls.
@@ -566,7 +561,6 @@ regression test separately verifies that the released control disables helper
 substitution. Smoke mode provides no timing claims;
 JVM/native-worker allocations remain outside the Rust counters.
 
-
 The persistent keep-first deduplication suite also defines 72 TTL profiles:
 three batch sizes, repeated/all-distinct keys, two payload sizes, nullable/non-null
 payloads and three phases. Live emitted markers suppress duplicates just before
@@ -582,7 +576,6 @@ are retained. Smoke checks establish output/schema and boundary behavior, withou
 timing claims; Rust-thread allocation counters exclude RocksDB C++ and background
 workers. Coverage of other persistent stores and restore/rescale operations remains
 incomplete.
-
 
 Keep-first recovery also defines 72 profiles for mixed emitted/pending state:
 three batch sizes, repeated/all-distinct keys, two payload widths and nullability,
@@ -602,7 +595,6 @@ RocksDB C++/background allocations and filesystem I/O are outside Rust counters.
 The suite now defines 240 profiles; this run filters timing smoke to the 72 new
 recovery profiles. Cargo metadata confirms 24 workspace benchmark targets, without
 establishing exhaustive operation coverage.
-
 
 The 2026-10-02 Boolean membership comparison retains all 84 collection fixtures
 for both original and final release builds. [All 168 allocation probes](array-distinct-boolean-bits-probes-2026-10-02.csv)
@@ -1011,7 +1003,6 @@ evidence that all of those requests can be removed.
 | restore_aligned | 27.902 | 27.180–28.741 |
 | restore_clipped | 38.430 | 38.024–38.869 |
 
-
 ### Persistent running-SUM OVER lifecycle
 
 New `persistent_state` fixtures exercise the existing rowtime unbounded BIGINT
@@ -1079,7 +1070,6 @@ opening/adoption work that the Rust allocation counter excludes. Checkpoint
 and rebuild timing intervals are broad; retain their raw variability rather
 than interpreting this baseline as a precise general ranking of recovery paths.
 
-
 ### Scale-dependent DOUBLE TRUNCATE validation
 
 The expanded decimal-coefficient guard passes all 144 existing release JNI
@@ -1094,7 +1084,6 @@ benchmark allocator, excluding JVM/native worker allocations; no JVM allocation
 saving or Criterion throughput improvement is inferred from this smoke run.
 Release/mimalloc whole-job performance and all 210 repeated measurements live
 in the [kernel ledger](../optimizations/scalar-function-kernels.md).
-
 
 ### Persistent OVER recovery after partial firing
 
@@ -1134,7 +1123,6 @@ Criterion filtering still runs the full untimed diagnostics before selected
 timings. These use the Rust counting allocator rather than production mimalloc;
 no whole-job improvement is claimed.
 
-
 ### Persistent GROUP BY lifecycle fixtures
 
 The new benchmark matrix uses the production RocksDB-backed mini-batch
@@ -1155,7 +1143,6 @@ pass, along with 1,512 earlier profiles: 1,608 unique release fixtures. The fina
 run verifies unchanged source hashes and the per-key changelog order. These
 fixtures do not establish retract/delete, DISTINCT, TTL or multi-source rescale coverage. Existing-group continuation is
 validated outside measurement; the ingestion timing starts from empty state.
-
 
 [All 96 GROUP BY allocation profiles](persistent-group-aggregate-allocations-2026-10-02.csv)
 are retained. For 16,384 rows with a 16,384-key domain, wide UTF-8 keys and
@@ -1183,7 +1170,6 @@ Checkpoint variability remains substantial. The Rust counting allocator uses
 System rather than production mimalloc; all 1,608 untimed diagnostics execute
 before the filtered timing cases. No whole-job acceleration is inferred from
 this benchmark extension.
-
 
 ### Persistent key ownership experiment
 
@@ -1226,7 +1212,6 @@ the allocation reduction as a throughput win. The original production
 implementation remains in place; the measured candidate is rejected and has
 no established whole-job speedup.
 
-
 The opt-in `PersistentGroupAggregateBenchmark` adds a separate row-fed
 COUNT(*)/SUM whole-job witness using the configured native RocksDB backend,
 one-phase logical mini-batches of 1,024 rows, identical 256 MiB task off-heap
@@ -1248,7 +1233,6 @@ operators. This establishes execution of the intended direct RocksDB path.
 These are inclusive, overlapping stack counts, not additive costs. Profiler
 runs are separate from timing comparisons; representative repeated whole-job
 performance measurements remain pending.
-
 
 ### Persistent tumbling SUM lifecycle
 
@@ -1272,7 +1256,6 @@ Five focused baseline timing estimates and all 500 samples are retained below;
 these characterize existing execution, with no performance improvement claimed. Hopping/cumulative windows, retractions, other aggregate kinds,
 TTL and multi-source rescaling are outside this fixture's scope.
 
-
 [All 120 tumbling allocation profiles](persistent-tumbling-sum-allocations-2026-10-02.csv)
 are retained. For 16,384 rows with a unique key domain, wide keys and NULLs,
 the update requests 54,122,090 Rust bytes across 278,919 allocation calls;
@@ -1288,7 +1271,6 @@ state, validation, continuation, final operator close and directory cleanup
 are outside the measured closures. Restore timing includes checkpoint
 copy/rebuild and database opening. The update phase measures the production
 write-through update; its later watermark firings are verification steps.
-
 
 For the same wide unique nullable 16,384-row shape, release Criterion used
 three seconds of warmup, 100 samples and at least five seconds of collection
@@ -1309,7 +1291,6 @@ RocksDB options apply; C++ and worker allocation costs are not counted.
 and [all 500 samples](persistent-tumbling-original-samples-2026-10-02.csv)
 retain variability. These are operator lifecycle baselines, not release/mimalloc
 whole-job comparisons against stock Flink or an optimization candidate.
-
 
 The opt-in `PersistentTumblingAggregateBenchmark` defines a separate
 row-fed COUNT(*)/SUM whole-job witness with two one-second event-time windows,
@@ -1488,7 +1469,6 @@ pending. The sanity trials establish harness execution, not performance or SQL
 result parity; the
 blackhole sink does not compare output values.
 
-
 The original session CPU recording also completes on released Flink 2.2.1 using
 release/mimalloc, two warmups and a 30-second recording request. Of 41,158 CPU
 samples, inclusive markers include session push JNI (33,922), flush JNI (136),
@@ -1531,7 +1511,6 @@ factory to preserve the independent stock result. The strengthened test passes
 with one unskipped test and normal Javadoc checks on both released Flink 2.2.1
 and 1.18.1 against the original release/mimalloc library.
 
-
 The complete [allocation comparison](persistent-session-slice-allocation-comparison-2026-10-02.csv)
 retains all 1,848 cases: 14 have fewer allocation calls, 1,834 are unchanged and
 none have more; all output-buffer counters match. [All 120 candidate session
@@ -1573,7 +1552,6 @@ The candidate is rejected despite lower allocation counts. No candidate whole-jo
 speedup is claimed. The repository decision record at
 `.claude/wontdos/session-contiguous-value-slices.md` retains the scope and
 conditions for revisiting this experiment.
-
 
 ## Persistent window-join lifecycle
 
@@ -1836,7 +1814,6 @@ not a before/after comparison or whole-job acceleration claim.
 The runner-level release smoke with `--features mimalloc` also passes all 48
 retraction cases. Its retained metadata records the requested feature and exact
 Cargo command; feature selection does not change the allocation-counter scope.
-
 
 ### Persistent extrema profiles
 
@@ -2166,7 +2143,6 @@ trials are discarded or normalized away. Production keeps the array-cast fallbac
 performance validation of the entry writer on already-supported operations
 continues independently.
 
-
 ## Narrow primitive exit rejection
 
 A profile-guided attempt to bypass the generated binary-row projection for up
@@ -2194,7 +2170,6 @@ as a substantial allocation improvement: its own temporary carrier is about
 0.01% of weighted allocation samples, while downstream Flink ownership copies
 account for most remaining record carriers. The broader floating-function
 performance work remains pending.
-
 
 ## Typed hyperbolic conversion diagnostics
 
@@ -2241,7 +2216,6 @@ the [fusion and paired-control patch](strict-hyperbolic-fusion-prototype.patch).
 The patches apply together and the resulting source passes whitespace checks.
 These remain experimental patches rather than shipping implementations.
 
-
 ## Reserved primitive entry diagnostic
 
 The [reserved primitive entry experiment](primitive-reserved-entry-experiment.md)
@@ -2254,7 +2228,6 @@ math regressions, so production admission is unchanged.
 The portable entry patch includes the tested ownership and growing-writer
 fixtures at their actual operator-test path.
 
-
 ## Hyperbolic compiler specialization
 
 The [compiler specialization diagnostic](hyperbolic-specialization.md) retains
@@ -2264,7 +2237,6 @@ kernels improve 11.92–14.11%, but complete jobs still lose to shipping by
 and stock. The 816 oracle fixtures and allocation probes and both released
 Flink SQL suites pass; allocation traffic is unchanged. Production admission
 remains unchanged and the broader performance goal remains pending.
-
 
 ## Typed NULL hyperbolic scalar coverage
 
@@ -2356,7 +2328,6 @@ and alternates stock/native trials with warmup before reporting every measuremen
 `interval.warmup`, and `interval.runs` properties. SQL startup, input conversion, JNI, state, output
 conversion, and the rowwise blackhole sink remain inside the measured boundary.
 
-
 The [performance audit reproduction guide](performance-audit.md) records matched fixture commits,
 release/allocator controls, serial shared-host execution, and Java/full-job comparisons for the
 pending-dedup, interval-probe, window, Delta, and Paimon audit candidates.
@@ -2394,13 +2365,11 @@ applicable. Setup and JVM creation occur outside timing; assignment, callback co
 push/flush and state work remain measured. These native fixtures supplement complete Flink
 jobs with both transposes; they do not establish an end-to-end speedup themselves.
 
-
 The `operators` suite's `attached_windows` fixtures call the production final assigned-bound
 window fold and firing path for 256/4096 rows, 1/64 keys, BIGINT and 64-byte STRING keys,
 nullable sums and a previously closed window. The fixture checks late-row counts and remaining
 window groups before timing. Batch construction, initial cutoff and operator creation are outside
 timing; assigned-bound admission, fold and final changelog materialization stay inside it.
-
 
 The `operators` suite's `exact_count_panes` fixtures exercise production ordinary fixed-grid
 HOP COUNT after per-slice pre-aggregation, at 256/4096 rows, 1/64 keys, BIGINT/64-byte STRING
@@ -2493,7 +2462,6 @@ and state rather than Arrow arrays, so their Arrow output-buffer reports are emp
 All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are retained
 in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).
 
-
 Default binary-ELT planner admission reuses the existing production
 `binary_expressions` suite (`elt_arguments`, `elt_all_scalar`, and `elt_singular`),
 including variable-width results and scalar/array selection. Its Java eligibility and
@@ -2512,7 +2480,6 @@ overflow, sticky accumulators and both memory/native RocksDB recovery. Setup is 
 measured production update/output boundary; all fixtures report allocation requests and
 Arrow buffer sharing. Run `--bench over_basic_values --filter over_decimal_distinct_reductions
 --smoke` for this focused selection.
-
 
 The explicit `window_floating_distinct` target covers production FLOAT/DOUBLE window COUNT
 DISTINCT with Flink boxed equality. Its 60 fixtures combine 64/4096 rows, one/64/unique keys,
@@ -2546,7 +2513,6 @@ rank insertion, retained state and complete changelog construction are measured.
 allocation probes retain separate Arrow-buffer reports; complete Java jobs include the native
 flag projections and both perimeter transposes.
 
-
 ### Complex OVER COUNT fixtures
 
 `over_complex_count` exercises the existing production framed OVER aggregator through nullable
@@ -2557,7 +2523,6 @@ snapshot/restore continuation before timing. Input/operator construction remains
 measured update/output path. All fixtures report allocation requests and Arrow buffer sharing;
 these metrics are not copied-byte estimates. Run `--bench over_complex_count --smoke`.
 
-
 The existing `window_complex_counts` and `over_complex_count` suites also cover standalone
 MULTISET parent validity with element-to-INT entries. Windows add twelve cases (48 total);
 OVER includes 112 MULTISET cases (308 total), spanning four event-time and three proctime
@@ -2565,7 +2530,6 @@ frames, nullable-element IPC list carriers, narrow/wide bags, 64/4,096 rows, one
 framed snapshot continuation. Occurrence counts are
 positive and non-null; they never become the COUNT result. Run either existing suite with
 `--smoke`; no new target or native production implementation is required.
-
 
 The `non_time_row_number` suite's `non_time_floating_rank` group adds 32 FLOAT/DOUBLE cases
 at 16/256 rows and one/64 nullable partitions, both NULL placements and initial/later NaNs.
@@ -2600,7 +2564,6 @@ The `over_map_count` release example is a separate functionality-admission drive
 production native budget enabled; it is not a replacement for Criterion or complete-job
 measurements.
 
-
 The existing `keys_and_checkpoints` suite adds `scalar_partition_keys`: 144 fixtures for
 Int8, Int16, millisecond Time32, Binary, month-interval Int32 and day-time-interval Int64
 keys. Each combines 64/4096 rows, one/64 keys and a second scalar shard, including NULLs
@@ -2610,8 +2573,17 @@ codec round trips, complete row counts and session snapshot continuation. Fixtur
 setup remains outside timing; stateful adapters enable the production memory budget. Run
 `--bench keys_and_checkpoints --filter scalar_partition_keys --smoke`.
 
-
 `scalar_partition_keys` also includes 48 FLOAT/DOUBLE fixtures, bringing the selection to
 192 cases. They run the same six production paths with natural Float32/Float64 keys,
 including nullable keys, distinct raw NaN payloads, encode/decode checks and session
 snapshot continuation. The released SQL matrix observes raw output key bits separately.
+
+`keys_and_checkpoints` adds `serialized_offset_kinds`: sixteen hidden-OFFSET fixtures on the
+production heap/direct-RocksDB retracting ranker, with 64/4096 input rows, one/64 partitions
+and either one physical batch or seven-row chunks. A five-record independent oracle pins
+backend-dependent INSERT/UPDATE/DELETE kinds after an insertion shifts retained rows and a
+later retraction compares their kinds. Operators, temporary databases and inputs are prepared
+outside timing; timed work includes Arrow encoding, state access/writes and output construction.
+Both adapters enable the 1 GiB production memory budget. Allocation probes exclude setup and
+report requests rather than copied bytes. Run `--bench keys_and_checkpoints --filter
+serialized_offset_kinds --smoke`.

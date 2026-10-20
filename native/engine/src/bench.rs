@@ -2343,3 +2343,66 @@ impl StringOverReduction {
 pub fn drop_update_before(batch: &RecordBatch) -> RecordBatch {
     crate::changelog_filter::drop_update_before(batch)
 }
+
+/// The production hidden-OFFSET ranker under each host backend's value-copy contract.
+pub struct HiddenOffsetRank {
+    backend: HiddenOffsetBackend,
+}
+enum HiddenOffsetBackend {
+    Memory(RetractableTopNRanker),
+    #[cfg(feature = "rocksdb-state")]
+    Rocks(RetractableTopNRanker<crate::topn::RocksTopNStore>),
+}
+impl HiddenOffsetRank {
+    pub fn new(schema: SchemaRef, directory: Option<&str>) -> Self {
+        let sort = vec![SortColumn {
+            index: 1,
+            ascending: true,
+            nulls_first: false,
+        }];
+        let empty = RecordBatch::new_empty(schema.clone());
+        let converters =
+            crate::topn::TopNConverters::build(&empty, schema.fields().len(), &[0], &sort);
+        #[cfg(feature = "rocksdb-state")]
+        let store = directory.map(|directory| {
+            crate::state::RocksStore::create(
+                PersistentSort::config(
+                    directory,
+                    include_str!("../benches/fixtures/rocks-options.json"),
+                ),
+                crate::topn::TopNStateCodec::new(&converters),
+            )
+            .expect("OFFSET store")
+        });
+        let ranker = RetractableTopNRanker::new(vec![0], sort, 1, 4, false)
+            .with_converters(converters)
+            .with_payload_schema(schema);
+        #[cfg(feature = "rocksdb-state")]
+        if let Some(store) = store {
+            return Self {
+                backend: HiddenOffsetBackend::Rocks(
+                    ranker
+                        .with_backend(store)
+                        .with_read_through_budget(1 << 30)
+                        .expect("OFFSET budget"),
+                ),
+            };
+        }
+        #[cfg(not(feature = "rocksdb-state"))]
+        assert!(directory.is_none(), "RocksDB feature required");
+        Self {
+            backend: HiddenOffsetBackend::Memory(
+                ranker
+                    .with_read_through_budget(1 << 30)
+                    .expect("OFFSET budget"),
+            ),
+        }
+    }
+    pub fn push(&mut self, batch: &RecordBatch) -> RecordBatch {
+        match &mut self.backend {
+            HiddenOffsetBackend::Memory(operator) => operator.push(batch, 0).expect("OFFSET push"),
+            #[cfg(feature = "rocksdb-state")]
+            HiddenOffsetBackend::Rocks(operator) => operator.push(batch, 0).expect("OFFSET push"),
+        }
+    }
+}
