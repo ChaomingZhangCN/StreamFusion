@@ -2494,11 +2494,13 @@ All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are r
 in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).
 
 
-The experimental binary-ELT planner admission reuses the existing production
+Default binary-ELT planner admission reuses the existing production
 `binary_expressions` suite (`elt_arguments`, `elt_all_scalar`, and `elt_singular`),
 including variable-width results and scalar/array selection. Its Java eligibility and
 length-delimited boundary changes add no Rust operational path. Existing kernel timings
-are not a complete-job speed claim for the new opt-in transport.
+are not a complete-job speed claim. The `binary_elt` release example separately measures
+the production expression program entirely inside Rust on prepared Arrow, paired with
+`BinaryEltAdmissionBenchmark` using the released generated Calc on prepared BinaryRowData.
 
 The `over_basic_values` target's `over_decimal_distinct_reductions` group covers production
 DISTINCT SUM/SUM0/AVG at DECIMAL(12,2), (38,0) and (38,37), 64/4096 rows, one/64 keys and seven

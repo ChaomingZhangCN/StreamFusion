@@ -154,7 +154,7 @@ jobs:
           -Dnative.resource.directory="$GITHUB_WORKSPACE/native/target/debug"
           -Dtest=FlinkJvmAggregateSqlHarnessTest,FlinkNestedScalarSqlHarnessTest,FlinkNestedFixedBinarySqlHarnessTest,FlinkTemporalUdfSqlHarnessTest,FlinkBinaryRowHashParityTest,FlinkMapJsonJvmSqlHarnessTest,FlinkJsonJvmSqlHarnessTest,NativeParityValueTest,TransposeOperatorsTest,Utf8WriterReuseTest,FlinkEltSqlHarnessTest,FlinkFixedBinarySqlHarnessTest,FlinkBinaryStringBuiltinsSqlHarnessTest,FlinkVariableBinaryEltSqlHarnessTest,FlinkNestedScalarRecoveryTest,FlinkNestedScalarRemoteDeploymentTest
           -Dsf.testForks=1
-          "-Dsf.extraJvmArgs=-Djava.library.path=$GITHUB_WORKSPACE/native/target/debug -Dstreamfusion.experimental.temporalScalarUdfs=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=65536 -Dstreamfusion.experimental.borrowedStringExit=true -Dstreamfusion.experimental.binaryElt=true"
+          "-Dsf.extraJvmArgs=-Djava.library.path=$GITHUB_WORKSPACE/native/target/debug -Dstreamfusion.experimental.temporalScalarUdfs=true -Dstreamfusion.experimental.jvmAccumulatorCacheEntries=65536 -Dstreamfusion.experimental.borrowedStringExit=true"
           surefire:test@default-test
 
       - name: Check deployed Java 11 bytecode including embedded payloads

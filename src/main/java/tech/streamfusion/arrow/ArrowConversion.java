@@ -243,7 +243,11 @@ public final class ArrowConversion {
   }
 
   private static boolean variableBinaryTransport() {
-    return nestedScalarUdfsEnabled() || Boolean.getBoolean("streamfusion.experimental.binaryElt");
+    return nestedScalarUdfsEnabled() || binaryEltEnabled();
+  }
+
+  public static boolean binaryEltEnabled() {
+    return Boolean.parseBoolean(System.getProperty("streamfusion.experimental.binaryElt", "true"));
   }
 
   public static boolean nestedScalarUdfsEnabled() {
@@ -256,8 +260,8 @@ public final class ArrowConversion {
    * type {@code declared} by the vectors {@link #createColumnVector} builds. That dispatch is by
    * Arrow type, not by the declared type, so this is the contract a native output must meet: the
    * same Arrow type the row type converts to, except that timestamps and times may carry any unit
-   * (and any zone), which the vectors convert on read. The nested-scalar and binary-selection
-   * experiments also read fixed binary outputs through its length-delimited binary schema. Nested
+   * (and any zone), which the vectors convert on read. The nested-callback and binary-selection
+   * paths also read fixed binary outputs through its length-delimited binary schema. Nested
    * children follow the same rules.
    */
   public static boolean readsAs(Field actual, LogicalType declared) {

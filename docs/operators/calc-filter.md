@@ -102,7 +102,7 @@ Thirty selected native Criterion smokes exercise sliced nullable nested binary h
 key hashing. These are correctness checks. The follow-up below adds BINARY recovery and
 separate-JVM deployment coverage; representative runtime speed comparisons remain deferred.
 Default nested callback admission follows the accepted UDF performance exception. Binary ELT
-retains its separate opt-in pending its functionality gate.
+default admission follows its separate Rust-side functionality gate.
 
 The experiment has no throughput admission. [Java CPU/allocation and symbolized Rust profiles](../benchmarks/results/nested-scalar-rejected-array-conversion-2026-10-16.json)
 identify conversion work; their timings include observed external activity and are excluded from
@@ -1515,8 +1515,9 @@ Flink's rowwise exception or shared-function ordering retain the generated callb
 
 An INTEGER index and character alternatives are admitted. The index is 1-based; out-of-range and NULL indices return NULL. Only the selected alternative's NULL matters. Other index types fall back: Flink casts its boxed index to Integer after its bounds check. Explicit casts to INTEGER follow the existing cast rules.
 
-Fixed-binary ELT regression tests assert stock fallback result parity; the unverified BIGINT index
-overload retains its explicit fallback check.
+Binary ELT runs by default, including fixed-declaration inputs whose raw payload lengths
+differ from their SQL widths. Explicit false overrides retain tested stock execution; the
+unverified BIGINT-index overload keeps its fallback check.
 
 ### URL_ENCODE
 
@@ -2417,10 +2418,10 @@ remain slower than stock Flink; see the [recorded measurements](../benchmarks/sc
 This acceptance does not widen nullable-key, fixed-BINARY or non-Calc admission.
 
 
-### Experimental binary ELT and raw payload boundaries
+### Binary ELT and raw payload boundaries
 
-`-Dstreamfusion.experimental.binaryElt=true` in both planner and task JVMs admits
-verified INTEGER-indexed binary `ELT` arguments/results. It defaults off. Safe selections
+`streamfusion.experimental.binaryElt` defaults to `true` in planner and task JVMs and admits
+verified INTEGER-indexed binary `ELT` arguments/results. Explicit false retains stock execution. Safe selections
 use the existing native binary kernel with a length-delimited result. Expressions requiring
 released Flink evaluation keep the generated path, including conditional/failing operands.
 The unverified BIGINT-index overload remains on Flink. No Rust production kernel changes.
@@ -2429,10 +2430,10 @@ The flag uses Arrow Binary for SQL BINARY(n), because released Flink can carry r
 whose length differs from the declaration. SQL types remain BINARY(n). Existing fixed-width
 Arrow results remain readable through this transport. NULL/bounds semantics, selected raw
 bytes, literal selection, grouping, object reuse and batch boundaries are covered by
-`FlinkVariableBinaryEltSqlHarnessTest` and the existing binary SQL selections. The default
-mode retains its existing stock fallback. The maintainer accepted shipping the tested path
-on October16 with performance work deferred; historical slower standalone measurements
-above remain visible and do not establish speed for this transport.
+`FlinkVariableBinaryEltSqlHarnessTest` and the existing binary SQL selections. The original
+October 16 opt-in evidence is retained below. Default admission now follows the agreed
+Rust/Arrow versus Java/RowData functionality gate; historical slower standalone measurements
+above remain visible as conversion-inclusive diagnostics.
 
 Nested BINARY checkpoint and separate-JVM checks extend the parent fixtures with raw lengths
 0–4097, NULL rows/fields/array elements, all nested RowKinds and mutable callback outputs.
@@ -2473,3 +2474,45 @@ is claimed. Explicit false overrides, unsupported signatures and semantic safegu
 The default-admission change passes 79 affected checks on each released Flink line (2.2.1 and
 1.18.1), covering shared order, balanced lifecycle, failure parity and exact temporal types.
 Both explicit false overrides retain stock execution.
+
+### Binary ELT default admission, 2026-10-20
+
+The verified INTEGER-indexed binary selector now runs without an opt-in. Explicit
+`streamfusion.experimental.binaryElt=false` restores stock execution, independently of the
+nested-scalar flag. Planner and worker use the same default helper. CI exercises this default
+without forcing the flag. The unverified index overloads and released error-order guards
+retain their existing routes.
+
+The small-functionality gate uses Flink's production generated Calc on prebuilt BinaryRowData
+and StreamFusion's production expression program inside Rust on prebuilt Arrow. Both prewarm
+the same 1,024-row prefix outside timing, then process the same logical rows. Timings include
+allocation, native execution and equivalent format-native output consumption; input preparation,
+initial import/final export and perimeter JNI/transposes are excluded. Full byte values and
+INSERT RowKinds are checked separately against native output, including NULL/empty values,
+invalid/NULL indices, embedded zero/high bytes and 4,097-byte payloads despite BINARY(4).
+
+Five warmups and nine measured trials produce these medians and measured ranges:
+
+| Rows / nominal byte width | Flink ms (range) | Rust ms (range) | Flink/Rust |
+| --- | ---: | ---: | ---: |
+| 16,384 / 4 | 1.311 (1.003–2.805) | 0.116 (0.115–0.133) | 11.34× |
+| 262,144 / 64 | 12.850 (12.493–31.510) | 2.614 (2.479–2.947) | 4.92× |
+| 131,072 / 256 | 15.538 (9.964–34.765) | 2.159 (2.021–2.493) | 7.20× |
+
+All three profiles win by 4.92–11.34×. The previous default used this same stock Calc at the
+measured boundary. No kernel optimization was needed to pass the agreed gate. Earlier slower
+conversion-inclusive jobs remain above; these operation measurements are not complete-job claims.
+[Raw trials, hashes and validation](../benchmarks/results/binary-elt-defaults-2026-10-20.json)
+retain every sample and preliminary diagnostics.
+
+Default validation selects 55 unique checks on each released line: all pass on Flink 2.2;
+Flink 1.18 passes 36 with 19 expected catalog-availability skips; ELT is absent from that release. Eight recovery and
+four separate-worker-JVM cases pass on each line. Explicit false passes 23 checks with four
+disabled coverage methods; binary default execution with nested callbacks explicitly disabled
+passes seven checks. All 1,104 existing release Criterion fixtures pass. These correctness
+checks do not imply faster JVM callbacks.
+
+Reproduce the stock half with `BinaryEltAdmissionBenchmark -Dbinary.admission.export=fixture.arrow`
+under `-Pbench` and `SF_BENCHMARK=true`. The compiled release `binary_elt` example accepts
+`fixture.arrow 5 9 output.arrow`; `-Dbinary.admission.rustOutput=output.arrow` verifies stock
+results against every native output byte before relying on its measurements.

@@ -53,7 +53,7 @@ class FlinkNestedScalarRemoteDeploymentTest {
             "-Darrow.enable_null_check_for_get=false",
             "-Dstreamfusion.exchange.zeroCopyLocal=false",
             "-Dstreamfusion.experimental.binaryElt="
-                + Boolean.getBoolean("streamfusion.experimental.binaryElt"),
+                + tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled(),
             "-Djava.library.path=" + System.getProperty("java.library.path"),
             "-cp",
             System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")),
@@ -86,7 +86,7 @@ class FlinkNestedScalarRemoteDeploymentTest {
         assertNotEquals(ProcessHandle.current().pid(), proof.get("pid"));
         assertEquals(true, proof.get("nestedFlag"));
         assertEquals(
-            Boolean.getBoolean("streamfusion.experimental.binaryElt"), proof.get("binaryEltFlag"));
+            tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled(), proof.get("binaryEltFlag"));
         var operators = (List<Map<String, Object>>) proof.get("operators");
         RecoveryExecutionMetrics.assertConsumed(operators, "NativeCalc");
         assertEquals(
@@ -210,7 +210,7 @@ class FlinkNestedScalarRemoteDeploymentTest {
                 "nestedFlag",
                 tech.streamfusion.arrow.ArrowConversion.nestedScalarUdfsEnabled(),
                 "binaryEltFlag",
-                Boolean.getBoolean("streamfusion.experimental.binaryElt"),
+                tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled(),
                 "operators",
                 operators));
       }

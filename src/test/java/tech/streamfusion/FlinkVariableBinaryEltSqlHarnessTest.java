@@ -13,11 +13,11 @@ import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.types.Row;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@EnabledIfSystemProperty(named = "streamfusion.experimental.binaryElt", matches = "true")
+@DisabledIfSystemProperty(named = "streamfusion.experimental.binaryElt", matches = "false")
 class FlinkVariableBinaryEltSqlHarnessTest {
   private static final int[] LENGTHS = {0, 1, 2, 3, 4, 5, 8, 17, 4097, -1};
 

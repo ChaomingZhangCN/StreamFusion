@@ -1602,8 +1602,8 @@ final class RexExpression {
     }
     if ("ELT".equals(call.getOperator().getName())
         && SqlTypeFamily.BINARY.contains(call.getType())) {
-      if (!Boolean.getBoolean("streamfusion.experimental.binaryElt"))
-        return reject("binary ELT awaits whole-job performance admission");
+      if (!tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled())
+        return reject("binary ELT explicitly disabled");
       if (call.getOperands().get(0).getType().getSqlTypeName() == SqlTypeName.INTEGER
           && call.getOperands().stream().noneMatch(this::requiresRowShortCircuit)) {
         add(KIND_BINARY_ELT, 0, call.getOperands().size());

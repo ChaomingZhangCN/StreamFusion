@@ -45,12 +45,15 @@ the physical vector supplies its actual byte extent, and the Java result owns it
 Flink converters still normalize callback inputs/results; the experiment changes neither their
 SQL types nor evaluation order. The key-byte/hash oracle compares the resulting nested ROW/ARRAY
 values directly with released Flink serialization, including NULL payloads and all inner kinds.
-Nested binary recovery and whole-job performance admission remain pending in #235/#237.
+Nested binary recovery and separate-JVM deployment are verified by the binary selection
+fixtures. Whole-job performance improvements remain separate work in #235/#237; correct
+UDF execution follows the accepted performance exception.
 
 
-The binary-ELT opt-in independently enables the same length-delimited BINARY transport.
+Default-enabled binary ELT independently selects the same length-delimited BINARY transport.
 This preserves released Flink raw-byte extents at existing native selection boundaries,
 while the logical SQL width and nested-scalar admission flag remain independent. Comet's
 `getBinary` reads the actual vector extent into an owned result; the existing released
 Arrow readers and writers retain that ownership pattern. No new JNI/memory handoff or
-Rust selection kernel is introduced. The maintainer accepted deferred throughput work.
+Rust selection kernel is introduced. Binary ELT default admission uses the agreed
+Rust/Arrow versus Java/RowData small-functionality gate; complete-job costs remain documented.

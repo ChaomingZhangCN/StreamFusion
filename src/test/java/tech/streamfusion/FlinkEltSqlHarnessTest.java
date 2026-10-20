@@ -32,11 +32,11 @@ class FlinkEltSqlHarnessTest {
       java.util.function.Supplier<org.apache.flink.table.api.TableEnvironment> environment,
       String sql)
       throws Exception {
-    if (Boolean.getBoolean("streamfusion.experimental.binaryElt"))
+    if (tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled())
       NativeParity.assertParity(environment, sql);
     else
       NativeParity.assertFallbackReasonContains(
-          environment, sql, "binary ELT awaits whole-job performance admission");
+          environment, sql, "binary ELT explicitly disabled");
   }
 
   private static void parity(String sql) throws Exception {

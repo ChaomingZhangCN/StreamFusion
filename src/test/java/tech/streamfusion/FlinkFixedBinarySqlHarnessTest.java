@@ -162,7 +162,7 @@ class FlinkFixedBinarySqlHarnessTest {
             ArithmeticException.class,
             "zero",
             NativeFailureParity.Phase.ROW_EVALUATION,
-            Boolean.getBoolean("streamfusion.experimental.binaryElt")
+            tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled()
                 ? NativeFailureParity.Route.NATIVE
                 : NativeFailureParity.Route.FALLBACK);
   }
@@ -203,7 +203,7 @@ class FlinkFixedBinarySqlHarnessTest {
         };
     String key = selection ? "ELT(n,b,p)" : "TRY_CAST(s AS BINARY(4))";
     String sql = "SELECT " + key + ", COUNT(*) FROM src GROUP BY " + key;
-    if (selection && !Boolean.getBoolean("streamfusion.experimental.binaryElt")) {
+    if (selection && !tech.streamfusion.arrow.ArrowConversion.binaryEltEnabled()) {
       FlinkEltSqlHarnessTest.assertBinaryParity(source, sql);
       return;
     }
