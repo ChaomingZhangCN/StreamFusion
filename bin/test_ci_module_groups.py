@@ -23,7 +23,7 @@ class ModuleGroupsTest(unittest.TestCase):
         self.assertTrue(declared)
         self.assertEqual(declared, set(selected))
         self.assertEqual(len(selected), len(set(selected)))
-        packages = set(' '.join(re.findall(r'^            packages: (.+)$', workflow, re.MULTILINE)).split())
+        packages = set(re.search(r'^          NATIVE_PACKAGES: (.+)$', workflow, re.MULTILINE)[1].split())
         expected = {'streamfusion-avro' if tag == 'streamfusion-avro-confluent' else tag for tag in declared}
         self.assertEqual(expected, packages)
 
