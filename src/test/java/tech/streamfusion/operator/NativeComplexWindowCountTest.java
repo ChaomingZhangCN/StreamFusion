@@ -14,7 +14,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class NativeComplexWindowCountTest {
   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> cases() {
-    return java.util.stream.Stream.of("array", "map", "row", "multiset")
+    return java.util.stream.Stream.of(
+            "array", "map", "row", "multiset", "binary", "day_time", "year_month")
         .flatMap(
             type ->
                 java.util.stream.IntStream.range(0, 3)
@@ -35,6 +36,21 @@ class NativeComplexWindowCountTest {
     LogicalType payloadType;
     Object empty, childNull;
     switch (type) {
+      case "binary":
+        payloadType = new VarBinaryType();
+        empty = new byte[0];
+        childNull = new byte[] {0, (byte) 0xff, 0};
+        break;
+      case "day_time":
+        payloadType = new DayTimeIntervalType(DayTimeIntervalType.DayTimeResolution.SECOND);
+        empty = 0L;
+        childNull = -1234L;
+        break;
+      case "year_month":
+        payloadType = new YearMonthIntervalType(YearMonthIntervalType.YearMonthResolution.MONTH);
+        empty = 0;
+        childNull = -13;
+        break;
       case "array":
         payloadType = new ArrayType(new BigIntType());
         empty = new GenericArrayData(new Long[0]);

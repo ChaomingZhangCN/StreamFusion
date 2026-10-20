@@ -182,8 +182,9 @@ one/64/1024 keys. DATE, TIME, BOOLEAN, 8/256-byte strings and nanosecond timesta
 retain NULL-only groups and are checked against an independent per-key validity oracle.
 Batch construction stays outside the timed production window update/firing boundary.
 
-The standalone `window_complex_counts` target adds 36 ordinary COUNT fixtures for ARRAY,
-MAP and ROW parents at 128/4096 rows and one/64/1024 keys. Parent NULLs, empty containers,
+The standalone `window_complex_counts` target has 84 ordinary COUNT fixtures for ARRAY,
+MAP, ROW and MULTISET parents, VARBINARY and both interval carriers at 128/4096 rows and
+one/64/1024 keys (36 binary/interval fixtures added). Parent NULLs, empty containers,
 NULL children and all-NULL groups are checked against an independent per-key validity oracle.
 Whole-batch and 17-row chunked input must agree, including local partial drains and global
 merges. Fixture construction stays outside the measured production update/firing boundary;
@@ -319,7 +320,7 @@ Some historical suites use
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
 | Fixed binary expressions | `binary_expressions` | Production Calc casts and ELT, direct UDF scalar/array adaptation and all-scalar contracts; sliced inputs, NULLs, invalid indices, fixed/variable literals/results, widths 1/16/256, one/three scalar value arguments |
 | Calc and column movement | `data_movement` | Compiled projection, grouping-set EXPAND, inner/left array UNNEST with projected/repeated/ordinal outputs, nullable timestamp and one-field ROW expansion, UPDATE_BEFORE filtering with absent/retained/mixed/discarded row kinds at 16/1024/16384 rows and narrow/wide nullable payloads, Arrow IPC encode/decode; cached nested ROW payloads through production IPC encode/decode and changelog filtering, including generic/missing-cache rows, null parents, all root RowKinds, widths 8/264 and 16/1024/16384 rows |
-| Complex OVER COUNT | `over_complex_count` | 308 ARRAY/MAP/ROW/MULTISET parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide containers, frame/peer/snapshot continuation |
+| Complex OVER COUNT | `over_complex_count` | 420 ARRAY/MAP/ROW/MULTISET and binary/interval parent-validity fixtures, nullable-key map-list transport, seven event/proctime contexts, 64/4096 rows, one/64 keys, narrow/wide payloads, frame/peer/snapshot continuation |
 | Unique-key join retractions | `unique_join_retractions` | 32 heap/direct-Rocks fixtures: 16/1024 rows, one/16 keys, nullable payloads, both sides; changed-payload retractions clear state before an independent opposite-side probe |
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
@@ -2566,6 +2567,16 @@ frames, nullable-element IPC list carriers, narrow/wide bags, 64/4,096 rows, one
 framed snapshot continuation. Occurrence counts are
 positive and non-null; they never become the COUNT result. Run either existing suite with
 `--smoke`; no new target or native production implementation is required.
+
+
+Ordinary OVER COUNT also admits VARBINARY and both interval families through the existing
+validity-only aggregate. The same suite adds 112 fixtures (372 total): binary payload widths
+8/256, signed millisecond day-time intervals and signed month intervals, each at 64/4,096
+rows, one/64 keys and seven event/proctime contexts. Empty binary values remain non-NULL.
+The independent count oracle and snapshot continuation run before timing; allocation requests
+and retained Arrow buffers are reported for these payloads too. These fixtures isolate native
+update/output work, not the Java conversions or complete-job performance. Run
+`--bench over_complex_count --filter 'binary|day_time|year_month' --smoke`.
 
 
 The `non_time_row_number` suite's `non_time_floating_rank` group adds 32 FLOAT/DOUBLE cases

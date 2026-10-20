@@ -25,7 +25,7 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import tech.streamfusion.compat.ListCollectors;
 
 @org.junit.jupiter.api.extension.ExtendWith(tech.streamfusion.operator.CoalescingOff.class)
@@ -33,10 +33,11 @@ import tech.streamfusion.compat.ListCollectors;
 class StatefulSqlRescaleTest {
   private static final Map<String, Object> RESULTS = new TreeMap<>();
 
-  @ParameterizedTest(name = "rescale-rocks={0}")
-  @ValueSource(booleans = {false, true})
-  void groupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory) throws Exception {
-    groupedScenario(rocks, directory, false, false);
+  @ParameterizedTest(name = "rescale-rocks={0}-typed-table={1}")
+  @CsvSource({"false,false", "true,false", "false,true", "true,true"})
+  void groupedStateAcrossBothDirections(boolean rocks, boolean typedTable, @TempDir Path directory)
+      throws Exception {
+    groupedScenario(rocks, directory, false, false, typedTable);
   }
 
   @ParameterizedTest(name = "jvm-rescale-rocks={0}")
@@ -46,7 +47,7 @@ class StatefulSqlRescaleTest {
       matches = "true")
   void jvmGroupedStateAcrossBothDirections(boolean rocks, @TempDir Path directory)
       throws Exception {
-    groupedScenario(rocks, directory, true, false);
+    groupedScenario(rocks, directory, true, false, false);
   }
 
   @ParameterizedTest(name = "jvm-savepoint-rescale-rocks={0}")
@@ -56,10 +57,11 @@ class StatefulSqlRescaleTest {
       matches = "true")
   void jvmGroupedSavepointAcrossBothDirections(boolean rocks, @TempDir Path directory)
       throws Exception {
-    groupedScenario(rocks, directory, true, true);
+    groupedScenario(rocks, directory, true, true, false);
   }
 
-  private void groupedScenario(boolean rocks, Path directory, boolean jvm, boolean savepoint)
+  private void groupedScenario(
+      boolean rocks, Path directory, boolean jvm, boolean savepoint, boolean typedTable)
       throws Exception {
     List<Row> input = new ArrayList<>();
     String text = "long-duplicate-é🙂".repeat(128);
@@ -82,6 +84,8 @@ class StatefulSqlRescaleTest {
     List<Map<String, Object>> stageEvidence = new ArrayList<>();
     report.put("passed", false);
     report.put("backend", backend);
+    report.put("typedTableFunction", typedTable);
+    report.put("checkpointIntervalMs", typedTable ? 1000 : 50);
     report.put("parallelisms", List.of(1, 3, 2));
     report.put("maxParallelism", 128);
     report.put("sourceOffsets", List.of(256, 512, 768));
@@ -91,7 +95,10 @@ class StatefulSqlRescaleTest {
     report.put("snapshotFormat", savepoint ? "CANONICAL savepoint" : "externalized checkpoint");
     report.put("stages", stageEvidence);
     RESULTS.put(
-        (jvm ? "jvm-" : "") + (savepoint ? "savepoint-" : "") + (rocks ? "rocksdb" : "memory"),
+        (jvm ? "jvm-" : "")
+            + (savepoint ? "savepoint-" : "")
+            + (rocks ? "rocksdb" : "memory")
+            + (typedTable ? "-typed-table" : ""),
         report);
     try {
       var reference =
@@ -105,6 +112,7 @@ class StatefulSqlRescaleTest {
               false,
               jvm,
               false,
+              typedTable,
               expected);
       report.put("reference", reference.evidence());
       List<Stage> stages = new ArrayList<>();
@@ -122,6 +130,7 @@ class StatefulSqlRescaleTest {
                 true,
                 jvm,
                 savepoint,
+                typedTable,
                 i == 2 ? expected : null);
         stages.add(stage);
         stageEvidence.add(stage.evidence());
@@ -221,6 +230,7 @@ class StatefulSqlRescaleTest {
       boolean nativeRun,
       boolean jvm,
       boolean savepoint,
+      boolean typedTable,
       Map<String, Long> expected)
       throws Exception {
     var type =
@@ -238,6 +248,7 @@ class StatefulSqlRescaleTest {
             .holdAfterInput()
             .withRescaleDeployment(parallelism, checkpoints, restore)) {
       var table = (StreamTableEnvironment) recovery.uninterrupted();
+      if (typedTable) recovery.executionEnvironment().enableCheckpointing(1000);
       table.getConfig().set("streamfusion.transpose.batchRows", "5");
       table.getConfig().set("table.exec.mini-batch.enabled", Boolean.toString(!jvm));
       table.getConfig().set("table.exec.mini-batch.size", "3");
@@ -248,16 +259,24 @@ class StatefulSqlRescaleTest {
             "view_aggregate", new FlinkJvmAggregateSqlHarnessTest.ViewAggregate());
       }
       if (nativeRun) tech.streamfusion.planner.NativePlanner.install(table);
-      var query =
-          table.sqlQuery(
-              jvm
-                  ? "SELECT k, test_aggregate(CAST(amount AS BIGINT)), COUNT(text_value), "
-                      + "view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
-                  : "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY"
-                      + " k");
+      String sql =
+          jvm
+              ? "SELECT k, test_aggregate(CAST(amount AS BIGINT)), COUNT(text_value),"
+                    + " view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
+              : "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY k";
+      if (typedTable) {
+        table.createTemporarySystemFunction(
+            "typed_rows",
+            new FlinkTypedTableFunctionSqlHarnessTest.TypedRows(DataTypes.DECIMAL(20, 2)));
+        sql =
+            "SELECT s.k, SUM(t.v), COUNT(DISTINCT s.text_value) FROM recovery_input s, LATERAL"
+                + " TABLE(typed_rows(2, s.amount)) AS t(v, pos) WHERE t.pos = 0 GROUP BY s.k";
+      }
+      var query = table.sqlQuery(sql);
       String plan = query.explain();
       String operatorPrefix = jvm ? "NativeJvmGroup" : "NativeColumnarGroupAggregate";
       if (nativeRun) assertTrue(plan.contains(operatorPrefix), plan);
+      if (nativeRun && typedTable) assertTrue(plan.contains("NativeTableFunction"), plan);
       var rows = table.toChangelogStream(query);
       int index = 0;
       for (var transformation : rows.getTransformation().getTransitivePredecessors()) {
@@ -316,6 +335,9 @@ class StatefulSqlRescaleTest {
         if (nativeRun)
           RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), operatorPrefix);
         else assertTrue(recovery.nativeExecution().isEmpty());
+        if (nativeRun && typedTable)
+          RecoveryExecutionMetrics.assertConsumed(
+              recovery.nativeExecution(), "NativeTableFunction");
         if (expected != null) {
           long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
           while (!expected.equals(materialized(output)) && System.nanoTime() < deadline)

@@ -69,7 +69,7 @@ error for NULL ROW elements; they must not silently produce a different result n
 
 ## What's not
 
-- **JVM table functions outside the verified STRING/INT/BIGINT boundary**, specialized functions,
+- **JVM table functions outside the verified scalar boundary below**, specialized functions,
   Python/async functions and legacy SQL wrappers retain fallback.
 - **Types outside the Arrow bridge, user expressions outside their existing admission gates,
   or an unverified collection producer/consumer boundary** retain fallback. A builtin condition
@@ -119,8 +119,14 @@ Arrow island; these results do not imply every scalar expression runs in Rust.
 ## JVM table functions
 
 Synchronous JVM `TableFunction` definitions carried by Flink's bridging SQL function support
-INNER/LEFT application with top-level STRING, INT and BIGINT input, output and argument types.
-These verified forms are admitted by default. Other types, specialized functions, Python/async
+INNER/LEFT application with top-level STRING/VARCHAR, BOOLEAN, TINYINT, SMALLINT, INT, BIGINT,
+DECIMAL, FLOAT/DOUBLE, VARBINARY, DATE, TIME, TIMESTAMP, TIMESTAMP_LTZ and
+day-time/year-month interval input, output and argument types.
+These types are admitted by default under the accepted UDF performance exception, without
+an additional type-specific opt-in. Their user functions still run on the JVM; measured
+standalone costs can exceed stock Flink after profiling and two optimization passes.
+Conversion optimization remains tracked in
+[#425](https://github.com/datafusion-contrib/StreamFusion/issues/425). Fixed BINARY and container types, specialized functions, Python/async
 functions and legacy SQL wrappers retain fallback. The ordinary `streamfusion.operator.tableFunction.enabled`
 switch can disable this operator.
 
@@ -132,6 +138,67 @@ transpose row limit and carry all four RowKinds. No function invocation crosses 
 native operators retain their existing boundaries. A pure column projection is fused into the
 output writer, including repeated or empty projections, so discarded correlate columns never
 enter an intermediate Arrow batch.
+
+The exact and temporal types use the same released correlate generator and existing Arrow
+readers/writers; their user function still executes on the JVM. TIMESTAMP and TIMESTAMP_LTZ
+retain precision 0/3/6/9, pre-epoch fractions and years outside Arrow's nanosecond epoch range.
+DECIMAL results retain the host's scale rounding and NULL on precision overflow, including
+precision-38 inputs and scale-38 outputs. Released SQL resolves TIME inputs to TIME(0), whose
+internal value can retain milliseconds; a function explicitly demanding TIME(3) retains Flink's
+code-generation type mismatch rather than silently changing its signature.
+
+Floating cases include signed zeros, subnormal/extreme values, infinities and NaNs; VARBINARY
+includes empty values, embedded zero/high bytes and 4,097-byte payloads. Interval functions use
+the released planner's canonical SECOND(3)/MONTH signatures and inferred input types. A declaration
+that requires an unsupported implicit interval cast or differs from the planner's normalized
+output type retains the host's planning/code-generation failure. Native substitution does not
+rewrite a user function's signature.
+
+The expanded suite passes 54 checks on each released Flink line, including all-row-kind
+memory/RocksDB recovery for the newly admitted floating, byte-array and interval signatures.
+[Validation details](../benchmarks/results/typed-table-function-scalars-2026-10-19.json) retain
+the source/library hashes, cases and released interval-planner fixture limitations.
+
+The typed SQL fixtures compare independent host/native executions across UTC, Asia/Shanghai and
+America/Los_Angeles, including DST boundary values, INNER/LEFT padding, NULL arguments/results,
+zero/two-row fanout, pushed predicates, repeated projections and mutable output reuse across
+127-row batches. Recovery fixtures propagate all four RowKinds through the function into a keyed
+aggregate and force two restores on each of memory and native RocksDB state.
+
+### Exact and temporal boundary measurements
+
+The type expansion is correctness groundwork with an accepted performance tradeoff. All eighteen
+projection/grouped cases at two million runtime rows remain slower than their paired Flink
+controls; adding types does not move the JVM function into Rust. Flink 2.2.1/JDK17 uses the
+fresh baseline release+mimalloc library, parallelism one, 2 GiB heap, 1,024-row batches,
+production IPC, two warmups and five alternating measured pairs. Both transposes and the
+blackhole row sink remain inside timing. The grouped case uses 64 groups and one-phase
+COUNT aggregation; source typed values are prepared outside execution.
+
+| Type / shape | Stock median, s | Native median, s | Actual preceding fallback median, s |
+| --- | ---: | ---: | ---: |
+| BOOLEAN / projection | 0.288124 | 0.432154 | 0.296479 |
+| BOOLEAN / grouped | 0.671458 | 0.875822 | 0.736061 |
+| DECIMAL(38,18) / projection | 0.268254 | 0.714318 | 0.240361 |
+| DECIMAL(38,18) / grouped | 0.762733 | 0.942262 | 0.741088 |
+| TIMESTAMP_LTZ(9) / projection | 0.310736 | 0.627484 | 0.266546 |
+| TIMESTAMP_LTZ(9) / grouped | 0.681617 | 1.013311 | 0.676114 |
+
+Previous-code controls run the unchanged production code at `adbdafe4`, with identical new
+benchmark fixtures. They fall back completely with zero native substitutions. Separate JVMs
+show control drift, so differences between candidate and previous medians are not isolated
+cost attribution. All trial arrays, warmups, narrower types, initial one-million-row results,
+source/library hashes and CPU samples are in the
+[raw evidence](../benchmarks/results/typed-table-functions-2026-10-19.json).
+
+CPU profiling identifies decimal conversion and owned row serialization as the main boundary
+costs. Lazy RowKind allocation and a generated wide-decimal binary exit failed to establish
+improvement and were removed; the
+[rejected experiments](https://github.com/datafusion-contrib/StreamFusion/blob/main/.claude/wontdos/379-typed-table-function-boundaries.md) retain
+both measurements. Profiling is diagnostic; its durations are excluded from speed claims.
+[#425](https://github.com/datafusion-contrib/StreamFusion/issues/425) tracks further conversion
+work. The ordinary `streamfusion.operator.tableFunction.enabled=false` override disables
+table-function substitution for all admitted types.
 
 This does not complete [#237](https://github.com/datafusion-contrib/StreamFusion/issues/237): JVM
 aggregate/OVER functions, nested scalar results and broader table-function types remain open. Performance evidence includes release jobs with row sources, both transposes, row

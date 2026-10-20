@@ -6,7 +6,9 @@ shape, with the gaps enumerated below.
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
-TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW/MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits VARBINARY, day-time/year-month
+intervals and ARRAY/ROW/MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary
+COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
 retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
@@ -294,7 +296,9 @@ state, TTL and checkpoint paths. This works for all four admitted frame shapes, 
 mixed aggregates, nullable partition keys and unpartitioned input.
 
 Non-distinct `COUNT(value)` also admits runtime DECIMAL, CHAR/VARCHAR, TIMESTAMP,
-TIMESTAMP_LTZ, DATE, TIME, BOOLEAN, ARRAY, MAP and ROW values. It reads the Arrow validity bitmap, without
+TIMESTAMP_LTZ, DATE, TIME, BOOLEAN, VARBINARY, day-time/year-month intervals, ARRAY, MAP,
+MULTISET and ROW values. MAP/MULTISET-containing arguments retain the proctime performance gate
+described below. It reads the Arrow validity bitmap, without
 converting these values to numbers or inspecting decimal precision and temporal fractions.
 Bounded frames retain NULL membership with the declared column type through snapshots and memory/RocksDB transitions;
 running COUNT state remains a BIGINT. COUNT(DISTINCT value) also admits DECIMAL, CHAR/VARCHAR,
@@ -341,8 +345,9 @@ The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
-  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW/MAP/MULTISET.
-  Processing-time COUNT also admits MAP/MULTISET descendants in all existing proctime frames. Complex DISTINCT
+  and TIMESTAMP_LTZ, except ordinary COUNT also admits VARBINARY, day-time/year-month intervals
+  and ARRAY/ROW/MAP/MULTISET. Processing-time COUNT also admits MAP/MULTISET descendants
+  in all existing proctime frames. Complex DISTINCT
   and complex value selections retain fallback. The scalar types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
   admits all these types; other DISTINCT aggregates retain their numeric whitelist.
@@ -1036,3 +1041,44 @@ Export the Arrow fixture with `-Dadmission.exportArrow=fixture.arrow`, then run 
 `over_map_count` release example with `fixture.arrow rows 5 9 output.arrow` (or `range` /
 `bounded`). `-Dadmission.rustOutput.over-map-rows=output.arrow` verifies the matching stock
 profile against full native results; use the corresponding property for the other frames.
+
+
+## Binary and interval COUNT validation and measurements
+
+Ordinary COUNT of VARBINARY and both interval families reuses the existing parent-validity
+aggregate. It counts empty binary values and zero/negative intervals as non-NULL, without
+reinterpreting their payload. Binary DISTINCT/value selection and fixed BINARY remain outside
+this expansion. SQL comparisons return the original binary and interval columns alongside four
+counts over seven event/proctime frame contexts, checking values and declared types. Twenty-eight
+operator cases verify all frame/time combinations through checkpoints on both memory and native
+RocksDB, including canonical state transitions and retained payloads. The native Criterion
+suite adds 112 binary/interval oracle and snapshot fixtures to the existing OVER COUNT target;
+all 420 release fixtures pass after integration with the Rust-side admission changes.
+
+Complete-job measurements use released Flink 2.2.1/JDK17, fresh release+mimalloc, parallelism
+one, 2 GiB heap, 1,024-row batches, 500,000 runtime rows, 64 keys, two warmups and five
+alternating measured pairs. Binary width is eight bytes, with empty values and high bytes;
+each argument is NULL every seventh row. Both transposes, production IPC/JNI/state and the
+blackhole row sink remain inside timing, and runtime metrics prove native OVER consumption.
+
+**Measured boundary:** running event-time RANGE, with periodic source watermarks disabled and
+all pending rows released by the final end-of-input watermark. These results measure that
+batch-at-end workload, not sustained periodic-watermark streaming throughput.
+
+| Argument | Stock median (range), s | Native median (range), s | Actual previous fallback median (range), s |
+| --- | ---: | ---: | ---: |
+| VARBINARY | 1.521270 (1.304641–1.529008) | 0.489119 (0.423386–0.535428) | 1.557590 (1.435662–1.654291) |
+| Day-time interval | 1.453400 (1.372810–1.718790) | 0.432224 (0.411476–0.459116) | 1.427665 (1.334343–1.495268) |
+| Year-month interval | 1.495918 (1.478797–1.631447) | 0.440533 (0.419294–0.451289) | 1.384305 (1.289410–1.475339) |
+
+Native medians are 67.8–70.6% below paired stock and 68.1–69.8% below preceding
+controls, with separated ranges. Previous controls use unchanged production revision
+`adbdafe4` and the same new fixtures, verifying zero native substitutions. Their stock
+medians drift between JVMs; do not attribute every difference to the admission change.
+
+The initial binary running comparison also completes and is retained. Its next bounded-ROWS
+stock warmup is stopped under the time box: a thread dump records 31.609 CPU seconds in the
+stock task at `RowTimeRowsBoundedPrecedingFunction.onTimer`. No bounded-frame speed claim
+is made. All completed warmups/trials, the partial run, that stack, source/library hashes
+and exact configuration remain in the
+[raw evidence](../benchmarks/results/over-count-binary-interval-2026-10-19.json).

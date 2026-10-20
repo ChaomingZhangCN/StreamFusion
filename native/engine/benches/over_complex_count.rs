@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayRef, Int32Builder, Int64Array, Int64Builder, ListBuilder, MapBuilder, RecordBatch,
-    StringBuilder, StructArray, StructBuilder,
+    Array, ArrayRef, BinaryBuilder, Int32Array, Int32Builder, Int64Array, Int64Builder,
+    ListBuilder, MapBuilder, RecordBatch, StringBuilder, StructArray, StructBuilder,
 };
 use arrow::buffer::NullBuffer;
 use arrow::datatypes::{DataType, Field};
@@ -13,6 +13,31 @@ static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 fn payload(kind: &str, valid: &[bool], width: usize) -> ArrayRef {
     match kind {
+        "binary" => {
+            let mut builder = BinaryBuilder::new();
+            let bytes = vec![0xff; width];
+            for (row, &present) in valid.iter().enumerate() {
+                if !present {
+                    builder.append_null();
+                } else if row % 3 == 0 {
+                    builder.append_value([]);
+                } else {
+                    builder.append_value(&bytes);
+                }
+            }
+            Arc::new(builder.finish())
+        }
+        "day_time" => {
+            Arc::new(Int64Array::from_iter(valid.iter().enumerate().map(
+                |(row, &present)| present.then_some(row as i64 * 1234 - 1_000_000),
+            )))
+        }
+        "year_month" => Arc::new(Int32Array::from_iter(
+            valid
+                .iter()
+                .enumerate()
+                .map(|(row, &present)| present.then_some(row as i32 - 100)),
+        )),
         "array" => {
             let mut builder = ListBuilder::new(Int64Builder::new());
             for (row, &present) in valid.iter().enumerate() {
@@ -205,6 +230,10 @@ fn bench(c: &mut Criterion) {
                 ("multiset", 64),
                 ("multiset_list", 4),
                 ("multiset_list", 64),
+                ("binary", 8),
+                ("binary", 256),
+                ("day_time", 8),
+                ("year_month", 4),
             ] {
                 let input = RecordBatch::try_from_iter(vec![
                     (

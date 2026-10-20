@@ -60,6 +60,10 @@ class FeatureAdmissionBenchmark {
             .split(","));
   }
 
+  private static boolean isWindow(String name) {
+    return name.startsWith("string-") || name.startsWith("count-");
+  }
+
   @ParameterizedTest
   @MethodSource("cases")
   void eachEngineReceivesItsOwnFormatWithEqualLogicalRows(String name) throws Exception {
@@ -124,7 +128,7 @@ class FeatureAdmissionBenchmark {
       String export = System.getProperty("admission.exportArrow");
       if (export != null) {
         assertTrue(
-            name.startsWith("string-") || name.equals("drop") || name.startsWith("over-map-"),
+            isWindow(name) || name.equals("drop") || name.startsWith("over-map-"),
             "Rust fixture requires a supported window, OVER or changelog case");
         try (var channel =
                 java.nio.channels.FileChannel.open(
@@ -213,7 +217,7 @@ class FeatureAdmissionBenchmark {
             if (digest.values != null) digest.values.clear();
             long start = System.nanoTime();
             for (StreamRecord<Object> record : prepared) harness.processElement(record);
-            if ((name.startsWith("string-") || name.startsWith("attached-")))
+            if ((isWindow(name) || name.startsWith("attached-")))
               harness.processWatermark(Watermark.MAX_WATERMARK);
             double elapsed = (System.nanoTime() - start) / 1e9;
             consumed ^= digest.hash + digest.count;
@@ -340,9 +344,11 @@ class FeatureAdmissionBenchmark {
     Row dummy =
         name.startsWith("over-map-")
             ? Row.of(0L, Map.of("k", 1L))
-            : name.startsWith("attached-")
-                ? Row.of(0, 1L, java.time.Instant.EPOCH)
-                : name.startsWith("string-")
+            : name.startsWith("count-")
+                ? Row.of(0L, new byte[0], java.time.Duration.ZERO, java.time.Period.ZERO, java.time.Instant.EPOCH)
+                : name.startsWith("attached-")
+                    ? Row.of(0, 1L, java.time.Instant.EPOCH)
+                    : isWindow(name)
                     ? Row.of(0L, "x", java.time.Instant.EPOCH)
                     : name.startsWith("temporal-")
                         ? Row.of(
@@ -352,7 +358,7 @@ class FeatureAdmissionBenchmark {
                         : Row.of(0);
     var source = env.fromElements(dummy).returns(ExternalTypeInfo.<Row>of(input));
     var schema = Schema.newBuilder().fromRowDataType(input);
-    if ((name.startsWith("string-") || name.startsWith("attached-")))
+    if ((isWindow(name) || name.startsWith("attached-")))
       schema.watermark("rt", "rt - INTERVAL '1' SECOND");
     if (name.startsWith("over-map-")) schema.columnByExpression("pt", "PROCTIME()");
     table.createTemporaryView("src", table.fromDataStream(source, schema.build()));
@@ -403,13 +409,17 @@ class FeatureAdmissionBenchmark {
               + "SESSION_START(rt, INTERVAL '2' SECOND), SESSION_END(rt, INTERVAL '2' SECOND) "
               + "FROM src GROUP BY k, SESSION(rt, INTERVAL '2' SECOND)";
     } else {
-      String window = name.substring(7).toUpperCase(Locale.ROOT);
+      String window = name.substring(name.indexOf('-') + 1).toUpperCase(Locale.ROOT);
       String bounds =
           window.equals("TUMBLE")
               ? ", INTERVAL '10' SECOND"
               : ", INTERVAL '2' SECOND, INTERVAL '10' SECOND";
       sql =
-          "SELECT k, MIN(s), MAX(s), COUNT(*), window_start, window_end FROM TABLE("
+          "SELECT k, "
+              + (name.startsWith("count-")
+                  ? "COUNT(b), COUNT(d), COUNT(m)"
+                  : "MIN(s), MAX(s), COUNT(*)")
+              + ", window_start, window_end FROM TABLE("
               + window
               + "(TABLE src, DESCRIPTOR(rt)"
               + bounds
@@ -428,7 +438,7 @@ class FeatureAdmissionBenchmark {
         boolean match =
             name.startsWith("over-map-")
                 ? node.getName().contains("OverAggregate")
-                : (name.startsWith("string-") || name.startsWith("attached-"))
+                : (isWindow(name) || name.startsWith("attached-"))
                     ? node.getName()
                         .contains(
                             nativeEngine
@@ -445,7 +455,7 @@ class FeatureAdmissionBenchmark {
           RowType output =
               (RowType) query.getResolvedSchema().toPhysicalRowDataType().getLogicalType();
           if (!nativeEngine) output = ((InternalTypeInfo<?>) node.getOutputType()).toRowType();
-          if (nativeEngine && (name.startsWith("string-") || name.startsWith("attached-"))) {
+          if (nativeEngine && (isWindow(name) || name.startsWith("attached-"))) {
             var factory = (SimpleOperatorFactory<?>) one.getOperatorFactory();
             Field field = NativeRowWindowOperatorCore.class.getDeclaredField("outputType");
             field.setAccessible(true);
@@ -529,6 +539,13 @@ class FeatureAdmissionBenchmark {
       return DataTypes.ROW(
           DataTypes.FIELD("k", DataTypes.BIGINT()),
           DataTypes.FIELD("m", DataTypes.MAP(DataTypes.STRING(), DataTypes.BIGINT())));
+    if (name.startsWith("count-"))
+      return DataTypes.ROW(
+          DataTypes.FIELD("k", DataTypes.BIGINT()),
+          DataTypes.FIELD("b", DataTypes.BYTES()),
+          DataTypes.FIELD("d", DataTypes.INTERVAL(DataTypes.DAY(6), DataTypes.SECOND(3))),
+          DataTypes.FIELD("m", DataTypes.INTERVAL(DataTypes.YEAR(4), DataTypes.MONTH())),
+          DataTypes.FIELD("rt", DataTypes.TIMESTAMP_LTZ(3)));
     if (name.startsWith("attached-"))
       return DataTypes.ROW(
           DataTypes.FIELD("k", DataTypes.INT()),
@@ -537,7 +554,7 @@ class FeatureAdmissionBenchmark {
     if (name.equals("drop"))
       return DataTypes.ROW(
           DataTypes.FIELD("id", DataTypes.BIGINT()), DataTypes.FIELD("s", DataTypes.STRING()));
-    if ((name.startsWith("string-") || name.startsWith("attached-")))
+    if ((isWindow(name) || name.startsWith("attached-")))
       return DataTypes.ROW(
           DataTypes.FIELD("k", DataTypes.BIGINT()),
           DataTypes.FIELD("s", DataTypes.STRING()),
@@ -584,6 +601,16 @@ class FeatureAdmissionBenchmark {
               throw new AssertionError(inputType);
           }
         }
+      } else (name.startsWith("count-")) {
+        byte[] bytes = new byte[width];
+        java.util.Arrays.fill(bytes, (byte) 0xff);
+        row =
+            GenericRowData.of(
+                i % 11 == 0 ? null : (long) (i % keys),
+                missing ? null : i % 5 == 0 ? new byte[0] : bytes,
+                i % 5 == 0 ? null : (i % 1000 - 500L) * 1234,
+                i % 3 == 0 ? null : i % 1000 - 500,
+                TimestampData.fromEpochMillis(i % 10000));
       } else if (name.startsWith("attached-")) {
         row = new GenericRowData(inputType.getFieldCount());
         long start = 1577836800000L + (i % 25) * 2000;
@@ -612,7 +639,7 @@ class FeatureAdmissionBenchmark {
       } else if (name.equals("drop")) {
         row = GenericRowData.of((long) i, missing ? null : strings[i % strings.length]);
         row.setRowKind(RowKind.values()[i % 4]);
-      } else if ((name.startsWith("string-") || name.startsWith("attached-")))
+      } else if ((isWindow(name) || name.startsWith("attached-")))
         row =
             GenericRowData.of(
                 i % 11 == 0 ? null : (long) (i % keys),
@@ -649,15 +676,17 @@ class FeatureAdmissionBenchmark {
       fixedSchema =
           roots.equals(List.of(bigint, varchar))
               ? 1
-              : roots.equals(List.of(bigint, varchar, varchar, bigint, timestamp, timestamp))
-                      && org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision(
-                              type.getTypeAt(4))
-                          == 3
-                      && org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision(
-                              type.getTypeAt(5))
-                          == 3
-                  ? 2
-                  : 0;
+              : roots.equals(List.of(bigint, bigint, bigint, bigint, timestamp, timestamp))
+                  ? 3
+                  : roots.equals(List.of(bigint, varchar, varchar, bigint, timestamp, timestamp))
+                          && org.apache.flink.table.types.logical.utils.LogicalTypeChecks
+                                  .getPrecision(type.getTypeAt(4))
+                              == 3
+                          && org.apache.flink.table.types.logical.utils.LogicalTypeChecks
+                                  .getPrecision(type.getTypeAt(5))
+                              == 3
+                      ? 2
+                      : 0;
     }
 
     private static long stringBytes(RowData row, VectorSchemaRoot root, int index, int field) {
@@ -670,6 +699,14 @@ class FeatureAdmissionBenchmark {
     void add(RowData row, VectorSchemaRoot root, int index) {
       count++;
       long h = row.getRowKind().toByteValue();
+      if (values == null && fixedSchema == 3) {
+        for (int field = 0; field < 4; field++)
+          h = h * 31 + (row.isNullAt(field) ? 0 : row.getLong(field));
+        h = h * 31 + row.getTimestamp(4, 3).getMillisecond() * 31;
+        h = h * 31 + row.getTimestamp(5, 3).getMillisecond() * 31;
+        hash += h;
+        return;
+      }
       if (values == null && fixedSchema != 0) {
         h = h * 31 + (row.isNullAt(0) ? 0 : row.getLong(0));
         h = h * 31 + stringBytes(row, root, index, 1);

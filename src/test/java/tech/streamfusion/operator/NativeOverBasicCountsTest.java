@@ -1,5 +1,6 @@
 package tech.streamfusion.operator;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.math.BigDecimal;
@@ -25,12 +26,15 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.BooleanType;
 import org.apache.flink.table.types.logical.DateType;
+import org.apache.flink.table.types.logical.DayTimeIntervalType;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TimeType;
+import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.table.types.logical.YearMonthIntervalType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -47,6 +51,9 @@ class NativeOverBasicCountsTest {
           new DateType(),
           new TimeType(3),
           new BooleanType(),
+          new VarBinaryType(VarBinaryType.MAX_LENGTH),
+          new DayTimeIntervalType(DayTimeIntervalType.DayTimeResolution.DAY_TO_SECOND),
+          new YearMonthIntervalType(YearMonthIntervalType.YearMonthResolution.YEAR_TO_MONTH),
           new LocalZonedTimestampType(3));
   private static final RowType OUTPUT =
       RowType.of(
@@ -57,7 +64,13 @@ class NativeOverBasicCountsTest {
           new DateType(),
           new TimeType(3),
           new BooleanType(),
+          new VarBinaryType(VarBinaryType.MAX_LENGTH),
+          new DayTimeIntervalType(DayTimeIntervalType.DayTimeResolution.DAY_TO_SECOND),
+          new YearMonthIntervalType(YearMonthIntervalType.YearMonthResolution.YEAR_TO_MONTH),
           new LocalZonedTimestampType(3),
+          new BigIntType(),
+          new BigIntType(),
+          new BigIntType(),
           new BigIntType(),
           new BigIntType(),
           new BigIntType(),
@@ -119,9 +132,7 @@ class NativeOverBasicCountsTest {
       if (!proctime) restored.processWatermark(new Watermark(300));
       long expected = frame == 0 || frame == 3 ? 2L : 1L;
       long first = frame == 2 ? 2L : expected;
-      assertEquals(
-          List.of(counts(first), counts(expected)),
-          drain(restored));
+      assertEquals(List.of(counts(first), counts(expected)), drain(restored));
     }
     assertEquals(reservation, TaskOffHeapMemory.reservedBytes());
   }
@@ -139,6 +150,9 @@ class NativeOverBasicCountsTest {
         valid ? 19723 : null,
         valid ? 45296123 : null,
         valid ? false : null,
+        valid ? new byte[] {0, (byte) 0xff} : null,
+        valid ? -123456789L : null,
+        valid ? -13 : null,
         TimestampData.fromEpochMillis(time));
   }
 
@@ -150,11 +164,11 @@ class NativeOverBasicCountsTest {
       int frame, boolean proctime, boolean rocks) throws Exception {
     var operator =
         new NativeOverAggregateOperator(
-            7,
-            new int[] {0, 1, 2, 3, 4, 5, 6},
+            10,
+            new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
             new int[0],
-            new int[] {5838, 3, 1009, 1009, 8, 9, 10},
-            new int[] {3, 3, 3, 3, 3, 3, 3},
+            new int[] {5838, 3, 1009, 1009, 8, 9, 10, 0, 0, 0},
+            new int[] {3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
             frame,
             frame == 1 ? 1 : 100,
             proctime,
@@ -180,6 +194,14 @@ class NativeOverBasicCountsTest {
       if (event instanceof StreamRecord) {
         try (var root = ((ArrowBatch) ((StreamRecord<?>) event).getValue()).root()) {
           for (var row : RowDataArrowConverter.read(root, OUTPUT)) {
+            for (int column = 7; column < 10; column++) {
+              assertEquals(row.isNullAt(0), row.isNullAt(column));
+            }
+            if (!row.isNullAt(0)) {
+              assertArrayEquals(new byte[] {0, (byte) 0xff}, row.getBinary(7));
+              assertEquals(-123456789L, row.getLong(8));
+              assertEquals(-13, row.getInt(9));
+            }
             List<Long> values = new ArrayList<>();
             for (int column = INPUT.getFieldCount(); column < OUTPUT.getFieldCount(); column++) {
               values.add(row.getLong(column));
@@ -193,6 +215,6 @@ class NativeOverBasicCountsTest {
   }
 
   private static List<Long> counts(long count) {
-    return java.util.Collections.nCopies(7, count);
+    return java.util.Collections.nCopies(INPUT.getFieldCount() - 1, count);
   }
 }
