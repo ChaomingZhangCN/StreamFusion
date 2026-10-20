@@ -1559,7 +1559,14 @@ final class RexExpression {
     if (tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null) {
       return emitUdf(call);
     }
-    if (unnestOperand
+    boolean ordinaryArray = call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR
+        && call.getType().getComponentType().isNullable()
+        && java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,
+            SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL,SqlTypeName.DATE,
+            SqlTypeName.TIME,SqlTypeName.TIMESTAMP,SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE)
+            .contains(call.getType().getComponentType().getSqlTypeName())
+        && call.getOperands().stream().noneMatch(this::requiresRowShortCircuit);
+    if ((unnestOperand || ordinaryArray)
         && call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR
         && !call.getOperands().isEmpty()
         && NativeConfig.collectionExpressionsEnabled()) {

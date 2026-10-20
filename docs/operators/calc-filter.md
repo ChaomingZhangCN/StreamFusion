@@ -2085,7 +2085,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | ELEMENT | Rust extraction for nullable BOOLEAN/integer/DECIMAL arrays; NULL/empty arrays return NULL, a singleton returns its element, longer arrays raise Flink's TableRuntimeException with the released message; multiple failure sites and sensitive/fallible operands retain row evaluation |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION | Same generated program |
-| Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
+| Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
+| Runtime MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program |
 
 The generated route evaluates the complete filter and projection together, preserving failure
 order, NULLs, empty filtered batches, function invocation order and released Flink overloads.
@@ -2129,7 +2130,9 @@ casts also have native kernels in that operand context, with SQL epoch bounds an
 truncation preserved. Non-UTC offsets come from JDK ZoneRules through the batch bridge and are
 cached between transitions, preserving historical and daylight-saving behavior. This total lookup
 does not trigger whole-Calc row evaluation; other JVM calls retain their error-order safeguards.
-Ordinary projected ARRAYs retain their existing routes.
+Ordinary projected arrays of verified nullable basic and temporal elements reuse the same
+constructor; floating, NOT NULL-element, character and representation-sensitive projected
+arrays retain generated evaluation.
 
 Primitive bridge types and recursively supported ARRAY/MAP/ROW values are admitted, including
 nullable typed map keys, decimal and timestamp values. Fixed BINARY leaves inside generated

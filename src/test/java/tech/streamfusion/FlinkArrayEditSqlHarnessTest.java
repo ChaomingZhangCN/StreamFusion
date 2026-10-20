@@ -22,7 +22,8 @@ class FlinkArrayEditSqlHarnessTest {
   }
 
   static void verify(String type, String expression, String function) throws Exception {
-    tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
+    if (!function.equals("ARRAY"))
+      tech.streamfusion.compat.FlinkTestCapabilities.requireSqlFunction(function);
     String sql = "SELECT id," + expression + " FROM src";
     var table = environment(type);
     var scan = NativePlanner.install(table);

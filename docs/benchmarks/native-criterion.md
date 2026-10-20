@@ -52,7 +52,7 @@ The scalar registry also exercises the production CARDINALITY and TYPEOF selecti
 it returns that string without inspecting the collection's values. Collection benchmarks
 verify array/map cardinalities over sliced batches, NULL containers and empty maps.
 
-The registry includes computed UNNEST's scalar/timestamp ARRAY constructors and temporal
+The registry includes projected scalar and computed-UNNEST timestamp ARRAY constructors and temporal
 conversion helpers (171–177). Fixtures combine sliced nullable arrays with literals, pre-epoch
 timestamps, positive/negative UTC offsets and independently NULL offsets. All nine batch/null/
 Unicode profiles exercise these registrations; the completeness assertion covers helper kernels

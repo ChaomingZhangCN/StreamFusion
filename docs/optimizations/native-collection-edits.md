@@ -125,6 +125,17 @@ cannot be reordered across rows. The scalar registry covers empty, singleton,
 NULL-element and NULL-parent arrays; SQL tests cover multi-element failures,
 all-filtered inputs and competing arithmetic errors.
 
+## Constructing scalar arrays
+
+Projected runtime ARRAY expressions reuse the existing native scalar constructor
+for matching nullable Boolean, integer, DECIMAL and temporal elements. The released
+DataFusion builder interleaves columns into flat Arrow child storage. The existing
+compact/expanded timestamp normalization retains Flink precision and pre-epoch
+behavior. No new JNI protocol or container sidecar is introduced. Fallible,
+STRING/nested and NOT NULL-element projections retain their previous evaluator.
+SQL fixtures verify typed NULL literals, exact wide decimals, DATE/TIME and
+TIMESTAMP/LTZ at millisecond and nanosecond precision.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -244,3 +255,18 @@ Query: `ELEMENT(ARRAY_SLICE(arr,1,1))`, 2,000,000 rows, BIGINT, width 8. Method 
 Elapsed time changes by -26.79% versus the prior evaluator and +7.75% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-element-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-element-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-element-allocations-2026-10-20.csv) retain the evidence. Eight released SQL tests cover empty/singleton/NULL arrays, typed failure, all-filtered batches and competing row errors.
+
+## ARRAY complete-job evidence
+
+Query: `ARRAY[idx,idx+1]`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.459126 | 0.450285-0.505861 |
+| baseline streamfusion | 0.624988 | 0.617185-0.650706 |
+| candidate stock | 0.497458 | 0.476757-0.525365 |
+| candidate streamfusion | 0.588684 | 0.574635-0.593293 |
+
+Elapsed time changes by -5.81% versus the prior evaluator and +18.34% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-array-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-2026-10-20.json) and [18 allocation probes](../benchmarks/collection-array-allocations-2026-10-20.csv) retain the evidence. Thirteen released SQL tests cover exact DECIMAL, typed NULLs and pre-epoch temporal values at precision 3 and 9.
