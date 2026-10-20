@@ -237,8 +237,7 @@ public final class PhysicalPlanScan implements FlinkOptimizeProgram<StreamOptimi
       substitutions = previousSubstitutions;
       rollbackFunctionExecutions(previousFunctionExecutions, previousJvmFunctionOperators);
       recordFallback(
-          "dropUpdateBefore: standalone row-source filtering retains Flink to avoid Arrow"
-              + " conversion overhead");
+          "dropUpdateBefore: standalone row-source filtering is explicitly disabled");
       return root;
     }
     // Pass 2 inserts a row↔columnar transpose at each perimeter edge (rowwise source/sink ↔

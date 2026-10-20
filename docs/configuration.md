@@ -16,20 +16,20 @@ serialized operator configuration rather than process-global state before a stab
   controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
-- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default false) — opt into a lone
-  row-source changelog filter that loses to stock Flink because of the two Arrow conversions.
+- **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone
+  changelog filter after verified Rust-side Arrow admission. Explicit `false` retains stock
+  for the standalone shape. Complete row-source jobs can still lose because of perimeter costs.
   Filters inside an admitted native pipeline retain ordinary admission. See
   [drop update-before](operators/drop-update-before.md).
-- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default false) — opt into complete-row
-  native Calc evaluation for previously gated shared non-deterministic scalar calls. This preserves
-  Flink invocation order but standalone INT/BIGINT/STRING projections lose to stock in release
-  measurements. Existing admitted binary/generated shapes are unaffected. See
-  [Calc/filter](operators/calc-filter.md) for the scope and results.
-- **`streamfusion.calc.temporalUdf.enabled`** (default false) — opt into complete-row generated
-  Calc evaluation for scalar UDFs using `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ
-  arguments/results. Standalone row-source projections remain slower than stock Flink in release
-  measurements. The default preserves host execution; builtin temporal functions retain their
-  existing admission. See [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
+- **`streamfusion.calc.sharedStatefulUdf.enabled`** (default true) — complete-row native
+  Calc evaluation for shared non-deterministic scalar calls, preserving Flink invocation order.
+  Explicit `false` retains the shared-call host route. Slower JVM UDF execution is an accepted
+  tradeoff for correct coverage. See [Calc/filter](operators/calc-filter.md).
+- **`streamfusion.calc.temporalUdf.enabled`** (default true) — complete-row generated Calc
+  evaluation for verified `LocalDateTime` TIMESTAMP and `Instant` TIMESTAMP_LTZ UDF signatures.
+  Explicit `false` forces those UDFs to stock. Correctness/type/lifecycle gates remain in force;
+  slower UDF execution alone does not block coverage. See
+  [temporal UDF coverage](operators/calc-filter.md#temporal-scalar-functions).
 - **`streamfusion.experimental.collectionExpressions`** (default true) — enable the
   collection kernels and generated collection/constructor programs described in
   [Calc/filter coverage](operators/calc-filter.md#collection-expressions). The planner serializes
@@ -108,23 +108,22 @@ StreamFusion exports the shared pool and operator state to the Flink UI/metrics 
 
 ## Experimental Window Coverage
 
-`streamfusion.window.string-extrema.single-phase.enabled` defaults to `false`. Set it to `true`
-in Flink table configuration to admit single-phase CHAR/VARCHAR MIN/MAX, including admitted
-processing-time, session and legacy windows. High-cardinality single-phase CUMULATE regressed
-against Flink in the complete-job comparison, so stock Flink remains the default for these
-string aggregates. Two-phase local/global string extrema do not require this option. See
-[Window aggregate](operators/window-aggregate.md#string-minmax) for coverage and measurements.
+Single-phase event-time TVF TUMBLE/HOP/CUMULATE CHAR/VARCHAR MIN/MAX now run natively by default.
+The optional `streamfusion.window.string-extrema.single-phase.enabled` overrides admission:
+`false` forces stock execution, while `true` also admits otherwise supported
+processing-time, session and legacy string windows. The Rust-side string selection optimization removes
+the former high-cardinality HOP restriction.
+Two-phase local/global string extrema do not require this option.
+See [Window aggregate](operators/window-aggregate.md#string-minmax).
 
-Single-phase attached-window re-aggregation over a fixed grid now runs natively by default when
-its upstream native window contains only ordinary COUNT aggregates and the size is at most five
-slides/steps. This includes the verified
-COUNT-to-MAX and mixed outer SUM/MIN/MAX/AVG cascades. Regional calendar callbacks and other
-upstream aggregate layouts and wider overlap retain stock execution by default; existing AUTO/TWO_PHASE admission
-is unchanged. The optional `streamfusion.window.attached.single-phase.enabled` setting overrides
-this choice: `false` forces the single-phase attached path to stock, while `true` opts into all
-otherwise supported attached layouts, including the experimental persistent/regional paths.
-See [Window aggregate](operators/window-aggregate.md#single-phase-aggregation-over-attached-bounds)
-for coverage and the complete-job performance matrix.
+Single-phase attached-window re-aggregation now runs natively for all otherwise supported
+append-only event-time TUMBLE/HOP/CUMULATE layouts, including regional calendars, wider overlap
+and upstream aggregates beyond COUNT. The optional
+`streamfusion.window.attached.single-phase.enabled=false` forces stock execution; `true`
+now matches the default. FILTER, retracting inputs and unsupported types still fall back.
+[The admission audit](benchmarks/feature-admission-2026-10-19.md) compares stock RowData with
+matching prebuilt Arrow inputs, with intrinsic conversions included. Complete-job timings
+remain separate evidence, including retained slower wide-overlap jobs.
 
 ## Diagnostics
 

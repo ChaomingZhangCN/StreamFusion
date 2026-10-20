@@ -125,3 +125,17 @@ Flink by 1.15-1.39x in the four follow-up fixtures, while separate-JVM before/af
 have differing stock baselines. The
 [follow-up artifact](../benchmarks/results/window-string-extrema-main336-2026-10-13.json)
 preserves all samples, intervals and allocation probes, including unfavorable controls.
+
+
+## Select only the winning noncontiguous window string
+
+Aligned window MIN/MAX scans selected UTF-8 row indices directly and passes a retained one-row
+winner slice to its existing DataFusion accumulator. It avoids a full selected string array
+for every overlapping group. All-NULL selections pass an empty typed slice; contiguous groups
+keep their original slice path. Accumulator ownership, ordering and persisted state stay unchanged.
+
+[The Rust-side report](../benchmarks/rust-feature-admission-2026-10-19.md) measures HOP at
+156.1 ms before and 104.9 ms after for 262,144 prepared rows, a 1.49× improvement. A matched
+Criterion fixture halves time and reduces allocation request bytes by 84%; these are allocation
+requests, not copied bytes or RSS. It retains all trial data, CPU profiles and low/unique-key
+controls. The gain does not imply that a complete row-source job avoids its perimeter costs.

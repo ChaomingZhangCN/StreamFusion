@@ -80,7 +80,7 @@ final class GroupWindowAggregateMatcher {
     }
     String stringReason =
         WindowAggregateMatcher.singlePhaseStringExtremaReason(
-            agg, agg.aggCalls(), agg.getInput().getRowType());
+            agg, null, agg.aggCalls(), agg.getInput().getRowType());
     if (stringReason != null) {
       return "legacy group-window: " + stringReason;
     }

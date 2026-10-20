@@ -184,20 +184,12 @@ class FlinkWindowStringExtremaSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ONE_PHASE", "TWO_PHASE"})
-  void attachedWindowsRetainTheSinglePhaseGate(String phase) {
+  void attachedWindowsPreserveStringValuesInBothPhases(String phase) {
     String query = "SELECT window_start, window_end, MIN(lo), MAX(hi), COUNT(*) FROM ("
         + "SELECT k, window_start, window_end, MIN(s) AS lo, MAX(s) AS hi FROM TABLE("
         + window("TUMBLE") + ") GROUP BY k, window_start, window_end) "
         + "GROUP BY window_start, window_end";
-    if (phase.equals("TWO_PHASE")) {
-      check(() -> environment(phase, 2), query, phase);
-    } else {
-      var runs = NativeFailureParity.run(() -> environment(phase, 2), query);
-      runs.assertSuccess(NativeFailureParity.Route.FALLBACK);
-      assertTrue(runs.nativeRun().fallbackReasons().stream().anyMatch(
-          reason -> reason.contains("attached-window aggregation requires two-phase execution")),
-          runs.toString());
-    }
+    check(() -> environment(phase, 2), query, phase);
   }
 
   private static void check(Supplier<TableEnvironment> factory, String query, String phase) {

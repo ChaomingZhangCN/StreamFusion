@@ -66,7 +66,7 @@ Local/global partials and checkpoint state use one nullable component timestamp 
 original logical precision. Ordinary COUNT also admits timestamp values through their validity bitmap.
 Both timestamp kinds can share a window with numeric aggregates, string extrema and COUNT(DISTINCT).
 Mixed string/temporal SQL comparisons cover TUMBLE/HOP/CUMULATE at precision 0/3/6/9
-in both phases. They verify default single-phase string fallback and the explicit native opt-in;
+in both phases. They verify default event-time TUMBLE/HOP/CUMULATE admission and explicit overrides;
 adding temporal extrema does not bypass the [string admission gate](#string-minmax).
 
 Temporal extrema are enabled for single-phase and local/global TUMBLE/HOP/CUMULATE,
@@ -295,12 +295,14 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 ## String MIN/MAX
 
 Append-only windows admit `MIN` and `MAX` over CHAR and VARCHAR (including SQL STRING).
-Event-time local/global execution is admitted by default. Single-phase execution, including
-processing-time, session and legacy windows, requires the explicit table setting
-`streamfusion.window.string-extrema.single-phase.enabled=true`. Its default is `false` because
-the high-cardinality single-phase CUMULATE benchmark regressed against Flink. Numeric aggregates
-keep their existing admission; a mixed single-phase query containing string extrema falls back
-as a whole unless the option is enabled.
+Event-time local/global and single-phase TVF TUMBLE/HOP/CUMULATE execution are admitted by default.
+Other single-phase shapes (processing-time, session and legacy windows) require
+`streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces all
+single-phase string extrema to stock. A mixed query follows the same admission as its string
+extrema. The [operator-format audit](../benchmarks/feature-admission-2026-10-19.md) supersedes the
+previous complete-job admission gate, while retaining those complete-job regressions below.
+The later Rust-side profile and string selection change also admit HOP; see the
+[Rust admission report](../benchmarks/rust-feature-admission-2026-10-19.md).
 Released Flink 1.18 cannot plan CHAR extrema; STRING/VARCHAR are covered on both 1.18 and 2.2.
 They compare UTF-8 bytes lexicographically, without locale collation or Unicode normalization,
 matching Flink's materialized string ordering. Empty strings are values, NULL inputs are ignored,
@@ -362,11 +364,12 @@ For example, low-cardinality two-phase CUMULATE native samples range from 0.3671
 These short bounded jobs include startup and scheduling, so the medians are not sustained
 throughput guarantees. No samples were removed: all 160 measured samples, including both sweeps'
 stock controls, are retained in [the raw CSV](../benchmarks/string-window-extrema-2026-10-10.csv).
-The single-phase regression is not accepted as a default acceleration path. Inspection of the
+At that revision, the single-phase regression prevented default admission. Inspection of the
 native fold shows per-group Arrow gathers and generic string accumulator updates; optimization
-of that high-cardinality path remains necessary before removing the opt-in. Contiguous groups
+of that high-cardinality path remained necessary. Contiguous groups
 now use retained Arrow slices as described in the later measurements; those TUMBLE results do
-not establish the performance of every HOP/CUMULATE shape, so the opt-in stays in place.
+not establish every HOP/CUMULATE shape. The later operator-format audit changes admission
+for TUMBLE/CUMULATE; the subsequent Rust-side selection optimization also admits HOP.
 
 Additional SQL comparisons cover embedded NULs, long values, supplementary characters and
 runtime lone-surrogate strings at parallelism one and two, including Flink source serialization
@@ -756,15 +759,12 @@ enables columnar composition with downstream consumers; it is not a standalone t
   and COUNT(DISTINCT).
   Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
   it counts validity without interpreting the payload.
-- Single-phase string MIN/MAX without `streamfusion.window.string-extrema.single-phase.enabled=true`.
-  The flag is experimental and defaults off; local/global string extrema do not require it.
+- Single-phase string MIN/MAX outside event-time TVF TUMBLE/HOP/CUMULATE unless
+  `streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces
+  all single-phase string extrema to stock. Local/global admission is unchanged.
 - Attached bounds outside append-only event-time TUMBLE/HOP/CUMULATE, or with FILTER.
-  Admitted attached bounds support whitelisted or opt-in single-phase and existing local/global execution.
-- Single-phase attached bounds whose upstream window is not COUNT-only or uses a regional
-  calendar, or whose window size exceeds five slides/steps, unless
-  `streamfusion.window.attached.single-phase.enabled=true`; explicit `false`
-  forces fallback for all single-phase attached bounds.
-  Wider in-memory HOP still loses to Flink in the complete-job comparison.
+  Otherwise supported single-phase attached bounds are admitted by default;
+  `streamfusion.window.attached.single-phase.enabled=false` forces stock execution.
 - Windowed DISTINCT other than single-argument COUNT over the types listed above:
   SUM/AVG DISTINCT and complex values.
   Non-windowed DISTINCT has separate coverage; see [GROUP BY](group-by.md).
@@ -783,8 +783,8 @@ enables columnar composition with downstream consumers; it is not a standalone t
   buckets and exact SUM0 reductions merge their counts. The unchanged upstream DISTINCT
   window tests require nonempty work from both native local and global stages. SQL parity
   also covers multiple distinct arguments, mixed exact aggregates, NULL-only groups, result
-  types and RowKinds. Attached single-phase aggregation still falls back as a complete
-  pipeline; a forced `ONE_PHASE` regression verifies that gate. Other split layouts remain
+  types and RowKinds. The operator-format audit also admits the verified attached
+  `ONE_PHASE` layouts; typed regressions compare both phases. Other split layouts remain
   subject to the individual aggregate and partial-layout gates, tracked in
   [#166](https://github.com/datafusion-contrib/StreamFusion/issues/166).
 
@@ -1145,7 +1145,7 @@ These measurements precede the rebase onto #336: the implementation base was `a3
 and the old native control was an unshipped admission-only prototype. Its whole-query fallback
 control represents that earlier main, not #336's now-admitted local/global string windows.
 Single-phase measurements explicitly enable
-`streamfusion.window.string-extrema.single-phase.enabled`; the production default remains off.
+`streamfusion.window.string-extrema.single-phase.enabled`; the default was off at that revision.
 The bench profile keeps Arrow IPC shuffle enabled. SQL submission through the collecting rowwise
 sink is timed; the shared MiniCluster startup and view registration are outside measurement.
 
@@ -1201,7 +1201,8 @@ compare output and verify current-job native work.
 Main and candidate run in separate JVMs; their stock baselines differ, so the observed
 1.18-1.33x native-before/after ratios are not confidence bounds. Candidate native beats its
 matched stock and forced-fallback controls in these TUMBLE fixtures. This does not establish
-HOP/CUMULATE performance, and single-phase admission remains opt-in. No samples are discarded.
+HOP/CUMULATE performance. Admission was opt-in at that revision; the current operator-format
+audit is linked above. No samples are discarded.
 The [new result artifact](../benchmarks/results/window-string-extrema-main336-2026-10-13.json)
 retains all complete-job samples, library hashes and six matching Criterion cases with raw
 samples and confidence intervals. The [optimization ledger](../optimizations/string-copy-reduction.md#window-groups-borrow-contiguous-value-ranges)
@@ -1271,24 +1272,19 @@ review in [PR #341](https://github.com/datafusion-contrib/StreamFusion/pull/341)
 
 ### Single-phase aggregation over attached bounds
 
-Append-only event-time results from fixed-grid TUMBLE/HOP/CUMULATE COUNT-only windows are
-re-aggregated natively in ONE_PHASE plans by default when the window size is at most five
-slides/steps (TUMBLE has one). The outer aggregate may mix the existing
-supported numeric SUM/MIN/MAX/COUNT/AVG operations. Unary projections/exchanges between the
-windows preserve this admission. The matcher follows unary inputs to the first window and
-declines when a multi-input boundary or a source is reached first;
-regional calendar callbacks, wider overlap and other upstream aggregate layouts retain default fallback.
-Existing AUTO/TWO_PHASE local/global admission remains unchanged.
+Append-only event-time results from fixed-grid TUMBLE/HOP/CUMULATE windows are
+re-aggregated natively in ONE_PHASE plans by default, including regional calendars, wider
+overlap and upstream aggregates beyond COUNT. The outer aggregate may mix the existing
+supported numeric SUM/MIN/MAX/COUNT/AVG operations. Unary projections/exchanges preserve this
+admission. Existing AUTO/TWO_PHASE local/global admission remains unchanged.
 
-The optional `streamfusion.window.attached.single-phase.enabled` overrides that whitelist:
-`false` explicitly retains stock single-phase execution, and `true` opts into every otherwise
-supported attached layout. Opt-in does not promise acceleration for the retained experimental
-cases. The outer operator folds each row into the one `window_start`/`window_end` pair it names,
-using the existing accumulator, Arrow output and keyed checkpoint/store representation. It does
-not assign another set of overlapping windows or reconstruct a start from a slice end. Normal
-numeric/COUNT(DISTINCT)/timestamp, key-type and single-phase string-extrema admission rules remain
-in force. FILTER and retracting attached input remain stock; attached sessions remain outside
-this fixed-window whitelist. Fallback diagnostics name the whitelist and explicit override.
+The optional `streamfusion.window.attached.single-phase.enabled=false` retains stock execution;
+`true` now matches the default. The former COUNT-only, five-slide and fixed-zone performance
+restrictions were removed after the [operator-format audit](../benchmarks/feature-admission-2026-10-19.md)
+and fixed-offset boundary optimization. The outer operator folds each row into its supplied
+`window_start`/`window_end` pair; it does not assign another set of overlapping windows.
+Existing accumulator state, checkpoints, type gates and single-phase string admission remain
+in force. FILTER, retracting input and attached sessions remain outside this fixed-window path.
 
 The final attached operator owns its firing watermark. End-minus-one closes a window;
 subsequent rows naming that closed window are dropped and counted, including after restoring
@@ -1425,12 +1421,12 @@ mixed ONE_PHASE, and 1.365s / 1.056s for TWO_PHASE COUNT-to-MAX. Rebuilt RocksDB
 `0a02ecb8` measure 8.870s / 3.126s and 15.731s / 1.912s respectively. TWO_PHASE admission was
 already enabled; these controls do not claim that this patch introduces its native coverage.
 
-Wider overlap is deliberately excluded from default ONE_PHASE admission. With a thirty-second
+At that revision, wider overlap was deliberately excluded from default ONE_PHASE admission. With a thirty-second
 HOP and a two-second slide, 4,096-key memory jobs measured stock 1.668s versus native 2.499s
 before narrowing the gate; an independent final opt-in comparison measured 1.612s versus
-2.355s. Native values still match, but the default remains stock. Regional calendar callbacks
-and non-COUNT upstream layouts also retain their existing default fallback. No new option is
-introduced, and this does not resolve the separate regional investigation in
+2.355s. Native values matched, but the default then remained stock. Regional calendar callbacks
+and non-COUNT upstream layouts also retained fallback. The later operator-format audit above
+changes that admission boundary; these complete-job regressions remain valid evidence. This does not resolve the separate regional investigation in
 [#350](https://github.com/datafusion-contrib/StreamFusion/issues/350).
 The remaining wider-overlap optimization is tracked in
 [#394](https://github.com/datafusion-contrib/StreamFusion/issues/394).
@@ -1467,7 +1463,8 @@ comparison, copy only this test fixture into its worktree: `-Dattached.expectNat
 asserts the previous default fallback, while `-Dattached.optIn=true` exercises its previous
 native route. `-Dattached.mixed=true`, `-Dattached.phase=TWO_PHASE` and
 `-Dattached.sizeSeconds=30` select the additional profiles; the wider ONE_PHASE native
-comparison requires the existing opt-in.
+comparison required the opt-in on that previous revision. The current default
+admits the supported wider outer operator under the operator-format gate.
 
 
 ## Floating window distinct membership

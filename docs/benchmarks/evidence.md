@@ -37,6 +37,11 @@ hosts, connectors, backends, exact SQL and explicitly labelled expression varian
 
 ## Component measurements and diagnostics
 
+[Rust feature admission, 2026-10-19](rust-feature-admission-2026-10-19.md) starts the clock
+inside Rust on prepared Arrow and compares matching stock Flink Java/RowData execution.
+The [earlier Java-wrapper audit](feature-admission-2026-10-19.md) retains its five-switch
+inventory, CPU profiles and trials as diagnostics; it includes JNI/C Data handoffs.
+
 File-task loops and isolated routing measurements exclude parts of a streaming
 job. Profiled durations and one-pair preflights do not replace repeated, unprofiled
 complete-job observations. The linked reports explain which comparisons are valid.
