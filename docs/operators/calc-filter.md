@@ -90,7 +90,8 @@ truncation. This applies at the input, nested ROW/ARRAY fields and extracted sca
 Native fixed-size binary vectors are still readable as bytes. The disabled flag retains the
 existing fixed-size mapping and nested admission restrictions. Legacy variable-width casts
 still fall back across the previously restricted native boundaries. Binary ELT has its own
-default-off option, described below; measured performance remains deferred.
+default-enabled option and Rust-side functionality gate, described below; complete-job costs
+remain separate diagnostics.
 
 [Nested BINARY validation](../benchmarks/results/nested-fixed-binary-coverage-2026-10-16.json)
 retains initial 65-case selections on both lines (six compatibility skips on 1.18), followed
@@ -1073,7 +1074,8 @@ elapsed seconds (ratio = Flink/native):
 
 These initial standalone results were slower than stock Flink. Cached timestamp writers and
 the canonical parser now improve the timestamp cases; see the [current measurements](../optimizations/host-exact-builtins-upcall.md#canonical-timestamp-try_cast).
-Boolean TRY_CAST remains slower and keeps this coverage work in draft pending optimization.
+Boolean TRY_CAST remains slower in these complete-job measurements; its native route preserves
+released Flink evaluation and these results do not establish standalone acceleration.
 The parser fast path does not establish a speedup for noncanonical formats or composed expressions.
 
 ### Binary casts and fixed-width generated expressions
@@ -1087,12 +1089,13 @@ NULLs and declared result types are preserved. Failures in the operand expressio
 propagate; CASE and filters suppress unselected failing expressions.
 
 Generated expressions can read fixed-size Arrow binary vectors through the existing
-batch callback. Native casts produce their declared fixed-size Arrow columns directly. Binary ELT keeps stock
-Flink execution because the recorded standalone whole-job measurements are slower than stock
-and previous StreamFusion. Its native kernel and Criterion fixtures remain available for optimization.
-Other fixed BINARY result projections use the generated row's declared schema, so default-mode results can feed another native operator,
-including grouping. Fixed BINARY nested inside ARRAY/ROW callback arguments or results
-remains outside this whitelist. This does not widen user-defined function signature admission.
+batch callback. Native casts produce their declared fixed-size Arrow columns directly. Binary ELT
+uses the default-enabled route described under [raw payload boundaries](#binary-elt-and-raw-payload-boundaries),
+with the older complete-job measurements retained as diagnostics. Other fixed BINARY result
+projections use the generated row's declared schema, so default-mode results can feed another
+native operator, including grouping. Nested ARRAY/ROW callback arguments and results use the
+[verified nested scalar transport](#nested-java-scalar-results); custom Java conversion classes
+retain their signature gates.
 
 Legacy casts leave the input byte length unchanged even when the SQL result declares
 BINARY(n). Their final projections use the existing variable-binary representation, as
@@ -2306,7 +2309,9 @@ control, both Arrow transposes and a rowwise blackhole sink remain in the measur
 
 A [grouped integer-SUM benchmark](../optimizations/host-exact-builtins-upcall.md#composition-with-grouped-integer-sums) shows 16–24% less native elapsed time than Flink at 2M and 5M rows for TAN, COSH and floating TRUNCATE, retaining both transposes. This gain applies to those composed queries; standalone math remains slower. A separate admission ablation confirms that these compositions previously fell back entirely to Flink and were slower than the current native plans. Grouped nullable/extreme-value parity cases pass on Flink 1.18 and 2.2.
 
-The original measurements below are historical. A subsequent [CPU-profile investigation](../optimizations/host-exact-builtins-upcall.md#exact-floating-math-remaining-performance-limits) tested borrowed inputs, primitive batch evaluation and simplified rounding. None established a whole-job improvement; the prototypes were removed and this work remains draft.
+The original measurements below are historical. A subsequent [CPU-profile investigation](../optimizations/host-exact-builtins-upcall.md#exact-floating-math-remaining-performance-limits) tested borrowed inputs, primitive batch evaluation and simplified rounding. None established a whole-job improvement; the prototypes were removed. The current default
+retains released Flink evaluation inside native Calc, with standalone costs reported separately
+from the composed-query improvements above.
 
 
 | Expression | Flink median (s) | Native median (s) | Flink/native ratio |
