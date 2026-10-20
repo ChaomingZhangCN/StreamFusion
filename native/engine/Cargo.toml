@@ -105,6 +105,10 @@ name = "array_edits"
 harness = false
 
 [[bench]]
+name = "array_sort"
+harness = false
+
+[[bench]]
 name = "keys_and_checkpoints"
 harness = false
 

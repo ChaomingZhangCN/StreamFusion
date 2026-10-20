@@ -1524,6 +1524,22 @@ final class RexExpression {
             .contains(type.getComponentType().getSqlTypeName());
   }
 
+  private static boolean verifiedSortInput(RexNode node) {
+    if (!(node instanceof RexCall)) return false;
+    var call = (RexCall) node;
+    if (tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null) return false;
+    if (call.getOperator().getName().equals("ARRAY_DISTINCT")) return true;
+    if (call.getKind() == SqlKind.ARRAY_VALUE_CONSTRUCTOR) return call.getOperands().size() < 32;
+    if (!call.getOperator().getName().equals("ARRAY_SLICE") || call.getOperands().size() != 3)
+      return false;
+    var args = call.getOperands();
+    if (!(args.get(1) instanceof RexLiteral) || !(args.get(2) instanceof RexLiteral)
+        || ((RexLiteral) args.get(1)).isNull() || ((RexLiteral) args.get(2)).isNull()) return false;
+    Integer start = ((RexLiteral) args.get(1)).getValueAs(Integer.class);
+    Integer end = ((RexLiteral) args.get(2)).getValueAs(Integer.class);
+    return start != null && start == 1 && end != null && end >= 1 && end < 32;
+  }
+
   private boolean emitCall(RexCall call) {
     if (containsMetadataDependentDecimalRounding(call)) {
       if (!validateDecimalRoundingBoundary(call)) return false;
@@ -1990,6 +2006,23 @@ final class RexExpression {
       return emitBuiltinCall(call,"ARRAY_CONCAT".equals(functionName) ? 185
           : "ARRAY_UNION".equals(functionName) ? 186
           : "ARRAY_EXCEPT".equals(functionName) ? 187 : 188);
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_SORT".equals(functionName)) {
+      var args = call.getOperands();
+      if (args.isEmpty() || args.size() > 3 || !nativeBasicArray(args.get(0).getType())
+          || args.get(0).getType().getComponentType().getSqlTypeName() == SqlTypeName.BOOLEAN
+          || !verifiedSortInput(args.get(0)) || requiresRowShortCircuit(args.get(0))
+          || args.stream().skip(1).anyMatch(arg -> !(arg instanceof RexLiteral)
+              || ((RexLiteral) arg).isNull() || arg.getType().getSqlTypeName() != SqlTypeName.BOOLEAN)) {
+        return reject("ARRAY_SORT retains Flink's comparator behavior outside verified short or distinct arrays and constant options");
+      }
+      boolean ascending = args.size() < 2 || Boolean.TRUE.equals(((RexLiteral) args.get(1)).getValueAs(Boolean.class));
+      boolean nullFirst = args.size() < 3 ? ascending
+          : Boolean.TRUE.equals(((RexLiteral) args.get(2)).getValueAs(Boolean.class));
+      add(KIND_CALL,189,3);
+      if (!emit(args.get(0))) return false;
+      emitStringLiteral(ascending ? "ASC" : "DESC");
+      return emitStringLiteral(nullFirst ? "NULLS FIRST" : "NULLS LAST");
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {

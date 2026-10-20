@@ -100,6 +100,21 @@ DataFusion 54 instead probes the longer input, which can reorder a shorter left
 array; that implementation cannot be used unchanged. Tests cover both relative
 input lengths, duplicates, NULL keys, empty arrays and exact DECIMAL values.
 
+## Sorting verified arrays
+
+ARRAY_SORT reuses DataFusion 54 for nullable integer/DECIMAL arrays whose Flink
+comparator is verified safe: fewer than 32 elements, or a native ARRAY_DISTINCT
+result. Literal Boolean options map explicitly to ASC/DESC and NULLS FIRST/LAST;
+the two-argument Flink form puts NULL first exactly when ascending is true.
+
+Unrestricted arrays retain generated Flink evaluation. Flink's comparator returns
+-1 on equal non-NULL values; long duplicate-bearing arrays can therefore throw
+`IllegalArgumentException: Comparison method violates its general contract!` in
+Java TimSort. Substituting a total-order Arrow sort would change that observable
+behavior. A 64-element runtime SQL reproducer protects this failure path. Runtime
+and nullable options, strings, nested types and fallible operands also retain
+Flink evaluation. This is deliberately partial native admission.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -189,3 +204,18 @@ Query: `ARRAY_INTERSECT(arr,arr)`, 1,000,000 rows, BIGINT, width 64. Method and 
 Elapsed time changes by -69.72% versus the prior evaluator and -65.04% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
 
 [All 20 trials](../benchmarks/collection-array-intersect-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-intersect-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-intersect-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.
+
+## ARRAY_SORT complete-job evidence
+
+Query: `ARRAY_SORT(ARRAY_SLICE(arr,1,31))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 1.128538 | 1.087371-1.134692 |
+| baseline streamfusion | 1.450659 | 1.424786-1.502337 |
+| candidate stock | 1.174192 | 1.113978-1.278579 |
+| candidate streamfusion | 0.599582 | 0.590643-0.657086 |
+
+Elapsed time changes by -58.67% versus the prior evaluator and -48.94% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-array-sort-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-sort-2026-10-20.json) and [480 allocation probes](../benchmarks/collection-array-sort-allocations-2026-10-20.csv) retain the evidence. Eleven released SQL tests and 480 independent compiled-Calc Criterion fixtures pass; unrestricted duplicate arrays retain the released comparator exception.
