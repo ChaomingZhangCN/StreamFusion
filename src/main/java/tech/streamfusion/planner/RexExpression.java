@@ -2007,6 +2007,13 @@ final class RexExpression {
           : "ARRAY_UNION".equals(functionName) ? 186
           : "ARRAY_EXCEPT".equals(functionName) ? 187 : 188);
     }
+    if (NativeConfig.collectionExpressionsEnabled() && "ELEMENT".equals(functionName)) {
+      var args=call.getOperands();
+      if (args.size()!=1 || !nativeBasicArray(args.get(0).getType())
+          || requiresRowShortCircuit(args.get(0)))
+        return reject("ELEMENT uses Flink evaluation outside total basic nullable arrays");
+      return emitBuiltinCall(call,190);
+    }
     if (NativeConfig.collectionExpressionsEnabled() && "ARRAY_SORT".equals(functionName)) {
       var args = call.getOperands();
       if (args.isEmpty() || args.size() > 3 || !nativeBasicArray(args.get(0).getType())
@@ -2633,6 +2640,7 @@ final class RexExpression {
     }
     String name = call.getOperator().getName().toUpperCase(Locale.ROOT);
     List<RexNode> args = call.getOperands();
+    if (name.equals("ELEMENT")) return true;
     if (call.getKind() == SqlKind.CAST
         && (call.getType().getSqlTypeName() == SqlTypeName.BOOLEAN
             || SqlTypeFamily.INTEGER.getTypeNames().contains(call.getType().getSqlTypeName()))

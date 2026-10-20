@@ -115,6 +115,16 @@ behavior. A 64-element runtime SQL reproducer protects this failure path. Runtim
 and nullable options, strings, nested types and fallible operands also retain
 Flink evaluation. This is deliberately partial native admission.
 
+## Extracting a singleton
+
+ELEMENT selects a nullable child index for each basic array and gathers it with
+Arrow. Empty and NULL arrays produce NULL; multiple elements produce the released
+`TableRuntimeException` and message, carried through the existing typed-error
+bridge. The planner counts ELEMENT as a failure site so other failing expressions
+cannot be reordered across rows. The scalar registry covers empty, singleton,
+NULL-element and NULL-parent arrays; SQL tests cover multi-element failures,
+all-filtered inputs and competing arithmetic errors.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -219,3 +229,18 @@ Query: `ARRAY_SORT(ARRAY_SLICE(arr,1,31))`, 1,000,000 rows, BIGINT, width 64. Me
 Elapsed time changes by -58.67% versus the prior evaluator and -48.94% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
 
 [All 20 trials](../benchmarks/collection-array-sort-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-sort-2026-10-20.json) and [480 allocation probes](../benchmarks/collection-array-sort-allocations-2026-10-20.csv) retain the evidence. Eleven released SQL tests and 480 independent compiled-Calc Criterion fixtures pass; unrestricted duplicate arrays retain the released comparator exception.
+
+## ELEMENT complete-job evidence
+
+Query: `ELEMENT(ARRAY_SLICE(arr,1,1))`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.322372 | 0.317993-0.327850 |
+| baseline streamfusion | 0.491326 | 0.479114-0.510494 |
+| candidate stock | 0.333849 | 0.332103-0.443378 |
+| candidate streamfusion | 0.359720 | 0.351583-0.379171 |
+
+Elapsed time changes by -26.79% versus the prior evaluator and +7.75% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
+
+[All 20 trials](../benchmarks/collection-element-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-element-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-element-allocations-2026-10-20.csv) retain the evidence. Eight released SQL tests cover empty/singleton/NULL arrays, typed failure, all-filtered batches and competing row errors.

@@ -57,6 +57,10 @@ conversion helpers (171–177). Fixtures combine sliced nullable arrays with lit
 timestamps, positive/negative UTC offsets and independently NULL offsets. All nine batch/null/
 Unicode profiles exercise these registrations; the completeness assertion covers helper kernels
 as well as functions directly exposed in SQL.
+The registry also covers ELEMENT (190) with mixed empty/singleton/NULL arrays,
+sliced inputs and nullable elements; multi-element exception parity is verified
+by the Rust and released Flink SQL regressions.
+
 
 Criterion benchmarks call production Rust implementations through thin adapters, with Arrow
 fixtures built before measurement. They isolate where allocation and materialization costs arise

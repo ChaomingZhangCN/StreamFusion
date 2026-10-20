@@ -76,6 +76,20 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         list.append(valid(row));
     }
     let lists = array(list.finish(), rows);
+    let singletons = array(
+        arrow::array::ListArray::from_iter_primitive::<arrow::datatypes::Int64Type, _, _>(
+            (0..rows + 1).map(|row| {
+                valid(row).then(|| {
+                    if row % 3 == 0 {
+                        vec![]
+                    } else {
+                        vec![(row % 5 != 0).then_some(row as i64)]
+                    }
+                })
+            }),
+        ),
+        rows,
+    );
     let mut cases = vec![
         (
             65,
@@ -200,6 +214,7 @@ fn fixtures(rows: usize, nulls: bool, unicode: bool) -> Vec<(i64, Vec<ColumnarVa
         (187, vec![lists.clone(), lists.clone()]),
         (188, vec![lists.clone(), lists.clone()]),
         (189, vec![lists, literal("ASC"), literal("NULLS FIRST")]),
+        (190, vec![singletons]),
     ];
     for op in [144, 145, 146, 147] {
         cases.push((op, vec![string("{\"a\":1}"), literal("13.0")]));

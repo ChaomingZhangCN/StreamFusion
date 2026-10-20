@@ -47,6 +47,7 @@ mod binary_strings;
 mod cardinality;
 mod charset;
 mod chr;
+mod element;
 mod hash_code;
 mod if_null;
 mod instr;
@@ -233,6 +234,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         189 => datafusion::functions_nested::sort::array_sort_udf()
             .as_ref()
             .clone(),
+        190 => element::function(),
         _ => return None,
     })
 }

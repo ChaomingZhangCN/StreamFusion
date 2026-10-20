@@ -31,6 +31,13 @@ impl FlinkException {
         }
     }
 
+    pub fn table_runtime(message: String) -> Self {
+        Self {
+            class: "org/apache/flink/table/api/TableRuntimeException",
+            message,
+        }
+    }
+
     pub fn class_cast(source: &str, target: &str) -> Self {
         Self {
             class: "java/lang/ClassCastException",
