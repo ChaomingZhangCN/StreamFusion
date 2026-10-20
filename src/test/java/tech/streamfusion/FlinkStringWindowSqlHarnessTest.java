@@ -189,7 +189,7 @@ class FlinkStringWindowSqlHarnessTest {
   }
 
   private static TableEnvironment environment(String phase) {
-    return environment(phase, phase.equals("ONE_PHASE"));
+    return environment(phase, false);
   }
 
   private static TableEnvironment environment(String phase, boolean singlePhaseStrings) {
@@ -241,13 +241,11 @@ class FlinkStringWindowSqlHarnessTest {
   }
 
   @Test
-  void unverifiedLegacyStringExtremaStayOnFlinkByDefault() throws Exception {
-    NativeParity.assertFallbackReasonContains(
+  void legacyStringExtremaRunNativelyWithoutAnOptIn() throws Exception {
+    NativeParity.assertKindedParity(
         () -> environment("ONE_PHASE", false),
         "SELECT k, TUMBLE_START(rt, INTERVAL '10' SECOND), MIN(text_value), MAX(text_value),"
-            + " COUNT(*) FROM src GROUP BY k, TUMBLE(rt, INTERVAL '10' SECOND)",
-        "single-phase string MIN/MAX requires"
-            + " streamfusion.window.string-extrema.single-phase.enabled=true");
+            + " COUNT(*) FROM src GROUP BY k, TUMBLE(rt, INTERVAL '10' SECOND)");
   }
 
   @ParameterizedTest

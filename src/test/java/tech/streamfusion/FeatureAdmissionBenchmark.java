@@ -88,6 +88,7 @@ class FeatureAdmissionBenchmark {
     Plan stock = plan(name, false, null);
     Plan[] plans = {stock, plan(name, true, stock.input)};
     assertEquals(plans[0].output.getChildren(), plans[1].output.getChildren());
+    System.out.printf("[feature-admission-types] input=%s output=%s%n", stock.input, stock.output);
     var input = rows(name, count, keys, width, plans[0].input);
     if (plans[0].transformation != null && plans[0].transformation.getStateKeySelector() != null) {
       @SuppressWarnings("unchecked")
@@ -391,6 +392,11 @@ class FeatureAdmissionBenchmark {
               + " DESCRIPTOR(rt), INTERVAL '2' SECOND, INTERVAL '"
               + size
               + "' SECOND)) GROUP BY k, window_start, window_end) counts GROUP BY wstart, wend";
+    } else if (name.equals("string-session")) {
+      sql =
+          "SELECT k, MIN(s), MAX(s), COUNT(*), "
+              + "SESSION_START(rt, INTERVAL '2' SECOND), SESSION_END(rt, INTERVAL '2' SECOND) "
+              + "FROM src GROUP BY k, SESSION(rt, INTERVAL '2' SECOND)";
     } else {
       String window = name.substring(name.indexOf('-') + 1).toUpperCase(Locale.ROOT);
       String bounds =
@@ -421,7 +427,14 @@ class FeatureAdmissionBenchmark {
         boolean match =
             (isWindow(name) || name.startsWith("attached-"))
                 ? node.getName()
-                    .contains(nativeEngine ? "NativeColumnarWindowAgg" : "WindowAggregate")
+                    .contains(
+                        nativeEngine
+                            ? name.equals("string-session")
+                                ? "NativeColumnarSessionWindowAgg"
+                                : "NativeColumnarWindowAgg"
+                            : name.equals("string-session")
+                                ? "GroupWindowAggregate"
+                                : "WindowAggregate")
                 : node.getName().contains(nativeEngine ? "NativeCalc" : "Calc")
                     && (nativeEngine
                         || one.getInputs().get(0).getOutputType() instanceof InternalTypeInfo);
@@ -435,6 +448,9 @@ class FeatureAdmissionBenchmark {
             field.setAccessible(true);
             output = (RowType) field.get(factory.getOperator());
           }
+          // Legacy group windows append unrequested rowtime/proctime properties.
+          // Consume the six SQL output fields on both engines.
+          if (name.equals("string-session")) output = new RowType(output.getFields().subList(0, 6));
           RowType physicalInput =
               nativeEngine
                   ? suppliedInput

@@ -14,8 +14,10 @@ only the winning value as a retained one-row slice to the existing accumulator. 
 pass an empty typed slice. Contiguous groups keep their existing slice path. The DataFusion
 accumulator, lexical UTF-8 ordering, state schema and checkpoint representation are unchanged.
 
-Event-time TVF string TUMBLE/HOP/CUMULATE now default native. The string option remains an
-explicit override; processing-time, session and legacy string shapes retain their previous opt-in.
+String extrema now default native for all otherwise supported shapes. The string option remains
+an explicit opt-out. Fixed processing-time and legacy windows reuse the measured fixed-window
+kernel and retain their existing timer/property parity checks. The separate session kernel also
+passes the Rust-side admission boundary in the follow-up measurements below.
 Standalone DropUpdateBefore also passes the Rust gate and defaults native; its explicit false
 override retains stock. Shared stateful and temporal UDFs default native under the maintainer's
 accepted UDF performance exception, with no faster-than-Flink claim.
@@ -138,3 +140,35 @@ are diagnostics. Criterion reproduction:
 cargo bench --manifest-path native/Cargo.toml --locked -p streamfusion \
   --bench window_string_extrema --features mimalloc -- --test
 ```
+
+## Final string-window toggle audit
+
+The remaining session/processing-time/legacy restriction was a performance gate. Fixed windows
+reuse the measured production fold regardless of SQL syntax or clock domain; existing tests
+exercise controlled processing-time firings. Event-time SESSION uses a separate production
+aggregator, now measured with the same Arrow/Rust versus RowData/Java boundary. No session
+kernel optimization was needed. These measurements flush at the final watermark, do not include
+checkpoint I/O and do not establish sustained periodic-watermark or processing-time throughput.
+
+Legacy Flink group-window operators append unrequested rowtime/proctime properties. The session
+fixture consumes the six requested SQL output columns on both engines. Initial generic-consumer
+results and the rejected eight-column parity attempt are retained in the evidence; the corrected
+six-column full-value/RowKind comparison passes. Stock still executes its normal production
+operator, including its extra properties; only output consumption ignores unrequested fields.
+
+| SESSION profile | Stock Flink 2.2 median (ms) | Rust median (ms) |
+| --- | ---: | ---: |
+| 131,072 rows, 64 keys, width 64 | 133.17 | 10.42 |
+| 262,144 rows, 4,096 keys, width 256 | 364.59 / 433.73 | 45.60 |
+
+The two retained high-cardinality stock cohorts show JIT/GC variation; both remain in the
+[evidence](results/string-window-defaults-2026-10-19.json). The unchanged session implementation
+passes the corrected gate by 8.0–9.5× at high cardinality and 12.8× at low cardinality.
+These compare operation boundaries, not complete jobs. All otherwise-supported string shapes
+therefore default on; explicit false retains stock. Numerical compatibility overrides and
+independent implementation experiments are outside this feature-gate change.
+
+The matching high-cardinality Flink 1.18 cohorts measure 371.47/364.11 ms stock and
+45.16 ms Rust, also with complete value/RowKind parity. Default-admission regression
+selections pass 105 cases on 2.2.1 and 101 on 1.18.1 with four expected compatibility skips,
+including explicit-false fallback, legacy/session SQL, recovery and processing-time timers.

@@ -5,19 +5,46 @@ use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use std::{fs::File, hint::black_box, sync::Arc, time::Instant};
-use streamfusion::bench::Tumbling;
+use streamfusion::bench::{Session, Tumbling};
 
-fn operation(shape: &str) -> Tumbling {
+enum Window {
+    Fixed(Tumbling),
+    Session(Session),
+}
+impl Window {
+    fn update(&mut self, batch: &RecordBatch) {
+        match self {
+            Self::Fixed(op) => op.update(batch),
+            Self::Session(op) => op.update(batch),
+        }
+    }
+    fn flush(&mut self, watermark: i64) -> RecordBatch {
+        match self {
+            Self::Fixed(op) => op.flush(watermark),
+            Self::Session(op) => op.flush(watermark),
+        }
+    }
+}
+
+fn operation(shape: &str) -> Window {
     let count = shape.starts_with("count-");
     let shape = shape.strip_prefix("count-").unwrap_or(shape);
-    Tumbling::with_window_budget(
+    if shape == "session" {
+        return Window::Session(Session::with_budget(
+            2000,
+            3,
+            vec![1, 2, 3],
+            1024 * 1024 * 1024,
+        ));
+    }
+    Window::Fixed(Tumbling::with_window_budget(
         10000,
         if shape == "tumble" { 10000 } else { 2000 },
         shape == "cumulate",
         if count { 0 } else { 3 },
         if count { vec![3, 3, 3] } else { vec![1, 2, 3] },
         1024 * 1024 * 1024,
-    )
+    ))
 }
 
 fn canonical_input(batch: RecordBatch, count: bool) -> RecordBatch {
@@ -248,13 +275,14 @@ fn drop_trials(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|drop|count-tumble|count-hop|count-cumulate [warmups=5] [runs=7] [output.arrow]");
+    assert!(args.len() >= 3, "usage: feature_admission INPUT.arrow tumble|hop|cumulate|session|drop|count-tumble|count-hop|count-cumulate [warmups=5] [runs=7] [output.arrow]");
     let path = &args[1];
     let shape = &args[2];
     assert!([
         "tumble",
         "hop",
         "cumulate",
+        "session",
         "drop",
         "count-tumble",
         "count-hop",
