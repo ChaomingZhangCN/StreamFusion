@@ -1,5 +1,11 @@
 # Native Criterion suites
 
+These suites are optional tools for focused, manual performance investigations. They are
+not an ordinary CI gate, and native changes do not require new Criterion coverage. CI uses
+unchanged upstream Flink tests and declared native-execution expectations to check correctness
+and native routing; see the [CI policy](../ci.md#native-execution-checks-instead-of-exhaustive-benchmark-smoke).
+Native routing alone does not establish a speedup.
+
 | Task | Start here |
 | --- | --- |
 | Discover suites and reproduce a comparison | [Running and comparing](#running-and-comparing) |
@@ -109,17 +115,6 @@ operator construction stay outside timing. These isolate native costs; `Temporal
 measures complete two-phase Flink jobs, including both transposes and production IPC shuffle.
 
 ## Running and comparing
-
-CI uses `bin/bench-native.py --smoke --smoke-workers 4`. The long `persistent_state`
-executable is compiled once and run by four processes on the same runner. A fixture's
-input construction, correctness/allocation probe and Criterion smoke call stay together;
-workers partition shapes before setup rather than repeating setup behind Criterion filters.
-All shapes, phases, sizes, null profiles and assertions remain selected across the workers.
-`metadata.json` records worker commands, shard environments and per-suite elapsed seconds;
-per-worker logs and the combined allocation CSV retain the case inventory and failures.
-The default remains one process. Parallel workers and CI's RAM-backed temporary filesystem
-are smoke diagnostics only; neither provides throughput measurements or changes normal
-performance comparison commands.
 
 The `non_time_row_number` target includes 120 production-kernel fixtures across
 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
@@ -280,10 +275,9 @@ Full timing runs are intentionally long. Start with a case filter for a suspecte
 the operation's other profiles before accepting an optimization. Run timing suites sequentially on
 an otherwise quiet host. Inspect Criterion's confidence intervals and repeat noisy comparisons;
 report input rows per second only with the stated output cardinality. Smoke mode uses Criterion
-`--test`, executes each fixture once, and produces no timing baseline. CI runs smoke checks and
-retains diagnostics without enforcing performance thresholds on shared runners. CI output lives
-in a fresh runner temporary directory outside the Cargo cache, preventing restored logs from
-appearing as evidence for a new run.
+`--test`, executes each fixture once, and produces no timing baseline. Run it on demand when
+changing a benchmark fixture. Keep diagnostic output in a fresh directory outside the Cargo
+cache so restored logs cannot appear as evidence for a new run.
 
 The typed-value suite adds 336 DATE/TIME/BOOLEAN MIN/MAX/FIRST/LAST fixtures across all
 four rowtime shapes and the three admitted proctime shapes, 64/4,096 rows and one/64 keys.

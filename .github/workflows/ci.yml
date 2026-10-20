@@ -97,38 +97,6 @@ jobs:
         working-directory: native
         run: cargo fmt --all -- --check
 
-  native-benchmarks:
-    name: Native benchmark fixtures (release)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 150
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-rust
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
-          key: criterion-release
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Validate smoke worker orchestration
-        run: python3 bin/test_bench_native.py
-      - name: Exercise every Criterion fixture without timing thresholds
-        run: |
-          fixture_tmp="$(mktemp -d /dev/shm/streamfusion-criterion.XXXXXX)"
-          trap 'rm -rf "$fixture_tmp"' EXIT
-          df -h /dev/shm
-          TMPDIR="$fixture_tmp" python3 bin/bench-native.py --smoke --smoke-workers 4 --output "$RUNNER_TEMP/benchmark-smoke"
-      - name: Retain benchmark fixture diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-benchmark-smoke
-          path: ${{ runner.temp }}/benchmark-smoke
-          if-no-files-found: ignore
-
   java-tests:
     needs: native-build
     name: Java tests (debug native build)${{ matrix.suffix }}${{ matrix.jdk == '11' && ' (JDK 11)' || '' }}
@@ -443,7 +411,7 @@ jobs:
   all-tests:
     name: All CI tests
     if: ${{ always() }}
-    needs: [native-build, native-tests, native-benchmarks, java-tests, lake-module-tests, image-integration]
+    needs: [native-build, native-tests, java-tests, lake-module-tests, image-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

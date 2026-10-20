@@ -1,6 +1,6 @@
 # CI setup and failure handling
 
-Ordinary CI runs Rust tests, release Criterion fixture checks, Java tests on Flink 2.2 and
+Ordinary CI runs Rust tests, Java tests on Flink 2.2 and
 1.18, optional lake and format/connector suites, and optimized image integration tests.
 The upstream Flink workflow runs separately; both aggregate gates must pass before merging.
 Confirm the actual post-merge workflows as well as the PR checks when verifying a repair.
@@ -9,6 +9,24 @@ CI, upstream Flink, and Paimon compatibility workflows cancel older test runs wh
 push or PR update targets the same ref. The latest main commit includes the earlier changes
 and receives the complete checks, without waiting behind tests for superseded main commits.
 Release publishing retains its non-canceling concurrency policy.
+
+## Native execution checks instead of exhaustive benchmark smoke
+
+Ordinary CI does not run the exhaustive native Criterion fixture suite or require new
+Criterion coverage for every native change. The suite did not enforce timing regressions;
+the successful main run on 2026-10-20 spent about 135 minutes on its release fixture job.
+Removing that job also removes its release-cache restore/save, artifact upload and CI-only
+fixture sharding. Existing Criterion suites remain available for manual performance investigations;
+there is no replacement scheduled benchmark job.
+
+The [upstream Flink workflow](upstream-flink-suite.md) remains required on both Flink lines.
+It runs unchanged upstream assertions and validates declared execution contracts against
+positive native work. Missing evidence, zero native work and unexpected fallback fail the
+applicable checks. The runtime audit additionally enforces declared routes for specific test
+variants, and the aggregate gate requires all planned runtime shards and invocations.
+When native support changes, update those expectations alongside the upstream coverage.
+These checks establish correct results and the expected execution path; throughput claims
+still require explicit release-mode comparisons against stock Flink and previous behavior.
 
 ## Shared debug native libraries
 
@@ -27,7 +45,7 @@ test job separately compiles its test harnesses and checks every tagged native p
 isolation once, preserving the checks for dependencies accidentally supplied by the workspace.
 The native build retains Cargo's `--timings` report as a separate diagnostic artifact.
 
-Optimized image builds, release Criterion executables, and the separately prepared upstream
+Optimized image builds and the separately prepared upstream
 Flink suite keep their own build configurations. The debug artifact is scoped to its current
 workflow run and commit; it is not a release payload or a cache of test outcomes. This replaces
 the independent debug library builds with one without changing test selection or test concurrency.
@@ -58,23 +76,10 @@ A newer PR head cancels obsolete runs, including JVM aggregate release diagnosti
 checks and diagnostic fixtures still run on the current head. Superseded PRs should be closed
 and their active runs canceled rather than leaving multiple copies queued.
 
-Criterion, JVM aggregate and nested-scalar artifacts use fresh runner temporary directories,
+JVM aggregate and nested-scalar artifacts use fresh runner temporary directories,
 outside the cached Cargo target. Restored dependency builds must not restore candidate-library
 snapshots or old trials into a new run. Artifact uploads retain these temporary outputs even
 when a diagnostic fails.
-
-The Criterion smoke job uses four processes inside its existing four-CPU runner for
-`persistent_state`; it creates no extra GitHub jobs. Cargo builds that executable once,
-then each worker selects disjoint fixture shapes before constructing inputs, opening
-RocksDB or validating results. All phases and assertions for a shape run on its worker.
-Separate logs and the combined allocation CSV retain every worker's results, and any
-worker failure fails the job. Suite elapsed times are recorded in `metadata.json`.
-
-Smoke-only temporary databases and checkpoints live under `/dev/shm`, with cleanup when
-the step exits. This avoids filesystem journal waits while exercising the same production
-RocksDB and checkpoint/restore code. Diagnostic artifacts stay in the runner temporary
-directory. Performance comparisons retain their normal storage and serial execution:
-parallel workers require `--smoke`, and the Rust fixture selector rejects timing runs.
 
 Paimon 1.0 compatibility builds release workspace libraries once with `mimalloc`, matching
 the reactor's `bench` profile, and verifies JNI/package boundaries before Maven runs. Both

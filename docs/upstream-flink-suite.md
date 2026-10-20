@@ -8,6 +8,13 @@
 | Interpret reported SQL coverage | [Complete invocation inventory](#complete-sql-invocation-inventory), [published inventory](sql-inventory/index.md) |
 | Find connector and compatibility fixtures | [Flink 1.18 state fixtures](#flink-118-state-fixtures), [Iceberg streaming SQL](#iceberg-streaming-sql) |
 
+CI relies on these upstream assertions and declared native-execution expectations for
+correctness and routing coverage on both supported Flink lines. When support changes, update
+the execution contracts and runtime-route scope so newly admitted paths require positive
+native work and unexpected fallback fails. The exhaustive native Criterion smoke suite is
+not a CI gate; see the [CI policy](ci.md#native-execution-checks-instead-of-exhaustive-benchmark-smoke).
+Native execution evidence does not measure throughput.
+
 ## Runner and suite selection
 
 StreamFusion can run Flink's own table planner runtime integration tests with native acceleration

@@ -32,9 +32,6 @@ fn persistent(c: &mut Criterion) {
     for rows in [16, 1024, 16384] {
         for width in [8, 264] {
             for nullable in [false, true] {
-                if !streamfusion_benchmark_support::smoke_fixture() {
-                    continue;
-                }
                 let text = "x".repeat(width);
                 let input = RecordBatch::try_from_iter(vec![
                     (
@@ -190,9 +187,6 @@ fn dedup(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
-                    if !streamfusion_benchmark_support::smoke_fixture() {
-                        continue;
-                    }
                     let input = dedup_input(rows, domain, width, nullable);
                     let expected = input.slice(0, domain);
                     let setup = || {
@@ -274,9 +268,6 @@ fn dedup_ttl(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
-                    if !streamfusion_benchmark_support::smoke_fixture() {
-                        continue;
-                    }
                     let input = dedup_input(rows, domain, width, nullable);
                     let expected = input.slice(0, domain);
                     let later = RecordBatch::try_new(
@@ -363,9 +354,6 @@ fn dedup_recovery(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
-                    if !streamfusion_benchmark_support::smoke_fixture() {
-                        continue;
-                    }
                     let input = dedup_input(rows, domain, width, nullable);
                     let fired = domain / 2;
                     let setup = || {

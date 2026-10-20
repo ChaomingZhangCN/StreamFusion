@@ -99,18 +99,21 @@ add those improvements to our commit message. If our benchmarks don't improve, w
 the feature is worth it, or if it is the precursor to more optimizations. We also need to confirm compatibility with
 existing Flink results.
 
-### Native operation benchmarks
+### Native execution coverage
 
-Maintain release-mode Criterion coverage for Rust operational paths: operators, expression kernels,
-codecs, Arrow ownership handoffs, key encoding, and state/checkpoint work. When adding or changing
-such a path, add or update a benchmark that calls the production implementation and exercises
-representative batch sizes, nulls, widths, and cardinalities where applicable. Keep fixture setup
-outside timed execution and state the measured boundary. Use `bin/bench-native.py --list` to discover
-suites and `--smoke` to validate fixtures; the coverage inventory and methodology live in
-[docs/benchmarks/native-criterion.md](docs/benchmarks/native-criterion.md). Record allocation requests
-and Arrow buffer sharing when investigating copies, without equating either metric with copied bytes.
-Criterion isolates native costs; it does not supply the stock-Flink comparison required for the
-functionality gates below.
+Use the unchanged upstream Flink tests to verify result parity and expected native execution
+on both supported Flink lines. Maintain the upstream execution contracts and runtime-route
+scope when support changes. Require positive native work for admitted paths, and fail when
+expected native execution is missing or an unexpected fallback occurs; a passing result alone
+does not prove the native path ran. Keep explicit expectations for supported fallback cases.
+See [docs/upstream-flink-suite.md](docs/upstream-flink-suite.md) for the evidence checks.
+
+The exhaustive native Criterion suite is not a CI gate, and adding Criterion coverage is not
+a requirement for every native change. Existing suites remain optional tools for focused
+performance investigations; discover them with `bin/bench-native.py --list` and consult
+[docs/benchmarks/native-criterion.md](docs/benchmarks/native-criterion.md) for methodology.
+Native execution evidence establishes which path ran, not a throughput improvement; the
+performance requirements below still apply to acceleration claims and new features.
 
 ### Performance requirements for new features
 

@@ -108,9 +108,6 @@ pub(super) fn window_join(c: &mut Criterion) {
     for rows in [16, 1024, 16384] {
         for width in [8, 264] {
             for nullable in [false, true] {
-                if !streamfusion_benchmark_support::smoke_fixture() {
-                    continue;
-                }
                 let left = input(rows, width, nullable, 0, false);
                 let right = input(rows, width, nullable, 0, true);
                 let pending_left = input(rows, width, nullable, 1000, false);

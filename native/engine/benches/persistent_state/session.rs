@@ -128,9 +128,6 @@ pub(super) fn session(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
-                    if !streamfusion_benchmark_support::smoke_fixture() {
-                        continue;
-                    }
                     let initial = input(rows, domain, width, nullable, 100);
                     let separated = input(rows, domain, width, nullable, 2100);
                     let bridge = input(rows, domain, width, nullable, 1100);
