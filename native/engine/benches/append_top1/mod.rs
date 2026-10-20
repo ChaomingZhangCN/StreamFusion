@@ -9,6 +9,68 @@ enum Top1 {
 }
 
 #[cfg(feature = "rocksdb-state")]
+fn bench_accounted_bundles(c: &mut Criterion) {
+    let mut group = c.benchmark_group("append_top1_accounted_bundles");
+    for rows in [16, 256, 4096] {
+        group.throughput(Throughput::Elements(rows as u64));
+        for width in [8, 1024] {
+            let input = RecordBatch::try_from_iter(vec![
+                (
+                    "key",
+                    Arc::new(Int64Array::from_iter_values(0..rows as i64)) as ArrayRef,
+                ),
+                (
+                    "sort",
+                    Arc::new(Int64Array::from_iter(
+                        (0..rows).map(|row| (row % 7 != 0).then_some(row as i64)),
+                    )) as ArrayRef,
+                ),
+                (
+                    "payload",
+                    Arc::new(StringArray::from_iter(
+                        (0..rows).map(|row| (row % 11 != 0).then(|| "x".repeat(width))),
+                    )) as ArrayRef,
+                ),
+            ])
+            .unwrap();
+            for bundle in [false, true] {
+                let setup = || {
+                    let directory = tempfile::tempdir().unwrap();
+                    let operator = PersistentTop1::new(
+                        directory.path().join("db").to_str().unwrap(),
+                        include_str!("../fixtures/rocks-options.json"),
+                        input.schema(),
+                        bundle,
+                        true,
+                    )
+                    .with_memory_budget(16 << 20);
+                    (operator, directory)
+                };
+                let run = |operator: &mut PersistentTop1| {
+                    let output = operator.push(black_box(&input));
+                    if bundle {
+                        operator.flush()
+                    } else {
+                        output
+                    }
+                };
+                let (mut operator, _directory) = setup();
+                assert_eq!(run(&mut operator).num_rows(), rows);
+                assert_eq!(operator.state_bytes(), 0);
+                group.bench_function(format!("rows{rows}/width{width}/bundle{bundle}"), |b| {
+                    b.iter_batched_ref(
+                        setup,
+                        |(operator, _directory)| black_box(run(operator)),
+                        BatchSize::SmallInput,
+                    )
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+#[cfg(feature = "rocksdb-state")]
 fn bench_shared_pool(c: &mut Criterion) {
     let mut options: serde_json::Value =
         serde_json::from_str(include_str!("../fixtures/rocks-options.json")).unwrap();
@@ -224,5 +286,8 @@ pub fn bench_append_top1(c: &mut Criterion) {
     }
     group.finish();
     #[cfg(feature = "rocksdb-state")]
-    bench_shared_pool(c);
+    {
+        bench_shared_pool(c);
+        bench_accounted_bundles(c);
+    }
 }

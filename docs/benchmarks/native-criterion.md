@@ -133,6 +133,15 @@ fixture construction, store creation and seeding are outside it. Its persistent
 wrapper retains the shared native resource until the store closes. See
 [Top-1 winner state](../optimizations/top1-winner-state.md) for measurements.
 
+`append_top1_accounted_bundles` adds 12 production RocksDB fixtures with a 16 MiB
+task-state budget, unique keys, nullable sorts/payloads, 16/256/4096-row batches
+and 8/1024-byte strings, in immediate and mini-batch modes. They verify that a
+completed bundle releases its working-set reservation. The measured boundary
+includes the production resident-state reconciliation, rank update, persistence
+and output construction; input/store creation and destruction stay outside
+`iter_batched_ref`. The existing persistent fixtures remain unaccounted controls.
+These fixture checks do not establish whole-job performance or physical RSS use.
+
 The `over_basic_values` target isolates the four production OVER frame shapes without
 initializing unrelated persistent operator fixtures. Its release fixture checks cover
 validity-only counts, including DATE, millisecond TIME and BOOLEAN; exact decimal SUM/SUM0/AVG and checkpoint state; typed extrema and
