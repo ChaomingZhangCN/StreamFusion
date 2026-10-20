@@ -295,11 +295,10 @@ SF_BENCHMARK=true mvn -pl streamfusion-runtime -am test -Pbench \
 ## String MIN/MAX
 
 Append-only windows admit `MIN` and `MAX` over CHAR and VARCHAR (including SQL STRING).
-Event-time local/global and single-phase TVF TUMBLE/HOP/CUMULATE execution are admitted by default.
-Other single-phase shapes (processing-time, session and legacy windows) require
-`streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces all
-single-phase string extrema to stock. A mixed query follows the same admission as its string
-extrema. The [operator-format audit](../benchmarks/feature-admission-2026-10-19.md) supersedes the
+Local/global and single-phase execution are admitted by default in every otherwise supported
+shape, including processing time, sessions and legacy group windows. Explicit
+`streamfusion.window.string-extrema.single-phase.enabled=false` forces single-phase string
+extrema to stock. A mixed query follows the same admission as its string extrema. The [operator-format audit](../benchmarks/feature-admission-2026-10-19.md) supersedes the
 previous complete-job admission gate, while retaining those complete-job regressions below.
 The later Rust-side profile and string selection change also admit HOP; see the
 [Rust admission report](../benchmarks/rust-feature-admission-2026-10-19.md).
@@ -375,9 +374,8 @@ Additional SQL comparisons cover embedded NULs, long values, supplementary chara
 runtime lone-surrogate strings at parallelism one and two, including Flink source serialization
 before extrema ordering. HOP recovery injects two failures after completed checkpoints on memory
 and RocksDB and requires work from every native stage. Controlled-clock processing-time tests
-verify extrema, NULL-only groups and timer firing after restore on both backends. Single-phase
-SQL and recovery coverage explicitly enables the experimental switch; default admission stays
-as documented above.
+verify extrema, NULL-only groups and timer firing after restore on both backends. Current SQL
+and recovery checks use default admission; the earlier evidence explicitly enabled the switch.
 
 ## Temporal extrema benchmarks
 
@@ -759,9 +757,9 @@ enables columnar composition with downstream consumers; it is not a standalone t
   and COUNT(DISTINCT).
   Ordinary COUNT(value) also admits character, DATE, TIME, BOOLEAN, timestamp, ARRAY, MAP, ROW and MULTISET values;
   it counts validity without interpreting the payload.
-- Single-phase string MIN/MAX outside event-time TVF TUMBLE/HOP/CUMULATE unless
-  `streamfusion.window.string-extrema.single-phase.enabled=true`; explicit `false` forces
-  all single-phase string extrema to stock. Local/global admission is unchanged.
+- Single-phase string MIN/MAX when explicitly disabled with
+  `streamfusion.window.string-extrema.single-phase.enabled=false`. All otherwise supported
+  shapes default native; local/global admission is unchanged.
 - Attached bounds outside append-only event-time TUMBLE/HOP/CUMULATE, or with FILTER.
   Otherwise supported single-phase attached bounds are admitted by default;
   `streamfusion.window.attached.single-phase.enabled=false` forces stock execution.
