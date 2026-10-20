@@ -61,6 +61,56 @@ class FlinkMapPayloadRecoveryTest {
     }
   }
 
+  static Stream<Arguments> nestedMapProducers() {
+    return Stream.of(false, true)
+        .flatMap(
+            rocks ->
+                Stream.of(false, true).map(computedOrder -> Arguments.of(rocks, computedOrder)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("nestedMapProducers")
+  void nestedMapUdfCompositionRespectsExistingBoundary(boolean rocks, boolean computedOrder)
+      throws Exception {
+    var dtype = FlinkMapPayloadSqlHarnessTest.rowType("map");
+    try (var recovery =
+        new PortableSqlRecovery(
+                rocks ? "tech.streamfusion.state.RocksDBNativeStateBackendFactory" : "hashmap",
+                FlinkMapPayloadSqlHarnessTest.rows("map"),
+                ExternalTypeInfo.<Row>of(dtype),
+                Schema.newBuilder().fromRowDataType(dtype).build(),
+                false,
+                16,
+                32)
+            .withExecutionMetrics()) {
+      java.util.function.UnaryOperator<TableEnvironment> setup =
+          table -> {
+            table.getConfig().set("streamfusion.transpose.batchRows", "7");
+            table.createTemporaryView("src", table.from("recovery_input"));
+            table.createTemporarySystemFunction(
+                "nested_map", new FlinkMapPayloadSqlHarnessTest.NestedStringMap());
+            return table;
+          };
+      var runs =
+          NativeFailureParity.runRecovery(
+              () -> setup.apply(recovery.uninterrupted()),
+              () -> setup.apply(recovery.get()),
+              "SELECT id,r,rn FROM (SELECT id,k,r,ROW_NUMBER() OVER (PARTITION BY k ORDER BY "
+                  + (computedOrder ? "CARDINALITY(r.m) DESC,id ASC" : "id ASC")
+                  + ") AS rn FROM (SELECT id,k,nested_map(id) AS r FROM src)) WHERE rn<=3");
+      runs.assertSuccess(
+          computedOrder ? NativeFailureParity.Route.FALLBACK : NativeFailureParity.Route.NATIVE);
+      if (computedOrder)
+        assertTrue(
+            runs.nativeRun().fallbackReasons().stream()
+                .anyMatch(reason -> reason.contains("collection value representation")),
+            runs::toString);
+      recovery.verifyRepeatedRecovery();
+      if (!computedOrder)
+        RecoveryExecutionMetrics.assertConsumed(recovery.nativeExecution(), "NativeColumnarTopN");
+    }
+  }
+
   static Stream<Arguments> updating() {
     return FlinkMapPayloadSqlHarnessTest.types()
         .flatMap(

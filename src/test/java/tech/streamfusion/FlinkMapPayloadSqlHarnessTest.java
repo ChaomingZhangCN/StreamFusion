@@ -176,6 +176,20 @@ public class FlinkMapPayloadSqlHarnessTest {
     }
   }
 
+  @org.apache.flink.table.annotation.FunctionHint(
+      input = @org.apache.flink.table.annotation.DataTypeHint("BIGINT"),
+      output = @org.apache.flink.table.annotation.DataTypeHint("ROW<m MAP<STRING,STRING>>"))
+  public static class NestedStringMap extends org.apache.flink.table.functions.ScalarFunction {
+    public Row eval(Long value) {
+      return Row.of(Map.of("a", "value-" + value));
+    }
+
+    @Override
+    public boolean isDeterministic() {
+      return false;
+    }
+  }
+
   static DataType payloadType(String type) {
     var map = DataTypes.MAP(DataTypes.STRING(), DataTypes.INT());
     switch (type) {

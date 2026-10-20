@@ -395,3 +395,10 @@ stock/native median ratios range from 1.03x to 6.90x across eight MAP/MULTISET c
 high-churn timings are close and their ranges overlap. This establishes no complete-job or
 join-throughput claim. The [batch rejection technique](../optimizations/bounded-rank-payloads.md)
 explains the low-churn gain and its measured limits.
+
+
+Four additional nested-UDF composition controls per release cover a returned ROW containing a
+string-to-string MAP, on heap/RocksDB with two restores. Ordinary scalar ordering stays native.
+Sorting by a computed collection expression still preserves the existing final-projection/fused-
+consumer guard: richer collection representations cannot enter an unverified stateful boundary.
+These are callback/schema checks, not additional UDF type admission or throughput evidence.

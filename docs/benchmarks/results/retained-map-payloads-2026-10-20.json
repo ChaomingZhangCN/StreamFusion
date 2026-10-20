@@ -184,6 +184,17 @@
         "fail": 0
       },
       "coverage": "Six existing stateful MAP payload/key checks now require native carriage for append-only payloads and fallback for MAP keys; fifteen nested SQL/JSON controls retain their previous admission."
+    },
+    "nested_map_udf_composition": {
+      "flink_2.2.1": {
+        "pass": 4,
+        "fail": 0
+      },
+      "flink_1.18.1": {
+        "pass": 4,
+        "fail": 0
+      },
+      "scope": "ROW-returning scalar UDF with a string-to-string MAP child, ordinary scalar ordering native vs computed collection ordering existing fallback, heap/RocksDB and two restores. No additional UDF overload admission."
     }
   },
   "native_allocation_probes": [
