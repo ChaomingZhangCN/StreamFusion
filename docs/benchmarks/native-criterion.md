@@ -2746,3 +2746,7 @@ fixtures retain both conversion boundaries.
 The scalar registry includes MAP_KEYS with sliced nullable map inputs and shared child buffers.
 
 MAP_VALUES uses the same verified basic-map admission and shared-buffer view, selecting the value child without changing NULLs or entry order.
+
+MAP_ENTRIES uses the same verified basic-map admission and reuses entry children
+as a list of nullable key/value rows, preserving order and parent NULLs. Consumers
+that inspect row representation or RowKind retain generated evaluation.

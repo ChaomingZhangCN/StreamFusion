@@ -334,3 +334,18 @@ Query: `MAP_VALUES(MAP_FROM_ARRAYS(arr,arr))`, 2,000,000 rows, BIGINT, width 8. 
 Elapsed time changes by -38.90% versus the prior evaluator and +11.62% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-map-values-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-values-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-values-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover direct and composed basic maps with independent NULL values and filtered batches.
+
+## MAP_ENTRIES complete-job evidence
+
+Query: `MAP_ENTRIES(MAP_FROM_ARRAYS(arr,arr))`, 2,000,000 rows, BIGINT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 1.053904 | 1.034219-1.084736 |
+| baseline streamfusion | 2.711965 | 2.619169-2.780334 |
+| candidate stock | 0.979474 | 0.972003-0.990304 |
+| candidate streamfusion | 0.946615 | 0.937376-0.959690 |
+
+Elapsed time changes by -65.09% versus the prior evaluator and -3.35% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-map-entries-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-entries-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-entries-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover direct and composed basic maps, nullable fields and entry order.

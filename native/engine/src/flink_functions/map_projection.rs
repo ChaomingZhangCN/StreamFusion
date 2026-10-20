@@ -48,18 +48,29 @@ impl ScalarUDFImpl for MapProjection {
     fn name(&self) -> &str {
         if self.index == 0 {
             "flink_map_keys"
-        } else {
+        } else if self.index == 1 {
             "flink_map_values"
+        } else {
+            "flink_map_entries"
         }
     }
     fn signature(&self) -> &Signature {
         &self.signature
     }
     fn return_type(&self, types: &[DataType]) -> Result<DataType> {
-        Ok(DataType::new_list(
-            fields(&types[0])?[self.index].data_type().clone(),
-            true,
-        ))
+        let fields = fields(&types[0])?;
+        let child = if self.index == 2 {
+            DataType::Struct(
+                vec![
+                    Field::new("key", fields[0].data_type().clone(), true),
+                    Field::new("value", fields[1].data_type().clone(), true),
+                ]
+                .into(),
+            )
+        } else {
+            fields[self.index].data_type().clone()
+        };
+        Ok(DataType::new_list(child, true))
     }
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let index = self.index;
@@ -70,14 +81,23 @@ impl ScalarUDFImpl for MapProjection {
 }
 fn project(args: &[ArrayRef], index: usize) -> Result<ArrayRef> {
     let (entries, offsets, nulls) = parts(&args[0])?;
+    let values = if index == 2 {
+        Arc::new(StructArray::try_new(
+            vec![
+                Field::new("key", entries.column(0).data_type().clone(), true),
+                Field::new("value", entries.column(1).data_type().clone(), true),
+            ]
+            .into(),
+            entries.columns().to_vec(),
+            None,
+        )?) as ArrayRef
+    } else {
+        entries.column(index).clone()
+    };
     Ok(Arc::new(ListArray::try_new(
-        Arc::new(Field::new(
-            "item",
-            entries.column(index).data_type().clone(),
-            true,
-        )),
+        Arc::new(Field::new("item", values.data_type().clone(), true)),
         offsets.clone(),
-        entries.column(index).clone(),
+        values,
         nulls.cloned(),
     )?))
 }

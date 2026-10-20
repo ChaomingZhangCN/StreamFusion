@@ -2087,7 +2087,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | MAP_FROM_ARRAYS | Rust construction for nullable basic key/value arrays, preserving duplicate and NULL keys, entry order and strict parent NULLs; mismatched lengths retain Flink's typed exception; other signatures remain generated |
 | MAP_KEYS | Rust shared-key view for total maps with nullable BOOLEAN/integer/DECIMAL keys and values; other signatures retain generated evaluation |
 | MAP_VALUES | Rust shared-value view under the same verified basic-map admission |
-| MAP_ENTRIES | Flink generated program through the existing batch JVM bridge |
+| MAP_ENTRIES | Rust shared entry-row list for verified basic maps; representation-sensitive row consumers remain generated |
 | MAP_UNION | Flink generated program through the existing batch JVM bridge |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
 | Runtime MAP[...] | Flink generated program through the existing batch JVM bridge |
@@ -2700,3 +2700,7 @@ nested/string values and fallible arguments. This does not change default
 collection admission or the standalone conversion limitations tracked by #392.
 
 MAP_VALUES uses the same verified basic-map admission and shared-buffer view, selecting the value child without changing NULLs or entry order.
+
+MAP_ENTRIES uses the same verified basic-map admission and reuses entry children
+as a list of nullable key/value rows, preserving order and parent NULLs. Consumers
+that inspect row representation or RowKind retain generated evaluation.
