@@ -2636,3 +2636,7 @@ Every retained payload is checked against its input cell; rejected batches must 
 Inputs, fresh operators and rejected-batch prepopulation stay outside timing; stateful fixtures
 enable the production 1 GiB budget. Allocation probes likewise exclude setup. Use the
 `retained_map_payloads` filter with the existing native smoke runner.
+
+The retained-map JSON allocation records name `shared_output_buffer_bytes` and
+`new_output_buffer_bytes` explicitly. These are physical output-buffer byte ranges, as in the
+runner CSV header, not buffer counts or bytes copied by an operation.

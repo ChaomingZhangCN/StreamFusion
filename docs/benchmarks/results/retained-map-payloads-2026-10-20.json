@@ -202,673 +202,673 @@
       "fixture": "retained_map_payloads/churn/map/rows64_keys1_width4",
       "alloc_requests": 430,
       "requested_bytes": 129488,
-      "shared_buffers": 0,
-      "reported_buffers": 25136
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 25136
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows64_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows64_keys1_width4",
       "alloc_requests": 17,
       "requested_bytes": 1320,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows64_keys1_width4",
       "alloc_requests": 17,
       "requested_bytes": 1560,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows64_keys1_width4",
       "alloc_requests": 426,
       "requested_bytes": 128985,
-      "shared_buffers": 0,
-      "reported_buffers": 24991
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 24991
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows64_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows64_keys1_width4",
       "alloc_requests": 491,
       "requested_bytes": 219124,
-      "shared_buffers": 0,
-      "reported_buffers": 40532
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 40532
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows64_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows64_keys1_width4",
       "alloc_requests": 514,
       "requested_bytes": 147034,
-      "shared_buffers": 0,
-      "reported_buffers": 28136
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 28136
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows64_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows64_keys1_width4",
       "alloc_requests": 581,
       "requested_bytes": 159159,
-      "shared_buffers": 0,
-      "reported_buffers": 29640
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 29640
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows64_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows64_keys1_width64",
       "alloc_requests": 430,
       "requested_bytes": 1181832,
-      "shared_buffers": 0,
-      "reported_buffers": 238286
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 238286
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows64_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows64_keys1_width64",
       "alloc_requests": 17,
       "requested_bytes": 1680,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows64_keys1_width64",
       "alloc_requests": 17,
       "requested_bytes": 1560,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows64_keys1_width64",
       "alloc_requests": 426,
       "requested_bytes": 1174861,
-      "shared_buffers": 0,
-      "reported_buffers": 235966
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 235966
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows64_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows64_keys1_width64",
       "alloc_requests": 511,
       "requested_bytes": 2384780,
-      "shared_buffers": 0,
-      "reported_buffers": 441106
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 441106
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows64_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows64_keys1_width64",
       "alloc_requests": 514,
       "requested_bytes": 1255238,
-      "shared_buffers": 0,
-      "reported_buffers": 241286
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 241286
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows64_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows64_keys1_width64",
       "alloc_requests": 601,
       "requested_bytes": 1312123,
-      "shared_buffers": 0,
-      "reported_buffers": 242790
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 242790
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows64_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows64_keys64_width4",
       "alloc_requests": 552,
       "requested_bytes": 109658,
-      "shared_buffers": 0,
-      "reported_buffers": 4270
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 4270
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows64_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows64_keys64_width4",
       "alloc_requests": 17,
       "requested_bytes": 1320,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows64_keys64_width4",
       "alloc_requests": 17,
       "requested_bytes": 1560,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows64_keys64_width4",
       "alloc_requests": 548,
       "requested_bytes": 109490,
-      "shared_buffers": 0,
-      "reported_buffers": 4245
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 4245
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows64_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows64_keys64_width4",
       "alloc_requests": 607,
       "requested_bytes": 171500,
-      "shared_buffers": 0,
-      "reported_buffers": 6925
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 6925
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows64_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows64_keys64_width4",
       "alloc_requests": 636,
       "requested_bytes": 124716,
-      "shared_buffers": 0,
-      "reported_buffers": 4782
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 4782
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows64_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows64_keys64_width4",
       "alloc_requests": 700,
       "requested_bytes": 142877,
-      "shared_buffers": 0,
-      "reported_buffers": 5042
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 5042
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows64_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows64_keys64_width64",
       "alloc_requests": 548,
       "requested_bytes": 559466,
-      "shared_buffers": 0,
-      "reported_buffers": 40284
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 40284
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows64_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows64_keys64_width64",
       "alloc_requests": 17,
       "requested_bytes": 1680,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows64_keys64_width64",
       "alloc_requests": 17,
       "requested_bytes": 1560,
-      "shared_buffers": 0,
-      "reported_buffers": 264
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 264
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows64_keys64_width64",
       "alloc_requests": 545,
       "requested_bytes": 558994,
-      "shared_buffers": 0,
-      "reported_buffers": 39892
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 39892
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows64_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows64_keys64_width64",
       "alloc_requests": 627,
       "requested_bytes": 1402836,
-      "shared_buffers": 0,
-      "reported_buffers": 75279
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 75279
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows64_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows64_keys64_width64",
       "alloc_requests": 632,
       "requested_bytes": 630384,
-      "shared_buffers": 0,
-      "reported_buffers": 40796
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 40796
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows64_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows64_keys64_width64",
       "alloc_requests": 717,
       "requested_bytes": 828489,
-      "shared_buffers": 0,
-      "reported_buffers": 41056
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 41056
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows64_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 2588,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows4096_keys1_width4",
       "alloc_requests": 12556,
       "requested_bytes": 7300120,
-      "shared_buffers": 0,
-      "reported_buffers": 1653476
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1653476
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows4096_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows4096_keys1_width4",
       "alloc_requests": 17,
       "requested_bytes": 36096,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows4096_keys1_width4",
       "alloc_requests": 17,
       "requested_bytes": 34768,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows4096_keys1_width4",
       "alloc_requests": 12552,
       "requested_bytes": 7272401,
-      "shared_buffers": 0,
-      "reported_buffers": 1643905
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1643905
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows4096_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows4096_keys1_width4",
       "alloc_requests": 12617,
       "requested_bytes": 12807790,
-      "shared_buffers": 0,
-      "reported_buffers": 2671693
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 2671693
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows4096_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows4096_keys1_width4",
       "alloc_requests": 12640,
       "requested_bytes": 7971738,
-      "shared_buffers": 0,
-      "reported_buffers": 1850012
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1850012
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows4096_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows4096_keys1_width4",
       "alloc_requests": 12707,
       "requested_bytes": 8373135,
-      "shared_buffers": 0,
-      "reported_buffers": 1948284
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1948284
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows4096_keys1_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows4096_keys1_width64",
       "alloc_requests": 12556,
       "requested_bytes": 76089616,
-      "shared_buffers": 0,
-      "reported_buffers": 15722846
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15722846
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows4096_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows4096_keys1_width64",
       "alloc_requests": 17,
       "requested_bytes": 60024,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows4096_keys1_width64",
       "alloc_requests": 17,
       "requested_bytes": 34768,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows4096_keys1_width64",
       "alloc_requests": 12552,
       "requested_bytes": 75638117,
-      "shared_buffers": 0,
-      "reported_buffers": 15569710
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15569710
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows4096_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows4096_keys1_width64",
       "alloc_requests": 12637,
       "requested_bytes": 152994118,
-      "shared_buffers": 0,
-      "reported_buffers": 29153007
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 29153007
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows4096_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows4096_keys1_width64",
       "alloc_requests": 12640,
       "requested_bytes": 80398974,
-      "shared_buffers": 0,
-      "reported_buffers": 15919382
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15919382
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows4096_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows4096_keys1_width64",
       "alloc_requests": 12727,
       "requested_bytes": 83339067,
-      "shared_buffers": 0,
-      "reported_buffers": 16017654
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16017654
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows4096_keys1_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows4096_keys64_width4",
       "alloc_requests": 12687,
       "requested_bytes": 7261090,
-      "shared_buffers": 0,
-      "reported_buffers": 1615354
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1615354
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows4096_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows4096_keys64_width4",
       "alloc_requests": 17,
       "requested_bytes": 36096,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows4096_keys64_width4",
       "alloc_requests": 17,
       "requested_bytes": 34768,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows4096_keys64_width4",
       "alloc_requests": 12683,
       "requested_bytes": 7234010,
-      "shared_buffers": 0,
-      "reported_buffers": 1606003
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1606003
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows4096_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows4096_keys64_width4",
       "alloc_requests": 12748,
       "requested_bytes": 12718630,
-      "shared_buffers": 0,
-      "reported_buffers": 2609841
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 2609841
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows4096_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows4096_keys64_width4",
       "alloc_requests": 12771,
       "requested_bytes": 7928108,
-      "shared_buffers": 0,
-      "reported_buffers": 1807354
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1807354
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows4096_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows4096_keys64_width4",
       "alloc_requests": 12838,
       "requested_bytes": 8340613,
-      "shared_buffers": 0,
-      "reported_buffers": 1903358
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 1903358
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows4096_keys64_width4",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map/rows4096_keys64_width64",
       "alloc_requests": 12687,
       "requested_bytes": 75092146,
-      "shared_buffers": 0,
-      "reported_buffers": 15360588
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15360588
     },
     {
       "fixture": "retained_map_payloads/reject/map/rows4096_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/map_lookup_literal/map/rows4096_keys64_width64",
       "alloc_requests": 17,
       "requested_bytes": 60024,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/map_lookup_dynamic/map/rows4096_keys64_width64",
       "alloc_requests": 17,
       "requested_bytes": 34768,
-      "shared_buffers": 0,
-      "reported_buffers": 16896
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 16896
     },
     {
       "fixture": "retained_map_payloads/churn/multiset/rows4096_keys64_width64",
       "alloc_requests": 12683,
       "requested_bytes": 74651066,
-      "shared_buffers": 0,
-      "reported_buffers": 15210980
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15210980
     },
     {
       "fixture": "retained_map_payloads/reject/multiset/rows4096_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/array_map/rows4096_keys64_width64",
       "alloc_requests": 12768,
       "requested_bytes": 151210318,
-      "shared_buffers": 0,
-      "reported_buffers": 28477431
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 28477431
     },
     {
       "fixture": "retained_map_payloads/reject/array_map/rows4096_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/row_map/rows4096_keys64_width64",
       "alloc_requests": 12771,
       "requested_bytes": 79396904,
-      "shared_buffers": 0,
-      "reported_buffers": 15552588
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15552588
     },
     {
       "fixture": "retained_map_payloads/reject/row_map/rows4096_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     },
     {
       "fixture": "retained_map_payloads/churn/map_map/rows4096_keys64_width64",
       "alloc_requests": 12858,
       "requested_bytes": 82459225,
-      "shared_buffers": 0,
-      "reported_buffers": 15648592
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 15648592
     },
     {
       "fixture": "retained_map_payloads/reject/map_map/rows4096_keys64_width64",
       "alloc_requests": 19,
       "requested_bytes": 71132,
-      "shared_buffers": 0,
-      "reported_buffers": 0
+      "shared_output_buffer_bytes": 0,
+      "new_output_buffer_bytes": 0
     }
   ],
   "cohorts": [
@@ -4377,5 +4377,6 @@
       "golden_counts_sha256": "2a491d8bc880009d51ef38e6014a3bdbecd50c40989a30a69a57de06f3818d29"
     }
   ],
-  "measurement_order": "Initial stock/before/initial-candidate serial matrix; final combined-driver Rust timings on the same frozen fixtures after correctness qualification, idle host. Stock controls retained from initial matrix; engine drift is not isolated by the later combined pass."
+  "measurement_order": "Initial stock/before/initial-candidate serial matrix; final combined-driver Rust timings on the same frozen fixtures after correctness qualification, idle host. Stock controls retained from initial matrix; engine drift is not isolated by the later combined pass.",
+  "allocation_fields": "Buffer fields report shared/new physical output buffer bytes, as defined by NATIVE_ALLOCATION_HEADER; allocation requests are not copied-byte counts."
 }
