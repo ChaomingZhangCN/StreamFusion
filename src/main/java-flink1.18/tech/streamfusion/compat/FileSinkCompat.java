@@ -26,7 +26,9 @@ public final class FileSinkCompat {
 
   public static org.apache.arrow.vector.types.pojo.Schema encoderSchema(
       org.apache.flink.table.types.logical.RowType type) {
-    var schema = tech.streamfusion.arrow.ArrowConversion.toArrowSchema(type);
+    var schema =
+        tech.streamfusion.arrow.ArrowFileBatch.schema(
+            tech.streamfusion.arrow.ArrowConversion.toArrowSchema(type));
     var fields = new java.util.ArrayList<org.apache.arrow.vector.types.pojo.Field>();
     for (int i = 0; i < type.getFieldCount(); i++) {
       fields.add(withMapKeyNullability(schema.getFields().get(i), type.getTypeAt(i)));

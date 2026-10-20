@@ -1527,3 +1527,7 @@ non-mimalloc release trials, and the final production build. The final release D
 Criterion's `group_record_counter/sum_count` fixtures separately exercise the production
 partial merge at 256/4096 rows and 1/64 keys, including NULL contribution counts and negative
 record counters; that native boundary does not stand in for the complete Flink comparison.
+
+The [default-admission validation](../benchmarks/results/jvm-feature-defaults-2026-10-19.json)
+records the integrated UDAF/nested bridge on both released Flink lines, including explicit
+false fallback. UDF overhead is accepted; no standalone acceleration is claimed.

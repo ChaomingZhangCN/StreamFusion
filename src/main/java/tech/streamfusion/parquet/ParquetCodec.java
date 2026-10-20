@@ -13,6 +13,7 @@ public final class ParquetCodec implements ColumnarFileCodec {
       boolean changelog,
       java.io.OutputStream output) {
 
+    schema = tech.streamfusion.arrow.ArrowFileBatch.schema(schema);
     long handle;
     var allocator = tech.streamfusion.operator.NativeAllocator.SHARED;
     try (var exported = org.apache.arrow.c.ArrowSchema.allocateNew(allocator)) {

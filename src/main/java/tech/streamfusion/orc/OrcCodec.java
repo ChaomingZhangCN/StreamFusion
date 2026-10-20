@@ -32,7 +32,7 @@ public final class OrcCodec implements ColumnarFileCodec {
       throws java.io.IOException {
     if (changelog) throw new IllegalArgumentException("ORC filesystem sinks require inserts");
     return new OrcEncoder(
-        schema,
+        tech.streamfusion.arrow.ArrowFileBatch.schema(schema),
         this.schema,
         partitions,
         keys,

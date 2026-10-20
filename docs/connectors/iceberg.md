@@ -455,3 +455,11 @@ do not reproduce the primary elapsed-time losses. In the profiled q19 pair,
 Rust data-file write/finish accounts for 8.0% of execution CPU samples and retained
 Java position-delete finalization for 21.0%; inclusive shares overlap and are not
 wall-time attribution. The primary benchmark retains its original repeated medians.
+
+## Nested ROW execution metadata
+
+Internal nested RowKind children remain outside persisted SQL schemas. File schemas and
+reader projections contain only declared fields; Arrow file writes retain the original
+value buffers while excluding these execution sidecars. Nested ROWs loaded from files have
+INSERT kind, matching Flink. Top-level changelog columns retain their existing contract.
+See [nested Java scalar results](../operators/calc-filter.md#nested-java-scalar-results).

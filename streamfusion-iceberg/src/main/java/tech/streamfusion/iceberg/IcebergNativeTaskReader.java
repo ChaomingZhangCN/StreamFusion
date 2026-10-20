@@ -107,8 +107,9 @@ final class IcebergNativeTaskReader implements IcebergTaskBatchReader {
     }
     var selected = new Schema(projection.stream().map(schema::findField).toList());
     outputType =
-        tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
-            org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected));
+        tech.streamfusion.arrow.ArrowFileBatch.schema(
+            tech.streamfusion.arrow.ArrowConversion.toArrowSchema(
+                org.apache.iceberg.flink.FlinkSchemaUtil.convert(selected)));
     files = new IcebergTaskFiles(io, lengths);
     try (var outputSchema = ArrowSchema.allocateNew(NativeAllocator.SHARED)) {
       if (cancellation != null) cancellation.add(files);

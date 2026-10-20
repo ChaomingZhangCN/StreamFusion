@@ -79,7 +79,7 @@ Later integration with main is not measured by this matrix. Actual previous nest
 callbacks retain fallback and their independent stock controls. Raw JFRs remain in the
 [original CI artifacts](https://github.com/datafusion-contrib/StreamFusion/actions/runs/38889442933);
 checked-in compressed payloads retain complete collapsed CPU/allocation stacks and logs.
-[Coverage and remaining contracts](../operators/calc-filter.md#experimental-nested-java-scalar-results)
+[Coverage and remaining contracts](../operators/calc-filter.md#nested-java-scalar-results)
 continue to govern the opt-in whitelist.
 
 Recovery is verified separately from timing by `FlinkNestedScalarRecoveryTest`: four

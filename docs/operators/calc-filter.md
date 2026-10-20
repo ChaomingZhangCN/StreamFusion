@@ -54,7 +54,7 @@ fallback.
   functions below can instead use Flink generation for its complete program,
   subject to the host code generator and the verified batch bridge types.
 
-## Experimental nested Java scalar results
+## Nested Java scalar results
 
 `streamfusion.experimental.nestedScalarUdfs` enables synchronous external Java `Row`
 arguments and results, using Flink's complete generated Calc evaluator through the existing batch
@@ -64,7 +64,7 @@ including SQL ROW constructors and comparisons, so physical metadata never becom
 field. Input-reference columns carried beside unrelated scalar work keep the existing native path;
 whole-Calc generation is required when an expression produces or consumes a ROW value. Recursive
 ROW/ARRAY values use the existing verified primitive bridge types; string-to-string MAP fields
-are supported. Nested fixed BINARY uses the experimental transport described below. Custom type inference, specialization and internal Java
+are supported. Nested fixed BINARY uses the transport described below. Custom type inference, specialization and internal Java
 conversion classes retain whole-query fallback. Only external `Row` signatures enter the new gate.
 
 Flink's released converters own external callback inputs and normalize mutable results before the
@@ -77,7 +77,10 @@ Missing/NULL metadata reads as INSERT; nested non-INSERT kinds remain visible to
 Key encoding writes the kind into Flink's BinaryRow header without consuming another logical type
 descriptor. UNNEST excludes it from SQL columns, and sort keys normalize only its comparison value
 while retaining actual kinds in output payloads. The generated Calc's outer projection container
-has no extra kind child. Configure the flag consistently in planner and task JVMs; this changes
+has no extra kind child. File/message schemas omit nested kind sidecars; they are not SQL
+fields. Parquet, ORC, Paimon and Iceberg project execution batches onto those logical fields
+while retaining value buffers, and file/message decoders request the logical schema. This does
+not drop a top-level changelog column. File-loaded nested ROWs have INSERT kind, as in Flink. Configure the flag consistently in planner and task JVMs; this changes
 the physical struct schema. See the [transport decision](https://github.com/datafusion-contrib/StreamFusion/blob/fix/237-nested-scalar-results/divergences/nested-row-kind-transport.md).
 
 Under the same default-enabled flag, BINARY values use length-delimited Arrow binary storage.
@@ -126,8 +129,8 @@ Four [separate-JVM deployment checks](../benchmarks/results/nested-scalar-remote
 also pass across both released lines at parallelism one and three. The SQL planner submits
 stock/native jobs over REST to a child JVM containing a TaskManager. That JVM records all
 5,003 native input rows, with a PID distinct from the planner's; complete results and schemas
-match stock, including nested kinds and mutable callback outputs across batches. Both JVMs
-explicitly enable the flag. Child shutdown verifies native-handle, Arrow-allocation and task
+match stock, including nested kinds and mutable callback outputs across batches. The initial run explicitly enabled the flag in both JVMs. Current default-admission
+checks also pass without setting it in either JVM. Child shutdown verifies native-handle, Arrow-allocation and task
 reservation cleanup. This checks callback registration and metadata across JVMs on one host;
 it does not combine remote process termination with checkpoint recovery or validate differing
 planner/task flags. The maintainer initially accepted shipping this implementation with a false default on
@@ -152,6 +155,12 @@ SF_BENCHMARK=true mvn -Pbench -pl streamfusion-runtime -am \
   "-Dsf.extraJvmArgs=-Djava.library.path=${PWD}/native/target/release -Dstreamfusion.experimental.nestedScalarUdfs=true" \
   test
 ```
+
+[Current default-admission validation](../benchmarks/results/jvm-feature-defaults-2026-10-19.json)
+records both released Flink lines, the carried-ROW routing regression and fix, separate-JVM
+checks, 794 native engine passes (two ignored), and file-boundary checks. Parquet footer
+assertions require exactly the declared nested fields; buffer-address and lifetime assertions
+verify the retained file view. These checks establish correctness, not a throughput win.
 
 ## Failure order across rows
 

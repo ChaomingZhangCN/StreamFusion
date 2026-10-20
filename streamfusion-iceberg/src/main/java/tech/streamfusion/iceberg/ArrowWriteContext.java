@@ -19,13 +19,15 @@ final class ArrowWriteContext {
 
   private final Set<PendingWrite> pending = new LinkedHashSet<>();
   private VectorSchemaRoot root;
+  private tech.streamfusion.arrow.ArrowFileBatch fileBatch;
   private RowData row;
   private int position;
   private long nativeBatch;
 
   void begin(VectorSchemaRoot root) {
     if (this.root != null) throw new IllegalStateException("Nested Iceberg Arrow write");
-    this.root = root;
+    fileBatch = tech.streamfusion.arrow.ArrowFileBatch.of(root);
+    this.root = fileBatch.root();
   }
 
   void position(int position, RowData row) {
@@ -78,9 +80,14 @@ final class ArrowWriteContext {
         NativeIceberg.releaseWriteBatch(current);
       }
     } finally {
-      pending.clear();
-      root = null;
-      row = null;
+      try {
+        if (fileBatch != null) fileBatch.close();
+      } finally {
+        fileBatch = null;
+        pending.clear();
+        root = null;
+        row = null;
+      }
     }
   }
 

@@ -79,8 +79,9 @@ class OrcArrowWriterTest {
                 false,
                 output)) {
       writer.write(root, new int[0], 5, 7);
-      try (var array = ArrowArray.allocateNew(allocator)) {
-        Data.exportVectorSchemaRoot(allocator, root, NativeAllocator.DICTIONARIES, array);
+      try (var file = tech.streamfusion.arrow.ArrowFileBatch.of(root);
+          var array = ArrowArray.allocateNew(allocator)) {
+        Data.exportVectorSchemaRoot(allocator, file.root(), NativeAllocator.DICTIONARIES, array);
         writer.write(array.memoryAddress(), new int[] {19, 1, 19}, 0, 3);
         assertEquals(0, array.snapshot().release);
       }
