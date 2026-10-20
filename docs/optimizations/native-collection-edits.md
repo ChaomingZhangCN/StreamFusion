@@ -394,3 +394,18 @@ Query: `ROW(idx,idx+1)`, 2,000,000 rows, INT, width 8. Method and resources matc
 Elapsed time changes by -23.85% versus the prior evaluator and +22.27% versus paired stock Flink. The remaining stock regression is retained under #392 and the accepted optional extension; default admission is unchanged.
 
 [All 20 trials](../benchmarks/collection-row-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-row-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-row-allocations-2026-10-20.csv) retain the evidence. Six released SQL tests cover basic types, NULL fields, field access and filtered batches.
+
+## OBJECT_OF complete-job evidence
+
+Query: `OBJECT_OF('tech.streamfusion.FlinkNativeObjectSqlHarnessTest$NumericItem','a',idx,'b',idx)`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 0.533071 | 0.487540-0.556143 |
+| baseline streamfusion | 0.646736 | 0.636877-0.653464 |
+| candidate stock | 0.522066 | 0.511138-0.550588 |
+| candidate streamfusion | 0.380340 | 0.374885-0.385542 |
+
+Elapsed time changes by -41.19% versus the prior evaluator and -27.15% versus paired stock Flink. Ranges remain visible; these results do not establish a universal advantage.
+
+[All 20 trials](../benchmarks/collection-object-of-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-object-of-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-object-of-allocations-2026-10-20.csv) retain the evidence. Released SQL tests cover basic structured values and field access. Class/field validation remains with Flink.

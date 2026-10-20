@@ -2769,3 +2769,8 @@ ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
 released named-struct builder, sharing field arrays. Fields retain their SQL
 names and nullable values; the constructed row itself is present with INSERT
 row kind. Other fields and representation-dependent row consumers remain generated.
+
+OBJECT_OF with validated class/field metadata and total basic fields reuses the
+released named-struct builder. Runtime values and field order match Flink's fresh
+GenericRowData construction; metadata validation still belongs to Flink planning.
+String/nested/temporal fields and fallible operands retain generated evaluation.

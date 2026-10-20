@@ -38,12 +38,13 @@ final class CollectionValueIdentity {
 
   static boolean requiresGeneratedEvaluation(RexProgram program) {
     if (!RexExpression.usesCollectionFunctions(program)) return false;
-    return program.getExprList().stream()
-        .anyMatch(CollectionValueIdentity::consumerNeedsGeneration);
+    return program.getProjectList().stream().anyMatch(ref -> consumerNeedsGeneration(program.expandLocalRef(ref)))
+        || program.getCondition()!=null && consumerNeedsGeneration(program.expandLocalRef(program.getCondition()));
   }
 
   private static boolean verifiedConsumer(RexCall call) {
-    return call.getOperator().getName().equals("CARDINALITY")
+    return RexExpression.nativeObjectOf(call)
+        || call.getOperator().getName().equals("CARDINALITY")
         || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) == null
             && java.util.Set.of("MAP_KEYS","MAP_VALUES","MAP_ENTRIES","MAP_UNION").contains(call.getOperator().getName())
             && !call.getOperands().isEmpty()

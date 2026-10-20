@@ -1532,6 +1532,22 @@ final class RexExpression {
                 .contains(t.getSqlTypeName()));
   }
 
+  static boolean nativeObjectOf(RexCall call) {
+    var args=call.getOperands();
+    if (!call.getOperator().getName().equals("OBJECT_OF")
+        || tech.streamfusion.compat.FlinkCompat.scalarFunction(call.getOperator()) != null
+        || args.size()<3 || args.size()%2!=1
+        || !(args.get(0) instanceof RexLiteral) || ((RexLiteral)args.get(0)).isNull()
+        || call.getType().getFieldCount()!=(args.size()-1)/2) return false;
+    for(int i=1;i<args.size();i+=2) {
+      if (!(args.get(i) instanceof RexLiteral) || ((RexLiteral)args.get(i)).isNull()
+          || !java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,
+              SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL)
+              .contains(args.get(i+1).getType().getSqlTypeName())) return false;
+    }
+    return true;
+  }
+
   private static boolean verifiedSortInput(RexNode node) {
     if (!(node instanceof RexCall)) return false;
     var call = (RexCall) node;
@@ -1589,6 +1605,16 @@ final class RexExpression {
       add(KIND_CALL,197,call.getOperands().size()*2);
       for(int i=0;i<call.getOperands().size();i++) {
         if (!emitStringLiteral(call.getType().getFieldList().get(i).getName()) || !emit(call.getOperands().get(i))) return false;
+      }
+      return true;
+    }
+    if (NativeConfig.collectionExpressionsEnabled() && call.getOperator().getName().equals("OBJECT_OF")) {
+      if (!nativeObjectOf(call) || call.getOperands().stream().anyMatch(this::requiresRowShortCircuit))
+        return reject("OBJECT_OF uses Flink evaluation outside total basic fields");
+      add(KIND_CALL,198,call.getOperands().size()-1);
+      for(int i=1;i<call.getOperands().size();i+=2) {
+        if (!emitStringLiteral(call.getType().getFieldList().get((i-1)/2).getName())
+            || !emit(call.getOperands().get(i+1))) return false;
       }
       return true;
     }

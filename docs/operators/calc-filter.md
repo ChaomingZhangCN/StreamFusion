@@ -2092,7 +2092,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
 | Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated |
 | Runtime ROW(...) | Released DataFusion named-struct construction for total BOOLEAN/integer/DECIMAL fields; other fields and representation-sensitive consumers remain generated |
-| OBJECT_OF | Flink generated program through the existing batch JVM bridge |
+| OBJECT_OF | Released named-struct construction for validated metadata and total basic fields; other signatures remain generated |
 | OBJECT_UPDATE | Flink generated program through the existing batch JVM bridge |
 
 The generated route evaluates the complete filter and projection together, preserving failure
@@ -2723,3 +2723,8 @@ ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
 released named-struct builder, sharing field arrays. Fields retain their SQL
 names and nullable values; the constructed row itself is present with INSERT
 row kind. Other fields and representation-dependent row consumers remain generated.
+
+OBJECT_OF with validated class/field metadata and total basic fields reuses the
+released named-struct builder. Runtime values and field order match Flink's fresh
+GenericRowData construction; metadata validation still belongs to Flink planning.
+String/nested/temporal fields and fallible operands retain generated evaluation.
