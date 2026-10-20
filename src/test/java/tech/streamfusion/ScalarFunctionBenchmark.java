@@ -285,6 +285,31 @@ class ScalarFunctionBenchmark {
               "tt_decimal_array",
               "CAST(a AS ARRAY<FLOAT>)",
               "ARRAY<FLOAT>"),
+          new Query("TAN_EXACT", "numbers", "TAN(CAST(n AS DOUBLE))", "DOUBLE"),
+          new Query(
+              "TAN_GROUPED_SUM",
+              "numbers",
+              "SUM(CAST(TAN(CAST(n AS DOUBLE)) * 1000 AS BIGINT))",
+              "BIGINT",
+              "MOD(ABS(n), 64)"),
+          new Query("COSH_EXACT", "numbers", "COSH(CAST(n % 20 AS DOUBLE))", "DOUBLE"),
+          new Query(
+              "COSH_GROUPED_SUM",
+              "numbers",
+              "SUM(CAST(COSH(CAST(n % 20 AS DOUBLE)) * 1000 AS BIGINT))",
+              "BIGINT",
+              "MOD(ABS(n), 64)"),
+          new Query(
+              "FLOAT_TRUNCATE_GROUPED_SUM",
+              "numbers",
+              "SUM(CAST(TRUNCATE(CAST(n AS DOUBLE) / 7E0, CAST(n % 4 AS INT)) * 1000 AS BIGINT))",
+              "BIGINT",
+              "MOD(ABS(n), 64)"),
+          new Query(
+              "FLOAT_TRUNCATE_EXACT",
+              "numbers",
+              "TRUNCATE(CAST(n AS DOUBLE) / 7E0, CAST(n % 4 AS INT))",
+              "DOUBLE"),
           new Query("POWER_EXACT", "numbers", "POWER(CAST(n AS DOUBLE), 0.5)", "DOUBLE"),
           new Query("FROM_UNIXTIME_DEFAULT", "tt_unix_time", "FROM_UNIXTIME(n)", "STRING"),
           new Query(
@@ -945,12 +970,12 @@ class ScalarFunctionBenchmark {
         input.equals("integer_text")
             ? new String[] {"123456789", "-2147483648", "  +0042.9  ", "0", "2147483647"}
             : input.equals("boolean_text")
-            ? new String[] {"true", "FALSE", "t", "0", "yes", "n"}
-            : UNICODE
-            ? new String[] {
-              payload(" \u4e2dAbC \ud83d\ude00dEf "), payload(" \u00e9dEf \ud83d\ude42AbC ")
-            }
-            : new String[] {payload(" abC def_09 "), payload(" dEf abc_90 ")};
+                ? new String[] {"true", "FALSE", "t", "0", "yes", "n"}
+                : UNICODE
+                    ? new String[] {
+                      payload(" \u4e2dAbC \ud83d\ude00dEf "), payload(" \u00e9dEf \ud83d\ude42AbC ")
+                    }
+                    : new String[] {payload(" abC def_09 "), payload(" dEf abc_90 ")};
     if (input.startsWith("search")) {
       String padding = payload(UNICODE ? "\u4e2d\ud83d\ude00x" : "x");
       String[] samples = {"row:" + padding + ":match", "other:" + padding + ":miss"};

@@ -345,17 +345,22 @@ class FeatureAdmissionBenchmark {
         name.startsWith("over-map-")
             ? Row.of(0L, Map.of("k", 1L))
             : name.startsWith("count-")
-                ? Row.of(0L, new byte[0], java.time.Duration.ZERO, java.time.Period.ZERO, java.time.Instant.EPOCH)
+                ? Row.of(
+                    0L,
+                    new byte[0],
+                    java.time.Duration.ZERO,
+                    java.time.Period.ZERO,
+                    java.time.Instant.EPOCH)
                 : name.startsWith("attached-")
                     ? Row.of(0, 1L, java.time.Instant.EPOCH)
                     : isWindow(name)
-                    ? Row.of(0L, "x", java.time.Instant.EPOCH)
-                    : name.startsWith("temporal-")
-                        ? Row.of(
-                            0,
-                            java.time.LocalDateTime.of(2020, 1, 1, 0, 0),
-                            java.time.Instant.EPOCH)
-                        : Row.of(0);
+                        ? Row.of(0L, "x", java.time.Instant.EPOCH)
+                        : name.startsWith("temporal-")
+                            ? Row.of(
+                                0,
+                                java.time.LocalDateTime.of(2020, 1, 1, 0, 0),
+                                java.time.Instant.EPOCH)
+                            : Row.of(0);
     var source = env.fromElements(dummy).returns(ExternalTypeInfo.<Row>of(input));
     var schema = Schema.newBuilder().fromRowDataType(input);
     if ((isWindow(name) || name.startsWith("attached-")))
@@ -601,7 +606,7 @@ class FeatureAdmissionBenchmark {
               throw new AssertionError(inputType);
           }
         }
-      } else (name.startsWith("count-")) {
+      } else if (name.startsWith("count-")) {
         byte[] bytes = new byte[width];
         java.util.Arrays.fill(bytes, (byte) 0xff);
         row =

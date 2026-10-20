@@ -262,7 +262,7 @@ class StatefulSqlRescaleTest {
       String sql =
           jvm
               ? "SELECT k, test_aggregate(CAST(amount AS BIGINT)), COUNT(text_value),"
-                    + " view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
+                  + " view_aggregate(CAST(amount AS BIGINT)) FROM recovery_input GROUP BY k"
               : "SELECT k, SUM(amount), COUNT(DISTINCT text_value) FROM recovery_input GROUP BY k";
       if (typedTable) {
         table.createTemporarySystemFunction(
