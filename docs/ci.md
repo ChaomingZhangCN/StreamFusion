@@ -68,6 +68,10 @@ nulls, logical ordering and independently owned Arrow buffer references.
 
 ## Maven dependencies
 
+The upstream execution-evidence agent is a separate JDK 17 development tool. Its standalone
+POM pins the compiler plugin to 3.13.0 so Maven 3.8 also honors `maven.compiler.release=17`
+instead of inheriting a compiler that defaults to unsupported Java 5 source and target levels.
+
 Java CI jobs resolve their selected reactor's dependencies before building or testing:
 
 ```sh
