@@ -140,6 +140,9 @@ pub(super) fn group(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let initial = input(0, rows, domain, width, nullable);
                     let continued = input(rows, rows, domain, width, nullable);
                     let mut oracle = Groups::new();
@@ -254,6 +257,9 @@ fn retractions(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let initial = input(0, rows, domain, width, nullable);
                     let mut before = Groups::new();
                     advance(&mut before, 0, rows, domain, width, nullable);

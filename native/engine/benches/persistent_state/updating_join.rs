@@ -137,6 +137,9 @@ pub(super) fn updating_join(c: &mut Criterion) {
         for domain in [1, 8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let left = input(domain, domain, width, nullable, true, 0);
                     let left_delete = input(domain, domain, width, nullable, true, 3);
                     let right_delete = input(rows, domain, width, nullable, false, 3);

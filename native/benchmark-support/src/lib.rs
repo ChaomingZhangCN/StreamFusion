@@ -2,8 +2,52 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
 use arrow::array::{ArrayData, ArrayRef};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SmokeShard {
+    index: usize,
+    count: usize,
+}
+
+impl SmokeShard {
+    fn parse(value: &str, smoke: bool) -> Result<Self, &'static str> {
+        if !smoke {
+            return Err(
+                "fixture sharding requires Criterion --test; timing runs must stay isolated",
+            );
+        }
+        let (index, count) = value.split_once('/').ok_or("expected shard index/count")?;
+        let index = index.parse::<usize>().map_err(|_| "invalid shard index")?;
+        let count = count.parse::<usize>().map_err(|_| "invalid shard count")?;
+        if count == 0 || index >= count {
+            return Err("shard index must be less than a positive shard count");
+        }
+        Ok(Self { index, count })
+    }
+
+    fn includes(self, fixture: usize) -> bool {
+        fixture % self.count == self.index
+    }
+}
+
+/// Select a smoke worker before constructing a fixture. Every worker visits the same outer
+/// fixture loops; phases sharing that fixture stay together. Unsharded and timing runs keep all
+/// fixtures. Criterion's own filter is too late to avoid setup and correctness probes.
+pub fn smoke_fixture() -> bool {
+    static SHARD: OnceLock<Option<SmokeShard>> = OnceLock::new();
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let shard = SHARD.get_or_init(|| {
+        std::env::var("SF_NATIVE_BENCH_SHARD").ok().map(|value| {
+            SmokeShard::parse(&value, std::env::args().any(|arg| arg == "--test"))
+                .expect("invalid SF_NATIVE_BENCH_SHARD")
+        })
+    });
+    shard.is_none_or(|shard| shard.includes(NEXT.fetch_add(1, Ordering::Relaxed)))
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Allocations {
@@ -130,6 +174,30 @@ mod tests {
     use super::*;
     #[global_allocator]
     static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+    #[test]
+    fn smoke_workers_partition_every_fixture_once() {
+        for count in [1, 2, 4, 7] {
+            for fixture in 0..137 {
+                let owners = (0..count)
+                    .filter(|&index| SmokeShard { index, count }.includes(fixture))
+                    .count();
+                assert_eq!(owners, 1);
+            }
+        }
+    }
+
+    #[test]
+    fn smoke_shards_reject_invalid_partitions_and_timing_runs() {
+        assert_eq!(
+            SmokeShard::parse("1/4", true),
+            Ok(SmokeShard { index: 1, count: 4 })
+        );
+        for value in ["", "1", "-1/4", "0/0", "4/4", "1/x", "0/2/3"] {
+            assert!(SmokeShard::parse(value, true).is_err(), "{value}");
+        }
+        assert!(SmokeShard::parse("0/4", false).is_err());
+    }
 
     #[test]
     fn buffers_distinguish_nested_shared_slices_from_fresh_values() {

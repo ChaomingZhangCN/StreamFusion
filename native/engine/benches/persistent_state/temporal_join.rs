@@ -128,6 +128,9 @@ pub(super) fn temporal_join(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let left = input(rows, domain, width, nullable, true);
                     let right = input(rows, domain, width, nullable, false);
                     let expected = expected(rows, domain, width, nullable);

@@ -134,6 +134,9 @@ pub(super) fn window_rank(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let input = input(rows, domain, width, nullable);
                     for (limit, keep_last) in [(1, false), (1, true), (4, false)] {
                         let shape = format!("{rows}/domain={domain}/bytes={width}/nulls={nullable}/limit={limit}/last={keep_last}");
@@ -289,6 +292,9 @@ pub(super) fn memory_window_rank(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let input = input(rows, domain, width, nullable);
                     for (limit, keep_last) in [(1, false), (1, true), (4, false)] {
                         let shape = format!("{rows}/domain={domain}/bytes={width}/nulls={nullable}/limit={limit}/last={keep_last}");

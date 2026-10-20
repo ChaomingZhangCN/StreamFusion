@@ -110,6 +110,17 @@ measures complete two-phase Flink jobs, including both transposes and production
 
 ## Running and comparing
 
+CI uses `bin/bench-native.py --smoke --smoke-workers 4`. The long `persistent_state`
+executable is compiled once and run by four processes on the same runner. A fixture's
+input construction, correctness/allocation probe and Criterion smoke call stay together;
+workers partition shapes before setup rather than repeating setup behind Criterion filters.
+All shapes, phases, sizes, null profiles and assertions remain selected across the workers.
+`metadata.json` records worker commands, shard environments and per-suite elapsed seconds;
+per-worker logs and the combined allocation CSV retain the case inventory and failures.
+The default remains one process. Parallel workers and CI's RAM-backed temporary filesystem
+are smoke diagnostics only; neither provides throughput measurements or changes normal
+performance comparison commands.
+
 The `non_time_row_number` target includes 120 production-kernel fixtures across
 16/1,024-row batches, partition domains of one/64 non-NULL values plus a NULL group,
 and ascending/descending arrival, with nullable BIGINT/INT/SMALLINT/TINYINT, DECIMAL,

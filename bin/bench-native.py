@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Discover and run release-mode Criterion suites with allocation diagnostics."""
 import argparse
+import concurrent.futures
 import csv
 import datetime
 import json
@@ -9,15 +10,86 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "native" / "Cargo.toml"
+
+
+def run_logged(command, path, environment):
+    records = []
+    with path.open("w") as log:
+        process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True, env=environment)
+        try:
+            for line in process.stdout:
+                log.write(line)
+                log.flush()
+                if line.startswith("NATIVE_ALLOCATION,"):
+                    record = next(csv.reader([line.rstrip()]))[1:]
+                    if len(record) != 5:
+                        raise ValueError(f"Malformed allocation record: {line}")
+                    records.append(record)
+        except BaseException:
+            process.terminate()
+            process.wait()
+            raise
+        return process.wait(), records
+
+
+def run_smoke_workers(command, output, environment, workers, details):
+    build_command = [*command[:command.index("--")], "--no-run", "--message-format=json"]
+    build_log = output / "streamfusion-persistent_state-build.log"
+    details["commands"].append(build_command)
+    result, _ = run_logged(build_command, build_log, environment)
+    if result:
+        (output / "streamfusion-persistent_state.log").write_text(build_log.read_text())
+        return result, []
+    executables = set()
+    for line in build_log.read_text().splitlines():
+        try:
+            artifact = json.loads(line)
+        except ValueError:
+            continue
+        if (artifact.get("reason") == "compiler-artifact"
+                and artifact.get("target", {}).get("name") == "persistent_state"
+                and artifact.get("executable")):
+            executables.add(artifact["executable"])
+    if len(executables) != 1:
+        raise ValueError(f"Expected one persistent_state executable, found {executables}")
+    worker_command = [executables.pop(), *command[command.index("--") + 1:]]
+    details["smoke_shards"] = [
+        {"command": worker_command, "environment": {"SF_NATIVE_BENCH_SHARD": f"{index}/{workers}"}}
+        for index in range(workers)
+    ]
+
+    def run(index):
+        worker_env = {**environment, "SF_NATIVE_BENCH_SHARD": f"{index}/{workers}"}
+        path = output / f"streamfusion-persistent_state-shard-{index}.log"
+        start = time.monotonic()
+        result, records = run_logged(worker_command, path, worker_env)
+        print(f"persistent_state worker {index + 1}/{workers}: {len(records)} cases, "
+              f"{time.monotonic() - start:.1f}s, exit {result}", flush=True)
+        return result, records
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(run, range(workers)))
+    with (output / "streamfusion-persistent_state.log").open("w") as log:
+        log.write(build_log.read_text())
+        for index in range(workers):
+            log.write(f"\nSmoke worker {index + 1}/{workers}\n")
+            log.write((output / f"streamfusion-persistent_state-shard-{index}.log").read_text())
+    return next((result for result, _ in results if result), 0), [
+        record for _, records in results for record in records
+    ]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--list", action="store_true", help="List suites without compiling")
     parser.add_argument("--smoke", action="store_true", help="Run fixtures once using Criterion --test")
+    parser.add_argument("--smoke-workers", type=int, default=1,
+                        help="Workers within this runner for persistent_state smoke fixtures (default: 1)")
     parser.add_argument("--package", action="append", default=[], help="Select a workspace package (repeatable)")
     parser.add_argument("--bench", action="append", default=[], help="Select a suite (repeatable)")
     parser.add_argument("--features", action="append", default=[], help="Cargo features for each selected package (repeatable)")
@@ -29,6 +101,8 @@ def main():
     args = parser.parse_args()
     if args.smoke and (args.save_baseline or args.baseline):
         parser.error("Smoke checks do not produce timing baselines")
+    if args.smoke_workers < 1 or (args.smoke_workers != 1 and not args.smoke):
+        parser.error("--smoke-workers must be positive and parallel workers require --smoke")
     metadata = json.loads(subprocess.check_output([
         "cargo", "metadata", "--manifest-path", str(MANIFEST), "--locked", "--no-deps", "--format-version", "1"
     ], cwd=ROOT, text=True))
@@ -58,6 +132,7 @@ def main():
         "rustc": subprocess.check_output(["rustc", "-Vv"], text=True), "platform": platform.platform(),
         "cpu_count": os.cpu_count(), "mode": "smoke" if args.smoke else "timing", "suites": selected,
         "filter": args.filter, "features": args.features, "save_baseline": args.save_baseline, "baseline": args.baseline,
+        "smoke_workers": args.smoke_workers, "suite_seconds": {},
         "commands": [], "environment": {key: os.environ[key] for key in ("RUSTFLAGS", "CARGO_BUILD_JOBS", "JAVA_HOME") if key in os.environ},
     }
     environment = os.environ.copy()
@@ -94,24 +169,24 @@ def main():
             for option in ("save_baseline", "baseline"):
                 if getattr(args, option):
                     command.extend(["--" + option.replace("_", "-"), getattr(args, option)])
-            details["commands"].append(command)
+            parallel = args.smoke and args.smoke_workers > 1 and (package, bench) == ("streamfusion", "persistent_state")
+            if not parallel:
+                details["commands"].append(command)
             (output / "metadata.json").write_text(json.dumps(details, indent=2) + "\n")
             print(f"Running {package}/{bench}; log: {output / (package + '-' + bench + '.log')}", flush=True)
-            with (output / f"{package}-{bench}.log").open("w") as log:
-                process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=environment)
-                for line in process.stdout:
-                    log.write(line)
-                    log.flush()
-                    if line.startswith("NATIVE_ALLOCATION,"):
-                        record = next(csv.reader([line.rstrip()]))[1:]
-                        if len(record) != 5:
-                            process.terminate()
-                            raise ValueError(f"Malformed allocation record: {line}")
-                        writer.writerow([package, bench, *record])
-                        allocation_file.flush()
-                result = process.wait()
+            start = time.monotonic()
+            if parallel:
+                result, records = run_smoke_workers(command, output, environment, args.smoke_workers, details)
+            else:
+                result, records = run_logged(command, output / f"{package}-{bench}.log", environment)
+            for record in records:
+                writer.writerow([package, bench, *record])
+            allocation_file.flush()
+            details["suite_seconds"][f"{package}/{bench}"] = round(time.monotonic() - start, 3)
+            (output / "metadata.json").write_text(json.dumps(details, indent=2) + "\n")
+            print(f"Finished {package}/{bench}: {details['suite_seconds'][f'{package}/{bench}']:.1f}s", flush=True)
             if result:
-                print(f"Suite failed ({result}); see {log.name}", file=sys.stderr)
+                print(f"Suite failed ({result}); see {output / f'{package}-{bench}.log'}", file=sys.stderr)
                 return result
     print(f"Artifacts: {output}")
     return 0

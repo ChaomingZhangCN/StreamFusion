@@ -110,6 +110,9 @@ pub(super) fn over(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let input = input(rows, domain, width, nullable);
                     let expected = expected(rows, domain, width, nullable);
                     let create = |directory: &tempfile::TempDir| {
@@ -221,6 +224,9 @@ pub(super) fn over_fold_recovery(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let all_input = input(rows * 2, domain, width, nullable);
                     let initial = all_input.slice(0, rows);
                     let continued = all_input.slice(rows, rows);

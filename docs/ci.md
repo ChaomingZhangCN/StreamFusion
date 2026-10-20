@@ -63,6 +63,19 @@ outside the cached Cargo target. Restored dependency builds must not restore can
 snapshots or old trials into a new run. Artifact uploads retain these temporary outputs even
 when a diagnostic fails.
 
+The Criterion smoke job uses four processes inside its existing four-CPU runner for
+`persistent_state`; it creates no extra GitHub jobs. Cargo builds that executable once,
+then each worker selects disjoint fixture shapes before constructing inputs, opening
+RocksDB or validating results. All phases and assertions for a shape run on its worker.
+Separate logs and the combined allocation CSV retain every worker's results, and any
+worker failure fails the job. Suite elapsed times are recorded in `metadata.json`.
+
+Smoke-only temporary databases and checkpoints live under `/dev/shm`, with cleanup when
+the step exits. This avoids filesystem journal waits while exercising the same production
+RocksDB and checkpoint/restore code. Diagnostic artifacts stay in the runner temporary
+directory. Performance comparisons retain their normal storage and serial execution:
+parallel workers require `--smoke`, and the Rust fixture selector rejects timing runs.
+
 Default-enabled paths need positive native-route assertions. Fixed-size-binary compatibility
 tests construct that legacy physical schema explicitly rather than changing global feature
 flags. Component-timestamp extrema exercise checkpoint/retraction values on RocksDB, including

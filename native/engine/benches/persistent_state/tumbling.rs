@@ -116,6 +116,9 @@ pub(super) fn tumbling(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 264] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let initial = input(rows, domain, width, nullable, false);
                     let continued = input(rows, domain, width, nullable, true);
                     let indices = UInt32Array::from_iter_values((0..rows as u32).step_by(2));

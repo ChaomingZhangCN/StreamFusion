@@ -113,8 +113,14 @@ jobs:
           workspaces: native
           key: criterion-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Validate smoke worker orchestration
+        run: python3 bin/test_bench_native.py
       - name: Exercise every Criterion fixture without timing thresholds
-        run: python3 bin/bench-native.py --smoke --output "$RUNNER_TEMP/benchmark-smoke"
+        run: |
+          fixture_tmp="$(mktemp -d /dev/shm/streamfusion-criterion.XXXXXX)"
+          trap 'rm -rf "$fixture_tmp"' EXIT
+          df -h /dev/shm
+          TMPDIR="$fixture_tmp" python3 bin/bench-native.py --smoke --smoke-workers 4 --output "$RUNNER_TEMP/benchmark-smoke"
       - name: Retain benchmark fixture diagnostics
         if: always()
         uses: actions/upload-artifact@v4

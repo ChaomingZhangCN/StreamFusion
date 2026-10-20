@@ -12,6 +12,9 @@ pub(super) fn count(c: &mut Criterion) {
         for domain in [8, rows] {
             for width in [8, 256] {
                 for nullable in [false, true] {
+                    if !streamfusion_benchmark_support::smoke_fixture() {
+                        continue;
+                    }
                     let input = RecordBatch::try_from_iter(vec![
                         (
                             "key0",
