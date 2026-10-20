@@ -84,8 +84,9 @@ not establish a universal speedup or bounded retained state.
 Every input row remains in state, including duplicate rows; state grows with the input rather
 than a configured Top-N bound. Watermarks do not retire this rank state. Native memory
 accounting and configured off-heap limits apply. Updating input and positive TTL retain fallback
-until their separate contracts are verified. MAP/MULTISET payloads unsupported by the Arrow row
-codec also retain fallback.
+until their separate contracts are verified. MAP/MULTISET payloads, including nested descendants,
+use the tagged map-list transport also used by Top-N. MAP/MULTISET sort or partition fields
+retain their separate key-contract gates.
 
 The released-host oracle covers ties, nullable partitions/order, nonmonotonic arrival, reversed
 input and NULL placement. Native recovery compares two checkpoint restores on memory/RocksDB

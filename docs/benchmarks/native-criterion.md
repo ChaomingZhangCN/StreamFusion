@@ -2625,3 +2625,13 @@ outside timing; timed work includes Arrow encoding, state access/writes and outp
 Both adapters enable the 1 GiB production memory budget. Allocation probes exclude setup and
 report requests rather than copied bytes. Run `--bench keys_and_checkpoints --filter
 serialized_offset_kinds --smoke`.
+
+
+`keys_and_checkpoints` adds 136 `retained_map_payloads` fixtures: five map/multiset/nested payload
+shapes, 64/4096 rows, one/64 partitions and 4/64 entries, each exercising production append Top-N
+under churn, whole-batch rejection and checkpoint serialization (120 fixtures). Sixteen literal/
+dynamic map-lookups exercise physical List storage, NULL/empty parents and nullable keys.
+Every retained payload is checked against its input cell; rejected batches must emit no rows.
+Inputs, fresh operators and rejected-batch prepopulation stay outside timing; stateful fixtures
+enable the production 1 GiB budget. Allocation probes likewise exclude setup. Use the
+`retained_map_payloads` filter with the existing native smoke runner.

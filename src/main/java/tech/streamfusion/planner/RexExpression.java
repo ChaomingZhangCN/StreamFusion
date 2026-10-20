@@ -90,7 +90,7 @@ final class RexExpression {
   private static final int KIND_CAST_NARROW = 18;
 
   // ARRAY[i] / MAP[key] subscript (Calcite's ITEM): collection and runtime index/key children.
-  // Payload 1 marks a compact timestamp MAP key; Arrow's component layout erases this precision.
+  // Payload bit 0 marks compact timestamp keys; bit 1 preserves logical MAP over List storage.
   private static final int KIND_ITEM = 19;
 
   // Decimal `/` and `%`: payload packs the declared result's precision*100 + scale; two children
@@ -3984,7 +3984,8 @@ final class RexExpression {
       }
       compactTimestampKey = timestampKey && keyType.getPrecision() <= 3 ? 1 : 0;
     }
-    add(KIND_ITEM, compactTimestampKey, 2);
+    // Keep the logical MAP tag when its Arrow storage is an IPC-safe List of entries.
+    add(KIND_ITEM, compactTimestampKey + (collectionType == SqlTypeName.MAP ? 2 : 0), 2);
     return emit(collection) && emit(subscript);
   }
 

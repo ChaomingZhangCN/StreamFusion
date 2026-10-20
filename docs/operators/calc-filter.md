@@ -2521,3 +2521,16 @@ Reproduce the stock half with `BinaryEltAdmissionBenchmark -Dbinary.admission.ex
 under `-Pbench` and `SF_BENCHMARK=true`. The compiled release `binary_elt` example accepts
 `fixture.arrow 5 9 output.arrow`; `-Dbinary.admission.rustOutput=output.arrow` verifies stock
 results against every native output byte before relying on its measurements.
+
+
+### Map lookup after retained-row operators
+
+Logical MAP `ITEM` retains an explicit map tag when a preceding Top-N, regular join or first-N
+operator stores maps as physical Arrow Lists. Literal and dynamic key lookup use the same borrowed
+entry offsets/key/value view for physical Maps and tagged Lists; integer map keys cannot be
+misinterpreted as one-based array positions. Existing compact timestamp-key and nullable-key
+compatibility guards remain in effect. ARRAY subscript behavior is unchanged.
+
+Retained MAP/MULTISET output reaching an unverified native Arrow sink uses the existing row-sink
+route. Direct MAP-returning Java scalar UDF signatures still retain their documented fallback;
+carrier support does not expand that unverified callback conversion.

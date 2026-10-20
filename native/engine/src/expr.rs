@@ -480,11 +480,9 @@ pub(crate) fn build_expr(
                 .get_type(&df_schema)
                 .expect("subscripted collection type");
             match collection_type {
-                array_type @ DataType::List(_) => {
-                    crate::flink_functions::array_item::function(array_type)
-                        .call(vec![collection, subscript])
-                }
-                map_type @ DataType::Map(_, _) => {
+                map_type @ DataType::Map(_, _) | map_type @ DataType::List(_)
+                    if matches!(map_type, DataType::Map(_, _)) || arg >= 2 =>
+                {
                     if let datafusion::prelude::Expr::Literal(key, _) = &subscript {
                         if !key.is_null() && !matches!(key, ScalarValue::Struct(_)) {
                             return crate::flink_functions::map_lookup::function(
@@ -494,7 +492,14 @@ pub(crate) fn build_expr(
                             .call(vec![collection]);
                         }
                     }
-                    crate::flink_functions::map_lookup::dynamic_function(map_type, arg == 1)
+                    crate::flink_functions::map_lookup::dynamic_function(
+                        map_type,
+                        arg == 1 || arg == 3,
+                    )
+                    .call(vec![collection, subscript])
+                }
+                array_type @ DataType::List(_) => {
+                    crate::flink_functions::array_item::function(array_type)
                         .call(vec![collection, subscript])
                 }
                 other => panic!("ITEM over unsupported collection type {other}"),

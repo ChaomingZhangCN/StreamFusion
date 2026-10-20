@@ -14,9 +14,12 @@ The native matcher requires:
 - each key uses Flink's ordinary or null-safe equality policy; mixed policies in composite keys
   are supported for INNER, LEFT/RIGHT/FULL, SEMI and ANTI joins;
 - any residual non-equi predicate must be **expressible by the native expression engine**;
-- every input column type must be one the Arrow converter and retained-row codec can carry.
-  MAP and MULTISET fields fall back, including those nested inside ARRAY or ROW and those used
-  only as payloads. The Arrow row codec does not support these types.
+- every input column type must be one the Arrow converter can carry. MAP and MULTISET payloads,
+  including nested ARRAY/ROW/map descendants, use the tagged List-of-entry-struct view already
+  used for IPC-safe map transport. NULL parents, keys and values remain distinct from empties.
+  MAP-bearing inputs must be insert-only. Updating such an input needs Flink's retained-row
+  representation and retraction contracts ([#437](https://github.com/datafusion-contrib/StreamFusion/issues/437)).
+  Join-key fields still exclude MAP/MULTISET descendants.
 
 Insert-only inputs may carry an explicit INSERT `$row_kind$` sidecar from an upstream
 native join. Mini-batch buffering uses the planner's join-key uniqueness proof, rather
@@ -131,7 +134,7 @@ TTL](../index.md#idle-state-ttl) and [Configuration](../../configuration.md) for
 - the join type isn't one the native operator covers;
 - there is no equi key and the join is not INNER over two insert-only, nonempty-payload inputs;
 - the non-equi residual isn't expressible by the native expression engine;
-- an input column has a type the Arrow converter or retained-row codec can't carry, including
+- an input column has a type the Arrow converter cannot carry, or an equi-key contains
   MAP/MULTISET at any nesting depth;
 - `table.optimizer.delta-join.strategy` is `FORCE` and the optimizer block containing this join has
   no delta join — that block is left unchanged for Flink's later statement-wide validation, even
@@ -192,3 +195,16 @@ are replaced by native nodes. A native source or Calc must not erase a proven up
 the join key contains that key, a later update replaces the stored row. Treating it as multiset
 state can re-emit obsolete values when another input changes, including overwriting a newer
 value in a Paimon partial-update sink. Non-unique inputs retain multiset state.
+
+
+## MAP/MULTISET retained payloads
+
+Eight scalar/nested map and multiset payload families pass inner/outer/semi/anti SQL comparisons.
+Memory and RocksDB recovery cover two failures. Updating/deleting/reinserting MAP-bearing
+inputs retain verified stock fallback, including equivalent maps with colliding keys reordered
+on retraction. Those reordered inputs exposed a native retained-row mismatch before submission.
+Full payloads and result types are compared; outer and independently interleaved changelogs
+compare final multiplicities.
+Map-list output reaching unverified native Arrow sinks uses the existing row-sink route.
+[Shared evidence](../../benchmarks/results/retained-map-payloads-2026-10-20.json) includes the
+production Top-N small-function gate, which makes no join-throughput claim.

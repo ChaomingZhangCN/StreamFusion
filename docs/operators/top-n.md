@@ -5,9 +5,15 @@ columns decide their rank. Only sort-key copies normalize zero; emitted payloads
 keys keep the original bits. Snapshot restore normalizes retained sort keys as well, including
 older raw snapshots, before ranking new input.
 
-MAP and MULTISET fields in retained rows fall back at planning time, including fields nested
-inside ARRAY or ROW. Arrow's row codec cannot store them even when they are only payloads.
-This restriction also applies to LIMIT/SortLimit, which use the same state representation.
+Ordinary Top-N carries MAP and MULTISET payloads recursively, including within ARRAY/ROW or other maps.
+They use the existing tagged List-of-entry-struct storage view so NULL keys and values survive
+Arrow row encoding and IPC checkpoints. Partition, order and update-fast unique-key fields still
+exclude MAP/MULTISET descendants; payload admission does not extend key equality or ordering.
+LIMIT/SortLimit, processing-time first-N and ordinary non-time ROW_NUMBER share this carriage.
+Updating Top-N/LIMIT inputs with any MAP/MULTISET descendant still fall back: full-row
+retraction needs Flink's representation-dependent map equality, not physical List equality.
+[Issue #437](https://github.com/datafusion-contrib/StreamFusion/issues/437) tracks that contract,
+including equivalent maps with reordered entries. No performance flag bypasses this guard.
 
 **Status:** Native — all three rank strategies, idle-state TTL included; a small set of matcher
 gaps below.
@@ -363,3 +369,27 @@ RocksDB, and fixed-offset firing retains its ordered-prefix scan.
 
 The `-Dstreamfusion.operator.windowRank.enabled` switch covers both shapes; window dedup reuses the
 window-rank operator rather than getting its own switch — see [Configuration](../configuration.md).
+
+
+## Retained MAP/MULTISET payload qualification
+
+Released SQL comparisons cover eight payload families: string/integer-key maps, multisets,
+ARRAY-of-MAP, ROW-containing-MAP, and MAP values containing ARRAY/ROW/MAP. NULL parents, empties,
+NULL keys and nullable values pass ordinary Top-N, sorted/arrival LIMIT, hidden OFFSET, first-N
+and non-time ROW_NUMBER, plus inner/outer/semi/anti joins. Two checkpoint failures cover memory
+and direct RocksDB. Updating joins and ranking cases pin correct fallback, including colliding
+map keys reordered on retraction. Three root MAP UDF
+checks retain their existing correct fallback. Flink 1.18 skips eight ordinary non-time
+ROW_NUMBER cases because the released host lacks that operator.
+
+The final combined matrix passes 238 checks on Flink 2.2.1 and 230 with eight capability skips
+on 1.18.1, including 57 explicit correctness-fallback cases per line.
+
+The [benchmark evidence](../benchmarks/results/retained-map-payloads-2026-10-20.json) retains every
+trial, independent full output oracle, native profile and allocation probe. The prepared-format
+Top-N gate compares production Java rank on BinaryRowData with production Rust rank on Arrow,
+including budgeted state and complete map consumption, with five warmups/nine trials. Final
+stock/native median ratios range from 1.03x to 6.90x across eight MAP/MULTISET cohorts. Wide
+high-churn timings are close and their ranges overlap. This establishes no complete-job or
+join-throughput claim. The [batch rejection technique](../optimizations/bounded-rank-payloads.md)
+explains the low-churn gain and its measured limits.

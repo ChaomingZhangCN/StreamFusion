@@ -35,9 +35,13 @@ final class LimitMatcher {
     if (sort.fetch == null) {
       return false; // a streaming FETCH/LIMIT must bound the output (Flink rejects an unbounded one)
     }
-    return ArrowRowTypeSupport.supports(FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getInput().getRowType()))
+    return RowDataArrowConverter.supports(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getInput().getRowType()))
+        && ArrowRowTypeSupport.supportsFields(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getInput().getRowType()),
+            sortIndices(sort))
         && RowDataArrowConverter.supports(
-        FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getRowType()));
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getRowType()));
   }
 
   /** The 0-based offset (the {@code OFFSET} count, 0 if absent). */
@@ -86,6 +90,13 @@ final class LimitMatcher {
 
   static RelNode substitute(Sort sort, PlanContext ctx) {
     if (LimitMatcher.matches(sort)) {
+      if (tech.streamfusion.arrow.MapListRepresentation.containsMap(
+              FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getInput().getRowType()))
+          && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) sort.getInput())) {
+        ctx.decline(
+            "limit: updating MAP/MULTISET payload equality requires retained-row representation");
+        return null;
+      }
       if (!NativeConfig.operatorEnabled("limit")) {
         ctx.decline(Substitution.disabledReason("limit"));
         return null;
@@ -103,6 +114,12 @@ final class LimitMatcher {
             ((RankProcessStrategy.UpdateFastStrategy) strategy);
 
         rowKeyColumns = updateFast.getPrimaryKeys();
+        if (!ArrowRowTypeSupport.supportsFields(
+            FlinkTypeFactory$.MODULE$.toLogicalRowType(sort.getInput().getRowType()),
+            rowKeyColumns)) {
+          ctx.decline("limit: MAP/MULTISET unique keys require a separate equality contract");
+          return null;
+        }
       }
       if (offset > 0 && rowKeyColumns == null) {
         String reason = TopNMatcher.retractingOffsetInputReason(sort.getInput());

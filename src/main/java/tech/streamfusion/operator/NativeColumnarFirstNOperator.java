@@ -8,6 +8,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import tech.streamfusion.Native;
+import tech.streamfusion.arrow.MapListRepresentation;
 import tech.streamfusion.state.RocksDBNativeStateSupport;
 
 /** Arrival-ordered first-N with one native counter per partition and no retained payload rows. */
@@ -118,7 +119,12 @@ public class NativeColumnarFirstNOperator extends AbstractNativeStatefulOperator
         ArrowSchema inputSchema = ArrowSchema.allocateNew(inputAllocator);
         ArrowArray outputArray = ArrowArray.allocateNew(allocator);
         ArrowSchema outputSchema = ArrowSchema.allocateNew(allocator)) {
-      Data.exportVectorSchemaRoot(inputAllocator, in, dictionaries, inputArray, inputSchema);
+      Data.exportVectorSchemaRoot(
+          inputAllocator,
+          MapListRepresentation.forExport(in),
+          dictionaries,
+          inputArray,
+          inputSchema);
       Native.pushFirstN(
           handle,
           inputArray.memoryAddress(),

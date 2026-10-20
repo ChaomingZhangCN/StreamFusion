@@ -6,6 +6,11 @@ import org.apache.flink.table.types.logical.LogicalType;
 final class ArrowRowTypeSupport {
   private ArrowRowTypeSupport() {}
 
+  static boolean supportsFields(org.apache.flink.table.types.logical.RowType row, int[] fields) {
+    for (int field : fields) if (!supports(row.getTypeAt(field))) return false;
+    return true;
+  }
+
   static boolean supports(LogicalType type) {
     switch (type.getTypeRoot()) {
       case MAP:

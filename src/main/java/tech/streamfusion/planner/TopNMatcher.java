@@ -95,9 +95,19 @@ final class TopNMatcher {
     }
     // The whole row crosses the boundary unchanged, so every column (incl. partition/order keys)
     // must be a type the conversion handles.
-    if (!ArrowRowTypeSupport.supports(
-        FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getInput().getRowType()))) {
-      return "Top-N: Arrow row codec cannot carry MAP or MULTISET payloads";
+    var inputType = FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getInput().getRowType());
+    if (!RowDataArrowConverter.supports(inputType)) return "Top-N: unsupported input carriage";
+    if (tech.streamfusion.arrow.MapListRepresentation.containsMap(inputType)
+        && !ChangelogPlanUtils.isInsertOnly((StreamPhysicalRel) rank.getInput())) {
+      return "Top-N: updating MAP/MULTISET payload equality requires retained-row representation";
+    }
+    if (!ArrowRowTypeSupport.supportsFields(inputType, partitionColumns(rank))
+        || !ArrowRowTypeSupport.supportsFields(inputType, sortIndices(rank))
+        || rank.rankStrategy() instanceof RankProcessStrategy.UpdateFastStrategy
+            && !ArrowRowTypeSupport.supportsFields(
+                inputType,
+                ((RankProcessStrategy.UpdateFastStrategy) rank.rankStrategy()).getPrimaryKeys())) {
+      return "Top-N: MAP/MULTISET key or order fields require a separate contract";
     }
     if (!RowDataArrowConverter.supports(
         FlinkTypeFactory$.MODULE$.toLogicalRowType(rank.getRowType()))) {

@@ -10,6 +10,8 @@ use streamfusion::bench::{flink_key_hashes, AppendTopN, GroupBy, KeyCodec, Windo
 use streamfusion_benchmark_support::{header, measure, report, CountingAllocator};
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
+#[path = "keys_and_checkpoints/map_payloads.rs"]
+mod map_payloads;
 #[path = "keys_and_checkpoints/scalar_keys.rs"]
 mod scalar_keys;
 #[path = "keys_and_checkpoints/serialized_offset.rs"]
@@ -17,6 +19,7 @@ mod serialized_offset;
 fn keys_and_checkpoints(c: &mut Criterion) {
     scalar_keys::bench(c);
     serialized_offset::bench(c);
+    map_payloads::bench(c);
     header();
     let mut group = c.benchmark_group("engine/keys_and_checkpoints");
     for rows in [16, 1024, 16384] {

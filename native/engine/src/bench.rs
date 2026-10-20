@@ -748,6 +748,13 @@ impl PersistentUpdatingJoin {
 pub struct AppendTopN(TopNRanker);
 
 impl AppendTopN {
+    pub fn with_budget(mut self, budget_bytes: i64) -> Self {
+        self.0 = self
+            .0
+            .with_memory_budget(budget_bytes)
+            .expect("Top-N benchmark budget");
+        self
+    }
     pub fn with_top1_fast(mut self, enabled: bool) -> Self {
         self.0 = self.0.with_top1_fast(enabled);
         self

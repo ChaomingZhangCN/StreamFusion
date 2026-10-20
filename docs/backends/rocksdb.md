@@ -288,3 +288,15 @@ heap-style behavior on RocksDB. That past stock-RocksDB state cannot be inferred
 Fresh jobs and checkpoints made with the corrected behavior match the selected backend in
 sixteen SQL scenarios per released Flink line, including ties and two failure/restores. See
 [Top-N](../operators/top-n.md) for the affected shape and historical-state limitation.
+
+
+### Retained map and multiset payloads
+
+Top-N and regular updating joins export declared MAP/MULTISET schemas through the existing tagged
+List-of-entry-struct view. This changes schema interpretation while borrowing the original Arrow
+buffers at the JNI boundary. The row codec still owns its encoded retained payloads. Canonical IPC
+and direct RocksDB restoration use the same physical schema, recursively through ARRAY/ROW/maps.
+Previously admitted scalar schemas and bytes are unchanged; these MAP-bearing shapes previously
+fell back. Updating Top-N/LIMIT and MAP-bearing updating join inputs still use stock execution until the retained-row
+contract in [#437](https://github.com/datafusion-contrib/StreamFusion/issues/437) is implemented.
+Join/partition/order/unique-key contracts remain separately checked.

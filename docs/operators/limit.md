@@ -86,7 +86,10 @@ coverage and composition work, not a standalone throughput improvement. Reproduc
   exchanges and batch markers remain native. Preserving the upstream bundle order is the
   remaining composition work in [#102](https://github.com/datafusion-contrib/StreamFusion/issues/102).
 
-- MAP/MULTISET fields in retained rows, including nested ARRAY/ROW fields, because the shared
-  Top-N row codec cannot store them. These queries fall back before operator initialization.
+- Any updating input with MAP/MULTISET descendants: retained-row equality remains unverified
+  ([#437](https://github.com/datafusion-contrib/StreamFusion/issues/437)). Insert-only payloads use
+  the verified map-list transport.
+- MAP/MULTISET descendants in partition, sort or update-fast unique-key fields. Payloads,
+  including nested maps and multisets, use the verified map-list transport described in [Top-N](top-n.md).
 - A `LIMIT`/`OFFSET` with no `FETCH` (row count) at all — an unbounded skip.
 - A SortLimit whose selected Flink rank strategy cannot be read or has not been resolved.
