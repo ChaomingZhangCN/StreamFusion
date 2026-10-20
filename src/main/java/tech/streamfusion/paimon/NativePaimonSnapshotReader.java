@@ -176,9 +176,14 @@ public final class NativePaimonSnapshotReader implements AutoCloseable {
             .mapToInt(name -> keyCount + 2 + valueNames.indexOf(name))
             .toArray();
     RowType internal = KeyValue.schema(keys, values);
-    input = ArrowConversion.toArrowSchema(LogicalTypeConversion.toLogicalType(internal));
+    input =
+        tech.streamfusion.arrow.ArrowFileBatch.schema(
+            ArrowConversion.toArrowSchema(LogicalTypeConversion.toLogicalType(internal)));
     names = internal.getFieldNames().toArray(String[]::new);
-    List<Field> fields = new ArrayList<>(ArrowConversion.toArrowSchema(outputType).getFields());
+    List<Field> fields =
+        new ArrayList<>(
+            tech.streamfusion.arrow.ArrowFileBatch.schema(ArrowConversion.toArrowSchema(outputType))
+                .getFields());
     fields.add(Field.nullable(RowDataArrowConverter.ROW_KIND_COLUMN, new ArrowType.Int(8, true)));
     output = new Schema(fields);
   }

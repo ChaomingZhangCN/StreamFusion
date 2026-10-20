@@ -313,7 +313,7 @@ Some historical suites use
 
 | Production boundary | Suite | Current witnesses |
 | --- | --- | --- |
-| Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string and integer batches |
+| Arrow C Data ownership | `handoffs` | Full-schema and cached-schema export/import; nullable sliced string/integer batches and ARRAY of ROW values with nested RowKind metadata, including length-delimited binary payloads |
 | Fluss append routing/statistics | `fluss_write` | Production compacted-key hashing and Arrow bucket grouping; nullable scalar/string bounds and null counts |
 | Shared bridge transforms | `handoffs` | Timestamp unit conversion, float canonical ordering, partition splits |
 | Calc evaluation and compilation | `calc_expressions` | Arithmetic, booleans, CASE, casts, hashes, regex, date formatting/extraction, string and floating builtins; warm execution and first-batch compilation; decimal division with 64-bit and wide divisors; proven FLOAT/DOUBLE-to-DECIMAL and CHAR-to-DOUBLE batches at 16/1024/16384 rows, nullable/nonnullable, compact/wide decimal results and low/high cardinality |
@@ -323,7 +323,7 @@ Some historical suites use
 | Stateful processing | `operator_allocations` | Filter, local/global SUM, tumble/session aggregate, running/bounded OVER, append/retract Top-N, first/last dedup, normalize, updating/interval/window joins, Paimon upsert merge |
 | Sparse string-cache OVER output | `over_sparse_string_cache` | Production MIN/MAX/FIRST/LAST with cached seed state followed by 64/4096 ordinary string/NULL inputs whose batches have no cache companions; all four rowtime frames, independent selected-text/cache checks and allocation/buffer reports. Seed ingestion and operator/output teardown stay outside timing. |
 | Further stateful processing | `data_movement`, `keys_and_checkpoints` | First-N, event-time sort, temporal join, window rank |
-| Key materialization | `keys_and_checkpoints` | Arrow-row encode/decode, Flink BinaryRow hash; primitive and wide nullable string composite keys |
+| Key materialization | `keys_and_checkpoints` | Arrow-row encode/decode, Flink BinaryRow hash; primitive and wide nullable string composite keys; nullable nested ROW kinds, variable binary payload lengths and timestamp precision descriptors, plus metadata-neutral ordering |
 | Memory checkpoints | `keys_and_checkpoints`, `data_movement` | Group aggregate and append Top-N snapshot/restore, temporal-join snapshot |
 | Persistent state | `persistent_state` | Production RocksDB temporal sort, keep-first deduplication, interval join, window rank, temporal join and rowtime running-SUM OVER; ingestion/update, probe/eviction/firing, checkpoint and aligned/rebuild recovery; nullable sliced wide rows, ordering and continued-arrival assertions; fixed options in `engine/benches/fixtures/rocks-options.json` |
 | Persistent window aggregation | `persistent_state` | Tumbling and session Int64 SUM; partial firing, checkpoint and aligned/rebuilt single-source recovery; session bridge merging, independent event-list oracle, saved watermark and continued processing |
@@ -2493,6 +2493,14 @@ and state rather than Arrow arrays, so their Arrow output-buffer reports are emp
 All 56 fixtures pass; 32 JSON update and eight checkpoint timing estimates are retained
 in the [JSON measurement artifact](results/json-aggregates-2026-10-15.json).
 
+
+Default binary-ELT planner admission reuses the existing production
+`binary_expressions` suite (`elt_arguments`, `elt_all_scalar`, and `elt_singular`),
+including variable-width results and scalar/array selection. Its Java eligibility and
+length-delimited boundary changes add no Rust operational path. Existing kernel timings
+are not a complete-job speed claim. The `binary_elt` release example separately measures
+the production expression program entirely inside Rust on prepared Arrow, paired with
+`BinaryEltAdmissionBenchmark` using the released generated Calc on prepared BinaryRowData.
 
 The `over_basic_values` target's `over_decimal_distinct_reductions` group covers production
 DISTINCT SUM/SUM0/AVG at DECIMAL(12,2), (38,0) and (38,37), 64/4096 rows, one/64 keys and seven

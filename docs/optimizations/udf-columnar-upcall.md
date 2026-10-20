@@ -240,8 +240,8 @@ and blackhole sink, and both transposes:
 The counters verify 14M rows consumed directly per case and 28M timestamp values sharing buffers
 in identity, including warmups. Text and epoch improve against their paired controls; identity
 remains about 1% slower. Cross-JVM control drift and the missing final repeat against the previous
-correct fallback prevent broader admission. The temporal option and both experiments stay off by
-default. The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
+correct fallback prevent broader admission. The two experiments stay off by default; temporal
+UDF coverage itself defaults on under the accepted UDF performance exception. The semantic support shipped in [PR #368](https://github.com/datafusion-contrib/StreamFusion/pull/368);
 [issue #389](https://github.com/datafusion-contrib/StreamFusion/issues/389) tracks the remaining default-performance work.
 
 ### Java and Rust profiling evidence

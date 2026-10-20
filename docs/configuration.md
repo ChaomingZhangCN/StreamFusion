@@ -16,6 +16,14 @@ serialized operator configuration rather than process-global state before a stab
   controls the stateless changelog filter. All default on.
   Optional connector operators only activate once the matching connector extension and format JAR
   are installed; otherwise the plan falls back to Flink's own path.
+- **`streamfusion.experimental.jvmGroupAggregates`** (system property, default true) — enable
+  verified synchronous single-phase JVM UDAFs with VARCHAR/INT/BIGINT inputs/results. Set false
+  for the preceding host fallback. Cache and borrowed-exit performance experiments retain their
+  existing defaults. See [GROUP BY](operators/group-by.md#jvm-aggregate-investigation).
+- **`streamfusion.experimental.nestedScalarUdfs`** (system property, default true) — enable
+  verified external Java Row callbacks and the matching nested RowKind/raw BINARY transport.
+  Configure the same value in planner and task JVMs; false restores the preceding transport and
+  nested-signature fallback. See [Calc/filter](operators/calc-filter.md).
 - **`streamfusion.dropUpdateBefore.standalone.enabled`** (default true) — enable a lone
   changelog filter after verified Rust-side Arrow admission. Explicit `false` retains stock
   for the standalone shape. Complete row-source jobs can still lose because of perimeter costs.
@@ -139,3 +147,19 @@ remain separate evidence, including retained slower wide-overlap jobs.
 
 See [Benchmarks](benchmarks.md) for how to reproduce the throughput numbers, and
 [Optimizations](optimizations/index.md) for how these flags map to specific performance techniques.
+
+
+## Binary selection
+
+The JVM system property `streamfusion.experimental.binaryElt` defaults to `true`. Verified
+INTEGER-indexed binary `ELT` expressions run without an opt-in. Explicit `false` retains
+stock execution; use the same setting in planner and task JVMs. This also transports SQL `BINARY(n)` values through length-delimited
+Arrow Binary vectors, preserving raw payload lengths without changing their SQL types.
+The nested-scalar option independently selects the same transport when enabled.
+
+Ordinary safe selection uses the existing Rust kernel; expressions requiring released
+Flink evaluation retain that generated path. Unsupported index overloads retain fallback.
+Legacy variable-length cast guards and nested scalar admission rules are unchanged.
+Default admission follows the Rust/Arrow versus Java/RowData functionality gate. The
+[historical binary measurements](operators/calc-filter.md#binary-casts-and-fixed-width-generated-expressions)
+retain slower conversion-inclusive standalone results; they are separate from this gate.

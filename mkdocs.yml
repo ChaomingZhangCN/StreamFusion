@@ -126,11 +126,13 @@ nav:
       - AppendFast Top-1: benchmarks/append-top1.md
       - Performance audit reproduction: benchmarks/performance-audit.md
       - Scalar functions: benchmarks/scalar-functions.md
+      - Nested Java scalars: benchmarks/nested-scalars.md
       - Decimal expressions: benchmarks/decimal-expressions.md
       - Fast Iceberg I/O loop: benchmarks/iceberg-io.md
       - Iceberg streaming results: benchmarks/iceberg-optimized-20261017/README.md
       - Kafka to Iceberg results: benchmarks/kafka-iceberg-final-20261017/README.md
       - Basic type coverage: benchmarks/basic-type-coverage.md
+      - JVM aggregate investigation: benchmarks/jvm-aggregates.md
       - Floating GROUP BY: benchmarks/floating-group-by.md
       - Flink 1.18 compatibility: benchmarks/flink118-nexmark.md
   - Optimizations:
