@@ -12,6 +12,8 @@ public final class FlinkCompat {
 
   public static final boolean NARROW_CONSTRUCTORS_COMPILE = false;
 
+  public static final boolean ORDERED_MAP_CONSTRUCTORS = false;
+
   public static final boolean TABLE_RUNTIME_ELEMENT_EXCEPTION = false;
 
   public static long miniBatchSize(org.apache.flink.configuration.ReadableConfig config) {

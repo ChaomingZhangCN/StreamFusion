@@ -2764,6 +2764,10 @@ or input-reference expressions. Runtime equal keys remain separate entries;
 repeated/generated key expressions retain Flink evaluation because its constructor
 deduplicates generated expressions rather than runtime key values. Fallible
 operands also remain generated, including discarded value-expression cases.
+On Flink 1.18, multi-entry constructors also retain generated evaluation because
+the released constructor uses unordered generated-expression grouping. The Rust
+fixtures exercise the kernel, not permission to bypass this SQL admission rule;
+see [the constructor contract](../operators/calc-filter.md#collection-expressions).
 
 ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
 released named-struct builder, sharing field arrays. Fields retain their SQL

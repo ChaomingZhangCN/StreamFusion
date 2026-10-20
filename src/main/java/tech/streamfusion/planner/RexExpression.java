@@ -1633,6 +1633,8 @@ final class RexExpression {
       if (!nativeBasicMap(call.getType()) || args.isEmpty() || args.size()%2!=0
           || args.stream().anyMatch(this::requiresRowShortCircuit))
         return reject("MAP uses Flink evaluation outside total nullable basic pairs");
+      if (args.size() > 2 && !tech.streamfusion.compat.FlinkCompat.ORDERED_MAP_CONSTRUCTORS)
+        return reject("MAP retains Flink 1.18's generated-expression grouping order");
       for(int i=0;i<args.size();i+=2) {
         RexNode key=args.get(i);
         if (!(key instanceof RexLiteral || key instanceof RexInputRef) || !keys.add(key))

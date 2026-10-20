@@ -388,6 +388,14 @@ Elapsed time changes by -15.13% versus the prior evaluator and +24.32% versus pa
 
 [All 20 trials](../benchmarks/collection-map-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-map-2026-10-20.json) and [9 allocation probes](../benchmarks/collection-map-allocations-2026-10-20.csv) retain the evidence. Nine released SQL tests cover basic type widths and repeated-key expression fallback, including discarded fallible values.
 
+Flink 2.2 uses ordered grouping of generated key expressions. Its verified native
+constructors can therefore feed ordinary Arrow UNNEST while preserving entry order.
+Flink 1.18 groups through an unordered map; multi-entry constructors retain the
+released generator instead of imposing the native constructor's order on later
+consumers. Single-entry constructors retain native execution. These admission
+limits leave the single-entry Flink 2.2 benchmark above unchanged; no separate
+UNNEST speedup is claimed by this compatibility correction.
+
 ## ROW complete-job evidence
 
 Query: `ROW(idx,idx+1)`, 2,000,000 rows, INT, width 8. Method and resources match the complete-job method above.

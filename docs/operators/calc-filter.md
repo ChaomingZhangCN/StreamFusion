@@ -2090,7 +2090,7 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | MAP_ENTRIES | Rust shared entry-row list for verified basic maps; representation-sensitive row consumers remain generated |
 | MAP_UNION | Rust stable typed membership/gather for total matching nullable basic maps, preserving right ordering/duplicates and Flink NULL-key behavior |
 | Runtime ARRAY[...] | Rust construction for matching nullable BOOLEAN/integer/DECIMAL/DATE/TIME/TIMESTAMP/LTZ elements and total arguments; other projected signatures retain the generated program; UNNEST retains its existing wider scalar-specific admission |
-| Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated |
+| Runtime MAP[...] | Rust construction for total nullable basic keys/values and distinct literal/input-reference key expressions; repeated/generated keys and fallible arguments remain generated; Flink 1.18 multi-entry constructors retain generated grouping order |
 | Runtime ROW(...) | Released DataFusion named-struct construction for total BOOLEAN/integer/DECIMAL fields; other fields and representation-sensitive consumers remain generated |
 | OBJECT_OF | Released named-struct construction for validated metadata and total basic fields; other signatures remain generated |
 | OBJECT_UPDATE | Native field selection only for one unshared inline basic OBJECT_OF in the complete Calc and atomic literal/input-reference values; shared objects and other signatures remain generated |
@@ -2718,6 +2718,11 @@ or input-reference expressions. Runtime equal keys remain separate entries;
 repeated/generated key expressions retain Flink evaluation because its constructor
 deduplicates generated expressions rather than runtime key values. Fallible
 operands also remain generated, including discarded value-expression cases.
+Flink 1.18 groups generated key expressions through an unordered map rather than
+the ordered grouping used by 2.2. Its multi-entry MAP constructors retain complete
+Flink generation so later lookups and array-valued consumers do not assume an
+unverified construction order. Verified single-entry constructors remain native;
+the existing narrow-integer compilation restrictions still apply.
 
 ROW constructors with total BOOLEAN/integer/DECIMAL fields reuse DataFusion's
 released named-struct builder, sharing field arrays. Fields retain their SQL

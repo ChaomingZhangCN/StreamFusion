@@ -19,7 +19,21 @@ class FlinkMapConstructorSqlHarnessTest {
       return;
     }
     FlinkArrayEditSqlHarnessTest.verify(type,"MAP[n,n]","MAP");
-    FlinkArrayEditSqlHarnessTest.verify(type,"MAP[n,n,CAST(NULL AS "+t+"),n]","MAP");
+    String expression = "MAP[n,n,CAST(NULL AS " + t + "),n]";
+    if (tech.streamfusion.compat.FlinkCompat.ORDERED_MAP_CONSTRUCTORS) {
+      FlinkArrayEditSqlHarnessTest.verify(type, expression, "MAP");
+    } else {
+      String sql = "SELECT id," + expression + " FROM src";
+      var table = FlinkArrayEditSqlHarnessTest.environment(type);
+      var scan = tech.streamfusion.planner.NativePlanner.install(table);
+      table.explainSql(sql);
+      assertTrue(
+          scan.functionExecutions().stream().anyMatch(execution -> execution.contains("jvm=[MAP]")),
+          scan.functionExecutions().toString());
+      BuiltinFunctionParity.assertParity(() -> FlinkArrayEditSqlHarnessTest.environment(type), sql);
+      BuiltinFunctionParity.assertParity(
+          () -> FlinkArrayEditSqlHarnessTest.environment(type), sql + " WHERE id < 0");
+    }
   }
   @ParameterizedTest
   @ValueSource(strings={"MAP[n,n,n,n]","MAP[n,n,n,1/n]","MAP[n,1/n,n,n]"})
