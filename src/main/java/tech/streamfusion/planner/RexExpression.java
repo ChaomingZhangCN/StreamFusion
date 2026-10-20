@@ -1644,6 +1644,8 @@ final class RexExpression {
       return emitBuiltinCall(call,196);
     }
     if (NativeConfig.collectionExpressionsEnabled() && call.getKind()==SqlKind.ROW) {
+      if (call.getOperands().stream().anyMatch(arg -> !hostSupportsConstructorField(arg.getType())))
+        return reject("ROW retains Flink 1.18's narrow-constructor code-generation failure");
       if (call.getOperands().isEmpty() || call.getOperands().stream().anyMatch(arg ->
           !java.util.Set.of(SqlTypeName.BOOLEAN,SqlTypeName.TINYINT,SqlTypeName.SMALLINT,
               SqlTypeName.INTEGER,SqlTypeName.BIGINT,SqlTypeName.DECIMAL).contains(arg.getType().getSqlTypeName())

@@ -2766,6 +2766,15 @@ fallback because the released binary-array initializer does not compile. Direct
 map inputs and map projection kernels retain their independently verified narrow
 type support. Flink 2.2 retains native basic MAP construction.
 
+Flink 1.18 ROW constructors containing TINYINT/SMALLINT fields keep stock fallback
+for the released narrow-writer initialization failure. The SQL tests assert that
+failure for the constructed row and field-access forms; Flink 2.2 still evaluates
+verified basic rows in Rust.
+
 Native map-producing collection expressions retain the row-sink requirement. Their
 nullable-key map-list carrier is an internal batch representation, not a verified
 Parquet MAP encoding; a native sink must not consume it as an ordinary Arrow MAP.
+
+Native ROW-bearing collection results retain the existing row-sink requirement as
+well. Arrow field sharing inside Calc does not widen connector admission for Java
+row representation, RowKind, or nested copy semantics.
