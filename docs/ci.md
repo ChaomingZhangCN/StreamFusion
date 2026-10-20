@@ -5,6 +5,11 @@ Ordinary CI runs Rust tests, release Criterion fixture checks, Java tests on Fli
 The upstream Flink workflow runs separately; both aggregate gates must pass before merging.
 Confirm the actual post-merge workflows as well as the PR checks when verifying a repair.
 
+CI, upstream Flink, and Paimon compatibility workflows cancel older test runs when a newer
+push or PR update targets the same ref. The latest main commit includes the earlier changes
+and receives the complete checks, without waiting behind tests for superseded main commits.
+Release publishing retains its non-canceling concurrency policy.
+
 ## Shared debug native libraries
 
 Ordinary CI builds all workspace debug native libraries once in a dedicated Ubuntu 24.04
