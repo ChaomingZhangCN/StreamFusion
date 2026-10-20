@@ -44,7 +44,8 @@ updating MAP payloads retain the independent restriction above until their compl
 are qualified in [#437](https://github.com/datafusion-contrib/StreamFusion/issues/437).
 
 The [released-operator evidence](../../benchmarks/results/unique-join-retractions-2026-10-20.json)
-records 24 unique-key failures in each preceding 48-case heap baseline. All 96 heap/Rocks
+records 24 unique-key failures in each preceding 48-case heap baseline. The oracle
+declares column zero as the unique key, matching its keyed input partition. All 96 heap/Rocks
 comparisons now pass on both released lines. Existing Java/SQL regressions total 141 passes on
 2.2 and 140 with one host-capability skip on 1.18; 106 native join tests pass with two existing
 ignores. The 32 native state fixtures are correctness smokes, not throughput comparisons.

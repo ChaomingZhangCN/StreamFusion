@@ -23,7 +23,11 @@ public final class FlinkJoinContracts {
       int kind, InternalTypeInfo<RowData> type, GeneratedJoinCondition condition, boolean unique) {
     var side =
         unique
-            ? JoinInputSideSpec.withUniqueKeyContainedByJoinKey(type, r -> r)
+            ? JoinInputSideSpec.withUniqueKeyContainedByJoinKey(
+                InternalTypeInfo.<RowData>of(
+                    org.apache.flink.table.types.logical.RowType.of(
+                        new org.apache.flink.table.types.logical.BigIntType())),
+                r -> org.apache.flink.table.data.GenericRowData.of(r.getLong(0)))
             : JoinInputSideSpec.withoutUniqueKey();
     return kind < 4
         ? new StreamingJoinOperator(

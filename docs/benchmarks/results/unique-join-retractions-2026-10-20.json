@@ -153,5 +153,9 @@
     "configuration": "16/1024rows,1/16keys,nullablevalues,bothsides,heap/directRocks"
   },
   "optional_backend": "release cargo check --no-default-features --bench unique_join_retractions passed",
-  "remaining": "Updating MAP-bearing retained inputs still guarded under issue437. This repair is prerequisite work and does not establish complete MAP equality/retraction or aggregate/type/function parity."
+  "remaining": "Updating MAP-bearing retained inputs still guarded under issue437. This repair is prerequisite work and does not establish complete MAP equality/retraction or aggregate/type/function parity.",
+  "oracle_key_metadata_recheck": {
+    "22": "96 pass after declaring the actual one-column join/unique key in the version-specific oracle metadata. The contained-unique-key runtime contract is unchanged.",
+    "118": "96 pass after declaring the actual one-column join/unique key in the version-specific oracle metadata. The contained-unique-key runtime contract is unchanged."
+  }
 }
