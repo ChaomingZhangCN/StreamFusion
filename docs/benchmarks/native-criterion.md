@@ -270,7 +270,9 @@ the operation's other profiles before accepting an optimization. Run timing suit
 an otherwise quiet host. Inspect Criterion's confidence intervals and repeat noisy comparisons;
 report input rows per second only with the stated output cardinality. Smoke mode uses Criterion
 `--test`, executes each fixture once, and produces no timing baseline. CI runs smoke checks and
-retains diagnostics without enforcing performance thresholds on shared runners.
+retains diagnostics without enforcing performance thresholds on shared runners. CI output lives
+in a fresh runner temporary directory outside the Cargo cache, preventing restored logs from
+appearing as evidence for a new run.
 
 The typed-value suite adds 336 DATE/TIME/BOOLEAN MIN/MAX/FIRST/LAST fixtures across all
 four rowtime shapes and the three admitted proctime shapes, 64/4,096 rows and one/64 keys.

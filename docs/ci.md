@@ -58,6 +58,11 @@ A newer PR head cancels obsolete runs, including JVM aggregate release diagnosti
 checks and diagnostic fixtures still run on the current head. Superseded PRs should be closed
 and their active runs canceled rather than leaving multiple copies queued.
 
+Criterion, JVM aggregate and nested-scalar artifacts use fresh runner temporary directories,
+outside the cached Cargo target. Restored dependency builds must not restore candidate-library
+snapshots or old trials into a new run. Artifact uploads retain these temporary outputs even
+when a diagnostic fails.
+
 Default-enabled paths need positive native-route assertions. Fixed-size-binary compatibility
 tests construct that legacy physical schema explicitly rather than changing global feature
 flags. Component-timestamp extrema exercise checkpoint/retraction values on RocksDB, including

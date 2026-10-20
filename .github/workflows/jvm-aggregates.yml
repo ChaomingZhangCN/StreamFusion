@@ -113,7 +113,7 @@ jobs:
           SF_NATIVE_PAYLOAD_CACHE_HIT: ${{ steps.native-payload.outputs.cache-hit }}
         run: >-
           python3 bin/bench-jvm-aggregates.py --flink-line '${{ matrix.line }}'
-          --output native/target/jvm-aggregate-diagnostics
+          --output "$RUNNER_TEMP/jvm-aggregate-diagnostics"
           --profiler-agent "$RUNNER_TEMP/async-profiler-4.6-linux-x64/lib/libasyncProfiler.so"
           --borrowed-string-exit
       - name: Validate UTF-8 ownership and table-function recovery before measurements
@@ -130,7 +130,7 @@ jobs:
           SF_BENCHMARK: 'true'
         run: |
           sf_table_native="$GITHUB_WORKSPACE/native/target/release"
-          sf_table_output="$GITHUB_WORKSPACE/native/target/jvm-aggregate-diagnostics"
+          sf_table_output="$RUNNER_TEMP/jvm-aggregate-diagnostics"
           for sf_table_case in basic wide grouped distinct wide-distinct; do
             sf_table_text_cardinality=1
             case "$sf_table_case" in
@@ -157,18 +157,18 @@ jobs:
           --native-table-baseline 846cbb7c5cd8c14fb4cfe32b9329dd3f1b13ef70
           --borrowed-string-exit
           --worktree "$RUNNER_TEMP/streamfusion-previous-native-tables"
-          --output native/target/jvm-aggregate-diagnostics/previous-native-tables
+          --output "$RUNNER_TEMP/jvm-aggregate-diagnostics/previous-native-tables"
       - name: Build then measure the actual previous fallback revision
         run: >-
           python3 bin/bench-jvm-previous.py --flink-line '${{ matrix.line }}'
           --worktree "$RUNNER_TEMP/streamfusion-previous-runtime"
-          --output native/target/jvm-aggregate-diagnostics/previous-runtime
+          --output "$RUNNER_TEMP/jvm-aggregate-diagnostics/previous-runtime"
       - name: Retain every trial, GC log, profile and correctness report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jvm-aggregate-diagnostics-${{ matrix.line }}-${{ github.sha }}
           path: |
-            native/target/jvm-aggregate-diagnostics/
+            ${{ runner.temp }}/jvm-aggregate-diagnostics/
             streamfusion-runtime/target/surefire-reports/
           retention-days: 14
