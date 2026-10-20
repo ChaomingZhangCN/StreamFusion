@@ -1978,15 +1978,17 @@ final class RexExpression {
           : "ARRAY_PREPEND".equals(functionName) ? 183 : 184);
     }
     if (NativeConfig.collectionExpressionsEnabled()
-        && ("ARRAY_CONCAT".equals(functionName) || "ARRAY_UNION".equals(functionName))) {
+        && ("ARRAY_CONCAT".equals(functionName) || "ARRAY_UNION".equals(functionName)
+            || "ARRAY_EXCEPT".equals(functionName))) {
       var args = call.getOperands();
-      if (args.size() < 2 || "ARRAY_UNION".equals(functionName) && args.size() != 2
+      if (args.size() < 2 || !"ARRAY_CONCAT".equals(functionName) && args.size() != 2
           || args.stream().anyMatch(arg -> !nativeBasicArray(arg.getType())
               || !org.apache.calcite.sql.type.SqlTypeUtil.equalSansNullability(
                   args.get(0).getType(),arg.getType()) || requiresRowShortCircuit(arg))) {
         return reject(functionName + " uses Flink evaluation outside total matching basic arrays");
       }
-      return emitBuiltinCall(call,"ARRAY_CONCAT".equals(functionName) ? 185 : 186);
+      return emitBuiltinCall(call,"ARRAY_CONCAT".equals(functionName) ? 185
+          : "ARRAY_UNION".equals(functionName) ? 186 : 187);
     }
     if (NativeConfig.collectionExpressionsEnabled()
         && ("ARRAY_MIN".equals(functionName) || "ARRAY_MAX".equals(functionName))) {

@@ -82,6 +82,15 @@ NULL. The planner retains generated evaluation for other representations and
 fallible operands. SQL fixtures exercise distinct left/right lengths and both
 operand orders rather than assuming that a set operation may reorder its result.
 
+## Stable array difference
+
+ARRAY_EXCEPT dispatches once to typed integer, decimal or Boolean values. A reused
+hash set records the right input and then each emitted left value, so NULL is a
+first-class key, duplicates disappear and left occurrence order is preserved.
+Only the selected left values are gathered; per-row JVM objects and serialized
+row keys are unnecessary. Independent expected results and differing operand
+lengths exercise NULLs, duplicate values and stable order.
+
 ## ARRAY_PREPEND complete-job evidence
 
 Query: `ARRAY_PREPEND(arr,CAST(idx AS BIGINT))`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
@@ -141,3 +150,18 @@ Query: `ARRAY_UNION(arr,arr)`, 1,000,000 rows, BIGINT, width 64. Method and reso
 Elapsed time changes by -84.01% versus the prior evaluator and -83.22% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
 
 [All 20 trials](../benchmarks/collection-array-union-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-union-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-union-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.
+
+## ARRAY_EXCEPT complete-job evidence
+
+Query: `ARRAY_EXCEPT(arr,arr)`, 1,000,000 rows, BIGINT, width 64. Method and resources match the complete-job method above.
+
+| Cohort | Median seconds | Range seconds |
+| --- | ---: | ---: |
+| baseline stock | 2.194777 | 2.157157-2.219175 |
+| baseline streamfusion | 2.488554 | 2.433773-2.537326 |
+| candidate stock | 2.274940 | 2.226252-2.339422 |
+| candidate streamfusion | 0.955151 | 0.933976-0.968978 |
+
+Elapsed time changes by -61.62% versus the prior evaluator and -58.01% versus paired stock Flink. Ranges remain visible; small overlapping differences do not establish a sustained advantage.
+
+[All 20 trials](../benchmarks/collection-array-except-2026-10-20.csv), [fixture/checksums](../benchmarks/collection-array-except-2026-10-20.json) and [90 allocation probes](../benchmarks/collection-array-except-allocations-2026-10-20.csv) retain the evidence. Six per-function SQL tests pass across Boolean, integer widths and exact wide DECIMAL; all nine registry profiles and the independent compiled-Calc fixtures pass.

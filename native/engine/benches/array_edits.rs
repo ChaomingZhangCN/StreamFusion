@@ -48,6 +48,9 @@ fn fixture(
                         let mut seen = std::collections::HashSet::new();
                         a.retain(|v| seen.insert(*v));
                     }
+                    187 => {
+                        a.clear();
+                    }
                     _ => unreachable!(),
                 }
                 a
@@ -77,7 +80,7 @@ fn run(c: &mut Criterion) {
                     DataType::Int64,
                     DataType::Decimal128(38, 9),
                 ] {
-                    for op in [182, 183, 184, 185, 186] {
+                    for op in [182, 183, 184, 185, 186, 187] {
                         let (batch, expected) = fixture(&kind, rows, width, nulls, op);
                         let mut calc = CalcProgram::new(
                             vec![6, 0, 0],
@@ -93,6 +96,7 @@ fn run(c: &mut Criterion) {
                             184 => "remove",
                             185 => "concat",
                             186 => "union",
+                            187 => "except",
                             _ => unreachable!(),
                         };
                         let label = format!("{name}/{kind}/{rows}/width={width}/nulls={nulls}");

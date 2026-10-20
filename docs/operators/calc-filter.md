@@ -2079,7 +2079,8 @@ Existing admitted collection subscripts and Boolean/integer ARRAY_DISTINCT retai
 | ARRAY_REMOVE | Rust stable selection for matching nullable BOOLEAN/integer/DECIMAL arrays; removes every matching element, including NULL when the needle is NULL; other signatures retain Flink evaluation |
 | ARRAY_CONCAT | Rust concatenation for matching nullable BOOLEAN/integer/DECIMAL arrays; any NULL operand returns NULL; other signatures retain Flink evaluation |
 | ARRAY_UNION | Released DataFusion Rust kernel for matching nullable BOOLEAN/integer/DECIMAL arrays; first-occurrence order and one NULL element retained; either NULL container returns NULL |
-| ARRAY_SORT, ARRAY_EXCEPT, ARRAY_INTERSECT, ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
+| ARRAY_EXCEPT | Rust stable set difference for matching nullable BOOLEAN/integer/DECIMAL arrays, retaining the first left-side occurrence of each value absent on the right, with NULL treated as a value; either NULL array returns NULL |
+| ARRAY_SORT, ARRAY_INTERSECT, ARRAY_JOIN | Flink's released generated program through the existing batch JVM bridge |
 | MAP_KEYS, MAP_VALUES, MAP_ENTRIES, MAP_FROM_ARRAYS, MAP_UNION, ELEMENT | Same generated program |
 | Runtime ARRAY[...], MAP[...], ROW(...), OBJECT_OF, OBJECT_UPDATE | Same generated program; homogeneous scalar ARRAYs immediately consumed by UNNEST have a native consumer-specific path |
 
@@ -2169,7 +2170,7 @@ the original arrays; partial slices copy contiguous child ranges. CARDINALITY co
 elements, including NULL entries, rather than flattening nested arrays; map entries include NULL
 values and repeated keys. MULTISET retains released Flink's validation/code-generation behavior.
 
-Flink 1.18.1 lacks ARRAY_APPEND, ARRAY_PREPEND, ARRAY_SORT, ARRAY_EXCEPT, ARRAY_INTERSECT,
+Flink 1.18.1 lacks ARRAY_APPEND, ARRAY_PREPEND, ARRAY_SORT, ARRAY_INTERSECT,
 ARRAY_MIN, MAP_UNION, OBJECT_OF and OBJECT_UPDATE. The remaining signatures are checked on
 both supported releases; absent functions are explicitly N/A, not counted as native coverage.
 Binary-key map projection checks use ordered internal input: external Java byte-array keys have

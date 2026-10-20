@@ -105,6 +105,13 @@ class FlinkArrayEditSqlHarnessTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
+  void exceptDeduplicatesAndKeepsLeftInputOrder(String type) throws Exception {
+    verify(type,"ARRAY_EXCEPT(a,b)","ARRAY_EXCEPT");
+    verify(type,"ARRAY_EXCEPT(b,a)","ARRAY_EXCEPT");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL"})
   void unionPreservesFirstOccurrenceAcrossBothInputs(String type) throws Exception {
     verify(type,"ARRAY_UNION(a,b)","ARRAY_UNION");
     verify(type,"ARRAY_UNION(b,a)","ARRAY_UNION");

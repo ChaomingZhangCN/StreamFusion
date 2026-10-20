@@ -40,6 +40,7 @@ mod array_extrema_tests;
 pub(crate) mod array_item;
 mod array_remove;
 mod array_search;
+mod array_set;
 mod array_slice;
 mod ascii;
 mod binary_strings;
@@ -227,6 +228,7 @@ pub(crate) fn function(op: i64, arity: usize) -> Option<ScalarUDF> {
         186 => datafusion::functions_nested::set_ops::array_union_udf()
             .as_ref()
             .clone(),
+        187 => array_set::function(),
         _ => return None,
     })
 }
