@@ -2617,7 +2617,8 @@ including nullable keys, distinct raw NaN payloads, encode/decode checks and ses
 snapshot continuation. The released SQL matrix observes raw output key bits separately.
 
 `keys_and_checkpoints` adds `serialized_offset_kinds`: sixteen hidden-OFFSET fixtures on the
-production heap/direct-RocksDB retracting ranker, with 64/4096 input rows, one/64 partitions
+production heap/direct-RocksDB retracting ranker (heap fixtures also compile without the
+RocksDB feature), with 64/4096 input rows, one/64 partitions
 and either one physical batch or seven-row chunks. A five-record independent oracle pins
 backend-dependent INSERT/UPDATE/DELETE kinds after an insertion shifts retained rows and a
 later retraction compares their kinds. Operators, temporary databases and inputs are prepared
