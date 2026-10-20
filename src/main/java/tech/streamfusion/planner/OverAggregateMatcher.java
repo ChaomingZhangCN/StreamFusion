@@ -83,16 +83,6 @@ final class OverAggregateMatcher {
       return "OVER: expected COUNT(*) or one supported argument per aggregate; direct AVG requires"
           + " DECIMAL";
     }
-    if (proctimeOrder) {
-      for (int column : valueColumns(window, group, inputType)) {
-        if (column < inputType.getFieldCount()
-            && tech.streamfusion.arrow.MapListRepresentation.containsMap(
-                FlinkTypeFactory$.MODULE$.toLogicalType(
-                    inputType.getFieldList().get(column).getType()))) {
-          return "OVER: proctime MAP-valued COUNT retains Flink until conversion costs improve";
-        }
-      }
-    }
     // Running ROWS and RANGE share the persistent fold; bounded frames retain their input slice.
     if (!group.lowerBound.isPreceding()) {
       return "OVER: frame must have a PRECEDING lower bound";

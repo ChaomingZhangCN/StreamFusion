@@ -448,6 +448,14 @@ impl Session {
 pub struct Over(OverWindowAggregator);
 
 impl Over {
+    pub fn with_budget(mut self, budget_bytes: i64) -> Self {
+        self.0 = self
+            .0
+            .with_memory_budget(budget_bytes)
+            .expect("OVER benchmark budget");
+        self
+    }
+
     pub fn framed(value_type: i64, kind: i64, frame: i64, offset: i64, proctime: bool) -> Self {
         Over(OverWindowAggregator::new(
             vec![value_type],

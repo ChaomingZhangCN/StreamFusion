@@ -82,7 +82,12 @@ class FeatureAdmissionBenchmark {
     memory.set(TaskManagerOptions.TASK_OFF_HEAP_MEMORY, MemorySize.parse("1g"));
     TaskOffHeapMemory.initialize(memory);
     Plan stock = plan(name, false, null);
-    Plan[] plans = {stock, plan(name, true, stock.input)};
+    if (name.startsWith("over-map-"))
+      assertEquals(
+          "stock",
+          System.getProperty("admission.engines", "stock"),
+          "OVER admission uses the separate Rust driver");
+    Plan[] plans = {stock, name.startsWith("over-map-") ? stock : plan(name, true, stock.input)};
     assertEquals(plans[0].output.getChildren(), plans[1].output.getChildren());
     System.out.printf("[feature-admission-types] input=%s output=%s%n", stock.input, stock.output);
     var input = rows(name, count, keys, width, plans[0].input);
@@ -119,8 +124,8 @@ class FeatureAdmissionBenchmark {
       String export = System.getProperty("admission.exportArrow");
       if (export != null) {
         assertTrue(
-            name.startsWith("string-") || name.equals("drop"),
-            "Rust fixture requires a string window or changelog case");
+            name.startsWith("string-") || name.equals("drop") || name.startsWith("over-map-"),
+            "Rust fixture requires a supported window, OVER or changelog case");
         try (var channel =
                 java.nio.channels.FileChannel.open(
                     java.nio.file.Path.of(export),
@@ -224,7 +229,9 @@ class FeatureAdmissionBenchmark {
             if (trial == 0) {
               if (engine == 0) expected = digest.values;
               else if (expected != null) assertEquals(expected, digest.values, name);
-              String oracle = System.getProperty("admission.rustOutput");
+              String oracle =
+                  System.getProperty(
+                      "admission.rustOutput." + name, System.getProperty("admission.rustOutput"));
               if (engine == 0 && oracle != null) {
                 Digest nativeDigest = new Digest(plan.output, true);
                 try (var channel =
@@ -331,21 +338,32 @@ class FeatureAdmissionBenchmark {
       table.getConfig().setLocalTimeZone(java.time.ZoneId.of("America/Los_Angeles"));
     table.getConfig().set("table.optimizer.agg-phase-strategy", "ONE_PHASE");
     Row dummy =
-        name.startsWith("attached-")
-            ? Row.of(0, 1L, java.time.Instant.EPOCH)
-            : name.startsWith("string-")
-                ? Row.of(0L, "x", java.time.Instant.EPOCH)
-                : name.startsWith("temporal-")
-                    ? Row.of(
-                        0, java.time.LocalDateTime.of(2020, 1, 1, 0, 0), java.time.Instant.EPOCH)
-                    : Row.of(0);
+        name.startsWith("over-map-")
+            ? Row.of(0L, Map.of("k", 1L))
+            : name.startsWith("attached-")
+                ? Row.of(0, 1L, java.time.Instant.EPOCH)
+                : name.startsWith("string-")
+                    ? Row.of(0L, "x", java.time.Instant.EPOCH)
+                    : name.startsWith("temporal-")
+                        ? Row.of(
+                            0,
+                            java.time.LocalDateTime.of(2020, 1, 1, 0, 0),
+                            java.time.Instant.EPOCH)
+                        : Row.of(0);
     var source = env.fromElements(dummy).returns(ExternalTypeInfo.<Row>of(input));
     var schema = Schema.newBuilder().fromRowDataType(input);
     if ((name.startsWith("string-") || name.startsWith("attached-")))
       schema.watermark("rt", "rt - INTERVAL '1' SECOND");
+    if (name.startsWith("over-map-")) schema.columnByExpression("pt", "PROCTIME()");
     table.createTemporaryView("src", table.fromDataStream(source, schema.build()));
     String sql;
-    if (name.startsWith("shared-")) {
+    if (name.startsWith("over-map-")) {
+      String frame =
+          name.endsWith("bounded")
+              ? "ROWS BETWEEN 3 PRECEDING AND CURRENT ROW"
+              : name.endsWith("range") ? "RANGE UNBOUNDED PRECEDING" : "ROWS UNBOUNDED PRECEDING";
+      sql = "SELECT k, COUNT(m) OVER (PARTITION BY k ORDER BY pt " + frame + ") FROM src";
+    } else if (name.startsWith("shared-")) {
       table.createTemporarySystemFunction(
           "tick",
           name.equals("shared-int")
@@ -408,19 +426,21 @@ class FeatureAdmissionBenchmark {
       if (node instanceof OneInputTransformation<?, ?>) {
         var one = (OneInputTransformation<?, ?>) node;
         boolean match =
-            (name.startsWith("string-") || name.startsWith("attached-"))
-                ? node.getName()
-                    .contains(
-                        nativeEngine
-                            ? name.equals("string-session")
-                                ? "NativeColumnarSessionWindowAgg"
-                                : "NativeColumnarWindowAgg"
-                            : name.equals("string-session")
-                                ? "GroupWindowAggregate"
-                                : "WindowAggregate")
-                : node.getName().contains(nativeEngine ? "NativeCalc" : "Calc")
-                    && (nativeEngine
-                        || one.getInputs().get(0).getOutputType() instanceof InternalTypeInfo);
+            name.startsWith("over-map-")
+                ? node.getName().contains("OverAggregate")
+                : (name.startsWith("string-") || name.startsWith("attached-"))
+                    ? node.getName()
+                        .contains(
+                            nativeEngine
+                                ? name.equals("string-session")
+                                    ? "NativeColumnarSessionWindowAgg"
+                                    : "NativeColumnarWindowAgg"
+                                : name.equals("string-session")
+                                    ? "GroupWindowAggregate"
+                                    : "WindowAggregate")
+                    : node.getName().contains(nativeEngine ? "NativeCalc" : "Calc")
+                        && (nativeEngine
+                            || one.getInputs().get(0).getOutputType() instanceof InternalTypeInfo);
         if (match) {
           RowType output =
               (RowType) query.getResolvedSchema().toPhysicalRowDataType().getLogicalType();
@@ -505,6 +525,10 @@ class FeatureAdmissionBenchmark {
   }
 
   private static DataType inputType(String name) {
+    if (name.startsWith("over-map-"))
+      return DataTypes.ROW(
+          DataTypes.FIELD("k", DataTypes.BIGINT()),
+          DataTypes.FIELD("m", DataTypes.MAP(DataTypes.STRING(), DataTypes.BIGINT())));
     if (name.startsWith("attached-"))
       return DataTypes.ROW(
           DataTypes.FIELD("k", DataTypes.INT()),
@@ -537,7 +561,30 @@ class FeatureAdmissionBenchmark {
     for (int i = 0; i < count; i++) {
       boolean missing = i % 7 == 0;
       GenericRowData row;
-      if (name.startsWith("attached-")) {
+      if (name.startsWith("over-map-")) {
+        var map = new LinkedHashMap<StringData, Long>();
+        if (i % 3 != 0)
+          for (int element = 0; element < width; element++)
+            map.put(
+                StringData.fromString("key" + element), element % 3 == 0 ? null : (long) (i % 127));
+        row = new GenericRowData(inputType.getFieldCount());
+        for (int field = 0; field < inputType.getFieldCount(); field++) {
+          switch (inputType.getTypeAt(field).getTypeRoot()) {
+            case BIGINT:
+              row.setField(field, (long) (i % keys));
+              break;
+            case MAP:
+              row.setField(field, missing ? null : new GenericMapData(map));
+              break;
+            case TIMESTAMP_WITHOUT_TIME_ZONE:
+            case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+              row.setField(field, TimestampData.fromEpochMillis(0));
+              break;
+            default:
+              throw new AssertionError(inputType);
+          }
+        }
+      } else if (name.startsWith("attached-")) {
         row = new GenericRowData(inputType.getFieldCount());
         long start = 1577836800000L + (i % 25) * 2000;
         long end = start + (name.equals("attached-count-wide") ? 30000 : 10000);
@@ -659,6 +706,20 @@ class FeatureAdmissionBenchmark {
                           type.getTypeAt(field)));
               v = timestamp.getMillisecond() * 31 + timestamp.getNanoOfMillisecond();
               if (text != null) value = timestamp;
+              break;
+            case MAP:
+              var map = row.getMap(field);
+              v = map.size();
+              if (text != null) {
+                var entries = new TreeMap<String, Long>();
+                for (int element = 0; element < map.size(); element++)
+                  entries.put(
+                      map.keyArray().getString(element).toString(),
+                      map.valueArray().isNullAt(element)
+                          ? null
+                          : map.valueArray().getLong(element));
+                value = entries;
+              }
               break;
             case VARCHAR:
             case CHAR:

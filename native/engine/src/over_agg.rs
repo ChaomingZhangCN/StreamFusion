@@ -3211,7 +3211,7 @@ impl OverWindowAggregator {
     /// Bounds this operator's state (buffered batches plus the inner per-key fold state) by the
     /// operator's task off-heap budget (negative = unaccounted), accounting restored state
     /// immediately.
-    fn with_memory_budget(mut self, budget_bytes: i64) -> Result<Self, DataFusionError> {
+    pub(crate) fn with_memory_budget(mut self, budget_bytes: i64) -> Result<Self, DataFusionError> {
         if budget_bytes < 0 {
             return Ok(self);
         }

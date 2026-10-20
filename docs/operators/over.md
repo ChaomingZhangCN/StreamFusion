@@ -6,7 +6,7 @@ shape, with the gaps enumerated below.
 Time-based `OVER` runs over one ascending order (rowtime or, where noted, proctime) and one window group. Each
 aggregate reads its own — possibly different — value column of type
 bigint/int/smallint/tinyint/double/float, exact DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN,
-TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
+TIMESTAMP and TIMESTAMP_LTZ. Ordinary COUNT also admits ARRAY/ROW/MAP/MULTISET. DATE/TIME/BOOLEAN support ordinary COUNT/MIN/MAX/FIRST_VALUE/LAST_VALUE; released Flink 1.18
 retains its DATE/TIME FIRST/LAST factory failures. Their frames and checkpoints retain the declared logical type.
 Narrow ints and 4-byte float retain the host result type. Decimal SUM/AVG use exact widened
 state; temporal extrema and selections retain milliseconds and fractional nanoseconds. `FIRST_VALUE`/`LAST_VALUE` and the window functions
@@ -340,8 +340,8 @@ The matcher declines:
 
 - Direct `AVG` outside DECIMAL. Flink can lower some other AVG forms to SUM/COUNT aggregates.
 - A non-numeric value column outside DECIMAL, CHAR/VARCHAR, DATE, TIME, BOOLEAN, TIMESTAMP
-  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW and event-time MAP/MULTISET.
-  Proctime complex arguments containing MAP/MULTISET retain Flink for conversion performance. Complex DISTINCT
+  and TIMESTAMP_LTZ, except ordinary COUNT also admits ARRAY/ROW/MAP/MULTISET.
+  Processing-time COUNT also admits MAP/MULTISET descendants in all existing proctime frames. Complex DISTINCT
   and complex value selections retain fallback. The scalar types admit ordinary COUNT and typed MIN/MAX/FIRST_VALUE/LAST_VALUE;
   DECIMAL also admits SUM/SUM0/AVG and their DISTINCT forms. COUNT(DISTINCT) additionally
   admits all these types; other DISTINCT aggregates retain their numeric whitelist.
@@ -765,9 +765,11 @@ benchmark behavior is unchanged.
 Ordinary `COUNT` over ARRAY, MAP and ROW reads only the parent validity bitmap. Empty containers
 and a non-NULL ROW with NULL children count as one; NULL parents count as zero. DISTINCT and
 other complex-valued reductions retain fallback. All four event-time frames admit these three types; running ROWS/RANGE and bounded ROWS
-over proctime admit ARRAY/ROW without MAP/MULTISET descendants. Proctime MAP-containing COUNT arguments
-retain Flink ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)): profiled Arrow/conversion costs did not reliably beat stock, including larger-batch
-diagnostics. The verified paths use the existing BIGINT membership/frame state.
+over proctime admit all three types, including nested MAP/MULTISET descendants. They use the
+existing BIGINT membership/frame state. The former conversion-performance refusal was
+evaluated under the old complete-job gate; the small-functionality gate now compares Flink
+on prepared RowData with StreamFusion inside Rust on prepared Arrow. Conversion-inclusive
+job results remain separate diagnostics, including earlier slower MAP profiles.
 
 Flink permits NULL map keys. Arrow Java declares map keys non-nullable, and Rust IPC enforces
 that declaration during restore. Newly admitted MAP-count inputs therefore use a tagged
@@ -839,13 +841,14 @@ new frame, membership, checkpoint or JNI format is introduced beyond that existi
 Eight released-SQL cases combine four event-time frames and two restores on each memory/native
 RocksDB backend. They return the original bags as well as counts, covering NULL parents,
 empty bags, NULL elements, varying occurrence counts and NULL-only partitions. Three more
-checks preserve proctime's MAP-storage performance fallback ([issue #419](https://github.com/datafusion-contrib/StreamFusion/issues/419)).
-DISTINCT also retains fallback. Both released Flink lines pass these eleven cases.
+checks exercise native proctime COUNT with original bags. Six additional proctime heap/RocksDB
+recovery cases preserve those bags through two restores, for seventeen checks on each
+released Flink line. DISTINCT retains fallback.
 
-The existing release OVER fixture suite adds 64 cases over 64/4,096 rows, one/64 keys,
-4/64 elements, four event-time frames and both regular MAP-of-UTF8-to-INT and IPC-safe
-nullable-element List carriers. Independent frame/peer/checkpoint oracles validate the
-260-case suite. Native setup stays outside timing; allocation requests and buffer sharing
+The existing release OVER fixture suite includes 112 MULTISET cases over 64/4,096 rows, one/64 keys,
+4/64 elements, four event-time frames, three proctime frames and both regular MAP-of-UTF8-to-INT
+and IPC-safe nullable-element List carriers. Independent frame/peer/checkpoint oracles
+validate the 308-case suite. Native setup stays outside timing; allocation requests and buffer sharing
 are recorded without equating either with copied bytes.
 
 
@@ -983,3 +986,50 @@ Final validation passes 108 selected checks on Flink 2.2 and 100 on Flink 1.18. 
 16/8 new heap/RocksDB two-restore cases, eight existing decimal recovery controls on each
 line, and 42 checks of Flink 1.18's upstream planning rejection. Native release validation
 passes 803 tests with two existing ignores; all 336 new SUM0 Criterion fixtures pass.
+
+## Processing-time MAP COUNT admission
+
+Ordinary COUNT of MAP, MULTISET and containers containing them uses the existing parent-validity
+operation in running ROWS/RANGE and bounded ROWS. There is no new feature toggle or runtime
+operator. Validation covers 64 selected SQL/recovery checks on each released Flink line, including
+original payloads, NULL map/multiset keys, nested descendants, partition shuffles and two
+restores with heap/native RocksDB state. The native suite adds 48 proctime MULTISET fixtures,
+for 308 complex COUNT fixtures in total.
+
+`FeatureAdmissionBenchmark -Dadmission.cases=over-map-rows,over-map-range,over-map-bounded`
+measures Flink's released production OVER operator on prebuilt BinaryRowData. Its matching
+`over_map_count` release Rust driver starts on Arrow buffers and retains frame/state work,
+allocation, a one-GiB native budget and equivalent output consumption inside Rust. Both
+engines prewarm the identical first input batch before timing. Arrow fixture preparation and
+perimeter transposes/JNI stay outside this small-functionality gate. Full-value/RowKind
+validation uses separately exported native output; checksum-only equality is insufficient.
+The preceding StreamFusion refusal used the same stock operator as Flink at this boundary.
+
+Five warmups and nine measured trials, batch size 1,024, NULL parents every seventh row and
+empty maps every third row produce these medians (ranges retain all measured samples):
+
+| Flink / rows / keys / width / frame | Flink ms (range) | Rust ms (range) | Flink/Rust |
+| --- | ---: | ---: | ---: |
+| 2.2.1 / 16,384 / 64 / 4 / rows | 8.666 (4.421–15.876) | 0.923 (0.881–1.211) | 9.38× |
+| 2.2.1 / 16,384 / 64 / 4 / range | 3.066 (2.823–7.880) | 0.911 (0.889–1.008) | 3.36× |
+| 2.2.1 / 16,384 / 64 / 4 / bounded | 7.174 (6.639–17.837) | 2.005 (1.994–2.088) | 3.58× |
+| 2.2.1 / 262,144 / 4,096 / 16 / rows | 56.153 (46.406–70.790) | 15.837 (15.412–17.361) | 3.55× |
+| 2.2.1 / 262,144 / 4,096 / 16 / range | 54.039 (48.298–80.821) | 16.838 (15.953–17.518) | 3.21× |
+| 2.2.1 / 262,144 / 4,096 / 16 / bounded | 125.653 (107.488–196.120) | 37.974 (37.283–40.261) | 3.31× |
+| 2.2.1 / 131,072 / 64 / 64 / rows | 31.873 (30.764–49.977) | 6.635 (6.438–7.192) | 4.80× |
+| 2.2.1 / 131,072 / 64 / 64 / range | 37.919 (31.274–47.297) | 6.941 (6.537–8.944) | 5.46× |
+| 2.2.1 / 131,072 / 64 / 64 / bounded | 73.297 (64.934–76.214) | 15.988 (15.540–16.972) | 4.58× |
+| 1.18.1 / 262,144 / 4,096 / 16 / rows | 55.830 (47.093–68.679) | 14.912 (14.494–16.820) | 3.74× |
+| 1.18.1 / 262,144 / 4,096 / 16 / range | 59.547 (48.847–70.437) | 15.822 (15.674–18.238) | 3.76× |
+| 1.18.1 / 262,144 / 4,096 / 16 / bounded | 123.823 (117.574–131.749) | 37.749 (37.176–43.265) | 3.28× |
+
+All twelve profiles pass the functionality gate at 3.21–9.38× stock. No new kernel optimization
+was needed under this boundary. These are operation timings, not complete-job speedups.
+[Raw trials and verification evidence](../benchmarks/results/proctime-map-count-2026-10-19.json)
+retain every warmup/sample, fixture/driver hashes, full-value oracle checks and preliminary
+diagnostics. Earlier conversion-inclusive MAP regressions remain available above.
+
+Export the Arrow fixture with `-Dadmission.exportArrow=fixture.arrow`, then run the compiled
+`over_map_count` release example with `fixture.arrow rows 5 9 output.arrow` (or `range` /
+`bounded`). `-Dadmission.rustOutput.over-map-rows=output.arrow` verifies the matching stock
+profile against full native results; use the corresponding property for the other frames.
