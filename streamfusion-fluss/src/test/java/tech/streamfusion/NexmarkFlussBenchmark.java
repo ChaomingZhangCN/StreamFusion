@@ -332,12 +332,7 @@ class NexmarkFlussBenchmark {
       FlussPlanAssertions.assertNativeInterior(execution, key != null, query.label);
       if (query.label.equals("q3")) {
         assertTrue(plan.contains("NativeShare(consumers=[2])"), scan.explainSummary());
-        assertEquals(
-            1,
-            execution.get("nodes").findValuesAsText("contents").stream()
-                .filter(contents -> contents.startsWith("Source: NativeSource("))
-                .count(),
-            "q3 must share one columnar source between both join branches");
+        FlussPlanAssertions.assertSingleNativeSource(execution, query.label);
       }
     }
     String profiler = System.getProperty("profile.asprof");

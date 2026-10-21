@@ -43,6 +43,8 @@ Flink's original `select` and `where` expressions and show these final assignmen
 No diagnostic flag is required for these plan attributes. The acceleration summary returned by
 `PhysicalPlanScan.explainSummary()` includes the function assignments and JVM selection reasons;
 the always-on planning log also counts Calc/filter nodes containing JVM functions.
+Flink's operator metrics use these detailed names as well; select Calc/filter metric groups by the
+`NativeCalc(` or `NativeFilter(` prefix rather than their execution-node class names.
 
 Generated expression code is built entirely in the planner. Serialized Calc/filter bindings
 carry only the generated function, runtime types/schema and user-function references; workers
