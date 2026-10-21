@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.apache.flink.table.api.DataTypes.*;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.flink.table.annotation.DataTypeHint;
 import org.apache.flink.table.annotation.FunctionHint;
 import org.apache.flink.table.api.TableEnvironment;
@@ -23,7 +22,7 @@ class FlinkMapProjectionSqlHarnessTest {
           table.createTemporarySystemFunction("entry_kinds", new EntryKinds());
           return table;
         };
-    String sql = "SELECT id,entry_kinds(MAP_ENTRIES(m)) FROM src";
+    String sql = "SELECT id,entry_kinds(MAP_ENTRIES(m)[1]) FROM src";
     var table = environment.get();
     var scan = tech.streamfusion.planner.NativePlanner.install(table);
     table.explainSql(sql);
@@ -36,14 +35,11 @@ class FlinkMapProjectionSqlHarnessTest {
   }
 
   @FunctionHint(
-      input = @DataTypeHint("ARRAY<ROW<`key` BIGINT, `value` BIGINT>>"),
+      input = @DataTypeHint("ROW<`key` BIGINT, `value` BIGINT>"),
       output = @DataTypeHint("STRING"))
   public static class EntryKinds extends ScalarFunction {
-    public String eval(Row[] entries) {
-      if (entries == null) return null;
-      return Arrays.stream(entries)
-          .map(entry -> entry.getKind().name())
-          .collect(Collectors.joining(","));
+    public String eval(Row entry) {
+      return entry == null ? null : entry.getKind().name();
     }
   }
 
