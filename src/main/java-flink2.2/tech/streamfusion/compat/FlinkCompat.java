@@ -10,6 +10,12 @@ import org.apache.flink.table.planner.plan.logical.WindowSpec;
 public final class FlinkCompat {
   private FlinkCompat() {}
 
+  public static final boolean NARROW_CONSTRUCTORS_COMPILE = true;
+
+  public static final boolean ORDERED_MAP_CONSTRUCTORS = true;
+
+  public static final boolean TABLE_RUNTIME_ELEMENT_EXCEPTION = true;
+
   public static long miniBatchSize(org.apache.flink.configuration.ReadableConfig config) {
     return org.apache.flink.table.planner.plan.utils.MinibatchUtil.miniBatchSize(config);
   }
