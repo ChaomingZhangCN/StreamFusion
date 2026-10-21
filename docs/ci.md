@@ -10,6 +10,12 @@ push or PR update targets the same ref. The latest main commit includes the earl
 and receives the complete checks, without waiting behind tests for superseded main commits.
 Release publishing retains its non-canceling concurrency policy.
 
+The ordinary CI and upstream Flink aggregate gates run after successful or failed jobs,
+but skip canceled workflows (`always() && !cancelled()`). An unconditional `always()`
+gate can wait for another runner after the obsolete test jobs have been canceled,
+keeping the workflow's concurrency slot occupied and the replacement run pending.
+Failures and unexpected skipped dependencies still fail the aggregate's result checks.
+
 ## Native execution checks instead of exhaustive benchmark smoke
 
 Ordinary CI does not run the exhaustive native Criterion fixture suite or require new
