@@ -10,7 +10,7 @@ class FlussPlanAssertionsTest {
   void permitsTimestampInsertionOnlyAfterThePrimaryKeySinkTranspose() throws Exception {
     var graph =
         graph(
-            "Source: native-fluss-source",
+            "Source: NativeSource(table=[source], fields=[id])",
             "NativeCalcExecNode[1]",
             "ArrowToRowDataExecNode[2]",
             "ConstraintEnforcer[3]",
@@ -26,7 +26,7 @@ class FlussPlanAssertionsTest {
   void rejectsStockOperatorsInTheQueryInterior() throws Exception {
     var graph =
         graph(
-            "Source: native-fluss-source",
+            "Source: NativeSource(table=[source], fields=[id])",
             "StreamRecordTimestampInserter[1]",
             "NativeDeduplicateExecNode[2]",
             "ArrowToRowDataExecNode[3]",
@@ -35,7 +35,9 @@ class FlussPlanAssertionsTest {
         AssertionError.class, () -> FlussPlanAssertions.assertNativeInterior(graph, true, "q18"));
     var stockAggregate =
         graph(
-            "Source: native-fluss-source", "GroupAggregate[1]", "native-fluss-append-sink: Writer");
+            "Source: NativeSource(table=[source], fields=[id])",
+            "GroupAggregate[1]",
+            "NativeSink(table=[target], fields=[id]): Writer");
     assertThrows(
         AssertionError.class,
         () -> FlussPlanAssertions.assertNativeInterior(stockAggregate, false, "append"));

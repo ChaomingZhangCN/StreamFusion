@@ -39,9 +39,7 @@ final class FlussPlanAssertions {
   }
 
   private static boolean isNative(String type) {
-    return type.startsWith("Native")
-        || type.equals("Source: native-fluss-source")
-        || type.startsWith("native-fluss-append-sink:");
+    return type.startsWith("Native") || type.startsWith("Source: NativeSource(");
   }
 
   private static boolean isSinkBoundary(String type) {
