@@ -103,6 +103,21 @@ row mutation from serialized state copies; the released-Flink SQL controls remai
 Nested connector schemas must exclude internal ROW transport fields while retaining user fields,
 nulls, logical ordering and independently owned Arrow buffer references.
 
+## Reuse SQL results across parity assertions
+
+`NativeParity.assertOrderedKindedParity` checks the ordered changelog, including row kinds,
+and folds those same collected rows to compare the final materialized multisets. It executes
+one stock job and one native job and retains the native-substitution assertion. Six SQL
+suites reuse these results instead of launching an identical pair solely for the materialized
+comparison. The variable-bound update-fast Top-N suite alone avoids 100 duplicate job
+submissions across 50 cases.
+
+Separate mini-batch configurations, recovery runs and unordered-only comparisons keep their
+own executions. In particular, the updating-limit ranked mini-batch case still runs its
+materialized comparison when ordered parity does not apply. Standalone materialized checks
+continue to fold the result iterator as a stream, without buffering an entire changelog.
+The existing job matrix and Surefire fork counts stay the same.
+
 ## MiniCluster reuse within a test JVM
 
 A JUnit launcher-session listener owns the automatic StreamFusion test MiniCluster.
